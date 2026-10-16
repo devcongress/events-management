@@ -112,8 +112,6 @@ const AdminAnnualConferenceView = () =>
   import("./views/admin/AdminAnnualConferenceView.vue");
 const AdminAnnualConferenceWorkPlanView = () =>
   import("./views/admin/AdminAnnualConferenceWorkPlanView.vue");
-const AdminAnnualConferenceFinanceView = () =>
-  import("./views/admin/AdminAnnualConferenceFinanceView.vue");
 const AdminVolunteerView = () => import("./views/admin/AdminVolunteerView.vue");
 const AdminVolunteerDisplayView = () =>
   import("./views/admin/AdminVolunteerDisplayView.vue");
@@ -386,9 +384,18 @@ export const router = createRouter({
       path: adminPath("annual-conference/:year(\\d{4})/check-in"),
       name: "admin-annual-conference-check-in",
       component: () => import("./views/admin/AdminAnnualConferenceCheckInView.vue"),
-      beforeEnter: async (to) => await canOpenAnnualConferenceCheckInRoute(to.params.year)
-        ? true
-        : annualConferencePath("", String(to.params.year)),
+      beforeEnter: async (to) => {
+        const year = String(to.params.year);
+        const target = await annualConferenceRegistrationRouteTarget(year);
+
+        if (target === annualConferencePath("registrations", year)) {
+          return { path: target, query: { section: "guests" } };
+        }
+
+        return await canOpenAnnualConferenceCheckInRoute(to.params.year)
+          ? true
+          : annualConferencePath("", year);
+      },
     },
     {
       path: adminPath("annual-conference/:year(\\d{4})"),
@@ -420,7 +427,7 @@ export const router = createRouter({
     {
       path: adminPath("annual-conference/:year(\\d{4})/finance"),
       name: "admin-annual-conference-finance",
-      component: AdminAnnualConferenceFinanceView,
+      redirect: (to) => annualConferencePath("", String(to.params.year)),
     },
     {
       path: adminPath("annual-conference/:year(\\d{4})/ticketing"),

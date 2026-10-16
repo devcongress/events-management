@@ -53,17 +53,41 @@ beforeEach(() => {
     in: vi.fn(),
     order: vi.fn(),
     range: vi.fn(),
+    returns: vi.fn(),
   };
 
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);
   query.in.mockReturnValue(query);
   query.order.mockReturnValue(query);
+  query.returns.mockImplementation(async () => ({ data: mocks.tickets, error: null }));
   query.range.mockImplementation(async () => ({ data: mocks.tickets, error: null }));
   mocks.from.mockReturnValue(query);
 });
 
 describe('annual conference registration access and privacy', () => {
+  it('joins manager registrations to minimal admission identities within the edition', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'get_annual_conference_registration_overview' ? overview : [{ id: 'registration-1', name: 'Ada' }], error: null }));
+    mocks.tickets = [{ id: 'ticket-1', registration_id: 'registration-1' }];
+    const response = await app.request(privatePath);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ overview, registrations: [{ id: 'registration-1', name: 'Ada', ticket_id: 'ticket-1' }] });
+    const query = mocks.from.mock.results[0]!.value;
+
+    expect(query.select).toHaveBeenCalledWith('id,registration_id');
+    expect(query.eq).toHaveBeenCalledWith('edition_id', overview.edition_id);
+    expect(query.in).toHaveBeenCalledWith('registration_id', ['registration-1']);
+  });
+
+  it('fails closed when admission identities cannot be loaded', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'get_annual_conference_registration_overview' ? overview : [{ id: 'registration-1' }], error: null }));
+    const query = mocks.from();
+
+    query.returns.mockResolvedValue({ data: null, error: { message: 'unavailable' } });
+    expect((await app.request(privatePath)).status).toBe(503);
+  });
+
   it('uses the locked local registration RPC only for enabled approved testing', async () => {
     vi.stubEnv('NODE_ENV', 'development');
 

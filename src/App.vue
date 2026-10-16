@@ -423,6 +423,10 @@ function isActive(href: string) {
 }
 
 function routeViewKey(routeForKey: typeof route) {
+  if (routeForKey.name === "admin-annual-conference-registrations") {
+    return routeForKey.path;
+  }
+
   if (routeForKey.name === "admin-login") {
     return "admin-login";
   }

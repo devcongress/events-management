@@ -4,6 +4,11 @@ import { useRoute } from 'vue-router';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceRegistrationNav from '@/src/components/AnnualConferenceRegistrationNav.vue';
+import AnnualConferenceRegistrationEmails from '@/src/components/AnnualConferenceRegistrationEmails.vue';
+import AnnualConferenceGuests from '@/src/components/AnnualConferenceGuests.vue';
+import type { ConferenceRegistrationGuest as Registration } from '@/src/lib/conference-guests';
+import AppPagination from '@/src/components/AppPagination.vue';
+import { eventBlastStarters } from '@/src/lib/event-blast-workspace';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
@@ -18,14 +23,17 @@ import {
   updateAnnualConferenceTicketingCapacity,
 } from '@/src/lib/api';
 
-type Registration = { id: string; name: string; email: string; status: 'confirmed' | 'waitlisted' | 'cancelled'; created_at: string; is_test: boolean };
 type Overview = { mode: 'free' | 'paid'; status: 'draft' | 'open' | 'closed'; capacity: number; reserved: number; confirmed: number; waitlisted: number };
 type Blast = { id: string; subject: string; body: string; status: string; recipients: number; accepted: number; needs_attention: number };
 const route = useRoute();
 const queryClient = useQueryClient();
 const year = computed(() => String(route.params.year));
 const endpoint = computed(() => `/api/annual-conference/${year.value}/registrations`);
-const offset = ref(0);
+const activeSection = computed(() => {
+  const section = route.query.section;
+
+  return section === 'guests' || section === 'form' || section === 'emails' || section === 'blasts' ? section : 'summary';
+});
 const message = ref('');
 const busy = ref(false);
 const capacityBusy = ref(false);
@@ -34,6 +42,9 @@ const capacityError = ref('');
 const cancellation = ref<Registration | null>(null);
 const review = ref<Blast | null>(null);
 const draft = reactive({ subject: '', body: '' });
+const blastComposerOpen = ref(false);
+const blastPage = ref(1);
+const blastTemplates = computed(() => eventBlastStarters('DevCon' + year.value.slice(-2), 'on conference day'));
 const settings = reactive({ mode: 'free', status: 'draft' });
 const settingsConfirmation = ref(false);
 const testingConfirmation = ref(false);
@@ -68,9 +79,33 @@ const testingError = computed(() => testerEmails.value.length > 200
   : testerEmails.value.some((email) => email.includes('*') || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     ? 'Check each email address. Use one per line.' : '');
 const registrations = useQuery({
-  queryKey: computed(() => ['conference-registrations', year.value, offset.value]),
-  queryFn: () => fetchJson<{ overview: Overview; registrations: Registration[] }>(`${endpoint.value}?offset=${offset.value}`, { credentials: 'include' }),
+  queryKey: computed(() => ['conference-registrations', year.value]),
+  enabled: canManageRegistration,
+  queryFn: async () => {
+    const requestEndpoint = endpoint.value;
+    const all: Registration[] = [];
+    let overview: Overview | undefined;
+
+    for (let offset = 0; offset <= 5000; offset += 100) {
+      const result = await fetchJson<{ overview: Overview; registrations: Registration[] }>(
+        `${requestEndpoint}?offset=${offset}`, { credentials: 'include' },
+      );
+
+      overview = result.overview;
+      all.push(...result.registrations);
+      if (result.registrations.length < 100) return { overview, registrations: all };
+    }
+
+    throw new Error('The complete guest list could not be loaded.');
+  },
+  refetchInterval: 15_000,
+  refetchIntervalInBackground: false,
 });
+const guests = computed(() => registrations.data.value?.registrations ?? []);
+const overview = computed(() => registrations.data.value?.overview);
+const placesLeft = computed(() => Math.max(0, (overview.value?.capacity ?? 0) - (overview.value?.reserved ?? 0)));
+const filledPercent = computed(() => Math.min(100, Math.round(100 * (overview.value?.reserved ?? 0) / Math.max(1, overview.value?.capacity ?? 1))));
+
 const capacityValidation = computed(() => {
   const data = ticketing.data.value;
 
@@ -86,10 +121,16 @@ const capacityCanSave = computed(() => (
   capacityHasChanged.value && !capacityValidation.value && capacity.value !== null && capacity.value <= 5000
 ));
 let capacityRequestGeneration = 0;
+let mutationGeneration = 0;
 const blasts = useQuery({
   queryKey: computed(() => ['conference-attendee-blasts', year.value]),
   queryFn: () => fetchJson<{ blasts: Blast[] }>(`${endpoint.value}/blasts`, { credentials: 'include' }),
 });
+const blastHistory = computed(() => blasts.data.value?.blasts ?? []);
+const blastPageCount = computed(() => Math.max(1, Math.ceil(blastHistory.value.length / 10)));
+const displayedBlasts = computed(() => blastHistory.value.slice((blastPage.value - 1) * 10, blastPage.value * 10));
+
+watch(blastPageCount, (count) => { blastPage.value = Math.min(blastPage.value, count); });
 
 watch(() => registrations.data.value?.overview, (overview, previous) => {
   const unchanged = !previous || (settings.mode === previous.mode && settings.status === previous.status);
@@ -104,7 +145,11 @@ watch(() => testingQuery.data.value, (value, previous) => {
 let hydratedCapacityYear = '';
 
 watch(year, () => {
-  offset.value = 0;
+  mutationGeneration += 1;
+  busy.value = false;
+  message.value = '';
+  blastComposerOpen.value = false;
+  blastPage.value = 1;
   cancellation.value = null;
   review.value = null;
   settingsConfirmation.value = false;
@@ -164,6 +209,8 @@ function reviewCapacityChange() {
 
 async function mutate(path: string, body: unknown, success: string, method = 'POST') {
   if (busy.value) return;
+  const request = ++mutationGeneration;
+
   busy.value = true;
   message.value = '';
   error.value = '';
@@ -171,6 +218,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
   try {
     const response = await fetchJson<{ admissions?: { configured: boolean; accepted: number }; social?: { configured: boolean; accepted: number }; updates?: { configured: boolean; accepted: number } }>(`${endpoint.value}${path}`, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
+    if (request !== mutationGeneration) return;
     message.value = path === '/testing/deliver'
       ? [response.admissions, response.social, response.updates].every((result) => result?.configured)
         ? `Email batch processed: ${(response.admissions?.accepted ?? 0) + (response.social?.accepted ?? 0) + (response.updates?.accepted ?? 0)} accepted by the provider. Check delivery and your inbox separately.`
@@ -182,12 +230,15 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
     testingConfirmation.value = false;
     draftConfirmation.value = false;
     deliveryConfirmation.value = false;
-    if (path === '/blasts') Object.assign(draft, { subject: '', body: '' });
+    if (path === '/blasts') {
+      Object.assign(draft, { subject: '', body: '' });
+      blastComposerOpen.value = false;
+    }
     await Promise.all([registrations.refetch(), blasts.refetch(), ...(owner.value ? [testingQuery.refetch()] : [])]);
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'The change could not be saved.';
+    if (request === mutationGeneration) error.value = cause instanceof Error ? cause.message : 'The change could not be saved.';
   } finally {
-    busy.value = false;
+    if (request === mutationGeneration) busy.value = false;
   }
 }
 </script>
@@ -195,24 +246,37 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
 <template>
   <main class="editorial-page"><div class="editorial-wrap registration-content">
     <AnnualConferenceNav :show-page-heading="false" />
-    <AnnualConferenceRegistrationNav active="registration" :can-manage-registration="canManageRegistration" :can-check-in="canCheckIn" />
-    <header class="border-b-2 border-dc-ink pb-5">
-      <p class="editorial-eyebrow">DevCon{{ year.slice(-2) }} · attendees</p>
-      <h1 class="mt-2 text-3xl font-semibold text-dc-ink">Registration</h1>
-        <p class="mt-2 text-sm text-dc-gray">Manage registration, waitlist, venue capacity, and conference updates.</p>
-    </header>
-    <p role="status" aria-live="polite">{{ message }}</p>
+    <AnnualConferenceRegistrationNav :active="activeSection" :can-manage-registration="canManageRegistration" :can-check-in="canCheckIn" />
+    <p v-if="message" role="status" aria-live="polite">{{ message }}</p>
     <AnnualConferenceRouteSkeleton v-if="registrations.isPending.value" variant="overview" />
     <section v-else-if="registrations.isError.value" class="editorial-panel registration-panel"><h2>Registration unavailable</h2><p>Check your access and connection.</p><button @click="registrations.refetch()">Try again</button></section>
     <template v-else-if="registrations.data.value">
-      <section class="editorial-panel registration-panel">
-        <h2>Places in the room</h2>
-        <div class="metrics">
-          <p><strong>{{ registrations.data.value.overview.confirmed }}</strong> confirmed registrations</p>
-          <p><strong>{{ registrations.data.value.overview.waitlisted }}</strong> waitlisted</p>
-          <p><strong>{{ registrations.data.value.overview.reserved }} / {{ registrations.data.value.overview.capacity }}</strong> total reserved capacity</p>
+      <section v-if="activeSection === 'summary'" class="registration-overview">
+        <div class="registration-overview-header">
+          <h2>Registration overview</h2>
+          <div class="registration-overview-header-actions">
+            <span class="registration-overview-updated">Updated {{ new Date(registrations.dataUpdatedAt.value).toLocaleTimeString() }}</span>
+            <button type="button" class="registration-overview-refresh" :disabled="registrations.isFetching.value" @click="registrations.refetch()">Refresh</button>
+          </div>
         </div>
-        <p>Capacity includes registrations, paid bookings, sponsor allocations, and active checkout holds. Increasing it promotes the oldest waitlisted registrations automatically.</p>
+        <div class="registration-overview-metrics">
+          <div class="registration-overview-primary">
+            <p class="registration-overview-figure"><strong>{{ overview?.confirmed }}</strong><span>/ {{ overview?.capacity }}</span></p>
+            <p>confirmed registrations</p>
+          </div>
+          <div class="registration-overview-secondary"><strong>{{ placesLeft }}</strong><span>places left</span></div>
+        </div>
+        <div class="registration-overview-progress-row">
+          <div class="registration-overview-progress" role="progressbar" aria-label="Reserved capacity" :aria-valuenow="overview?.reserved" :aria-valuemax="overview?.capacity" aria-valuemin="0">
+            <div class="registration-overview-progress-fill" :style="{ transform: `scaleX(${filledPercent / 100})` }" />
+          </div>
+          <p>{{ filledPercent }}% filled</p>
+        </div>
+        <p class="mt-5 text-sm text-dc-gray">{{ overview?.waitlisted }} waitlisted · {{ overview?.reserved }} total reserved, including other admissions and active holds.</p>
+      </section>
+      <section v-if="activeSection === 'form'" class="ops-panel registration-panel">
+        <h2>Form &amp; capacity</h2>
+        <p>Increasing capacity promotes the oldest waitlisted registrations automatically.</p>
         <div v-if="canManageRegistration" class="registration-capacity-control">
           <p v-if="ticketing.isPending.value" role="status">Loading capacity controls…</p>
           <div v-else-if="ticketing.isError.value" role="alert">
@@ -238,7 +302,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
         </ConfirmDialog>
       </section>
-      <section v-if="owner" class="editorial-panel registration-panel">
+      <section v-if="owner && activeSection === 'form'" class="ops-panel registration-panel">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2>Testing settings</h2>
           <span v-if="testingQuery.data.value" class="registration-badge">{{ testingQuery.data.value.enabled ? 'Restricted to testers' : 'Off' }}</span>
@@ -271,30 +335,34 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
         </ConfirmDialog>
       </section>
-      <section class="editorial-panel registration-panel">
-        <h2>Attendees and waitlist</h2>
-        <div v-if="!registrations.data.value.registrations.length" class="py-6"><h3 class="font-semibold">Ready for your first registration</h3><p class="text-sm text-dc-gray">Open free registration and share the page with your approved testers.</p></div>
-        <ul class="attendees">
-          <li v-for="person in registrations.data.value.registrations" :key="person.id">
-            <div><strong>{{ person.name }}</strong><p>{{ person.email }}</p><span class="registration-badge">{{ person.status }}</span><span v-if="person.is_test" class="registration-badge ml-2">Testing</span></div>
-            <button v-if="person.status !== 'cancelled'" :disabled="busy" @click="cancellation = person">Cancel registration</button>
-          </li>
-        </ul>
-        <div class="actions"><button :disabled="offset === 0 || busy" @click="offset = Math.max(0, offset - 100)">Previous</button><button :disabled="registrations.data.value.registrations.length < 100 || busy" @click="offset += 100">Next</button></div>
+      <AnnualConferenceGuests v-if="activeSection === 'guests'" :registrations="guests"
+        :refresh-registrations="() => registrations.refetch()" :management-busy="busy"
+        @cancel="cancellation = $event" />
         <ConfirmDialog :open="Boolean(cancellation)" :title="'Cancel ' + (cancellation?.name ?? '') + '’s registration?'" message="Their QR will stop working. Available places go to the oldest waitlisted registrations, which are queued for email. Checked-in registrations cannot be cancelled." confirm-label="Cancel registration" danger :busy="busy" @cancel="cancellation = null" @confirm="cancellation && mutate('/' + cancellation.id + '/cancel', {}, 'Registration cancelled.')">
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
         </ConfirmDialog>
-      </section>
-      <section class="editorial-panel registration-panel">
-        <h2>Attendee updates</h2>
+
+      <AnnualConferenceRegistrationEmails v-if="activeSection === 'emails'" :year="year" />
+      <section v-if="activeSection === 'blasts'" class="ops-panel registration-panel">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2>Blasts</h2>
+          <button type="button" class="editorial-action" :disabled="busy" @click="blastComposerOpen = !blastComposerOpen">{{ blastComposerOpen ? 'Cancel' : 'Create blast' }}</button>
+        </div>
         <p>Create a separate update whenever needed. Each draft captures the confirmed audience at that moment. Use this for DevCon26 logistics and programme updates—not unrelated marketing. Waitlisted and cancelled people are excluded.</p>
-        <form @submit.prevent="error = ''; draftConfirmation = true">
+        <form v-if="blastComposerOpen" class="blast-composer" @submit.prevent="error = ''; draftConfirmation = true">
+          <p class="font-semibold">Write the update</p>
+          <div class="flex flex-wrap gap-2" aria-label="Blast starter templates">
+            <button v-for="starter in blastTemplates" :key="starter.id" type="button" @click="Object.assign(draft, { subject: starter.subject, body: starter.body })">{{ starter.label }}</button>
+          </div>
           <label>Subject<input class="app-form-control" v-model="draft.subject" maxlength="160" required /></label>
           <label>Message<textarea class="app-form-control" v-model="draft.body" maxlength="12000" rows="5" required /></label>
-          <button type="submit" :disabled="busy">Prepare update</button>
+          <button type="submit" :disabled="busy">Review draft</button>
         </form>
         <p v-if="blasts.isError.value">Update history could not be loaded.</p>
-        <ul class="attendees"><li v-for="blast in blasts.data.value?.blasts ?? []" :key="blast.id"><div><strong>{{ blast.subject }}</strong><p>{{ blast.status }} · {{ blast.recipients }} recipients · {{ blast.accepted }} accepted by email provider · {{ blast.needs_attention }} failed or suppressed</p></div><button @click="review = blast">Review</button></li></ul>
+        <p v-if="blasts.isPending.value" role="status">Loading blast history…</p>
+        <p v-else-if="!blasts.isError.value && !blastHistory.length" class="py-8 text-center text-sm text-dc-gray">No blasts yet. Create an update for your confirmed guests.</p>
+        <ul class="attendees"><li v-for="blast in displayedBlasts" :key="blast.id"><div><strong>{{ blast.subject }}</strong><p>{{ blast.status }} · {{ blast.recipients }} recipients · {{ blast.accepted }} accepted by email provider · {{ blast.needs_attention }} failed or suppressed</p></div><button @click="review = blast">Review</button></li></ul>
+        <AppPagination v-if="blastHistory.length > 10" v-model:page="blastPage" :page-count="blastPageCount" :total="blastHistory.length" :range-start="(blastPage - 1) * 10 + 1" :range-end="Math.min(blastPage * 10, blastHistory.length)" item-label="blasts" />
         <ConfirmDialog :open="Boolean(review)" :title="review?.subject ?? 'Review update'" :message="(review?.recipients ?? 0) + ' snapshotted recipients. Delivery runs in batches. While testing, only approved emails can send.'" confirm-label="Queue update" :busy="busy" :confirm-disabled="review?.status !== 'draft' || review?.recipients === 0" @cancel="review = null" @confirm="review && mutate('/blasts/' + review.id + '/send', { confirmed: true }, 'Update queued.')">
           <p class="max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-md border border-dc-ink/15 bg-dc-cream p-4 text-sm">{{ review?.body }}</p>
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
@@ -310,19 +378,40 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
   </main>
 </template>
 
+<style scoped src="@/src/styles/registration-workspace.css"></style>
+
 <style scoped>
 .registration-content {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
+}
+
+.registration-content > * {
+  min-width: 0;
+}
+
+.registration-guest-controls {
+  position: static;
+  box-shadow: none;
 }
 .registration-panel {
   padding: 24px;
+}
+.guest-status-filter {
+  border: 1px solid #d6d2c8;
+  font-size: 10px;
+}
+.guest-status-filter--active {
+  border-color: #e8117f;
+  background: #e8117f;
+  color: white;
 }
 h2 {
   @apply text-xl font-semibold text-dc-ink;
   margin-bottom: 12px;
 }
-p {
+.registration-panel p {
   line-height: 1.6;
   margin: 8px 0;
 }
@@ -349,7 +438,8 @@ form {
   margin-top: 20px;
 }
 .registration-settings-row,
-.testing-settings-form {
+.testing-settings-form,
+.blast-composer {
   max-width: none;
 }
 .testing-settings-row {

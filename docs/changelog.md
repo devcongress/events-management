@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-16 — Put conference admission actions inside Guests
+
+- Consolidate registration management and check-in into one searchable, alphabetically filtered Guests list, with optional camera scanning. Keep the five monthly-style Registration tabs; remove the separate Check-in tab.
+- Match admissions to registrations only by ticket identity, preserve waitlisted/cancelled registrations and unmatched paid/bearer tickets, and refresh admission status after registration changes.
+- Keep check-in-only volunteers on the minimal roster route with a Guests tab; redirect managers' old check-in links to Registration → Guests. No new migration, production setting, or attendee data change.
+
+## 2026-10-16 — Disable conference Finance navigation
+
+- Keep Finance visible but disabled for authorized users in desktop and mobile conference navigation, matching Ticketing. Direct Finance links return to the same edition's overview.
+- Preserve the Finance implementation, APIs, permissions, and records. No migration or data change is required.
+
+## 2026-10-16 — Align conference Registration with monthly events
+
+- Share the monthly Registration heading, tab rail, and overview styling with the annual conference. Add Summary, Guests, Form & capacity, Emails, and Blasts panels while keeping Check-in inside the same stable page layout.
+- Use complete-roster search, alphabetical filters, status filters, and eight-row pagination. Replace the oversized check-in card with the familiar guest-list treatment and an optional Scan with camera action.
+- Surface existing protected email-delivery history and confirmed failed-email retries; preserve blast audience review and confirmation before queueing. Annual blast scheduling is not exposed because its backend does not support it.
+- Preserve conference admission rules, capability boundaries, disabled Ticketing navigation, and existing data. Add isolated browser coverage for layout stability, multi-page search, and confirmed email/blast actions; no live messages are sent by these checks.
+
 ## 2026-10-16 — Make annual conference check-in list-first
 
 - Add a capability-gated, stable paged attendee roster limited to the current edition’s issued and checked-in tickets; return only the fields required for check-in and never expose roster email addresses.
