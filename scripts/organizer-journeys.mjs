@@ -1290,6 +1290,22 @@ try {
           },
         },
       );
+      let sampleSendCount = 0;
+
+      responses.set(
+        "/api/annual-conference/2026/volunteer-follow-up/outcomes/test",
+        (request) => {
+          sampleSendCount += 1;
+
+          if (sampleSendCount === 1) return { status: 502, body: { error: "Test acceptance could not be confirmed." } };
+
+          return { body: {
+            accepted: true,
+            recipient: JSON.parse(request.postData() ?? "{}").email,
+            provider_id: "fixture-test-email",
+          } };
+        },
+      );
       responses.set(
         "/api/annual-conference/2026/volunteer-follow-up/outcomes/confirm",
         { body: { queued_count: 1 } },
@@ -1362,9 +1378,23 @@ try {
       await outcomes.getByText("Preview checks who can receive this email", { exact: false }).waitFor();
       await outcomes.getByText("Not sent includes recipients waiting in the queue", { exact: false }).waitFor();
       await outcomes.getByText("Queue delivery", { exact: true }).waitFor();
+      await outcomes.getByRole("button", { name: "Use my email", exact: true }).click();
+      assert.equal(await outcomes.getByLabel("Test recipient", { exact: true }).inputValue(), "fixture@example.com");
+      await outcomes.getByRole("button", { name: "Send acceptance test", exact: true }).click();
+      await outcomes.getByRole("alert").filter({ hasText: "Test acceptance could not be confirmed." }).waitFor();
+
       await outcomes.getByRole("button", { name: "Choose outcome audience" }).click();
       await page.getByRole("option", { name: "Not-selected applicants", exact: true }).click();
       await outcomes.getByText("No not-selected applicants are available", { exact: false }).waitFor();
+      await outcomes.getByLabel("Test recipient", { exact: true }).fill("sample@example.com");
+      await outcomes.getByRole("button", { name: "Send non-acceptance test", exact: true }).click();
+      await outcomes.getByRole("status").filter({ hasText: "accepted by Resend for sample@example.com" }).waitFor();
+      const sampleRequests = requests.filter((request) => request.path.endsWith("/outcomes/test"));
+
+      assert.equal(sampleRequests.length, 2);
+      assert.equal(JSON.parse(sampleRequests[0].body).decision, "accepted");
+      assert.equal(JSON.parse(sampleRequests[1].body).decision, "not_selected");
+
       assert.equal(
         await outcomes.getByRole("button", { name: "Preview rejections", exact: true }).isDisabled(),
         true,
@@ -1375,6 +1405,13 @@ try {
       );
       await outcomes.getByRole("button", { name: "Choose outcome audience" }).click();
       await page.getByRole("option", { name: "Accepted applicants", exact: true }).click();
+      await outcomes.getByLabel("Test recipient", { exact: true }).fill("Fixture@Example.com");
+      await outcomes.getByRole("button", { name: "Send acceptance test", exact: true }).click();
+      await outcomes.getByRole("status").filter({ hasText: "accepted by Resend for Fixture@Example.com" }).waitFor();
+      const retriedSamples = requests.filter((request) => request.path.endsWith("/outcomes/test"));
+
+      assert.equal(retriedSamples.length, 3);
+      assert.equal(JSON.parse(retriedSamples[0].body).request_id, JSON.parse(retriedSamples[2].body).request_id);
       await outcomes.getByText("Delivery attempts and backoff", { exact: true }).click();
       const finalDiagnostic = outcomes.locator(".outcome-diagnostics-scroll li").nth(12);
 
@@ -2535,6 +2572,8 @@ try {
   await journey("annual-registration-workspace", async ({ page, responses, requests }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const overview = { mode: "free", status: "open", capacity: 150, reserved: 101, confirmed: 101, waitlisted: 0 };
+
+    responses.set("/api/annual-conference/2026/registrations/testing", { body: { enabled: false, tester_emails: [], local_delivery: false } });
     const guests = Array.from({ length: 101 }, (_, index) => ({
       id: "guest-" + index, name: index === 100 ? "Zara Finalpage" : "Ada Guest " + index,
       email: "guest" + index + "@example.test", status: "confirmed", is_test: false,
@@ -2656,7 +2695,29 @@ try {
 
     await waitlistedRow.waitFor();
     assert.equal(await waitlistedRow.getByRole("button", { name: "Cancel registration", exact: true }).isEnabled(), true);
-  });
+    guests[0].status = "cancelled";
+    let recoveryBlocked = true;
+
+    responses.set("/api/annual-conference/2026/registrations/guest-0/recover", (request) => {
+      if (recoveryBlocked) return { status: 409, body: { error: "Open free registration before recovering this guest." } };
+      assert.deepEqual(request.postDataJSON(), { confirmed: true });
+      guests.push({ ...guests[0], id: "guest-recovered", status: "waitlisted", recovered_from_id: "guest-0" });
+
+      return { body: { recovery: { registration_id: "guest-recovered", status: "waitlisted", created: true } } };
+    });
+    await page.reload();
+    await page.getByLabel("Search guests").fill("guest0@example.test");
+    await page.getByRole("button", { name: "Recover registration", exact: true }).click();
+    assert.equal(requests.filter((item) => item.path.endsWith("/guest-0/recover")).length, 0);
+    await page.getByRole("dialog").getByRole("button", { name: "Recover and queue email", exact: true }).click();
+    await page.getByRole("dialog").getByRole("alert").filter({ hasText: "Open free registration before recovering this guest." }).waitFor();
+    recoveryBlocked = false;
+    await page.getByRole("dialog").getByRole("button", { name: "Recover and queue email", exact: true }).click();
+    await page.getByText("Registration recovered as waitlisted. A fresh email is queued; delivery is not yet confirmed.", { exact: true }).waitFor();
+    await page.getByText("Recovered as a new registration", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Recover registration", exact: true }).count(), 0);
+    assert.equal(requests.filter((item) => item.path.endsWith("/guest-0/recover")).length, 2);
+  }, { role: "owner" });
 
   await journey("annual-check-in-list-first", async ({ page, responses, requests }) => {
     const attendees = [

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import VolunteerOutcomeTestEmail from "@/src/components/VolunteerOutcomeTestEmail.vue";
 import AppDropdown from "@/src/components/AppDropdown.vue";
 import { fetchJson } from "@/src/lib/api";
 import { notify } from "@/src/lib/notify";
@@ -314,6 +315,7 @@ onBeforeUnmount(() => {
         <p>{{ outcomeMessage.message }}</p>
       </div>
       <p v-else class="outcome-empty" role="status">The saved {{ decision === "accepted" ? "accepted" : "not-selected" }} message is unavailable. Open Reviews to restore it before previewing.</p>
+      <VolunteerOutcomeTestEmail :decision="decision" :available="Boolean(outcomeMessage)" />
       <p class="outcome-preview-helper">Preview checks who can receive this email. It loads the saved plain-text message from Reviews, then freezes the exact personalized payload and audience before anything is queued.</p>
       <dl class="outcome-summary" :class="{ 'outcome-summary--with-attention': attentionCount }">
         <div><dt>Decisions</dt><dd>{{ eligibleDecisions.length }}</dd></div>

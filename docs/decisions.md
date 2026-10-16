@@ -1347,3 +1347,11 @@ Revisit when: Expense submitters need access without dashboard visibility, recei
 **Why:** Tailwind utility classes are needed in JSX for static styles; JS constants are needed for programmatic style generation (`getStatusBadge`, quiz answer colors). Both sources must exist.
 **Tradeoffs:** Two sources of truth — `tailwind.config.ts` and `lib/design-system.ts` must be kept in sync manually.
 **Alternatives considered:** CSS variables only (would require runtime JS to read them, awkward); Tailwind `theme()` function in JS (not natively supported without PostCSS at runtime).
+
+
+## ADR-112: Explicit cancelled conference registration recovery
+
+**Date:** 2026-10-16
+**Decision:** Keep public duplicate submissions opaque and inert. Owner-confirmed recovery creates a new registration linked to the cancelled source, with at most one child per source and one active registration per edition/email. Lock edition settings before allocating inventory and preserve existing waitlist priority.
+**Why:** Reusing a cancelled row risks reviving revoked credentials and terminal email jobs. A new identity gives fresh credentials and a distinct email while retaining historical evidence. A unique recovery link makes ambiguous retries safe.
+**Tradeoffs:** Recovery requires an Owner and open free intake. Testing restrictions remain enforced. Later cancellation requires recovery of the newer row, not reuse of the original recovery action. A forward migration is required before deployment.

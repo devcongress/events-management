@@ -4,11 +4,19 @@ DevCon26 registration is an annual-conference domain, not a monthly meetup or a 
 
 ## Organizer workflow
 
-- Annual Conference → Registration has Summary, Guests, Form & capacity, Emails, and Blasts tabs. Guests combines confirmed, waitlisted, and cancelled registrations with admission actions and optional camera scanning in one list. Manager registrations are linked to admissions strictly by ticket identity; unmatched paid/bearer tickets remain visible. One normalized email owns one registration per edition. Duplicate requests neither rename nor resend. Cancelled registrations cannot self-reactivate.
+- Annual Conference → Registration has Summary, Guests, Form & capacity, Emails, and Blasts tabs. Guests combines confirmed, waitlisted, and cancelled registrations with admission actions and optional camera scanning in one list. Manager registrations are linked to admissions strictly by ticket identity; unmatched paid/bearer tickets remain visible. One normalized email owns at most one active registration per edition; cancelled history is retained. Duplicate requests neither rename nor resend. Cancelled registrations cannot self-reactivate.
 - Registration managers can change venue capacity in Registration using the existing ticketing-capacity endpoint and validation. Capacity includes confirmed free places, paid orders, active holds, and sponsor allocations. Raising capacity or cancelling a registration promotes available waitlisted places atomically. Checked-in registrations cannot be cancelled.
 - Ticketing remains visible but disabled in desktop and mobile navigation, and its legacy organizer route redirects to Registration. Ticketing/order APIs, payment processing, admission credentials, and ticket records remain in place; this is a console-availability change, not a data or sales-state change.
 - An Owner explicitly chooses free/paid and draft/open/closed. Resolve the waitlist and active holds before switching to paid. Only Regular intake is allowed. Verified late payments incompatible with the current mode or inventory are recorded as refund-required, never silently accepted as an admission.
 - Each attendee update is a new draft with a frozen confirmed audience. Review message and count before queueing. Waitlisted, cancelled, and known suppressed recipients are excluded. These are operational conference notices, not unrelated marketing.
+
+## Cancelled registration recovery
+
+Owners can choose **Recover registration** on a cancelled guest and confirm **Recover and queue email**. Recovery creates a new linked registration from the saved name/email, gives older waitlisted guests priority, and queues a fresh admission QR or waitlist notice. It never reuses the cancelled ticket or retries its terminal email. Repeated requests for the same source return the existing recovery without another email; if that newer registration is cancelled, recover that newer row explicitly.
+
+Apply `20261016190000_cancelled_registration_recovery.sql` before deploying recovery. It replaces all-history email uniqueness with active-email uniqueness, retains same-edition recovery links, and grants the recovery RPC only to the service role. The API additionally requires Owner access, registration management capability, and explicit confirmation. Free intake must be open. Testing restrictions still apply; testing records cannot be recovered after testing is disabled.
+
+Public resubmissions still cannot reactivate any existing email. The generic receipt says **Request received**, explains that duplicates do not queue another email and cancelled registrations stay cancelled, and directs the attendee to contact the team. It reveals neither registration status nor inbox delivery.
 
 ## Shared-database rehearsal
 

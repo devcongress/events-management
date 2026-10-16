@@ -40,6 +40,7 @@ const capacityBusy = ref(false);
 const capacity = ref<number | null>(null);
 const capacityError = ref('');
 const cancellation = ref<Registration | null>(null);
+const recovery = ref<Registration | null>(null);
 const review = ref<Blast | null>(null);
 const draft = reactive({ subject: '', body: '' });
 const blastComposerOpen = ref(false);
@@ -151,6 +152,7 @@ watch(year, () => {
   blastComposerOpen.value = false;
   blastPage.value = 1;
   cancellation.value = null;
+  recovery.value = null;
   review.value = null;
   settingsConfirmation.value = false;
   testingConfirmation.value = false;
@@ -216,15 +218,20 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
   error.value = '';
 
   try {
-    const response = await fetchJson<{ admissions?: { configured: boolean; accepted: number }; social?: { configured: boolean; accepted: number }; updates?: { configured: boolean; accepted: number } }>(`${endpoint.value}${path}`, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const response = await fetchJson<{ recovery?: { status: 'confirmed' | 'waitlisted' | 'cancelled'; created: boolean }; admissions?: { configured: boolean; accepted: number }; social?: { configured: boolean; accepted: number }; updates?: { configured: boolean; accepted: number } }>(`${endpoint.value}${path}`, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
     if (request !== mutationGeneration) return;
     message.value = path === '/testing/deliver'
       ? [response.admissions, response.social, response.updates].every((result) => result?.configured)
         ? `Email batch processed: ${(response.admissions?.accepted ?? 0) + (response.social?.accepted ?? 0) + (response.updates?.accepted ?? 0)} accepted by the provider. Check delivery and your inbox separately.`
         : 'Some email senders are not configured locally. Check the admission, social-card, and attendee-update email settings before retrying.'
-      : success;
+      : response.recovery
+        ? response.recovery.created
+          ? `Registration recovered as ${response.recovery.status}. A fresh email is queued; delivery is not yet confirmed.`
+          : `Recovery was already processed. The newer registration is ${response.recovery.status}; no new email was queued.`
+        : success;
     cancellation.value = null;
+    recovery.value = null;
     review.value = null;
     settingsConfirmation.value = false;
     testingConfirmation.value = false;
@@ -336,8 +343,11 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
         </ConfirmDialog>
       </section>
       <AnnualConferenceGuests v-if="activeSection === 'guests'" :registrations="guests"
-        :refresh-registrations="() => registrations.refetch()" :management-busy="busy"
-        @cancel="cancellation = $event" />
+        :refresh-registrations="() => registrations.refetch()" :management-busy="busy" :allow-recovery="owner"
+        @cancel="cancellation = $event" @recover="error = ''; recovery = $event" />
+      <ConfirmDialog :open="Boolean(recovery)" :title="'Recover ' + (recovery?.name ?? '') + '’s registration?'" message="Create a fresh registration using this guest’s saved details. Older waitlisted guests keep priority. A new admission QR or waitlist notice will be queued for email. The cancelled registration and its old QR remain cancelled." confirm-label="Recover and queue email" :busy="busy" @cancel="error = ''; recovery = null" @confirm="recovery && mutate('/' + recovery.id + '/recover', { confirmed: true }, 'Registration recovered.')">
+        <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
+      </ConfirmDialog>
         <ConfirmDialog :open="Boolean(cancellation)" :title="'Cancel ' + (cancellation?.name ?? '') + '’s registration?'" message="Their QR will stop working. Available places go to the oldest waitlisted registrations, which are queued for email. Checked-in registrations cannot be cancelled." confirm-label="Cancel registration" danger :busy="busy" @cancel="cancellation = null" @confirm="cancellation && mutate('/' + cancellation.id + '/cancel', {}, 'Registration cancelled.')">
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
         </ConfirmDialog>
