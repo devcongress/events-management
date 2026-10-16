@@ -114,8 +114,8 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
   },
   ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers', icon: 'volunteers' as const }] : []),
   ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
-  ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const, disabled: true }] : []),
   ...(registrationTarget.value ? [{ href: registrationTarget.value, label: 'Registration', icon: 'tickets' as const }] : []),
+  ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const, disabled: true }] : []),
   ...(hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage'])
     ? [{ href: annualConferencePath('ticketing', year.value), label: 'Ticketing', icon: 'tickets' as const, disabled: true }]
     : []),
@@ -273,7 +273,6 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
             </template>
           </svg>
             {{ link.label }}
-            <span v-if="link.disabled" class="annual-conference-nav-disabled-label">Disabled</span>
           </component>
         </nav>
       </div>
@@ -384,16 +383,6 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
 
 .annual-conference-nav-link--disabled::after {
   display: none;
-}
-
-.annual-conference-nav-disabled-label {
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  padding: 0.08rem 0.35rem;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.55rem;
-  font-weight: 700;
-  text-transform: uppercase;
 }
 
 .annual-conference-nav-link--active::after {

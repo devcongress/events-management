@@ -10,13 +10,16 @@ const args = ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At'];
 const sql = (query) => execFileSync('psql', args, { input: query, encoding: 'utf8' }).trim();
 const concurrent = (query) => promisify(execFile)('psql', [...args, '-c', query]);
 const read = (name) => readFileSync(new URL(`../supabase/migrations/${name}.sql`, import.meta.url), 'utf8');
+// Match Supabase's extension namespace for the free-registration regression.
+const freeOnly = process.argv.includes('--free-only');
 
 sql(`do $$ begin
   if not exists (select 1 from pg_roles where rolname='anon') then create role anon; end if;
   if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if;
   if not exists (select 1 from pg_roles where rolname='service_role') then create role service_role; end if;
 end $$;
-create extension pgcrypto;
+create schema extensions;
+create extension pgcrypto with schema ${freeOnly ? 'extensions' : 'public'};
 create function public.set_updated_at() returns trigger language plpgsql as $$ begin new.updated_at := now(); return new; end $$;
 create table annual_conference_editions(id uuid primary key default gen_random_uuid(), year integer unique);
 create table annual_conference_sessions(id uuid primary key, edition_id uuid, speaker_name text, speaker_email text, status text, speaker_submission_id uuid);
@@ -44,6 +47,12 @@ for (const migration of [
   '20261016120000_annual_conference_attendee_updates',
   '20261016130000_annual_conference_registration_payment_capacity',
 ]) sql(read(migration));
+
+if (freeOnly) {
+  assert.throws(() => sql('select issue_annual_conference_registration_ticket(null::uuid)'), /gen_random_bytes/);
+  sql(read('20261016150000_conference_registration_crypto_resolution'));
+  assert.throws(() => sql('select issue_annual_conference_registration_ticket(null::uuid)'), /conference_registration_not_confirmed/);
+}
 
 const edition = sql('insert into annual_conference_editions(year) values (2026) returning id');
 
@@ -99,6 +108,7 @@ assert.equal(sql(`select status from annual_conference_attendee_blasts where id=
 assert.throws(() => sql(`select cancel_annual_conference_registration('${edition}', (select id from annual_conference_registrations where status='confirmed'))`));
 console.log('Attendee updates: isolated snapshot, serialized claims, immutable retries, suppression, and checked-in cancellation guard passed.');
 
+if (!freeOnly) {
 const paidEdition = sql('insert into annual_conference_editions(year) values (2027) returning id');
 
 sql(`insert into annual_conference_ticketing_settings(edition_id, public_capacity, sales_status) values ('${paidEdition}', 10, 'open')`);
@@ -125,6 +135,7 @@ for (const [suffix, expiry, expected] of [['unswept', "now() - interval '1 minut
   assert.equal(sql(`select count(*) from annual_conference_tickets where order_id='${order}'`), expected === 'confirmed' ? '1' : '0');
 }
 console.log('Unswept expiry refunds consistently; an in-time Regular payment still issues one admission.');
+}
 
 sql(read('20261016140000_annual_conference_registration_testing'));
 sql(`select configure_annual_conference_registration_testing('${edition}', true, array[' Alice@example.test ', 'alice@example.test', 'bob@example.test'], 'owner@example.test')`);

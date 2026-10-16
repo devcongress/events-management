@@ -1214,7 +1214,7 @@
           "schema": "public",
           "name": "issue_annual_conference_social_card_delivery",
           "argumentTypes": "uuid, annual_conference_social_card_subject, uuid",
-          "bodySha256": "5c8c65fdceb13c1a6da4f7e20da1a25af9f1b6aba74507b10bd5e4b52db439c9",
+          "bodySha256": "6fadf28fa8ba57052d459821575769ef2b9e28ce38644aa66db669aed50c031b",
           "securityDefiner": true,
           "private": true,
           "serviceExecute": true,
@@ -1312,7 +1312,7 @@
           "schema": "public",
           "name": "check_in_annual_conference_bearer_ticket",
           "argumentTypes": "uuid, text, text",
-          "bodySha256": "f46090a7daa4c83b98070ac078d0929793f8ca896fa7ea9ea9cd4a1fbbc739e5",
+          "bodySha256": "a1d08ced30ebbf341eef4cfcfaa36f580750648e45fad4ebd64ee9ced07f721a",
           "securityDefiner": true,
           "private": true,
           "serviceExecute": true,
@@ -1950,7 +1950,7 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true,
-          "bodySha256": "b32eb376e032fee9223333bc021bfadd7f9ca3aea8150b3761783c6b8b88eea6"
+          "bodySha256": "baed92256fcd60b47f4efe8b1d179cc13eb8b5eeb037623ac85b3c7480ddebde"
         },
         {
           "kind": "function",
@@ -2206,7 +2206,7 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true,
-          "bodySha256": "f46090a7daa4c83b98070ac078d0929793f8ca896fa7ea9ea9cd4a1fbbc739e5"
+          "bodySha256": "a1d08ced30ebbf341eef4cfcfaa36f580750648e45fad4ebd64ee9ced07f721a"
         },
         {
           "kind": "function",
@@ -2868,6 +2868,64 @@
           "result": "jsonb",
           "language": "plpgsql",
           "bodySha256": "3a6516bb8649a5f33da5d1ad70e4085679ec409b351e543d6720ca14c6bde1ed",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261016150000_conference_registration_crypto_resolution.sql",
+      "sha256": "509307989e313835e18b556e94f314504480300ddd71493fb11113ebe50e75c7",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "issue_annual_conference_social_card_delivery",
+          "argumentTypes": "uuid, annual_conference_social_card_subject, uuid",
+          "bodySha256": "6fadf28fa8ba57052d459821575769ef2b9e28ce38644aa66db669aed50c031b",
+          "securityDefiner": true,
+          "private": true,
+          "serviceExecute": true,
+          "searchPath": "public",
+          "language": "plpgsql",
+          "result": "TABLE(social_card_id uuid, management_capability text)"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "check_in_annual_conference_bearer_ticket",
+          "argumentTypes": "uuid, text, text",
+          "securityDefiner": true,
+          "result": "TABLE(outcome text, ticket_id uuid, order_id uuid, order_seat_number integer)",
+          "language": "plpgsql",
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "a1d08ced30ebbf341eef4cfcfaa36f580750648e45fad4ebd64ee9ced07f721a"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "issue_annual_conference_registration_ticket",
+          "argumentTypes": "uuid",
+          "securityDefiner": true,
+          "result": "void",
+          "language": "plpgsql",
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "baed92256fcd60b47f4efe8b1d179cc13eb8b5eeb037623ac85b3c7480ddebde"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "provision_annual_conference_ticket_social_card",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "001fd27277c92d98e0b956a92457d492d86665cb2497368ce5c995c3e8df7cf9",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
