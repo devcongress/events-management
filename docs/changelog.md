@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 — Contextual registration email activity and manual speaker sends
+
+- Add manager-only email activity beside each registration guest, with scoped delivery milestones, errors, sender readiness, and confirmed safe retries; retain the edition-wide Emails screen and exact recipient search.
+- Save annual speaker selection/rejection without sending. Require an explicit initial send in the existing speaker drawer, then retain bounded recovery for initiated deliveries.
+- Prepare a forward database guard against retrying cancelled or superseded email records. Verify the guard in a disposable PostgreSQL registration fixture; migration application and EMS deployment remain separate approval steps.
+- Keep email payloads, QR capabilities, and claim leases out of organizer responses. Provider acceptance is distinct from delivery; this view is not an immutable per-attempt ledger and does not yet include social-card emails.
+
 ## 2026-10-16 — Repair registration crypto resolution and simplify disabled tabs
 
 - Prepare a forward migration qualifying pgcrypto calls with the Supabase `extensions` schema in registration ticket issuance, ticket social-card provisioning, social-card delivery, and QR check-in. Preserve function search paths, permissions, settings, records, and delivery policies.

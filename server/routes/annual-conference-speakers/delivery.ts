@@ -42,8 +42,10 @@ function deliveryFailure(error: unknown): DeliveryFailure {
 }
 
 export function annualConferenceDecisionEmailIsDue(submission: AnnualConferenceSpeakerSubmission, at = Date.now()): boolean {
+  // A saved selection/rejection is not consent to send. Only recover deliveries
+  // that an organizer has explicitly started.
+  if (submission.decision_email_attempt_count === 0 || !submission.decision_email_last_attempt_at) return false;
   if (!submission.decision_email_retryable || submission.decision_email_attempt_count >= ANNUAL_CONFERENCE_EMAIL_MAX_ATTEMPTS) return false;
-  if (!submission.decision_email_last_attempt_at) return true;
   const delay = RETRY_DELAYS_MS[Math.min(submission.decision_email_attempt_count, RETRY_DELAYS_MS.length - 1)];
 
   return new Date(submission.decision_email_last_attempt_at).getTime() + delay <= at;

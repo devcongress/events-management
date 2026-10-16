@@ -424,6 +424,7 @@ export interface AnnualConferenceTicketEmailDelivery {
   updated_at: string;
 }
 export interface AnnualConferenceTicketEmailDeliveriesResponse {
+  sender?: { enabled: boolean; configured: boolean; ready: boolean };
   deliveries: AnnualConferenceTicketEmailDelivery[];
   total: number;
   summary: Record<AnnualConferenceTicketEmailDeliveryStatus, number>;
@@ -720,12 +721,16 @@ export function fetchAnnualConferenceTicketEmailDeliveries(year: string, input: 
   page?: number;
   pageSize?: number;
   status?: AnnualConferenceTicketEmailDeliveryStatus;
+  registrationId?: string;
+  recipient?: string;
 } = {}) {
   const params = new URLSearchParams();
 
   if (input.page) params.set('page', String(input.page));
   if (input.pageSize) params.set('page_size', String(input.pageSize));
   if (input.status) params.set('status', input.status);
+  if (input.registrationId) params.set('registration_id', input.registrationId);
+  if (input.recipient) params.set('recipient', input.recipient);
   const query = params.size ? `?${params}` : '';
 
   return fetchJson<AnnualConferenceTicketEmailDeliveriesResponse>(`/api/annual-conference/${year}/ticketing/email-deliveries${query}`, {

@@ -12,6 +12,12 @@ DevCon26 registration is an annual-conference domain, not a monthly meetup or a 
 
 ## Shared-database rehearsal
 
+### Email activity and safe retry
+
+Registration → Guests exposes a manager-only Email status action. Its contextual right drawer shows that registration's admission/waitlist email records, attempt count, queue/provider-acceptance/delivery timestamps, and errors. Registration → Emails retains the edition-wide list with exact, case-insensitive recipient search and sender readiness. These responses never include QR payloads or private claim capabilities. Provider acceptance is not inbox delivery.
+
+Retry requires inline confirmation and only applies to definite pre-acceptance failures below the attempt limit. Cancelled or superseded messages are terminal and cannot be revived. Apply `20261016173000_registration_email_terminal_retry_guard.sql` before delivering this change; it is a forward function-only migration and does not send mail. Accepted/delivered messages are not offered a duplicate-send action. Separate social-card delivery is not yet included in this activity drawer.
+
 Apply `20261016140000_annual_conference_registration_testing.sql` after the four registration migrations. It does not enable testing or open registration. In Registration, an Owner can save **Testing settings**, enable **Restrict to approved testers**, and add exact email addresses (up to 200). An empty enabled list blocks everyone. Changes require a confirmation modal and take effect without redeploying.
 
 This uses existing records, real capacity, waitlisting, and valid admission QR codes. Testing registrations are marked internally; the public form keeps normal wording. Turning testing off does not delete records, release places, or revoke QR codes. Plan cleanup separately before launch. Removed tester addresses remain blocked for testing-record email even after testing is disabled; messages already in flight or sent cannot be recalled.

@@ -46,6 +46,7 @@ for (const migration of [
   '20261016110000_annual_conference_volunteer_check_in',
   '20261016120000_annual_conference_attendee_updates',
   '20261016130000_annual_conference_registration_payment_capacity',
+  '20261016173000_registration_email_terminal_retry_guard',
 ]) sql(read(migration));
 
 if (freeOnly) {
@@ -76,6 +77,12 @@ const confirmed = sql("select id from annual_conference_registrations where stat
 sql(`select cancel_annual_conference_registration('${edition}', '${confirmed}')`);
 assert.equal(sql("select count(*) from annual_conference_registrations where status='confirmed'"), '1');
 assert.equal(sql("select count(*) from annual_conference_registrations where status='waitlisted'"), '0');
+const terminalEmails = sql("select id from annual_conference_ticket_email_outbox where status='failed' and next_attempt_at='infinity'").split('\n');
+
+assert.ok(terminalEmails.length >= 2, 'Cancellation and superseded waitlist messages are terminal');
+for (const id of terminalEmails) {
+  assert.throws(() => sql(`select retry_annual_conference_ticket_email_outbox('${edition}', '${id}')`), /ticket_email_retry_terminal/);
+}
 const token = sql("select payload->>'qr_token' from annual_conference_ticket_email_outbox where kind='ticket_delivery' and payload ? 'qr_token'");
 const scans = await Promise.all([
   concurrent(`select outcome from check_in_annual_conference_bearer_ticket('${edition}', '${token}', 'volunteer1@example.test')`),

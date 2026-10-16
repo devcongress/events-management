@@ -72,7 +72,7 @@ describe('annual conference registration access and privacy', () => {
     const response = await app.request(privatePath);
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ overview, registrations: [{ id: 'registration-1', name: 'Ada', ticket_id: 'ticket-1' }] });
+    expect(await response.json()).toEqual({ overview, registrations: [{ id: 'registration-1', name: 'Ada', ticket_id: 'ticket-1', email_status: 'not_sent' }] });
     const query = mocks.from.mock.results[0]!.value;
 
     expect(query.select).toHaveBeenCalledWith('id,registration_id');

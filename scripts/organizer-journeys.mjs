@@ -2564,7 +2564,12 @@ try {
     responses.set("/api/annual-conference/2026/registrations/blasts/blast-1/send", { body: {} });
     responses.set("/api/annual-conference/2026/ticketing/email-deliveries", {
       body: {
-        deliveries: [{ id: "mail-1", order_id: null, kind: "waitlist_notice", recipient_name: "Fixture Recipient", recipient_email: "fixture@example.test", status: "failed", attempt_count: 1, provider_email_id: null, accepted_at: null }],
+        deliveries: [{
+          id: "mail-1", order_id: null, kind: "waitlist_notice",
+          recipient_name: "Fixture Recipient", recipient_email: "fixture@example.test",
+          status: "failed", attempt_count: 1, provider_email_id: null, accepted_at: null,
+          next_attempt_at: "2026-10-16T12:05:00.000Z", created_at: "2026-10-16T12:00:00.000Z",
+        }],
         total: 1, page: 1, page_size: 8, summary: { accepted: 3, delivered: 2, queued: 1, sending: 0, failed: 1 },
       },
     });

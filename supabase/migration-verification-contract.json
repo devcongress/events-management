@@ -2932,6 +2932,25 @@
           "serviceExecute": true
         }
       ]
+    },
+    {
+      "file": "20261016173000_registration_email_terminal_retry_guard.sql",
+      "sha256": "029b84cbeba1582a3c0734a15ed44fb823c543f29944134afecd41e53d137463",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "retry_annual_conference_ticket_email_outbox",
+          "argumentTypes": "uuid, uuid",
+          "result": "annual_conference_ticket_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "4d8d27a82ce6b749274738b17aa385cd6d432f5ebcb49df22723d9e2e56dd719",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
     }
   ]
 }

@@ -1,6 +1,7 @@
 import type { Context, Hono } from 'hono';
 import crypto from 'node:crypto';
 import { z } from 'zod';
+import { admissionEmailReadiness } from '@/server/annual-conference-admission-email-delivery';
 import {
   checkInSupabaseAnnualConferenceBearerTicket,
   confirmSupabaseAnnualConferenceTicketPayment,
@@ -78,6 +79,8 @@ const emailDeliveryQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10_000).default(1),
   page_size: z.coerce.number().int().min(1).max(100).default(25),
   status: z.enum(['queued', 'sending', 'accepted', 'delivered', 'failed']).optional(),
+  registration_id: z.string().uuid().optional(),
+  recipient: z.string().trim().email().transform((value) => value.toLowerCase()).optional(),
 }).strict();
 const emailDeliveryIdSchema = z.string().uuid('Email delivery id is invalid.');
 const ticketOrderQuerySchema = z.object({
@@ -642,6 +645,8 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
           page: query.data.page,
           pageSize: query.data.page_size,
           status: query.data.status,
+          registrationId: query.data.registration_id,
+          recipient: query.data.recipient,
         }, c),
         getSupabaseAnnualConferenceTicketEmailDeliverySummary(ticketing.settings.edition_id, c),
       ]);
@@ -651,6 +656,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
       return c.json({
         ...result,
         summary,
+        sender: admissionEmailReadiness(c),
         page: query.data.page,
         page_size: query.data.page_size,
       });
@@ -689,6 +695,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
         if (message.includes('ticket_email_retry_provider_ambiguous')) return c.json({ error: 'This email was accepted by the provider and cannot be blindly resent.' }, 409);
         if (message.includes('ticket_email_retry_claimed')) return c.json({ error: 'This email is already being processed.' }, 409);
         if (message.includes('ticket_email_retry_not_failed')) return c.json({ error: 'Only a failed email can be retried.' }, 409);
+        if (message.includes('ticket_email_retry_terminal')) return c.json({ error: 'This email was cancelled or superseded and cannot be resent.' }, 409);
 
         throw error;
       }

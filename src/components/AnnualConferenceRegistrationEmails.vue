@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import AppPagination from '@/src/components/AppPagination.vue';
-import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import {
   fetchAnnualConferenceTicketEmailDeliveries,
   retryAnnualConferenceTicketEmailDelivery,
@@ -10,7 +9,7 @@ import {
   type AnnualConferenceTicketEmailDeliveryStatus,
 } from '@/src/lib/api';
 
-const props = defineProps<{ year: string }>();
+const props = defineProps<{ year: string; registrationId?: string }>();
 const client = useQueryClient();
 const page = ref(1);
 const status = ref<AnnualConferenceTicketEmailDeliveryStatus | 'all'>('all');
@@ -18,11 +17,15 @@ const selected = ref<AnnualConferenceTicketEmailDelivery | null>(null);
 const busy = ref(false);
 const error = ref('');
 const message = ref('');
+const recipient = ref('');
+const recipientFilter = ref('');
+const expanded = ref<string | null>(null);
 let generation = 0;
 const deliveries = useQuery({
-  queryKey: computed(() => ['conference-registration-emails', props.year, page.value, status.value]),
+  queryKey: computed(() => ['conference-registration-emails', props.year, props.registrationId, page.value, status.value, recipientFilter.value]),
   queryFn: () => fetchAnnualConferenceTicketEmailDeliveries(props.year, {
     page: page.value, pageSize: 8, status: status.value === 'all' ? undefined : status.value,
+    registrationId: props.registrationId, recipient: recipientFilter.value || undefined,
   }),
   refetchInterval: 15_000,
   refetchIntervalInBackground: false,
@@ -42,6 +45,7 @@ const summaries = computed(() => {
 
 function canRetry(delivery: AnnualConferenceTicketEmailDelivery) {
   return delivery.status === 'failed' && delivery.attempt_count < 5
+    && Number.isFinite(Date.parse(delivery.next_attempt_at))
     && !delivery.provider_email_id && !delivery.accepted_at;
 }
 
@@ -50,6 +54,10 @@ function kindLabel(delivery: AnnualConferenceTicketEmailDelivery) {
   if (delivery.kind === 'payment_receipt') return 'Payment receipt';
 
   return 'Admission confirmation';
+}
+
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat('en-GH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Accra' }).format(new Date(value));
 }
 
 async function retry() {
@@ -75,13 +83,14 @@ async function retry() {
   }
 }
 
-watch([() => props.year, status], () => { page.value = 1; });
-watch(() => props.year, () => {
+watch([() => props.year, () => props.registrationId, status, recipientFilter], () => { page.value = 1; });
+watch([() => props.year, () => props.registrationId], () => {
   generation += 1;
   selected.value = null;
   busy.value = false;
   error.value = '';
   message.value = '';
+  expanded.value = null;
 });
 watch(pages, (count) => { page.value = Math.min(page.value, count); });
 </script>
@@ -105,13 +114,19 @@ watch(pages, (count) => { page.value = Math.min(page.value, count); });
       <button class="editorial-action mt-3" @click="deliveries.refetch()">Try again</button>
     </div>
     <template v-else>
-      <div class="grid gap-3 border-b border-dc-border p-5 sm:grid-cols-2 lg:grid-cols-4">
+      <p v-if="deliveries.data.value?.sender && !deliveries.data.value.sender.ready" class="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900" role="status">Email delivery is paused: {{ deliveries.data.value.sender.configured ? 'sending is disabled' : 'sender configuration is incomplete' }}. Queued messages have not necessarily been attempted.</p>
+      <div v-if="!registrationId" class="grid gap-3 border-b border-dc-border p-5 sm:grid-cols-2 lg:grid-cols-4">
         <div v-for="item in summaries" :key="item.label" class="rounded-lg border border-dc-border bg-white px-4 py-3">
           <p class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">{{ item.label }}</p>
           <p class="mt-1 text-2xl font-bold text-dc-ink">{{ item.value }}</p>
         </div>
       </div>
       <div class="border-b border-dc-border p-5">
+        <form v-if="!registrationId" class="mb-4 flex flex-wrap items-end gap-2" @submit.prevent="recipientFilter = recipient.trim().toLowerCase()">
+          <label class="min-w-0 flex-1"><span class="editorial-label">Recipient email</span><input v-model="recipient" type="email" class="editorial-input" placeholder="Exact email address"></label>
+          <button type="submit" class="editorial-action">Search</button>
+          <button v-if="recipientFilter" type="button" class="editorial-action" @click="recipient = ''; recipientFilter = ''">Clear</button>
+        </form>
         <label for="conference-email-status" class="editorial-label">Delivery status</label>
         <select id="conference-email-status" v-model="status" class="editorial-input max-w-xs">
           <option value="all">All emails</option>
@@ -131,13 +146,30 @@ watch(pages, (count) => { page.value = Math.min(page.value, count); });
           <div class="flex items-center gap-3">
             <span class="rounded-sm border border-dc-border px-2 py-1 font-mono text-[10px] uppercase">{{ delivery.status === 'accepted' ? 'Accepted by provider' : delivery.status }}</span>
             <button v-if="canRetry(delivery)" class="editorial-action" :disabled="busy" @click="selected = delivery; error = ''">Retry</button>
+            <button type="button" class="editorial-action" :aria-expanded="expanded === delivery.id" @click="expanded = expanded === delivery.id ? null : delivery.id">Details</button>
+          </div>
+          <div v-if="expanded === delivery.id || registrationId" class="w-full border-t border-dc-border pt-3 text-sm">
+            <dl class="grid gap-2 sm:grid-cols-2">
+              <div><dt class="text-dc-gray">Queued</dt><dd>{{ formatTime(delivery.created_at) }}</dd></div>
+              <div><dt class="text-dc-gray">Attempts</dt><dd>{{ delivery.attempt_count }}</dd></div>
+              <div v-if="delivery.accepted_at"><dt class="text-dc-gray">Accepted by provider</dt><dd>{{ formatTime(delivery.accepted_at) }}</dd></div>
+              <div v-if="delivery.delivered_at"><dt class="text-dc-gray">Delivered</dt><dd>{{ formatTime(delivery.delivered_at) }}</dd></div>
+            </dl>
+            <p v-if="delivery.last_error" class="mt-3 text-red-700" role="status">{{ delivery.last_error }}</p>
+            <p v-if="delivery.status === 'accepted'" class="mt-3 text-dc-gray">Accepted by the email provider; inbox delivery is not yet confirmed.</p>
+            <p v-if="delivery.status === 'queued' && !delivery.attempt_count" class="mt-3 text-dc-gray">Waiting for delivery. No send attempts yet.</p>
+            <p v-if="delivery.status === 'failed' && !canRetry(delivery)" class="mt-3 text-dc-gray">Review provider records before recovery. A blind resend could duplicate a previous send.</p>
           </div>
         </div>
       </div>
       <AppPagination v-if="total > 8" v-model:page="page" :page-count="pages" :total="total" :range-start="(page - 1) * 8 + 1" :range-end="Math.min(page * 8, total)" item-label="emails" />
     </template>
-    <ConfirmDialog :open="Boolean(selected)" title="Retry registration email?" :message="'Queue a retry for ' + (selected?.recipient_name ?? '') + '. Emails already accepted by the provider will not be resent.'" confirm-label="Queue retry" :busy="busy" @cancel="selected = null" @confirm="retry">
+    <section v-if="selected" class="border-t-2 border-dc-ink bg-dc-paper-warm p-5" aria-label="Confirm email retry">
+      <h3 class="font-bold">Retry {{ kindLabel(selected).toLowerCase() }}?</h3>
+      <p class="mt-2 break-words text-sm">{{ selected.recipient_name }} · {{ selected.recipient_email }}</p>
+      <p class="mt-2 text-sm text-dc-gray">Queue the same message for another attempt. This does not create a registration or a new QR code. Emails already accepted by the provider will not be resent.</p>
       <p v-if="error" class="text-dc-pink" role="alert">{{ error }}</p>
-    </ConfirmDialog>
+      <div class="mt-4 flex gap-3"><button type="button" class="editorial-action" :disabled="busy" @click="selected = null">Cancel</button><button type="button" class="editorial-action" :disabled="busy" @click="retry">{{ busy ? 'Queueing…' : 'Queue retry' }}</button></div>
+    </section>
   </section>
 </template>
