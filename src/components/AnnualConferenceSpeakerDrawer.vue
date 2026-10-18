@@ -198,9 +198,9 @@ onUnmounted(() => {
           <header class="flex shrink-0 items-start justify-between gap-4 border-b-2 border-dc-ink bg-dc-yellow px-5 py-4 sm:px-6">
             <div class="min-w-0">
               <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-ink">{{ kindLabel }}</p>
-              <h2 id="annual-conference-speaker-drawer-title" class="mt-1 text-2xl font-bold leading-tight tracking-tight text-dc-ink">{{ drawerTitle }}</h2>
+              <h2 id="annual-conference-speaker-drawer-title" class="mt-1 break-words text-2xl font-bold leading-tight tracking-tight text-dc-ink">{{ drawerTitle }}</h2>
             </div>
-            <button ref="closeButtonRef" type="button" class="motion-press grid min-h-10 min-w-10 place-items-center rounded-md border-2 border-dc-ink bg-dc-paper font-mono text-lg font-semibold text-dc-ink shadow-[2px_2px_0_#111111]" :disabled="submitting" aria-label="Close speaker proposal" @click="requestClose">×</button>
+            <button ref="closeButtonRef" type="button" class="motion-press grid min-h-11 min-w-11 shrink-0 place-items-center rounded-md border-2 border-dc-ink bg-dc-paper font-mono text-lg font-semibold text-dc-ink shadow-[2px_2px_0_#111111]" :disabled="submitting" aria-label="Close speaker proposal" @click="requestClose">×</button>
           </header>
 
           <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">
@@ -286,7 +286,7 @@ onUnmounted(() => {
             </section>
           </div>
 
-          <footer class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t-2 border-dc-ink bg-dc-paper px-5 py-4 sm:px-6">
+          <footer class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t-2 border-dc-ink bg-dc-paper px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
             <section v-if="emailConfirmation && annualSubmission" class="w-full rounded-md border border-dc-border p-3" aria-label="Confirm speaker email">
               <h3 class="font-bold">Send {{ emailConfirmation }} email?</h3>
               <p class="mt-2 break-words text-sm">{{ annualSubmission.speaker_name }} · {{ annualSubmission.decision_email_recipient ?? annualSubmission.speaker_email }}</p>

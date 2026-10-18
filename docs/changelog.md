@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-18 — Phone-friendly speaker review queue
+
+- Show full proposal titles, speaker names, session types, dates, and text statuses in tappable rows on phones; retain the desktop table and existing review drawer.
+- Increase queue filter and pagination touch targets, stack pagination on narrow screens, and accommodate the drawer safe area. Speaker permissions, decisions, and email delivery remain unchanged.
+
 ## 2026-10-18 — Mobile conference speaker navigation
 
 - Add Speakers to the mobile conference bottom navigation for users with speaker view/manage access, opening the current edition speaker inbox. Remove the disabled Finance and Ticketing placeholders from mobile; allow the existing speaker inbox route on phones while keeping desktop navigation and permission checks unchanged.
