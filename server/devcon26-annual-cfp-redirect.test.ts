@@ -15,9 +15,9 @@ afterEach(() => {
 });
 
 describe('DevCon26 annual CFP website redirect', () => {
-  it('keeps the website handoff disabled while testing the preview', () => {
+  it('enables the verified production website handoff', () => {
     expect(productionWorkerConfig).toMatch(
-      new RegExp(`${DEVCON26_ANNUAL_CFP_REDIRECT_ENABLED_ENV}\\s*=\\s*"false"`),
+      new RegExp(`${DEVCON26_ANNUAL_CFP_REDIRECT_ENABLED_ENV}\\s*=\\s*"true"`),
     );
   });
 
