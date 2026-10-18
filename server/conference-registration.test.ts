@@ -222,3 +222,44 @@ describe('annual conference registration access and privacy', () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 });
+
+describe('cancelled registration recovery', () => {
+  const sourceId = '20000000-0000-4000-8000-000000000001';
+  const newId = '20000000-0000-4000-8000-000000000002';
+  const path = `${privatePath}/${sourceId}/recover`;
+
+  it('requires Owner access as well as edition management permission', async () => {
+    mocks.role = 'organizer';
+    expect((await post(path, { confirmed: true })).status).toBe(403);
+    mocks.role = 'owner';
+    mocks.capability = false;
+    expect((await post(path, { confirmed: true })).status).toBe(403);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([{}, { confirmed: false }, { confirmed: true, email: 'other@example.test' }])('requires strict explicit confirmation %j', async (body) => {
+    expect((await post(path, body)).status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])('returns whether recovery actually queued a fresh registration: %s', async (created) => {
+    const recovery = { registration_id: newId, status: 'waitlisted', created };
+
+    mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'get_annual_conference_registration_overview' ? overview : recovery, error: null }));
+    const response = await post(path, { confirmed: true });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ recovery });
+    expect(mocks.rpc).toHaveBeenCalledWith('recover_annual_conference_registration', { p_edition_id: overview.edition_id, p_registration_id: sourceId });
+  });
+
+  it('explains testing restrictions without leaking database errors', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => name === 'get_annual_conference_registration_overview'
+      ? { data: overview, error: null }
+      : { data: null, error: { message: 'conference_recovery_testing_disabled' } });
+    const response = await post(path, { confirmed: true });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('approved-tester') });
+  });
+});

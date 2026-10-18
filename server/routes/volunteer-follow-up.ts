@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { sendVolunteerOutcomeTestEmail } from "@/server/routes/volunteer-outcome-test-email";
 import type { Context } from "hono";
 import type { Hono } from "hono";
 import { z } from "zod";
@@ -863,6 +864,8 @@ async function sendDueVolunteerFollowUps(c: Context) {
 }
 
 export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
+  app.post("/api/annual-conference/2026/volunteer-follow-up/outcomes/test", sendVolunteerOutcomeTestEmail);
+
   app.get(
     "/api/annual-conference/2026/volunteer-follow-up/preview",
     async (c) => {

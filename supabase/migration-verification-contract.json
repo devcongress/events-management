@@ -1739,15 +1739,6 @@
           "kind": "index",
           "schema": "public",
           "table": "annual_conference_registrations",
-          "name": "annual_conference_registrations_edition_id_normalized_email_key",
-          "contains": [
-            "CREATE UNIQUE INDEX annual_conference_registrations_edition_id_normalized_email_key ON public.annual_conference_registrations USING btree (edition_id, normalized_email)"
-          ]
-        },
-        {
-          "kind": "index",
-          "schema": "public",
-          "table": "annual_conference_registrations",
           "name": "annual_conference_registrations_id_edition_id_key",
           "contains": [
             "CREATE UNIQUE INDEX annual_conference_registrations_id_edition_id_key ON public.annual_conference_registrations USING btree (id, edition_id)"
@@ -1796,15 +1787,6 @@
           "name": "annual_conference_registrations_pkey",
           "contains": [
             "PRIMARY KEY (id)"
-          ]
-        },
-        {
-          "kind": "constraint",
-          "schema": "public",
-          "table": "annual_conference_registrations",
-          "name": "annual_conference_registrations_edition_id_normalized_email_key",
-          "contains": [
-            "UNIQUE (edition_id, normalized_email)"
           ]
         },
         {
@@ -2945,6 +2927,74 @@
           "result": "annual_conference_ticket_email_outbox",
           "language": "plpgsql",
           "bodySha256": "4d8d27a82ce6b749274738b17aa385cd6d432f5ebcb49df22723d9e2e56dd719",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261016190000_cancelled_registration_recovery.sql",
+      "sha256": "da7e6395f08c201a5e5f44863f8abce529cf809a3728ec4c19a4da13e2b474c8",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_registrations",
+          "name": "recovered_from_id",
+          "type": "uuid",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_registrations",
+          "name": "conference_registration_recovery_once",
+          "contains": [
+            "UNIQUE (recovered_from_id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_registrations",
+          "name": "conference_registration_recovery_source",
+          "contains": [
+            "FOREIGN KEY (recovered_from_id, edition_id) REFERENCES annual_conference_registrations(id, edition_id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_registrations",
+          "name": "conference_registration_recovery_not_self",
+          "contains": [
+            "recovered_from_id <> id"
+          ]
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "annual_conference_registrations",
+          "name": "conference_registration_active_email",
+          "contains": [
+            "CREATE UNIQUE INDEX",
+            "(edition_id, normalized_email)",
+            "'confirmed'::text",
+            "'waitlisted'::text",
+            "WHERE"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "recover_annual_conference_registration",
+          "argumentTypes": "uuid, uuid",
+          "result": "jsonb",
+          "language": "plpgsql",
+          "bodySha256": "1e770f5638d659e54923eb48655d97944553e410e678af49f3564e9903399cc4",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,

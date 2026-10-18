@@ -258,6 +258,45 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
     return c.json({ ok: true });
   });
 
+  app.post(`${privatePath}/:id/recover`, async (c) => {
+    const ownerError = await requireAdmin(c, ['owner']);
+
+    if (ownerError) return ownerError;
+    const id = z.string().uuid().safeParse(c.req.param('id'));
+    const body = z.object({ confirmed: z.literal(true) }).strict().safeParse(await c.req.json().catch(() => null));
+
+    if (!id.success || !body.success) return c.json({ error: 'Confirm recovery of this cancelled registration.' }, 400);
+    const overview = await conferenceRegistrationOverview(c, Number(c.req.param('year')));
+
+    if (!overview) return c.json({ error: 'Conference not found.' }, 404);
+    const result = await getSupabaseAdminClient(c).rpc('recover_annual_conference_registration' as never, {
+      p_edition_id: overview.edition_id, p_registration_id: id.data,
+    } as never);
+    const errors: Record<string, string> = {
+      conference_recovery_requires_cancelled: 'Only cancelled registrations can be recovered.',
+      conference_registration_closed: 'Open free registration before recovering this guest.',
+      conference_recovery_testing_disabled: 'Enable approved-tester registration before recovering a testing record.',
+      conference_recovery_tester_not_allowed: 'Add this guest to the approved tester list before recovery.',
+      conference_recovery_active_registration: 'This email already has an active registration. Refresh the guest list.',
+    };
+
+    if (result.error) return c.json({ error: errors[result.error.message] ?? 'Recovery is unavailable. Check the registration recovery migration and refresh before retrying.' }, 409);
+    const recovery = z.object({ registration_id: z.string().uuid(), status: z.enum(['confirmed', 'waitlisted', 'cancelled']), created: z.boolean() }).safeParse(result.data);
+
+    if (!recovery.success) return c.json({ error: 'Recovery could not be confirmed. Refresh before retrying.' }, 503);
+
+    try {
+      await recordProtectedMutationAudit(c, {
+        action: 'annual_conference.registration.recover', targetType: 'annual_conference_registration', targetId: id.data,
+        metadata: { edition_id: overview.edition_id, ...recovery.data },
+      });
+    } catch {
+      console.warn(JSON.stringify({ event: 'conference_registration_recovery_audit_failed' }));
+    }
+
+    return c.json({ recovery: recovery.data });
+  });
+
   app.post(`${privatePath}/:id/cancel`, async (c) => {
     const id = z.string().uuid().safeParse(c.req.param('id'));
 
