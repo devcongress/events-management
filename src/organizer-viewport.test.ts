@@ -117,6 +117,7 @@ describe("organizer viewport policy", () => {
 
   it("keeps phone-safe organizer displays and auth routes available", () => {
     for (const routeName of [
+      "admin-annual-conference-speakers",
       "admin-login",
       "admin-auth-callback",
       "admin-feedback-display",

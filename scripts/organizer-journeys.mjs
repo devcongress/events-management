@@ -2235,6 +2235,40 @@ try {
       );
     }
   }
+  for (const capability of ["speakers.view", "speakers.manage"]) {
+    await journey(`mobile-speakers-${capability}`, async ({ page, responses }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+      responses.set("/api/annual-conference/2026/work-plan", {
+        body: { ...workspace, permissions: { ...workspace.permissions, capabilities: [capability, "finance.view", "ticketing.manage"] } },
+      });
+      responses.set("/api/annual-conference/2026/speakers", {
+        body: {
+          edition: { ...edition, name: "DevCongress Annual Conference" },
+          call: { open: true, public_path: "/speak/c/2026", logistics_deadline: null },
+          permissions: { can_manage: capability === "speakers.manage" },
+          email_delivery: { configured: false, workspace_links_configured: false },
+          counts: { submitted: 0, selected: 0, not_selected: 0, withdrawn: 0 },
+          submissions: [],
+        },
+      });
+      await page.goto(`${origin}/organizer-console/mobile/annual-conference/2026`);
+      const nav = page.getByRole("navigation", { name: "Annual Conference workspace", exact: true });
+      const speakers = nav.getByRole("link", { name: "Speakers", exact: true });
+
+      await speakers.waitFor();
+      assert.equal(await nav.getByText("Finance", { exact: true }).count(), 0);
+      assert.equal(await nav.getByText("Ticketing", { exact: true }).count(), 0);
+      const bounds = await speakers.boundingBox();
+
+      assert.ok(bounds && bounds.height >= 44 && bounds.x >= 0 && bounds.x + bounds.width <= 390);
+      await page.screenshot({ path: `${artifacts}/mobile-speakers-${capability}.png`, fullPage: true });
+      await speakers.click();
+      await page.waitForURL("**/annual-conference/2026/speakers");
+      await page.getByRole("heading", { name: "Call for Speakers", exact: true }).waitFor();
+    });
+  }
+
   await journey(
     "volunteer-permissions",
     async ({ page, requests }) => {
@@ -2242,6 +2276,7 @@ try {
         `${origin}/organizer-console/mobile/annual-conference/2026`,
       );
       await page.getByText("No tasks assigned yet", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("link", { name: "Speakers", exact: true }).count(), 0);
       assert.equal(
         await page
           .getByRole("button", { name: "New edition", exact: true })

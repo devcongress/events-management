@@ -32,7 +32,7 @@ describe('annual conference ticketing operations UI', () => {
     expect(navSource.indexOf("label: 'Registration'")).toBeLessThan(navSource.indexOf("label: 'Finance'"));
     expect(navSource).not.toContain('>Disabled</span>');
     expect(mobileSource).not.toContain('<small>Disabled</small>');
-    expect(mobileSource).toContain('v-if="canViewFinance" class="conference-mobile__ticketing-disabled" aria-disabled="true"');
+    expect(mobileSource).not.toContain("<span>Finance</span>");
     expect(routerSource).toMatch(/name: "admin-annual-conference-finance",\s*redirect: \(to\) => annualConferencePath\("", String\(to.params.year\)\)/);
     expect(readFileSync(new URL('./views/admin/AdminAnnualConferenceFinanceView.vue', import.meta.url), 'utf8')).toContain('fetchAnnualConferenceFinance');
   });
@@ -42,7 +42,9 @@ describe('annual conference ticketing operations UI', () => {
     expect(navSource).toContain('disabled: true');
     expect(navSource).toContain(':aria-disabled="link.disabled ? \'true\' : undefined"');
     expect(navSource).toContain("label: 'Registration'");
-    expect(mobileSource).toContain('class="conference-mobile__ticketing-disabled" aria-disabled="true"');
+    expect(mobileSource).not.toContain("<span>Ticketing</span>");
+    expect(mobileSource).toContain('v-if="canViewSpeakers"');
+    expect(mobileSource).toContain(':to="annualConferencePath(\'speakers\', year)"');
     expect(registrationSource).toContain('AnnualConferenceRegistrationNav :active="activeSection"');
     expect(checkInSource).toContain('AnnualConferenceRegistrationNav active="guests"');
     expect(routerSource).toContain('redirect: (to) => annualConferencePath("registrations", String(to.params.year))');

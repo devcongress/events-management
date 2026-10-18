@@ -165,8 +165,10 @@ const editionsQuery = useQuery({
 });
 const capabilities = computed(() => permissions.value?.capabilities ?? []);
 const registrationTarget = computed(() => annualConferenceRegistrationTarget(capabilities.value, year.value));
-const canManageTicketing = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ["ticketing.manage"]));
-const canViewFinance = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ["finance.view"]));
+const canViewSpeakers = computed(() => hasAnyAnnualConferenceCapability(
+  capabilities.value,
+  ["speakers.view", "speakers.manage"],
+));
 const assignedAccess = computed(
   () => permissions.value?.access_scope === "assigned",
 );
@@ -1689,7 +1691,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
 
     <nav
       class="conference-mobile__tabs"
-      :style="{ '--tab-count': availableTabs.length + Number(canManageTicketing) + Number(canViewFinance) }"
+      :style="{ '--tab-count': availableTabs.length + Number(canViewSpeakers) }"
       aria-label="Annual Conference workspace"
     >
       <button
@@ -1720,14 +1722,16 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
         </svg>
         <span>{{ tab.label }}</span>
       </button>
-      <span v-if="canViewFinance" class="conference-mobile__ticketing-disabled" aria-disabled="true">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 10h16M15 14h2" /></svg>
-        <span>Finance</span>
-      </span>
-      <span v-if="canManageTicketing" class="conference-mobile__ticketing-disabled" aria-disabled="true">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 9h8M8 13h5" /></svg>
-        <span>Ticketing</span>
-      </span>
+      <RouterLink
+        v-if="canViewSpeakers"
+        :to="annualConferencePath('speakers', year)"
+        class="conference-mobile__speaker-link"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 20c.5-3 2.5-5 5.5-5s5 2 5.5 5M9.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M17 8h5M19.5 5.5v5" />
+        </svg>
+        <span>Speakers</span>
+      </RouterLink>
     </nav>
 
     <AnnualConferenceTaskDrawer
@@ -2938,7 +2942,8 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
     max(0.5rem, env(safe-area-inset-left));
   backdrop-filter: blur(16px);
 }
-.conference-mobile__tabs button {
+.conference-mobile__tabs button,
+.conference-mobile__speaker-link {
   position: relative;
   display: grid;
   min-height: 3.5rem;
@@ -2957,28 +2962,6 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
     transform 100ms var(--motion-fast),
     color 150ms var(--motion-fast),
     background-color 150ms var(--motion-fast);
-}
-.conference-mobile__ticketing-disabled {
-  display: grid;
-  min-height: 3.5rem;
-  place-items: center;
-  align-content: center;
-  gap: 0.2rem;
-  color: #9a968d;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.5rem;
-  font-weight: 700;
-  opacity: 0.72;
-  text-transform: uppercase;
-}
-.conference-mobile__ticketing-disabled svg {
-  width: 1rem;
-  height: 1rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.7;
 }
 .conference-mobile__tabs button[aria-current="page"] {
   background: #fefce8;
@@ -3101,6 +3084,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
 .task-row:active,
 .application-row:active,
 .conference-mobile__tabs button:active,
+.conference-mobile__speaker-link:active,
 .phase-manager-actions button:active {
   transform: scale(0.97);
 }
@@ -3111,6 +3095,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
 .signal-grid button:focus-visible,
 .task-row:focus-visible,
 .conference-mobile__tabs button:focus-visible,
+.conference-mobile__speaker-link:focus-visible,
 .phase-manager-actions button:focus-visible {
   outline: 2px solid var(--conference-accent, #e8117f);
   outline-offset: 2px;
@@ -3147,6 +3132,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
   .task-row,
   .application-row,
   .conference-mobile__tabs button,
+  .conference-mobile__speaker-link,
   .volunteer-lifecycle-filter > button {
     transition-duration: 1ms !important;
   }
