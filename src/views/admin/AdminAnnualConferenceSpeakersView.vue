@@ -236,6 +236,10 @@ function formatSubmittedAt(value: string): string {
   return new Intl.DateTimeFormat('en-GH', { day: 'numeric', month: 'short' }).format(new Date(value));
 }
 
+function mobileProposalStatusLabel(status: SpeakerSubmissionStatus): string {
+  return { submitted: 'Pending', selected: 'Approved', not_selected: 'Rejected', withdrawn: 'Withdrawn' }[status];
+}
+
 function proposalStatusLabel(status: SpeakerSubmissionStatus): string {
   return status === 'not_selected' ? 'Not selected' : status;
 }
@@ -273,13 +277,13 @@ function toLocalDateTimeInput(value: string): string {
               :href="speakersQuery.data.value.call.public_path"
               target="_blank"
               rel="noopener noreferrer"
-              class="motion-press inline-flex min-h-10 items-center gap-2 rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
+              class="motion-press inline-flex min-h-11 items-center gap-2 rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
             >
               <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3h7v7M21 3l-9 9M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5" /></svg>
               Open form<span class="sr-only"> (opens in a new tab)</span>
             </a>
-            <AppCopyButton :state="publicLinkCopyState" label="Copy public link" class="min-h-10 rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :disabled="!speakersQuery.data.value.call.open" @click="copyPublicLink" />
-            <button v-if="canManage" class="motion-press min-h-10 rounded-md border-2 border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white" :class="speakersQuery.data.value.call.open ? 'bg-red-600' : 'bg-dc-pink'" :disabled="callMutation.isPending.value" @click="speakersQuery.data.value.call.open ? closeCallConfirmationOpen = true : callMutation.mutate(true)">{{ speakersQuery.data.value.call.open ? 'Close call' : 'Open call' }}</button>
+            <AppCopyButton :state="publicLinkCopyState" label="Copy public link" class="min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :disabled="!speakersQuery.data.value.call.open" @click="copyPublicLink" />
+            <button v-if="canManage" class="motion-press min-h-11 rounded-md border-2 border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white" :class="speakersQuery.data.value.call.open ? 'bg-red-600' : 'bg-dc-pink'" :disabled="callMutation.isPending.value" @click="speakersQuery.data.value.call.open ? closeCallConfirmationOpen = true : callMutation.mutate(true)">{{ speakersQuery.data.value.call.open ? 'Close call' : 'Open call' }}</button>
           </div>
         </section>
 
@@ -298,22 +302,22 @@ function toLocalDateTimeInput(value: string): string {
           <p class="mt-2 text-xs leading-5 text-dc-gray">Accepted speakers can save and revise their private workspace until this deadline.</p>
         </section>
 
-        <section class="editorial-panel mt-6 overflow-hidden" aria-live="polite">
+        <section class="speaker-queue editorial-panel mt-6 overflow-hidden" aria-live="polite">
           <div class="flex flex-wrap items-center justify-between gap-4 border-b border-dc-border px-5 py-4 sm:px-6">
             <div>
               <p class="editorial-eyebrow">Review queue</p>
               <p class="mt-1 text-lg font-semibold text-dc-gray">{{ pendingCountLabel }}</p>
             </div>
             <div class="flex flex-wrap items-center justify-end gap-2">
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Filter proposals by status">
-                <button type="button" class="motion-press relative min-h-10 rounded-md border-2 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="statusFilter === 'submitted' ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-border bg-dc-paper text-dc-gray'" :aria-pressed="statusFilter === 'submitted'" @click="toggleStatusFilter('submitted')">
+              <div class="speaker-queue-filters flex flex-wrap gap-2" role="group" aria-label="Filter proposals by status">
+                <button type="button" class="motion-press relative min-h-11 rounded-md border-2 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="statusFilter === 'submitted' ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-border bg-dc-paper text-dc-gray'" :aria-pressed="statusFilter === 'submitted'" @click="toggleStatusFilter('submitted')">
                   Pending
                   <Transition name="submission-count">
                     <span v-if="counts.submitted" class="submission-filter-count" :class="counts.submitted > 99 ? 'text-[7px]' : 'text-[9px]'" :aria-label="`${counts.submitted} pending proposals`">{{ counts.submitted > 99 ? '99+' : counts.submitted }}</span>
                   </Transition>
                 </button>
-                <button type="button" class="motion-press min-h-10 rounded-md border-2 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="statusFilter === 'selected' ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-border bg-dc-paper text-dc-gray'" :aria-pressed="statusFilter === 'selected'" @click="toggleStatusFilter('selected')">Approved</button>
-                <button type="button" class="motion-press min-h-10 rounded-md border-2 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="statusFilter === 'not_selected' ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-border bg-dc-paper text-dc-gray'" :aria-pressed="statusFilter === 'not_selected'" @click="toggleStatusFilter('not_selected')">Rejected</button>
+                <button type="button" class="motion-press min-h-11 rounded-md border-2 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="statusFilter === 'selected' ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-border bg-dc-paper text-dc-gray'" :aria-pressed="statusFilter === 'selected'" @click="toggleStatusFilter('selected')">Approved</button>
+                <button type="button" class="motion-press min-h-11 rounded-md border-2 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="statusFilter === 'not_selected' ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-border bg-dc-paper text-dc-gray'" :aria-pressed="statusFilter === 'not_selected'" @click="toggleStatusFilter('not_selected')">Rejected</button>
               </div>
             </div>
           </div>
@@ -321,40 +325,62 @@ function toLocalDateTimeInput(value: string): string {
           <div v-if="visibleSubmissions.length === 0" class="p-6">
             <p class="text-sm text-dc-gray">No {{ selectedStatusLabel }} yet.</p>
           </div>
-          <div v-else class="overflow-x-auto">
-            <table class="w-full min-w-[46rem] table-fixed border-collapse text-left">
-              <caption class="sr-only">Conference speaker proposals</caption>
-              <thead class="border-b border-dc-border bg-dc-paper font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-pink">
-                <tr>
-                  <th scope="col" class="w-[40%] px-4 py-3">Proposal</th>
-                  <th scope="col" class="w-[20%] px-4 py-3">Speaker</th>
-                  <th scope="col" class="w-[10%] px-4 py-3">Type</th>
-                  <th scope="col" class="w-[11%] px-4 py-3">Submitted</th>
-                  <th scope="col" class="w-[12%] px-4 py-3">Status</th>
-                  <th scope="col" class="w-[7%] px-4 py-3 text-right"><span class="sr-only">Open proposal</span></th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-dc-border bg-white">
-                <tr v-for="submission in paginatedSubmissions" :key="submission.id" tabindex="0" class="h-14 cursor-pointer outline-none hover:bg-dc-paper-warm/40 focus-visible:bg-dc-paper-warm focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dc-pink" :aria-label="`Open proposal: ${submission.title}`" @click="openProposal(submission.id)" @keydown.enter.prevent="openProposal(submission.id)" @keydown.space.prevent="openProposal(submission.id)">
-                  <th scope="row" class="truncate px-5 py-2 text-sm font-semibold text-dc-ink sm:px-6" :title="submission.title">
-                    {{ submission.title }}
-                  </th>
-                  <td class="truncate px-4 py-2 text-sm text-dc-gray" :title="`${submission.speaker_name} · ${submission.speaker_email}`">{{ submission.speaker_name }}</td>
-                  <td class="px-4 py-2 font-mono text-[10px] font-semibold leading-4 text-dc-gray">{{ submission.session_type }}</td>
-                  <td class="px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray">{{ formatSubmittedAt(submission.created_at) }}</td>
-                  <td class="px-4 py-2">
-                    <span class="inline-flex size-8 items-center justify-center rounded-md border" :class="submission.status === 'selected' ? 'border-[#86efac] text-[#15803d]' : submission.status === 'not_selected' ? 'border-[#fda4af] text-dc-pink' : 'border-dc-border text-dc-gray'" role="img" :aria-label="proposalStatusLabel(submission.status)" :title="proposalStatusLabel(submission.status)">
-                      <svg v-if="submission.status === 'selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m7.5 12.5 3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                      <svg v-else-if="submission.status === 'not_selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m8.5 8.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
-                      <svg v-else viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1.8" /><path d="M12 8.5v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                    </span>
-                  </td>
-                  <td class="px-5 py-2 text-right sm:px-6">
-                    <span aria-hidden="true" class="font-mono text-sm text-dc-gray">→</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-else>
+            <ul class="speaker-proposal-list" aria-label="Conference speaker proposals">
+              <li v-for="submission in paginatedSubmissions" :key="submission.id">
+                <button
+                  type="button"
+                  class="speaker-proposal-card motion-press"
+                  @click="openProposal(submission.id)"
+                >
+                  <span class="speaker-proposal-card__title">{{ submission.title }}</span>
+                  <span class="speaker-proposal-card__speaker">{{ submission.speaker_name }}</span>
+                  <span class="speaker-proposal-card__metadata">
+                    <span>{{ submission.session_type }}</span>
+                    <span>Submitted {{ formatSubmittedAt(submission.created_at) }}</span>
+                  </span>
+                  <span class="speaker-proposal-card__footer">
+                    <span class="speaker-proposal-card__status">{{ mobileProposalStatusLabel(submission.status) }}</span>
+                    <span class="speaker-proposal-card__open" aria-hidden="true">View proposal <span>→</span></span>
+                  </span>
+                </button>
+              </li>
+            </ul>
+            <div class="speaker-proposal-table overflow-x-auto">
+              <table class="w-full min-w-[46rem] table-fixed border-collapse text-left">
+                <caption class="sr-only">Conference speaker proposals</caption>
+                <thead class="border-b border-dc-border bg-dc-paper font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-pink">
+                  <tr>
+                    <th scope="col" class="w-[40%] px-4 py-3">Proposal</th>
+                    <th scope="col" class="w-[20%] px-4 py-3">Speaker</th>
+                    <th scope="col" class="w-[10%] px-4 py-3">Type</th>
+                    <th scope="col" class="w-[11%] px-4 py-3">Submitted</th>
+                    <th scope="col" class="w-[12%] px-4 py-3">Status</th>
+                    <th scope="col" class="w-[7%] px-4 py-3 text-right"><span class="sr-only">Open proposal</span></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-dc-border bg-white">
+                  <tr v-for="submission in paginatedSubmissions" :key="submission.id" tabindex="0" class="h-14 cursor-pointer outline-none hover:bg-dc-paper-warm/40 focus-visible:bg-dc-paper-warm focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dc-pink" :aria-label="`Open proposal: ${submission.title}`" @click="openProposal(submission.id)" @keydown.enter.prevent="openProposal(submission.id)" @keydown.space.prevent="openProposal(submission.id)">
+                    <th scope="row" class="truncate px-5 py-2 text-sm font-semibold text-dc-ink sm:px-6" :title="submission.title">
+                      {{ submission.title }}
+                    </th>
+                    <td class="truncate px-4 py-2 text-sm text-dc-gray" :title="`${submission.speaker_name} · ${submission.speaker_email}`">{{ submission.speaker_name }}</td>
+                    <td class="px-4 py-2 font-mono text-[10px] font-semibold leading-4 text-dc-gray">{{ submission.session_type }}</td>
+                    <td class="px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray">{{ formatSubmittedAt(submission.created_at) }}</td>
+                    <td class="px-4 py-2">
+                      <span class="inline-flex size-8 items-center justify-center rounded-md border" :class="submission.status === 'selected' ? 'border-[#86efac] text-[#15803d]' : submission.status === 'not_selected' ? 'border-[#fda4af] text-dc-pink' : 'border-dc-border text-dc-gray'" role="img" :aria-label="proposalStatusLabel(submission.status)" :title="proposalStatusLabel(submission.status)">
+                        <svg v-if="submission.status === 'selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m7.5 12.5 3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                        <svg v-else-if="submission.status === 'not_selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m8.5 8.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+                        <svg v-else viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1.8" /><path d="M12 8.5v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                      </span>
+                    </td>
+                    <td class="px-5 py-2 text-right sm:px-6">
+                      <span aria-hidden="true" class="font-mono text-sm text-dc-gray">→</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
           <AppPagination v-model:page="page" :page-count="pageCount" :total="visibleSubmissions.length" :range-start="pageStart" :range-end="pageEnd" item-label="proposals" aria-label="Conference speaker proposal pagination" />
         </section>
@@ -404,3 +430,105 @@ function toLocalDateTimeInput(value: string): string {
     </div>
   </div>
 </template>
+
+<style scoped>
+.speaker-proposal-list {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .speaker-proposal-table {
+    display: none;
+  }
+
+  .speaker-proposal-list {
+    display: block;
+  }
+
+  .speaker-proposal-list > li + li {
+    border-top: 1px solid var(--dc-border, #dedbd3);
+  }
+
+  .speaker-proposal-card {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    gap: 8px;
+    padding: 20px;
+    text-align: left;
+    overflow-wrap: anywhere;
+    background: white;
+  }
+
+  .speaker-proposal-card:focus-visible {
+    outline: 2px solid #ff0080;
+    outline-offset: -4px;
+  }
+
+  .speaker-proposal-card__title {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  .speaker-proposal-card__speaker {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #555;
+  }
+
+  .speaker-proposal-card__metadata,
+  .speaker-proposal-card__footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #555;
+  }
+
+  .speaker-proposal-card__footer {
+    justify-content: space-between;
+    margin-top: 4px;
+  }
+
+  .speaker-proposal-card__status {
+    border: 1px solid #dedbd3;
+    border-radius: 6px;
+    padding: 3px 8px;
+  }
+
+  .speaker-proposal-card__open {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #111;
+  }
+
+  .speaker-queue-filters button {
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+
+  .speaker-queue :deep(.app-pagination) {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 16px 20px;
+  }
+
+  .speaker-queue :deep(.app-pagination__count) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .speaker-queue :deep(.app-pagination__button) {
+    min-height: 44px;
+    width: 100%;
+    justify-content: center;
+    padding-inline: 8px;
+  }
+}
+</style>

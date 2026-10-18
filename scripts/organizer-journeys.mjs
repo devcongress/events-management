@@ -2236,7 +2236,7 @@ try {
     }
   }
   for (const capability of ["speakers.view", "speakers.manage"]) {
-    await journey(`mobile-speakers-${capability}`, async ({ page, responses }) => {
+    await journey(`mobile-speakers-${capability}`, async ({ page, responses, requests }) => {
       await page.setViewportSize({ width: 390, height: 844 });
       responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
       responses.set("/api/annual-conference/2026/work-plan", {
@@ -2249,7 +2249,20 @@ try {
           permissions: { can_manage: capability === "speakers.manage" },
           email_delivery: { configured: false, workspace_links_configured: false },
           counts: { submitted: 0, selected: 0, not_selected: 0, withdrawn: 0 },
-          submissions: [],
+          submissions: Array.from({ length: 8 }, (_, index) => ({
+            id: `mobile-proposal-${index}`,
+            proposal_schema_version: 2,
+            title: index === 0 ? "Building resilient community tools: lessons from running a conference with a small team" : `Community proposal ${index + 1}`,
+            speaker_name: index === 0 ? "Ama Mensah — Community Engineering" : `Speaker ${index + 1}`,
+            speaker_email: "fixture@example.com",
+            session_type: "Talk",
+            topic: "Engineering",
+            abstract: "A fixture proposal for verifying mobile review without production changes.",
+            bio: "Community engineer.",
+            learning_outcomes: ["Design for recovery"],
+            status: index === 7 ? "selected" : "submitted",
+            created_at: "2026-10-18T10:00:00Z",
+          })),
         },
       });
       await page.goto(`${origin}/organizer-console/mobile/annual-conference/2026`);
@@ -2266,6 +2279,46 @@ try {
       await speakers.click();
       await page.waitForURL("**/annual-conference/2026/speakers");
       await page.getByRole("heading", { name: "Call for Speakers", exact: true }).waitFor();
+      await waitForRouteTransition(page);
+      const queue = page.locator(".speaker-queue");
+      const cards = queue.locator(".speaker-proposal-card");
+      const filters = queue.getByRole("group", { name: "Filter proposals by status" });
+
+      for (const width of [320, 375, 390, 430, 768, 1440]) {
+        await page.setViewportSize({ width, height: 844 });
+        assert.equal(await page.locator(".speaker-proposal-table").isVisible(), width >= 768);
+        assert.equal(await page.locator(".speaker-proposal-list").isVisible(), width < 768);
+        if (width >= 768) continue;
+        assert.equal(await cards.count(), 6);
+        assert.equal(await cards.first().getByText("Ama Mensah — Community Engineering", { exact: true }).isVisible(), true);
+        assert.equal(await queue.evaluate((element) => element.scrollWidth <= element.clientWidth), true);
+        for (const control of await filters.getByRole("button").all()) {
+          const box = await control.boundingBox();
+
+          assert.ok(box && box.height >= 44 && box.x >= 0 && box.x + box.width <= width);
+        }
+      }
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: `${artifacts}/mobile-speaker-queue-${capability}.png`, fullPage: true });
+      await cards.first().click();
+      const drawer = page.getByRole("dialog");
+
+      await drawer.waitFor();
+      assert.equal(await drawer.getByRole("button", { name: "Approve", exact: true }).count(), capability === "speakers.manage" ? 1 : 0);
+      assert.equal(await drawer.getByText("A fixture proposal for verifying mobile review without production changes.", { exact: true }).isVisible(), true);
+      await page.getByRole("button", { name: "Close speaker proposal", exact: true }).click();
+      await drawer.waitFor({ state: "hidden" });
+      assert.equal(await cards.first().evaluate((element) => element === document.activeElement), true);
+      await queue.getByRole("button", { name: "Next page", exact: true }).click();
+      assert.equal(await cards.count(), 1);
+      assert.equal(await cards.first().getByText("Community proposal 7", { exact: true }).isVisible(), true);
+      await filters.getByRole("button", { name: "Approved", exact: true }).click();
+      assert.equal(await cards.count(), 1);
+      assert.equal(await cards.first().getByText("Community proposal 8", { exact: true }).isVisible(), true);
+      await filters.getByRole("button", { name: "Rejected", exact: true }).click();
+      assert.equal(await queue.getByText("No not-selected proposals yet.", { exact: true }).isVisible(), true);
+      assert.equal(requests.some((request) => request.method !== "GET" && request.path.includes("speaker-submissions")), false);
     });
   }
 
