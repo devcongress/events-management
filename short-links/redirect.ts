@@ -102,7 +102,7 @@ export async function resolveShortLinkRequest(request: Request, env: ShortLinkEn
     return unavailable();
   }
   if (!resolved.ok) return unavailable();
-  const body = await resolved.json<{ destination_path?: unknown }>();
+  const body = await resolved.json() as { destination_path?: unknown };
 
   if (typeof body.destination_path !== 'string' || !body.destination_path.startsWith('/') || body.destination_path.startsWith('//')) {
     return unavailable();

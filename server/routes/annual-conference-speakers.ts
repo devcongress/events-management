@@ -6,7 +6,7 @@ import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase
 import {
   ANNUAL_CONFERENCE_ABSTRACT_WORD_LIMIT,
   ANNUAL_CONFERENCE_BIO_WORD_LIMIT,
-  ANNUAL_CONFERENCE_CFP_PREVIEW_HOSTNAME,
+  ANNUAL_CONFERENCE_CFP_PREVIEW_HOSTNAMES,
   ANNUAL_CONFERENCE_LEARNING_OUTCOME_MAX,
   ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN,
   ANNUAL_CONFERENCE_SESSION_TYPES,
@@ -828,7 +828,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       submittedAction: parsed.data.turnstile_action,
       expectedAction: CFP_SUBMISSION_TURNSTILE_ACTION,
       expectedHostname: yearParam === '2026'
-        ? ['devcongress.org', 'www.devcongress.org', 'em.devcongress.org', ANNUAL_CONFERENCE_CFP_PREVIEW_HOSTNAME]
+        ? ['devcongress.org', 'www.devcongress.org', 'em.devcongress.org', ...ANNUAL_CONFERENCE_CFP_PREVIEW_HOSTNAMES]
         : ['devcongress.org', 'www.devcongress.org', 'em.devcongress.org'],
     });
 

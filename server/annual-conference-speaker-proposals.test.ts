@@ -115,7 +115,7 @@ describe('Annual Conference proposal lifecycle', () => {
     vi.resetModules();
     vi.stubEnv('TURNSTILE_SECRET_KEY', 'turnstile-test-secret');
     const previewHostname = 'feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev';
-    const acceptedHostnames = ['devcongress.org', 'www.devcongress.org', 'em.devcongress.org', previewHostname];
+    const acceptedHostnames = ['devcongress.org', 'www.devcongress.org', 'em.devcongress.org', previewHostname, 'feature-devcon26-registration-paused-devcongress-website.admins-a7d.workers.dev'];
     const tokenResults = new Map(acceptedHostnames.map((hostname, index) => [`valid-token-${index}`, {
       action: 'cfp_submission', hostname,
     }]));

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { CONFERENCE_REGISTRATION_PREVIEW_ORIGIN } from '@/lib/annual-conference-registration';
-import { ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGIN } from '@/lib/annual-conference-cfp';
+import { ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGINS } from '@/lib/annual-conference-cfp';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
@@ -1551,7 +1551,7 @@ app.use('/api/*', async (c, next) => {
     return cors({
       origin: (origin, context) => publicApiCorsOrigin(origin, context)
         ?? corsOrigin(origin, context)
-        ?? (context.req.path === '/api/cfp/conferences/2026' && origin === ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGIN ? origin : undefined),
+        ?? (context.req.path === '/api/cfp/conferences/2026' && ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGINS.includes(origin) ? origin : undefined),
       allowMethods: ['GET', 'POST', 'OPTIONS'],
       allowHeaders: ['Content-Type'],
     })(c, next);
