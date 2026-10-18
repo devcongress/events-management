@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-18 — Volunteer outcome email presentation
+
+- Simplified acceptance/non-selection emails into a letter layout with direct headings, readable saved-message paragraphs, and one action. Removed the black masthead, outer box border, inset cards, side borders, and decorative slogans. A dedicated responsive letter shell keeps this change scoped to volunteer outcomes.
+- Promoted only the first recognized standalone Google Meet link into a button, preserving text order and the original plain-text message.
+- Added the public DevCon26 page to non-selection HTML and plain text; retained saved copy and frozen delivery payloads.
+- Verified focused template/catalog/test-send tests, typecheck, lint, and local responsive previews. No emails sent or deployment performed.
+
 ## 2026-10-18 — Phone-friendly speaker review queue
 
 - Show full proposal titles, speaker names, session types, dates, and text statuses in tappable rows on phones; retain the desktop table and existing review drawer.
