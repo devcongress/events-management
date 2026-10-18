@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-18 — Mobile conference speaker navigation
+
+- Add Speakers to the mobile conference bottom navigation for users with speaker view/manage access, opening the current edition speaker inbox. Remove the disabled Finance and Ticketing placeholders from mobile; allow the existing speaker inbox route on phones while keeping desktop navigation and permission checks unchanged.
+
 ## 2026-10-18 — Activate DevCon26 speaker website redirect
 
 - Forward exact speaker alias GET/HEAD requests through the Pages layer to the API Worker; retain the Pages form when the redirect flag is off.
