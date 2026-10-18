@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   APP_BOOT_STYLES,
   appBootVariantForPathname,
@@ -17,6 +17,10 @@ const pagesClassifierSource = pagesWorker.match(/function publicBootVariant\(pat
 
 if (!pagesClassifierSource) throw new Error('Pages boot classifier is missing.');
 const pagesPublicBootVariant = new Function(`${pagesClassifierSource}; return publicBootVariant;`)() as (pathname: string) => string;
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('app boot route variants', () => {
   it('assigns a specific public shell to each public link family', () => {
@@ -68,7 +72,9 @@ describe('app boot route variants', () => {
     expect(rewrittenHtml).toContain('data-app-boot-public="feedback" class="app-boot__public" aria-hidden="true"');
   });
 
-  it('hides organizer content in the Pages response before a redirected CFP hydrates', async () => {
+  it('hides organizer content in the Pages fallback when the CFP redirect is disabled', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 200 })));
+
     const response = await pagesWorkerModule.default.fetch(
       new Request('https://em.devcongress.org/speak/c/2026'),
       {
@@ -79,6 +85,9 @@ describe('app boot route variants', () => {
         },
       },
     );
+
+    expect(response.status).toBe(200);
+
     const html = await response.text();
 
     expect(html).toContain('data-app-boot-variant="cfp"');
