@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-18 — Activate DevCon26 speaker website redirect
+
+- Forward exact speaker alias GET/HEAD requests through the Pages layer to the API Worker; retain the Pages form when the redirect flag is off.
+- Enable the production speaker alias handoff after website deployment, successful test submission, and organizer confirmation in the 2026 EMS inbox. Existing short codes continue through the alias; rollback remains setting the flag to false and redeploying. No migration required.
+
 ## 2026-10-18 — DevCon26 speaker website handoff
 
 - Support the exact registration-paused website preview alongside the existing public-checkout preview for DevCon26 CFP CORS and Turnstile hostname validation. Keep the public speaker redirect disabled during preview testing.

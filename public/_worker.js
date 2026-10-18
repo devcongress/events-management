@@ -194,6 +194,15 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    const isSpeakerAlias = url.pathname === '/speak/c/2026'
+      || url.pathname === '/speak/c/2026/';
+
+    if (isSpeakerAlias && ['GET', 'HEAD'].includes(request.method)) {
+      const handoff = await proxyApiRequest(request);
+
+      if (handoff.status === 302) return withSecurityHeaders(handoff);
+    }
+
     if (url.pathname.startsWith('/api/')) {
       return withSecurityHeaders(await proxyApiRequest(request));
     }

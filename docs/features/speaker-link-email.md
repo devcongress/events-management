@@ -111,7 +111,7 @@ Monthly and Annual Conference calls share one proposal lifecycle, but never shar
 
 Annual Conference proposals, presenter links, and confirmed sessions are edition-owned records. They share the speaker-form and secure-link mechanics with monthly calls, but do not create, read, or appear as normal Event or Archive records. Apply `20260809110000_annual_conference_speaker_scope.sql` after the historical speaker-call migration to remove its former hidden Event bridge.
 
-The public EMS paths `/speak/c/2026` and `/speak/c/2026/` have a temporary, reversible website handoff controlled by `DEVCON26_ANNUAL_CFP_WEBSITE_REDIRECT_ENABLED`. The production release configuration and missing environment configuration both leave it disabled. When enabled, exact `GET` and `HEAD` requests receive a no-store `302` to `https://devcongress.org/devcon26/speak/`; the original query string is dropped. Extra path segments, other conference years, monthly calls, organizer pages, the `/api/cfp/conferences/2026` contract, and private `/conference-speakers/:year/:token` links are outside this redirect.
+The public EMS paths `/speak/c/2026` and `/speak/c/2026/` have a temporary, reversible website handoff controlled by `DEVCON26_ANNUAL_CFP_WEBSITE_REDIRECT_ENABLED`. The production release configuration enables it after production form and inbox verification; missing environment configuration still defaults to disabled. When enabled, exact `GET` and `HEAD` requests receive a no-store `302` to `https://devcongress.org/devcon26/speak/`; the original query string is dropped. Extra path segments, other conference years, monthly calls, organizer pages, the `/api/cfp/conferences/2026` contract, and private `/conference-speakers/:year/:token` links are outside this redirect.
 
 The two exact website preview hosts (public-checkout and registration-paused) are allowed only for DevCon26 CFP CORS and Turnstile hostname validation. Preview testing does not enable the public redirect.
 
@@ -123,6 +123,8 @@ Release order: deploy and verify the website **before enabling the EMS redirect 
 4. Deploy EMS with `DEVCON26_ANNUAL_CFP_WEBSITE_REDIRECT_ENABLED=true`, then verify the direct EMS alias and an existing conference short link.
 
 Existing short codes and QR images require no regeneration: `go.devcongress.org/<code>` resolves dynamically to the stable EMS `/speak/c/2026` alias, which redirects to the website. The resolver retains its same-origin relative-path restriction and its open-call/revocation checks. Other years, monthly forms, and selected-speaker private links stay on EMS. The website submits the existing proposal payload to `POST /api/cfp/conferences/2026`; EMS retains validation, Turnstile, rate limits, storage, and organizer review.
+
+The Pages frontend forwards exact alias GET/HEAD requests to the API Worker and preserves its no-store redirect. If the Worker does not redirect, Pages serves the EMS form. Deploy the Pages forwarding change as well as the Worker flag for initial activation.
 
 Rollback: set the flag to `false` and redeploy EMS; the same public alias resumes serving the EMS form. No migration or proposal-data change is needed.
 
