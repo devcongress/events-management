@@ -1,3 +1,5 @@
+import { renderVolunteerOutcomeLayout } from './volunteer-outcome-layout';
+
 import { EMAIL_SENDERS } from '@/lib/email/scenarios';
 import { renderSpeakerEmailLayout } from '@/lib/email/templates/speaker-email-layout';
 
@@ -44,6 +46,32 @@ export function volunteerFollowUpEmail(input: {
   return { from: EMAIL_SENDERS.events.from, subject, html, text };
 }
 
+const CONFERENCE_URL = 'https://devcongress.org/devcon26/';
+
+function outcomeButton(url: string, label: string): string {
+  return `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:20px 0 24px;"><tr><td bgcolor="#F5E642" style="background:#F5E642;border:1px solid #111111;border-radius:8px;"><a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 20px;color:#111111;-webkit-text-fill-color:#111111;font-size:15px;font-weight:700;text-decoration:none;">${escapeHtml(label)} &rarr;</a></td></tr></table>`;
+}
+
+function outcomeMessageHtml(message: string, accepted: boolean): string {
+  let meetingButtonAdded = false;
+
+  return message.replaceAll('\r\n', '\n').split(/\n\s*\n/u).filter((paragraph) => paragraph.trim()).map((paragraph) => {
+    const lines = paragraph.trim().split('\n');
+    const meetingLine = accepted && !meetingButtonAdded ? lines.findIndex((line) => /^(?:(?:Join on Google Meet|Video call link):\s*)?https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}\s*$/iu.test(line.trim())) : -1;
+    const copy = (value: string) => `<p class="email-copy" style="margin:0 0 18px;color:#444444;font-size:16px;line-height:1.65;overflow-wrap:anywhere;">${escapeHtml(value).replaceAll('\n', '<br>')}</p>`;
+
+    if (meetingLine < 0) return copy(paragraph.trim());
+
+    const meetingUrl = lines[meetingLine].match(/https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}/iu)![0];
+    const before = lines.slice(0, meetingLine).join('\n');
+    const after = lines.slice(meetingLine + 1).join('\n');
+
+    meetingButtonAdded = true;
+
+    return `${before ? copy(before) : ''}${outcomeButton(meetingUrl, 'Join on Google Meet')}${after ? copy(after) : ''}`;
+  }).join('');
+}
+
 function volunteerOutcomeEmail(
   input: { name: string },
   decision: "accepted" | "not_selected",
@@ -59,20 +87,18 @@ function volunteerOutcomeEmail(
     : "Thank you for offering your time and for completing the volunteer follow-up. We’re unable to offer you a volunteer place for DevCongress 2026. We appreciate your interest and hope to see you at the event.";
   const subject = composer?.subject ?? defaultSubject;
   const message = composer?.message ?? defaultMessage;
-  const html = renderSpeakerEmailLayout({
+  const html = renderVolunteerOutcomeLayout({
     subject,
     preheader: accepted
       ? "Your volunteer application has been selected."
       : "There is an update on your volunteer application.",
-    brandMeta: ["Annual Conference", "Volunteer decision"],
     contentHtml: `
-      <p class="email-eyebrow" style="margin:0 0 10px;color:#C80D68;font-family:'IBM Plex Mono','Courier New',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">Volunteer decision / 2026</p>
-      <h1 class="email-heading" style="margin:0 0 12px;color:#111111;font-size:34px;font-weight:800;line-height:1.15;">Hi ${escapeHtml(firstName)},</h1>
-      <p class="email-copy" style="margin:0;color:#444444;font-size:16px;line-height:1.6;">${escapeHtml(message).replaceAll("\n", "<br>")}</p>`,
-    footerTitle: "DevCongress 2026 · Accra",
-    footerCopy: "Thank you for being part of the DevCongress community.",
+      <h1 class="email-heading" style="margin:0 0 24px;color:#111111;font-size:36px;font-weight:700;line-height:1.15;">${accepted ? 'Welcome to the volunteer team.' : 'Your volunteer application'}</h1>
+      <p class="email-copy" style="margin:0 0 18px;color:#444444;font-size:16px;line-height:1.65;">Hi ${escapeHtml(firstName)},</p>
+      ${outcomeMessageHtml(message, accepted)}
+      ${accepted ? '' : outcomeButton(CONFERENCE_URL, 'Explore DevCon26')}`,
   });
-  const text = [`Hi ${firstName},`, "", message, "", "DevCongress 2026 · Accra"].join("\n");
+  const text = [`Hi ${firstName},`, "", message, ...(accepted ? [] : ['', `Explore DevCon26: ${CONFERENCE_URL}`]), "", "DevCon26 · Accra"].join("\n");
 
   return { from: EMAIL_SENDERS.events.from, subject, html, text };
 }
