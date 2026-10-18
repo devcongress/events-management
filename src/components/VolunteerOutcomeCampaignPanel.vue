@@ -1,24 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import VolunteerOutcomeDeliveryList from "@/src/components/VolunteerOutcomeDeliveryList.vue";
+import type { OutcomeRecipient } from "@/src/lib/outcome-delivery-presentation";
 import VolunteerOutcomeTestEmail from "@/src/components/VolunteerOutcomeTestEmail.vue";
 import AppDropdown from "@/src/components/AppDropdown.vue";
 import { fetchJson } from "@/src/lib/api";
 import { notify } from "@/src/lib/notify";
 
 type Decision = "accepted" | "not_selected";
-type Recipient = {
-  id: string;
-  applicant_name: string;
-  decision: "pending" | Decision;
-  outcome_sent: boolean;
-  outcome_delivery: {
-    status: string;
-    attempt_count: number;
-    next_attempt_at: string | null;
-    last_error: string | null;
-    provider_email_id: string | null;
-  } | null;
-};
+type Recipient = OutcomeRecipient;
 type Preview = {
   preview_id: string;
   decision: Decision;
@@ -51,12 +41,14 @@ const props = defineProps<{
   outcomePaused: boolean;
   outcomeMessages: OutcomeMessage[];
 }>();
-const emit = defineEmits<{ updated: [] }>();
+const emit = defineEmits<{ updated: []; reviewDelivery: [id: string]; retryDelivery: [recipient: OutcomeRecipient] }>();
 const decision = ref<Decision>("accepted");
 const drawerOpen = ref(false);
 const loading = ref(false);
 const busy = ref(false);
 const error = ref("");
+const controlBusyId = ref("");
+const controlError = ref("");
 const view = ref<"email" | "text">("email");
 const preview = ref<Preview | null>(null);
 const drawer = ref<HTMLElement | null>(null);
@@ -79,22 +71,7 @@ const outcomeMessage = computed(() =>
 const eligibleDecisions = computed(() =>
   props.recipients.filter((recipient) => recipient.decision === decision.value),
 );
-const sentCount = computed(() =>
-  eligibleDecisions.value.filter((recipient) => recipient.outcome_sent).length,
-);
-const pendingCount = computed(() =>
-  eligibleDecisions.value.filter(
-    (recipient) => !recipient.outcome_sent && recipient.outcome_delivery?.status !== "needs_attention",
-  ).length,
-);
-const attentionCount = computed(() =>
-  eligibleDecisions.value.filter((recipient) => recipient.outcome_delivery?.status === "needs_attention").length,
-);
 const canRequestPreview = computed(() => eligibleDecisions.value.length > 0);
-const deliveryRows = computed(() =>
-  props.recipients
-    .filter((recipient) => recipient.outcome_delivery)
-);
 const previewCountMatches = computed(() =>
   preview.value?.recipients.length === preview.value?.eligible_count,
 );
@@ -195,6 +172,26 @@ async function confirmSend(): Promise<void> {
     error.value = cause instanceof Error ? cause.message : "Unable to queue the outcome emails.";
   } finally {
     busy.value = false;
+  }
+}
+
+async function controlDelivery(recipient: OutcomeRecipient, action: "hold" | "resume"): Promise<void> {
+  if (!recipient.outcome_delivery?.id || controlBusyId.value) return;
+  controlBusyId.value = recipient.id;
+  controlError.value = "";
+
+  try {
+    const result = await fetchJson<{ message: string }>("/api/annual-conference/2026/volunteer-follow-up/outcomes/delivery-control", {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ delivery_id: recipient.outcome_delivery.id, action }),
+    });
+
+    notify.success(result.message);
+    emit("updated");
+  } catch (cause) {
+    controlError.value = cause instanceof Error ? cause.message : "Unable to change this email. Refresh and review its status.";
+  } finally {
+    controlBusyId.value = "";
   }
 }
 
@@ -317,46 +314,24 @@ onBeforeUnmount(() => {
       <p v-else class="outcome-empty" role="status">The saved {{ decision === "accepted" ? "accepted" : "not-selected" }} message is unavailable. Open Reviews to restore it before previewing.</p>
       <VolunteerOutcomeTestEmail :decision="decision" :available="Boolean(outcomeMessage)" />
       <p class="outcome-preview-helper">Preview checks who can receive this email. It loads the saved plain-text message from Reviews, then freezes the exact personalized payload and audience before anything is queued.</p>
-      <dl class="outcome-summary" :class="{ 'outcome-summary--with-attention': attentionCount }">
-        <div><dt>Decisions</dt><dd>{{ eligibleDecisions.length }}</dd></div>
-        <div><dt>Not sent</dt><dd>{{ pendingCount }}</dd></div>
-        <div><dt>Sent</dt><dd>{{ sentCount }}</dd></div>
-        <div v-if="attentionCount" class="outcome-summary--attention"><dt>Needs attention</dt><dd>{{ attentionCount }}</dd></div>
-      </dl>
       <p v-if="!canRequestPreview" class="outcome-empty" role="status">
         No {{ decision === "accepted" ? "accepted" : "not-selected" }} applicants are available for an outcome preview. Save a decision in Reviews first.
       </p>
-      <p v-else class="outcome-count-note">Not sent includes recipients waiting in the queue or scheduled to retry; only Preview confirms current eligibility.</p>
+      <p v-else class="outcome-count-note">{{ eligibleDecisions.length }} {{ decision === "accepted" ? "accepted" : "not-selected" }} applicants. Delivery status below separates queued, delivered, and unsent emails; only Preview confirms current eligibility.</p>
     </div>
 
     <div class="outcome-delivery-control" :class="{ 'is-paused': outcomePaused }">
       <div>
         <span class="editorial-label">Queue delivery</span>
         <strong>{{ outcomePaused ? "Paused" : "Enabled" }}</strong>
-        <p>Saving a decision sends no emails. Enabling delivery only processes recipients already confirmed in this queue.</p>
+        <p>Saving a decision sends no emails. This control applies to both audiences and only processes emails already confirmed in the queue.</p>
       </div>
       <button class="outcome-pause" type="button" :disabled="busy" @click="togglePause">
         {{ outcomePaused ? "Enable queue delivery" : "Pause queue delivery" }}
       </button>
     </div>
 
-    <p v-if="attentionCount" class="outcome-note" role="status">
-      Some sends have an uncertain provider result. Review delivery diagnostics before taking manual action.
-    </p>
-    <details v-if="deliveryRows.length" class="outcome-diagnostics">
-      <summary>Delivery attempts and backoff</summary>
-      <div class="outcome-diagnostics-scroll" tabindex="0" aria-label="All outcome delivery attempts">
-        <ul>
-          <li v-for="recipient in deliveryRows" :key="recipient.id">
-            <strong>{{ recipient.applicant_name }}</strong>
-            <span>{{ recipient.outcome_delivery?.status.replaceAll("_", " ") }}</span>
-            <span>{{ recipient.outcome_delivery?.attempt_count }} attempts</span>
-            <span v-if="recipient.outcome_delivery?.next_attempt_at">Retry {{ new Date(recipient.outcome_delivery.next_attempt_at).toLocaleString("en-GH", { timeZone: "Africa/Accra" }) }}</span>
-            <span v-if="recipient.outcome_delivery?.last_error" class="outcome-error">{{ recipient.outcome_delivery.last_error }}</span>
-          </li>
-        </ul>
-      </div>
-    </details>
+    <VolunteerOutcomeDeliveryList :recipients="recipients" :decision="decision" :paused="outcomePaused" :busy-id="controlBusyId" :action-error="controlError" @control="controlDelivery" @review="emit('reviewDelivery', $event)" @retry="emit('retryDelivery', $event)" />
 
     <Teleport to="body">
       <Transition name="outcome-drawer">
@@ -429,8 +404,7 @@ onBeforeUnmount(() => {
 }
 
 .outcome-heading,
-.outcome-actions,
-.outcome-summary {
+.outcome-actions {
   display: flex;
   align-items: center;
   gap: .8rem;
@@ -521,42 +495,6 @@ onBeforeUnmount(() => {
 .outcome-send:disabled {
   opacity: .55;
   cursor: not-allowed;
-}
-
-.outcome-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-  margin: 0.9rem 0 0;
-}
-.outcome-summary--with-attention {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.outcome-summary div {
-  min-width: 0;
-  padding: 0.6rem;
-  border: 1px solid #eadfca;
-  border-radius: 6px;
-  background: rgb(255 255 255 / 68%);
-}
-.outcome-summary dt,
-.outcome-summary dd {
-  margin: 0;
-}
-.outcome-summary dd {
-  margin-top: 0.25rem;
-  color: #25231f;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-.outcome-summary--attention {
-  border-color: #e6c474 !important;
-  background: #fff7dd !important;
-}
-
-.outcome-paused-state,
-.outcome-note {
-  color: #9a3b2d;
 }
 
 .outcome-actions {
@@ -682,8 +620,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
 }
 
-.outcome-recipient-list summary,
-.outcome-diagnostics summary {
+.outcome-recipient-list summary {
   padding: .7rem .85rem;
   color: #49463f;
   font-size: .8rem;
@@ -691,24 +628,21 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.outcome-recipient-scroll,
-.outcome-diagnostics-scroll {
+.outcome-recipient-scroll {
   max-height: 13rem;
   overflow: auto;
   overscroll-behavior: contain;
   border-top: 1px solid #e6e3dc;
 }
 
-.outcome-recipient-scroll ol,
-.outcome-diagnostics-scroll ul {
+.outcome-recipient-scroll ol {
   display: grid;
   gap: .45rem;
   margin: 0;
   padding: .65rem .85rem .75rem 2rem;
 }
 
-.outcome-recipient-scroll li,
-.outcome-diagnostics-scroll li {
+.outcome-recipient-scroll li {
   display: grid;
   gap: .15rem;
   color: #69665f;
@@ -716,8 +650,7 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 
-.outcome-recipient-scroll li strong,
-.outcome-diagnostics-scroll li strong {
+.outcome-recipient-scroll li strong {
   color: #25231f;
 }
 .outcome-recipient-payload {
@@ -881,14 +814,6 @@ onBeforeUnmount(() => {
 
   .outcome-audience-picker {
     min-width: 0;
-  }
-
-  .outcome-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .outcome-summary--with-attention {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .outcome-delivery-control {

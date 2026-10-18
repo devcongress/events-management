@@ -1150,6 +1150,7 @@ try {
         decision_at: "2026-09-22T10:00:00.000Z",
         decision_by: "owner@example.com",
         outcome_sent: false,
+        outcome_control: { held: false, can_hold: true, can_resume: false, reason: null },
         delivery_diagnostic: {
           source: "provider_event",
           explanation: "Resend recorded this email as delivered.",
@@ -1158,6 +1159,10 @@ try {
         },
         outcome_delivery: {
           id: "fixture-outcome-delivery-1",
+          individually_controlled: true,
+          held_at: null,
+          decision: "accepted",
+          decision_version: 1,
           status: "retrying",
           attempt_count: 2,
           first_attempt_at: "2026-09-23T10:00:00.000Z",
@@ -1188,17 +1193,29 @@ try {
           id: `fixture-diagnostic-${index + 2}`,
           applicant_name: `Diagnostic Volunteer ${index + 2}`,
           applicant_email: `diagnostic${index + 2}@example.com`,
+          outcome_control: { held: false, can_hold: index > 1 && index !== 3, can_resume: false, reason: index === 3 ? "Legacy batch: individual hold/resume is unavailable." : null },
           status: index === 0 ? "failed" : index === 1 ? "queued" : "delivered",
           submitted_at: index === 2 ? "2026-09-24T10:00:00.000Z" : null,
-          decision: "pending",
-          decision_version: 0,
+          decision: "accepted",
+          decision_version: 1,
           outcome_delivery: {
             ...recipient.outcome_delivery,
             id: `fixture-outcome-delivery-${index + 2}`,
+            individually_controlled: index !== 3,
+            status: index === 0 ? "delivered" : index === 1 ? "accepted" : "retrying",
             attempt_count: index + 2,
             last_error: `Temporary provider issue ${index + 2}.`,
           },
         })),
+        {
+          ...recipient,
+          id: "not-selected-recipient",
+          applicant_name: "Not-selected Applicant",
+          decision: "not_selected",
+          outcome_control: { held: false, can_hold: false, can_resume: false, reason: "Already stopped. Review delivery details for a safe retry." },
+          outcome_delivery: { ...recipient.outcome_delivery, id: "not-selected-delivery", decision: "not_selected", status: "failed", next_attempt_at: null },
+          outcome_diagnostic: { explanation: "The provider rejected this request.", action: "Review the delivery before retrying.", retry_block_reason: null },
+        },
       ];
 
       responses.set("/api/annual-conference/2026/work-plan", {
@@ -1251,6 +1268,15 @@ try {
           ],
         },
       }));
+      responses.set("/api/annual-conference/2026/volunteer-follow-up/outcomes/delivery-control", (request) => {
+        const { delivery_id, action } = JSON.parse(request.postData());
+        const row = campaignRecipients.find((item) => item.outcome_delivery.id === delivery_id);
+
+        row.outcome_delivery.held_at = action === "hold" ? new Date().toISOString() : null;
+        row.outcome_control = { held: action === "hold", can_hold: action !== "hold", can_resume: action === "hold", reason: null };
+
+        return { body: { held: action === "hold", message: action === "hold" ? "Email on hold." : "Hold removed." } };
+      });
       responses.set("/api/annual-conference/2026/volunteer-follow-up/preview", {
         body: {
           from: "DevCongress <volunteers@devcongress.org>",
@@ -1376,7 +1402,7 @@ try {
       );
 
       await outcomes.getByText("Preview checks who can receive this email", { exact: false }).waitFor();
-      await outcomes.getByText("Not sent includes recipients waiting in the queue", { exact: false }).waitFor();
+      await outcomes.getByRole("heading", { name: "Acceptance emails", exact: true }).waitFor();
       await outcomes.getByText("Queue delivery", { exact: true }).waitFor();
       await outcomes.getByRole("button", { name: "Use my email", exact: true }).click();
       assert.equal(await outcomes.getByLabel("Test recipient", { exact: true }).inputValue(), "fixture@example.com");
@@ -1385,7 +1411,9 @@ try {
 
       await outcomes.getByRole("button", { name: "Choose outcome audience" }).click();
       await page.getByRole("option", { name: "Not-selected applicants", exact: true }).click();
-      await outcomes.getByText("No not-selected applicants are available", { exact: false }).waitFor();
+      await outcomes.getByRole("heading", { name: "Not-selected emails", exact: true }).waitFor();
+      assert.equal(await outcomes.locator(".delivery-row").count(), 1);
+      assert.equal(await outcomes.getByText("Not-selected Applicant", { exact: true }).isVisible(), true);
       await outcomes.getByLabel("Test recipient", { exact: true }).fill("sample@example.com");
       await outcomes.getByRole("button", { name: "Send non-acceptance test", exact: true }).click();
       await outcomes.getByRole("status").filter({ hasText: "accepted by Resend for sample@example.com" }).waitFor();
@@ -1397,7 +1425,7 @@ try {
 
       assert.equal(
         await outcomes.getByRole("button", { name: "Preview rejections", exact: true }).isDisabled(),
-        true,
+        false,
       );
       assert.equal(
         requests.some((request) => request.path.endsWith("/outcomes/confirm")),
@@ -1412,15 +1440,40 @@ try {
 
       assert.equal(retriedSamples.length, 3);
       assert.equal(JSON.parse(retriedSamples[0].body).request_id, JSON.parse(retriedSamples[2].body).request_id);
-      await outcomes.getByText("Delivery attempts and backoff", { exact: true }).click();
-      const finalDiagnostic = outcomes.locator(".outcome-diagnostics-scroll li").nth(12);
+      const deliveries = outcomes.locator(".outcome-deliveries");
 
-      await finalDiagnostic.scrollIntoViewIfNeeded();
-      assert.equal(
-        (await finalDiagnostic.innerText()).includes("Diagnostic Volunteer 13"),
-        true,
-      );
-      await outcomes.getByText("Delivery attempts and backoff", { exact: true }).click();
+      assert.equal(await deliveries.locator(".delivery-row").count(), 10);
+      await deliveries.getByRole("button", { name: "Next page", exact: true }).click();
+      assert.equal(await deliveries.locator(".delivery-row").count(), 3);
+      await deliveries.getByText("Diagnostic Volunteer 13", { exact: true }).waitFor();
+      await deliveries.getByRole("button", { name: "Delivered 1", exact: true }).click();
+      assert.equal(await deliveries.locator(".delivery-row").count(), 1);
+      await deliveries.getByRole("button", { name: "All 13", exact: true }).click();
+      await deliveries.getByRole("searchbox").fill("Diagnostic Volunteer 13");
+      assert.equal(await deliveries.locator(".delivery-row").count(), 1);
+      await deliveries.getByRole("searchbox").fill("");
+      await deliveries.getByRole("button", { name: "Hold email for Ama Mensah", exact: true }).click();
+      await deliveries.getByRole("button", { name: "Resume email for Ama Mensah", exact: true }).waitFor();
+      await deliveries.getByRole("button", { name: "On hold 1", exact: true }).click();
+      assert.equal(await deliveries.locator(".delivery-row").count(), 1);
+      await deliveries.getByRole("button", { name: "Resume email for Ama Mensah", exact: true }).click();
+      await deliveries.getByRole("button", { name: "On hold 0", exact: true }).waitFor();
+      await deliveries.getByRole("button", { name: "All 13", exact: true }).click();
+      await deliveries.getByRole("button", { name: "Review delivery for Ama Mensah", exact: true }).click();
+      await page.locator(".follow-up-selected-drawer").getByText("The sender could not confirm whether Resend accepted the email.", { exact: true }).waitFor();
+      await page.getByRole("button", { name: "Close applicant details", exact: true }).click();
+      await page.locator(".follow-up-selected-drawer").waitFor({ state: "hidden" });
+      await deliveries.screenshot({ style: ".annual-conference-nav-shell { position: static !important; }", path: `${artifacts}/outcome-delivery-accepted-desktop.png` });
+      await outcomes.getByRole("button", { name: "Choose outcome audience" }).click();
+      await page.getByRole("option", { name: "Not-selected applicants", exact: true }).click();
+      await deliveries.getByRole("button", { name: "Queue retry for Not-selected Applicant", exact: true }).click();
+      await page.getByRole("dialog").getByText(/existing email content and idempotency key/).waitFor();
+      await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+      await page.getByRole("dialog").waitFor({ state: "hidden" });
+      assert.equal(requests.some((request) => request.path.endsWith("/delivery-retries")), false);
+      await deliveries.screenshot({ style: ".annual-conference-nav-shell { position: static !important; }", path: `${artifacts}/outcome-delivery-not-selected-desktop.png` });
+      await outcomes.getByRole("button", { name: "Choose outcome audience" }).click();
+      await page.getByRole("option", { name: "Accepted applicants", exact: true }).click();
       await outcomes.scrollIntoViewIfNeeded();
 
       await outcomes.screenshot({ path: `${artifacts}/volunteer-outcome-campaign.png` });
@@ -1432,7 +1485,7 @@ try {
         "#mobile-volunteers-campaign-panel .outcome-campaign:visible",
       );
 
-      await mobileOutcomes.getByText("Delivery attempts and backoff", { exact: true }).waitFor();
+      await mobileOutcomes.getByRole("heading", { name: "Acceptance emails", exact: true }).waitFor();
       await mobileOutcomes.scrollIntoViewIfNeeded();
       const mobileOutcomeFits = await mobileOutcomes.evaluate((panel) =>
         panel.getBoundingClientRect().right <= window.innerWidth &&
@@ -1445,6 +1498,16 @@ try {
         "The 320px outcome panel must fit without horizontal overflow.",
       );
       await mobileOutcomes.screenshot({ path: `${artifacts}/volunteer-outcome-campaign-320.png` });
+      const mobileDeliveries = mobileOutcomes.locator(".outcome-deliveries");
+
+      await mobileDeliveries.getByRole("searchbox").fill("Ama Mensah");
+      await mobileDeliveries.screenshot({ style: ".conference-mobile__header { position: static !important; }", path: `${artifacts}/outcome-delivery-accepted-mobile.png` });
+      await mobileOutcomes.getByRole("button", { name: "Choose outcome audience" }).click();
+      await page.getByRole("option", { name: "Not-selected applicants", exact: true }).click();
+      await mobileDeliveries.getByRole("searchbox").fill("");
+      await mobileDeliveries.getByRole("button", { name: "Queue retry for Not-selected Applicant", exact: true }).waitFor();
+      await mobileDeliveries.screenshot({ style: ".conference-mobile__header { position: static !important; }", path: `${artifacts}/outcome-delivery-not-selected-mobile.png` });
+
       await page.setViewportSize({ width: 1280, height: 1000 });
       await page.waitForURL("**/organizer-console/annual-conference/2026/volunteers");
       await waitForRouteTransition(page);
@@ -1537,7 +1600,7 @@ try {
       );
       await testFormPage.close();
 
-      await followUp.getByRole("button", { name: /Ama Mensah/ }).click();
+      await followUp.locator(".follow-up-recipient").filter({ hasText: "Ama Mensah" }).click();
       const selectedDrawer = followUp.locator(".follow-up-selected-drawer");
 
       await selectedDrawer.waitFor();

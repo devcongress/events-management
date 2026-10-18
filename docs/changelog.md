@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-18 — Outcome delivery table and individual hold/resume
+
+- Separate acceptance/not-selected delivery tables from Delivery health, with search, status filters, ten-row pagination, mobile rows and plain-language delivery evidence.
+- Add Owner-controlled row hold/resume for future singleton deliveries; preserve frozen payloads, provider keys, retry limits, global pause and all legacy batch mappings. Existing safe retries remain explicit.
+- Add forward migration `20261018210000_volunteer_outcome_row_controls.sql` and verification contracts. Deployment requires migration first; no migration is applied by this change.
+- Cover API authorization, presentation, local PostgreSQL safety/race checks and fixture-only desktop/mobile journeys.
+
+
 ## 2026-10-18 — Volunteer outcome email presentation
 
 - Simplified acceptance/non-selection emails into a letter layout with direct headings, readable saved-message paragraphs, and one action. Removed the black masthead, outer box border, inset cards, side borders, and decorative slogans. A dedicated responsive letter shell keeps this change scoped to volunteer outcomes.

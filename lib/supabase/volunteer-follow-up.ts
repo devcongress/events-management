@@ -267,6 +267,8 @@ export async function listVolunteerOutcomeDeliveries(
     Pick<
       VolunteerFollowUpOutcomeDeliveryRow,
       | "id"
+      | "individually_controlled"
+      | "held_at"
       | "recipient_id"
       | "decision"
       | "decision_version"
@@ -291,7 +293,7 @@ export async function listVolunteerOutcomeDeliveries(
   const { data, error } = await getSupabaseAdminClient(c)
     .from("volunteer_follow_up_outcome_deliveries")
     .select(
-      "id, recipient_id, decision, decision_version, status, attempt_count, first_attempt_at, last_attempt_at, next_attempt_at, claimed_until, last_error, provider_email_id, provider_event_at, delivery_stage, provider_http_status, failure_certainty, diagnostic_at",
+      "id, individually_controlled, held_at, recipient_id, decision, decision_version, status, attempt_count, first_attempt_at, last_attempt_at, next_attempt_at, claimed_until, last_error, provider_email_id, provider_event_at, delivery_stage, provider_http_status, failure_certainty, diagnostic_at",
     )
     .eq("campaign_id", campaignId)
     .order("created_at", { ascending: false });
@@ -314,6 +316,7 @@ export async function hasDueVolunteerOutcomeDelivery(
       .from("volunteer_follow_up_outcome_deliveries")
       .select("id")
       .eq("campaign_id", campaignId)
+      .is("held_at", null)
       .in("status", ["queued", "retrying", "failed"])
       .or(`next_attempt_at.is.null,next_attempt_at.lte.${now}`)
       .limit(1),
@@ -321,6 +324,7 @@ export async function hasDueVolunteerOutcomeDelivery(
       .from("volunteer_follow_up_outcome_deliveries")
       .select("id")
       .eq("campaign_id", campaignId)
+      .is("held_at", null)
       .eq("status", "sending")
       .or(`claimed_until.is.null,claimed_until.lte.${now}`)
       .limit(1),
@@ -831,4 +835,20 @@ export async function replayVolunteerFollowUpProviderEvents(
       c,
     );
   }
+}
+
+export async function controlVolunteerOutcomeDelivery(
+  input: { campaignId: string; deliveryId: string; action: "hold" | "resume"; actor: string },
+  c: Context,
+): Promise<{ changed: boolean; block_reason: string | null }> {
+  const { data, error } = await getSupabaseAdminClient(c).rpc("control_volunteer_outcome_delivery", {
+    p_campaign_id: input.campaignId,
+    p_delivery_id: input.deliveryId,
+    p_action: input.action,
+    p_actor: input.actor,
+  });
+
+  if (error) throw new Error(error.message);
+
+  return data?.[0] ?? { changed: false, block_reason: "delivery_unavailable" };
 }

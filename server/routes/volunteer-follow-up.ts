@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import { volunteerOutcomeRowControl } from "@/lib/volunteer-outcome-row-control";
+import { controlVolunteerOutcomeRow } from "@/server/routes/volunteer-outcome-row-control";
 import { sendVolunteerOutcomeTestEmail } from "@/server/routes/volunteer-outcome-test-email";
 import type { Context } from "hono";
 import type { Hono } from "hono";
@@ -148,6 +150,7 @@ const deliveryRetryBlockMessages: Record<string, string> = {
   not_definite_failure:
     "This delivery was not a definite provider rejection, so resending could duplicate an email.",
   live_claim: "This delivery is currently being handled by the sender.",
+  delivery_held: "This email is on hold. Resume it before queueing a retry.",
   retry_already_scheduled: "A retry is already queued for this delivery.",
   attempt_limit_reached:
     "This delivery has reached its four-attempt safety limit.",
@@ -591,8 +594,8 @@ async function drainVolunteerOutcomeEmails(
       c,
     );
 
-    // Older records are one-recipient batches. New claims are one deterministic
-    // provider batch, so no item can be peeled off and retried independently.
+    // Future deliveries use singleton batches for individual controls. Legacy
+    // batches retain their exact payload and mapping on every retry.
     const deliveries = Array.isArray(claimed) ? claimed : claimed ? [claimed] : [];
 
     if (!deliveries.length) return finish(sent, "outcome_queue_empty_or_daily_limit");
@@ -864,6 +867,7 @@ async function sendDueVolunteerFollowUps(c: Context) {
 }
 
 export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
+  app.post("/api/annual-conference/2026/volunteer-follow-up/outcomes/delivery-control", controlVolunteerOutcomeRow);
   app.post("/api/annual-conference/2026/volunteer-follow-up/outcomes/test", sendVolunteerOutcomeTestEmail);
 
   app.get(
@@ -1020,6 +1024,9 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
             knownInvitationRetryBlock(campaign, recipient),
           ),
           outcome_delivery: latestOutcomeByRecipient.get(recipient.id) ?? null,
+          outcome_control: latestOutcomeByRecipient.has(recipient.id)
+            ? volunteerOutcomeRowControl(latestOutcomeByRecipient.get(recipient.id)!, recipient)
+            : null,
           outcome_diagnostic: latestOutcomeByRecipient.has(recipient.id)
             ? withKnownRetryBlock(
                 diagnoseVolunteerDelivery(
@@ -1030,7 +1037,9 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
                   latestOutcomeByRecipient.get(recipient.id)!
                     .decision_version !== recipient.decision_version
                   ? deliveryRetryBlockMessages.outcome_decision_changed
-                  : null,
+                  : latestOutcomeByRecipient.get(recipient.id)!.held_at
+                    ? deliveryRetryBlockMessages.delivery_held
+                    : null,
               )
             : null,
         })),
