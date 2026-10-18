@@ -64,7 +64,7 @@ describe('HTTP security boundaries', () => {
     const previewOrigin = 'https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev';
     const path = '/api/cfp/conferences/2026';
 
-    for (const origin of [previewOrigin, 'https://devcongress.org', 'https://events.devcongress.org']) {
+    for (const origin of [previewOrigin, 'https://feature-devcon26-registration-paused-devcongress-website.admins-a7d.workers.dev', 'https://devcongress.org', 'https://events.devcongress.org']) {
       for (const method of ['GET', 'POST']) {
         const response = await app.request(path, {
           method: 'OPTIONS',
@@ -86,6 +86,8 @@ describe('HTTP security boundaries', () => {
       ['/api/cfp/events/2026', previewOrigin],
       ['/api/cfp/conferences/2026/sibling', previewOrigin],
       [path, `${previewOrigin}.attacker.example`],
+      ['/api/cfp/conferences/2025', 'https://feature-devcon26-registration-paused-devcongress-website.admins-a7d.workers.dev'],
+      [path, 'https://feature-devcon26-registration-paused-devcongress-website.admins-a7d.workers.dev.attacker.example'],
       [path, 'https://other.workers.dev'],
       [path, 'http://localhost:4321'],
     ]) {

@@ -19,7 +19,11 @@ export const ANNUAL_CONFERENCE_ABSTRACT_WORD_LIMIT = 250;
 export const ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN = 3;
 export const ANNUAL_CONFERENCE_LEARNING_OUTCOME_MAX = 5;
 export const ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGIN = 'https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev';
-export const ANNUAL_CONFERENCE_CFP_PREVIEW_HOSTNAME = new URL(ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGIN).hostname;
+export const ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGINS = [
+  ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGIN,
+  'https://feature-devcon26-registration-paused-devcongress-website.admins-a7d.workers.dev',
+];
+export const ANNUAL_CONFERENCE_CFP_PREVIEW_HOSTNAMES = ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGINS.map((origin) => new URL(origin).hostname);
 
 export type AnnualConferenceTopicTrack = typeof ANNUAL_CONFERENCE_TOPIC_TRACKS[number];
 export type AnnualConferenceSessionType = typeof ANNUAL_CONFERENCE_SESSION_TYPES[number];

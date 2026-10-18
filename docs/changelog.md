@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-18 — DevCon26 speaker website handoff
+
+- Support the exact registration-paused website preview alongside the existing public-checkout preview for DevCon26 CFP CORS and Turnstile hostname validation. Keep the public speaker redirect disabled during preview testing.
+- Preserve the existing redirect mechanism for activation after the website is live; current conference short codes and QR images need no regeneration.
+- Preserve EMS proposal intake, organizer review, closed-call checks, other years, monthly calls, and private selected-speaker links. Add a short-link-to-website chain regression and rollback coverage; no live proposal submitted or migration applied. Deployed the scoped preview fix with the redirect disabled (Worker version `57b52caf-d418-408c-8eca-0181a6d4048c`); verified live GET/preflight CORS and the non-redirecting EMS speaker page.
+
 ## 2026-10-16 — Test-email field consistency
 
 - Use the shared form control styles for the volunteer test recipient, including focus, validation and disabled states. Remove conflicting local input styles; keep the form coverage regression unchanged.

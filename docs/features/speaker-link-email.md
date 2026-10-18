@@ -111,15 +111,20 @@ Monthly and Annual Conference calls share one proposal lifecycle, but never shar
 
 Annual Conference proposals, presenter links, and confirmed sessions are edition-owned records. They share the speaker-form and secure-link mechanics with monthly calls, but do not create, read, or appear as normal Event or Archive records. Apply `20260809110000_annual_conference_speaker_scope.sql` after the historical speaker-call migration to remove its former hidden Event bridge.
 
-The public EMS paths `/speak/c/2026` and `/speak/c/2026/` have a temporary, reversible website handoff controlled by `DEVCON26_ANNUAL_CFP_WEBSITE_REDIRECT_ENABLED`. It defaults to `false`. When explicitly enabled, exact `GET` and `HEAD` requests receive a no-store `302` to `https://devcongress.org/devcon26/speak/`; the original query string is dropped. Extra path segments, other conference years, monthly calls, organizer pages, the `/api/cfp/conferences/2026` contract, and private `/conference-speakers/:year/:token` links are outside this redirect.
+The public EMS paths `/speak/c/2026` and `/speak/c/2026/` have a temporary, reversible website handoff controlled by `DEVCON26_ANNUAL_CFP_WEBSITE_REDIRECT_ENABLED`. The production release configuration and missing environment configuration both leave it disabled. When enabled, exact `GET` and `HEAD` requests receive a no-store `302` to `https://devcongress.org/devcon26/speak/`; the original query string is dropped. Extra path segments, other conference years, monthly calls, organizer pages, the `/api/cfp/conferences/2026` contract, and private `/conference-speakers/:year/:token` links are outside this redirect.
 
-Keep the flag off until all of these conditions are verified:
+The two exact website preview hosts (public-checkout and registration-paused) are allowed only for DevCon26 CFP CORS and Turnstile hostname validation. Preview testing does not enable the public redirect.
 
-1. The production URL `https://devcongress.org/devcon26/speak/` serves the intended application form. Its current production response is `404`; a feature-preview `200` does not establish production readiness.
-2. The website's CFP context request and submission preflight succeed from the production website origin. The EMS feature-preview response currently returns `200` without the required `Access-Control-Allow-Origin` header, so the scoped EMS fix must be deployed and verified first.
-3. A controlled end-to-end submission is confirmed to reach the intended Annual Conference review queue.
+Release order: deploy and verify the website **before enabling the EMS redirect flag**. A website merge alone does not activate EMS redirects, and a merge is not proof that the website deployment succeeded.
 
-Only then set `DEVCON26_ANNUAL_CFP_WEBSITE_REDIRECT_ENABLED=true` in the Worker configuration. Reversal is the same flag set back to `false`.
+1. Confirm `https://devcongress.org/devcon26/speak/` serves the intended production form, not a preview or a 404.
+2. Confirm CFP settings GET and POST preflight allow the production website origin, and the production Turnstile widget works.
+3. With explicit permission for a real test proposal, confirm a submission reaches the 2026 Annual Conference speaker inbox. Local confirmation previews send nothing and cannot prove live persistence.
+4. Deploy EMS with `DEVCON26_ANNUAL_CFP_WEBSITE_REDIRECT_ENABLED=true`, then verify the direct EMS alias and an existing conference short link.
+
+Existing short codes and QR images require no regeneration: `go.devcongress.org/<code>` resolves dynamically to the stable EMS `/speak/c/2026` alias, which redirects to the website. The resolver retains its same-origin relative-path restriction and its open-call/revocation checks. Other years, monthly forms, and selected-speaker private links stay on EMS. The website submits the existing proposal payload to `POST /api/cfp/conferences/2026`; EMS retains validation, Turnstile, rate limits, storage, and organizer review.
+
+Rollback: set the flag to `false` and redeploy EMS; the same public alias resumes serving the EMS form. No migration or proposal-data change is needed.
 
 ## Implemented: Program Multi-Send
 

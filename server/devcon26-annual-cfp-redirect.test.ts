@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { resolveShortLinkRequest } from '../short-links/redirect';
 import {
   DEVCON26_ANNUAL_CFP_REDIRECT_ENABLED_ENV,
   DEVCON26_ANNUAL_CFP_WEBSITE_URL,
@@ -9,11 +10,12 @@ const productionWorkerConfig = await readFile(new URL('../wrangler.toml', import
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   vi.resetModules();
 });
 
 describe('DevCon26 annual CFP website redirect', () => {
-  it('keeps the handoff explicitly disabled in the production Worker configuration', () => {
+  it('keeps the website handoff disabled while testing the preview', () => {
     expect(productionWorkerConfig).toMatch(
       new RegExp(`${DEVCON26_ANNUAL_CFP_REDIRECT_ENABLED_ENV}\\s*=\\s*"false"`),
     );
@@ -46,6 +48,39 @@ describe('DevCon26 annual CFP website redirect', () => {
         expect(response.headers.get('Cache-Control')).toBe('no-store');
       }
     }
+  });
+
+  it('keeps existing conference short codes working through the EMS alias to the website', async () => {
+    const { default: app } = await import('./app');
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      destination_path: '/speak/c/2026',
+    }), { headers: { 'Content-Type': 'application/json' } })));
+
+    const shortLink = await resolveShortLinkRequest(new Request('https://go.devcongress.org/K7M4P'), {
+      PUBLIC_APP_ORIGIN: 'https://em.devcongress.org',
+      EMS_RESOLVER_ORIGIN: 'https://em.devcongress.org',
+      SHORT_LINK_RESOLVER_TOKEN: 'test-short-link-resolver-token-2026',
+    });
+
+    expect(shortLink.status).toBe(302);
+    expect(shortLink.headers.get('Location')).toBe('https://em.devcongress.org/speak/c/2026');
+    expect(shortLink.headers.get('Cache-Control')).toBe('no-store');
+
+    const handoff = await app.request(shortLink.headers.get('Location')!, {}, {
+      [DEVCON26_ANNUAL_CFP_REDIRECT_ENABLED_ENV]: 'true',
+    });
+
+    expect(handoff.status).toBe(302);
+    expect(handoff.headers.get('Location')).toBe(DEVCON26_ANNUAL_CFP_WEBSITE_URL);
+    expect(handoff.headers.get('Cache-Control')).toBe('no-store');
+
+    const rollback = await app.request(shortLink.headers.get('Location')!, {}, {
+      [DEVCON26_ANNUAL_CFP_REDIRECT_ENABLED_ENV]: 'false',
+    });
+
+    expect(rollback.status).toBe(200);
+    expect(rollback.headers.get('Location')).toBeNull();
   });
 
   it('does not redirect neighboring page, API, private-link, or non-GET/HEAD routes', async () => {
