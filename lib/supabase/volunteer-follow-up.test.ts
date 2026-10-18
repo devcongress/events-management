@@ -77,7 +77,7 @@ describe('hasDueVolunteerOutcomeDelivery', () => {
     const makeQuery = (result: { data: Array<{ id: string }>; error: null }) => {
       const query: Record<string, unknown> = {};
 
-      for (const method of ['select', 'eq', 'in', 'or', 'limit']) {
+      for (const method of ['select', 'eq', 'is', 'in', 'or', 'limit']) {
         query[method] = (...args: unknown[]) => {
           calls.push({ method, args });
 
@@ -106,6 +106,7 @@ describe('hasDueVolunteerOutcomeDelivery', () => {
     await expect(hasDueVolunteerOutcomeDelivery('campaign-2026')).resolves.toBe(true);
 
     expect(calls).toContainEqual({ method: 'eq', args: ['status', 'sending'] });
+    expect(calls.filter((call) => call.method === 'is' && call.args[0] === 'held_at' && call.args[1] === null)).toHaveLength(2);
     expect(calls.some((call) => call.method === 'or' &&
       String(call.args[0]).startsWith('claimed_until.is.null,claimed_until.lte.'))).toBe(true);
   });
@@ -115,7 +116,7 @@ describe('hasDueVolunteerOutcomeDelivery', () => {
     const makeQuery = (result: { data: Array<{ id: string }> | null; error: unknown }) => {
       const query: Record<string, unknown> = {};
 
-      for (const method of ['select', 'eq', 'in', 'or', 'limit'])
+      for (const method of ['select', 'eq', 'is', 'in', 'or', 'limit'])
         query[method] = () => query;
 
       Object.defineProperty(query, 'then', {

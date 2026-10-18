@@ -1355,3 +1355,11 @@ Revisit when: Expense submitters need access without dashboard visibility, recei
 **Decision:** Keep public duplicate submissions opaque and inert. Owner-confirmed recovery creates a new registration linked to the cancelled source, with at most one child per source and one active registration per edition/email. Lock edition settings before allocating inventory and preserve existing waitlist priority.
 **Why:** Reusing a cancelled row risks reviving revoked credentials and terminal email jobs. A new identity gives fresh credentials and a distinct email while retaining historical evidence. A unique recovery link makes ambiguous retries safe.
 **Tradeoffs:** Recovery requires an Owner and open free intake. Testing restrictions remain enforced. Later cancellation requires recovery of the newer row, not reuse of the original recovery action. A forward migration is required before deployment.
+
+
+## ADR-113: Individual controls through immutable singleton outcome deliveries
+
+**Date:** 2026-10-18
+**Decision:** Future outcome confirmations create one recipient per immutable provider batch. Store hold metadata on each delivery and serialize hold/resume against claims with the existing campaign advisory lock. Keep legacy batches unchanged, with individual controls disabled.
+**Why:** Removing a recipient from an already-attempted batch changes the payload behind its idempotency key and risks duplicate mail. Singleton requests permit independent scheduling without rewriting provider evidence.
+**Tradeoffs:** A forward migration is required. Holding cannot recall an in-flight send. Resume preserves retries and cannot extend the four-attempt or 23-hour safety bounds. Existing scheduler turns and quotas stay unchanged, so singleton delivery is slower than batching. Legacy recovery remains batch-scoped.

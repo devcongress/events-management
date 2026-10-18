@@ -100,7 +100,7 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(outcomePanelSource).toContain("Accepted applicants");
     expect(outcomePanelSource).toContain("Not-selected applicants");
     expect(outcomePanelSource).toContain("Preview checks who can receive this email");
-    expect(outcomePanelSource).toContain("Not sent includes recipients waiting in the queue");
+    expect(outcomePanelSource).toContain("only Preview confirms current eligibility");
     expect(outcomePanelSource).toContain("canRequestPreview");
     expect(outcomePanelSource).toContain("Save a decision in Reviews first.");
     expect(outcomePanelSource).toContain("Saving a decision sends no emails.");
@@ -354,7 +354,7 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(outcomePanelSource).toContain("Decision version {{ recipient.decision_version }}");
     expect(outcomePanelSource).toContain("Sample template preview");
     expect(outcomePanelSource).not.toMatch(/\.slice\(0,\s*12\)/u);
-    expect(outcomePanelSource).toContain(".outcome-diagnostics-scroll {");
+    expect(outcomePanelSource).toContain("<VolunteerOutcomeDeliveryList");
   });
 
   it("loads public test mode through a sandboxed endpoint and keeps live applicant links tokenized", () => {

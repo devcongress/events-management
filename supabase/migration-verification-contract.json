@@ -1430,7 +1430,7 @@
           "schema": "public",
           "name": "claim_volunteer_follow_up_outcome",
           "argumentTypes": "uuid, integer, uuid, uuid",
-          "bodySha256": "b8e89839b8de52c1de6a5f1cf6bc581becdae4f2739d21299b38b363c2955ff2",
+          "bodySha256": "14a4659b433be5237230bcc36e20444a923820cee08e967312bb0da0161f6cef",
           "securityDefiner": true,
           "private": true,
           "serviceExecute": true,
@@ -2999,6 +2999,104 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261018210000_volunteer_outcome_row_controls.sql",
+      "sha256": "55b9618668592506c6847013f8ce629b3d015ad4f4a2b10adf28bcbd0d32a251",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "confirm_volunteer_follow_up_outcome_preview",
+          "argumentTypes": "uuid, text",
+          "result": "TABLE(queued_count integer, delivery_ids uuid[])",
+          "language": "plpgsql",
+          "bodySha256": "1fd51177620ea419f64abf70da12b0dc5d357cf5a3cba69139db0504749ef709",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_volunteer_follow_up_outcome",
+          "argumentTypes": "uuid, integer, uuid, uuid",
+          "bodySha256": "14a4659b433be5237230bcc36e20444a923820cee08e967312bb0da0161f6cef",
+          "securityDefiner": true,
+          "private": true,
+          "serviceExecute": true,
+          "searchPath": "\"\"",
+          "language": "plpgsql",
+          "result": "SETOF volunteer_follow_up_outcome_deliveries"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "validate_volunteer_follow_up_outcome_send",
+          "argumentTypes": "uuid, uuid, uuid",
+          "result": "boolean",
+          "language": "sql",
+          "bodySha256": "c7065cc233f6eff2fae03b799e277c3bf1c90c58ccef0f920a790996598e0e78",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "control_volunteer_outcome_delivery",
+          "argumentTypes": "uuid, uuid, text, text",
+          "result": "TABLE(changed boolean, block_reason text)",
+          "language": "plpgsql",
+          "bodySha256": "0093fba55ba3e946ffb2c7644b47ad291a46088346a7a7c43cc9ddb5796c0f7b",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "queue_volunteer_follow_up_failed_delivery_retry",
+          "argumentTypes": "uuid, text, uuid",
+          "result": "TABLE(delivery_id uuid, queued boolean, block_reason text)",
+          "language": "plpgsql",
+          "bodySha256": "b1f9dedc9eee4d9105d6527039de9c778e254aa52af54f2afc397c54dd4111d6",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "volunteer_follow_up_outcome_deliveries",
+          "name": "individually_controlled",
+          "type": "boolean",
+          "notNull": true,
+          "defaultExpression": "false"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "volunteer_follow_up_outcome_deliveries",
+          "name": "held_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "volunteer_follow_up_outcome_deliveries",
+          "name": "held_by",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
         }
       ]
     }

@@ -144,6 +144,9 @@ export type VolunteerFollowUpOutcomeDeliveryRow = {
   batch_id: string | null;
   batch_idempotency_key: string | null;
   batch_position: number | null;
+  individually_controlled: boolean;
+  held_at: string | null;
+  held_by: string | null;
   status:
     | 'queued' | 'sending' | 'retrying' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | 'needs_attention' | 'cancelled';
   attempt_count: number;
@@ -2658,6 +2661,10 @@ export interface Database {
           p_diagnostic_at: string;
         };
         Returns: boolean;
+      };
+      control_volunteer_outcome_delivery: {
+        Args: { p_campaign_id: string; p_delivery_id: string; p_action: string; p_actor: string };
+        Returns: { changed: boolean; block_reason: string | null }[];
       };
       queue_volunteer_follow_up_failed_delivery_retry: {
         Args: {

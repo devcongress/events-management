@@ -41,9 +41,14 @@ type Recipient = VolunteerFollowUpDirectoryRecipient & {
   last_error?: string | null;
   delivery_diagnostic: DeliveryDiagnostic;
   decision: "pending" | "accepted" | "not_selected";
+  decision_version: number;
   outcome_sent: boolean;
   outcome_delivery: {
     id: string;
+    decision: "accepted" | "not_selected";
+    decision_version: number;
+    individually_controlled?: boolean;
+    held_at?: string | null;
     status: string;
     attempt_count: number;
     first_attempt_at: string | null;
@@ -641,7 +646,8 @@ const retryConfirmationMessage = computed(() => {
       ? "The outcome queue is running independently of the invitation campaign."
       : "The invitation queue is running, so the scheduled sender may process it after this is queued.";
 
-  const batchScope = retry.kind === "outcome"
+  const individual = recipients.value.some((recipient) => recipient.outcome_delivery?.id === retry.id && recipient.outcome_delivery.individually_controlled);
+  const batchScope = retry.kind === "outcome" && !individual
     ? "Outcome emails retry as their original frozen batch, so this queues every recipient in that batch with the same content and idempotency key."
     : `This keeps ${retry.name}'s existing email content and idempotency key.`;
 
@@ -1088,6 +1094,8 @@ onUnmounted(() => {
         :recipients="recipients"
         :outcome-paused="campaign.outcome_paused"
         :outcome-messages="outcomeMessages"
+        @review-delivery="selectedId = $event"
+        @retry-delivery="pendingRetry = { kind: 'outcome', id: $event.outcome_delivery!.id!, name: $event.applicant_name }"
         @updated="query.refetch"
       />
 
