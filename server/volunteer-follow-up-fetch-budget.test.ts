@@ -136,7 +136,8 @@ describe('volunteer follow-up scheduled outbound-request budget', () => {
         if (functionName === 'acquire_volunteer_follow_up_drain_lease') return json(true);
         if (functionName === 'renew_volunteer_follow_up_drain_lease') return json(true);
         if (functionName === 'release_volunteer_follow_up_drain_lease') return json(true);
-        if (functionName === 'validate_volunteer_follow_up_outcome_send') return json(true);
+        if (functionName === 'validate_volunteer_follow_up_outcome_batch_send') return json(true);
+        if (functionName === 'replay_volunteer_follow_up_outcome_batch_events') return json(0);
         if (functionName === 'finalize_volunteer_follow_up_outcome_batch') return json(true);
         if (functionName === 'claim_volunteer_follow_up_outcome') {
           return json([{
@@ -170,14 +171,14 @@ describe('volunteer follow-up scheduled outbound-request budget', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ sent: 1 });
-    expect(outbound).toHaveLength(35);
+    expect(outbound).toHaveLength(31);
     expect(outbound.filter((url) => url.origin === 'https://api.resend.com')).toHaveLength(2);
     expect(outbound.filter((url) => url.pathname === '/usage')).toHaveLength(1);
     expect(outbound.some((url) => url.pathname === '/emails/batch')).toBe(true);
     expect(outbound.some((url) => url.pathname.endsWith('/rpc/finalize_volunteer_follow_up_outcome_batch'))).toBe(true);
     expect(outbound.some((url) => url.pathname.endsWith('/rpc/release_volunteer_follow_up_drain_lease'))).toBe(true);
     expect(outbound.some((url) => url.pathname.endsWith('/admin_audit_log'))).toBe(true);
-    expect(outbound.some((url) => url.pathname.endsWith('/volunteer_follow_up_webhook_events'))).toBe(true);
+    expect(outbound.some((url) => url.pathname.endsWith('/rpc/replay_volunteer_follow_up_outcome_batch_events'))).toBe(true);
   });
 
   it('keeps a running-campaign invitation send below 50 requests', async () => {

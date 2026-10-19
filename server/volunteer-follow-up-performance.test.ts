@@ -60,7 +60,8 @@ const mocks = vi.hoisted(() => ({
   updateVolunteerFollowUpDelivery: vi.fn(),
   replayVolunteerFollowUpProviderEvents: vi.fn(),
   claimVolunteerOutcome: vi.fn(),
-  validateVolunteerOutcomeSend: vi.fn(),
+  validateVolunteerOutcomeBatchSend: vi.fn(),
+  replayVolunteerOutcomeBatchEvents: vi.fn(),
   finalizeVolunteerOutcomeBatch: vi.fn(),
   readResendEmailQuota: vi.fn(),
   sendResendEmailBatch: vi.fn(),
@@ -97,7 +98,8 @@ vi.mock("@/lib/supabase/volunteer-follow-up", () => ({
   updateVolunteerFollowUpDelivery: mocks.updateVolunteerFollowUpDelivery,
   replayVolunteerFollowUpProviderEvents: mocks.replayVolunteerFollowUpProviderEvents,
   claimVolunteerOutcome: mocks.claimVolunteerOutcome,
-  validateVolunteerOutcomeSend: mocks.validateVolunteerOutcomeSend,
+  validateVolunteerOutcomeBatchSend: mocks.validateVolunteerOutcomeBatchSend,
+  replayVolunteerOutcomeBatchEvents: mocks.replayVolunteerOutcomeBatchEvents,
   finalizeVolunteerOutcomeBatch: mocks.finalizeVolunteerOutcomeBatch,
 }));
 vi.mock("@/lib/email/delivery-health", () => ({
@@ -170,7 +172,8 @@ beforeEach(() => {
   mocks.updateVolunteerFollowUpDelivery.mockResolvedValue(undefined);
   mocks.replayVolunteerFollowUpProviderEvents.mockResolvedValue(undefined);
   mocks.claimVolunteerOutcome.mockResolvedValue(null);
-  mocks.validateVolunteerOutcomeSend.mockResolvedValue(true);
+  mocks.validateVolunteerOutcomeBatchSend.mockResolvedValue(true);
+  mocks.replayVolunteerOutcomeBatchEvents.mockResolvedValue(0);
   mocks.finalizeVolunteerOutcomeBatch.mockResolvedValue(true);
   mocks.readResendEmailQuota.mockResolvedValue({
     dailyUsed: null,

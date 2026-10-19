@@ -34,6 +34,7 @@ import {
   reconcileVolunteerFollowUpApplicants,
   releaseVolunteerFollowUpDrainLease,
   replayVolunteerFollowUpProviderEvents,
+  replayVolunteerOutcomeBatchEvents,
   readVolunteerOutcomePreview,
   reviewVolunteerFollowUpResponse,
   saveVolunteerFollowUpCampaign,
@@ -44,7 +45,7 @@ import {
   submitVolunteerFollowUpResponse,
   renewVolunteerFollowUpDrainLease,
   updateVolunteerFollowUpDelivery,
-  validateVolunteerOutcomeSend,
+  validateVolunteerOutcomeBatchSend,
   finalizeVolunteerOutcomeBatch,
   getVolunteerOutcomeSentRecipientIds,
   hasDueVolunteerOutcomeDelivery,
@@ -613,11 +614,6 @@ async function drainVolunteerOutcomeEmails(
     const parsedEmails = deliveries.map((delivery) =>
       emailSchema.safeParse(delivery.payload),
     );
-    const valid = await Promise.all(
-      deliveries.map((delivery) =>
-        validateVolunteerOutcomeSend(String(delivery.id), claimToken, leaseToken, c),
-      ),
-    );
     const batchId = String(deliveries[0].batch_id ?? "");
     const finalizeAll = async (
       input: Omit<Parameters<typeof finalizeVolunteerOutcomeBatch>[0], "batchId" | "claimToken" | "providerEmailIds">,
@@ -633,7 +629,30 @@ async function drainVolunteerOutcomeEmails(
       }, c);
     };
 
-    if (valid.some((item) => !item)) {
+    let valid: boolean;
+
+    try {
+      valid = await validateVolunteerOutcomeBatchSend(batchId, claimToken, leaseToken, c);
+    } catch {
+      const attempts = Number(deliveries[0].attempt_count);
+      const canRetry = attempts < 4
+        && Boolean(deliveries[0].first_attempt_at)
+        && Date.now() - new Date(String(deliveries[0].first_attempt_at)).getTime() < 23 * 60 * 60_000;
+
+      await finalizeAll({
+        status: canRetry ? "retrying" : "needs_attention",
+        lastError: "Pre-send verification was unavailable; no provider request was made.",
+        nextAttemptAt: canRetry ? new Date(Date.now() + 15 * 60_000).toISOString() : null,
+        deliveryStage: "queue",
+        providerHttpStatus: null,
+        failureCertainty: "definite",
+        diagnosticAt: new Date().toISOString(),
+      });
+
+      return finish(sent, "outcome_pre_send_verification_unavailable");
+    }
+
+    if (!valid) {
       await finalizeAll({
         status: "needs_attention",
         lastError: "The decision or drain lease changed before the provider call.",
@@ -746,9 +765,7 @@ async function drainVolunteerOutcomeEmails(
 
     if (!finalized)
       return finish(sent, "outcome_finalize_claim_lost");
-    await Promise.all(
-      result.ids.map((providerEmailId) => replayVolunteerFollowUpProviderEvents(providerEmailId, c)),
-    );
+    await replayVolunteerOutcomeBatchEvents(batchId, c);
     await recordResendEmailHealth(c, result.quota);
     sent += deliveries.length;
 

@@ -1,5 +1,17 @@
 # Architectural Decisions
 
+## ADR-111: Validate and replay volunteer outcome batches in bounded database calls
+
+**Date:** 2026-10-19
+
+**Decision:** The outcome sender validates the entire claimed batch, including the current decision/version of every recipient, with one service-role-only database function before contacting Resend. After provider acceptance and atomic ID mapping, it replays journaled provider events with one batch-scoped function. A validation request error finalizes the claim without a provider call; retries retain the original frozen payload and idempotency key.
+
+**Why:** Per-recipient validation and replay consumed the Cloudflare Worker's outbound-request budget for a 32-recipient legacy batch before Resend received it. Bounded batch calls preserve whole-batch safety while keeping request count independent of batch size.
+
+**Rollout:** Apply and verify `20261019080000_volunteer_outcome_batch_validation.sql` before deploying the sender. Existing singleton and legacy batch identities, 54-per-day claim cap, reserve, four-attempt limit, and 23-hour idempotency window remain in force.
+
+---
+
 ## ADR-110: Keep annual registration independent of payments and monthly meetups
 
 **Date:** 2026-10-16

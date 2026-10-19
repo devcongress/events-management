@@ -63,9 +63,15 @@ try {
   const legacy = await queue(2, 'legacy');
 
   await migrate('20261018210000_volunteer_outcome_row_controls.sql');
+  await migrate('20261019080000_volunteer_outcome_batch_validation.sql');
   // Check the new migration's catalog promises against this real disposable database.
   const contract = JSON.parse(readFileSync('supabase/migration-verification-contract.json', 'utf8'));
-  const checks = contract.verified.find((entry) => entry.file === '20261018210000_volunteer_outcome_row_controls.sql').checks;
+  const checks = contract.verified
+    .filter((entry) => [
+      '20261018210000_volunteer_outcome_row_controls.sql',
+      '20261019080000_volunteer_outcome_batch_validation.sql',
+    ].includes(entry.file))
+    .flatMap((entry) => entry.checks);
 
   for (const check of checks.filter((item) => item.kind === 'function')) {
     const evidence = JSON.parse(await sql(`select json_build_object('body',p.prosrc,'language',l.lanname,'result',pg_get_function_result(p.oid),'securityDefiner',p.prosecdef,'searchPath',p.proconfig[1],'serviceExecute',has_function_privilege('service_role',p.oid,'EXECUTE'),'private',not has_function_privilege('anon',p.oid,'EXECUTE') and not has_function_privilege('authenticated',p.oid,'EXECUTE')) from pg_proc p join pg_language l on l.oid=p.prolang where p.oid='public.${check.name}(${check.argumentTypes})'::regprocedure`));
@@ -86,8 +92,22 @@ try {
 
   assert.equal((await control(legacy[0], 'hold')).block_reason, 'legacy_batch');
   assert.equal((await claim()).length, 2, 'legacy batch remains whole');
+  const legacyClaim = JSON.parse(await sql(`select row_to_json(b) from (select id, claim_token from public.volunteer_follow_up_outcome_batches where id=(select batch_id from public.volunteer_follow_up_outcome_deliveries where id='${legacy[0]}')) b`));
+  const validateLegacy = () => sql(`set role service_role; select public.validate_volunteer_follow_up_outcome_batch_send('${legacyClaim.id}','${legacyClaim.claim_token}','${lease}')`);
+
+  assert.equal(await validateLegacy(), 't', 'whole legacy batch passes one validation');
+  await sql(`update public.volunteer_follow_up_recipients set decision_version=decision_version+1 where id=(select recipient_id from public.volunteer_follow_up_outcome_deliveries where id='${legacy[1]}')`);
+  assert.equal(await validateLegacy(), 'f', 'one changed decision blocks the whole batch');
+  await sql(`update public.volunteer_follow_up_recipients set decision_version=decision_version-1 where id=(select recipient_id from public.volunteer_follow_up_outcome_deliveries where id='${legacy[1]}')`);
+  assert.equal(await validateLegacy(), 't');
   await sql(`update public.volunteer_follow_up_outcome_batches set status='accepted',claim_token=null,claimed_until=null;
     update public.volunteer_follow_up_outcome_deliveries set status='accepted',claim_token=null,claimed_until=null;`);
+  await sql(`update public.volunteer_follow_up_outcome_deliveries set provider_email_id='provider-' || batch_position where batch_id='${legacyClaim.id}';
+    insert into public.volunteer_follow_up_webhook_events(webhook_event_id,provider_email_id,event_type,provider_created_at)
+    values ('event-1','provider-1','email.delivered',now()),('event-2','provider-2','email.delivery_delayed',now());`);
+  assert.equal(await sql(`set role service_role; select public.replay_volunteer_follow_up_outcome_batch_events('${legacyClaim.id}')`), '2');
+  assert.equal(await sql(`select count(*) from public.volunteer_follow_up_outcome_deliveries where batch_id='${legacyClaim.id}' and status in ('delivered','delayed')`), '2');
+  assert.equal(await sql(`set role service_role; select public.replay_volunteer_follow_up_outcome_batch_events('${legacyClaim.id}')`), '0', 'replay is idempotent');
   const ids = await queue(3, 'individual');
 
   assert.equal(ids.length, 3);

@@ -23,6 +23,10 @@ SPEAKER_EMAIL_REPLY_TO = "hello@updates.devcongress.org"
 REGISTRATION_EMAIL_REPLY_TO = "hello@updates.devcongress.org"
 EVENT_EMAIL_REPLY_TO = "hello@updates.devcongress.org"
 EVENT_SUBMISSION_REPLY_DOMAIN = "updates.devcongress.org"
+# Paid Resend plan: 50,000 monthly emails and no separate daily provider cap.
+# Use the monthly ceiling as the effective daily safety bound for queue admission.
+RESEND_DAILY_EMAIL_QUOTA = "50000"
+RESEND_MONTHLY_EMAIL_QUOTA = "50000"
 
 [observability]
 enabled = true

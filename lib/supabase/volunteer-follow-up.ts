@@ -591,16 +591,16 @@ export async function claimVolunteerOutcome(
   return data ?? [];
 }
 
-export async function validateVolunteerOutcomeSend(
-  deliveryId: string,
+export async function validateVolunteerOutcomeBatchSend(
+  batchId: string,
   claimToken: string,
   leaseToken: string,
   c: Context,
 ): Promise<boolean> {
   const { data, error } = await getSupabaseAdminClient(c).rpc(
-    "validate_volunteer_follow_up_outcome_send",
+    "validate_volunteer_follow_up_outcome_batch_send",
     {
-      p_delivery_id: deliveryId,
+      p_batch_id: batchId,
       p_claim_token: claimToken,
       p_lease_token: leaseToken,
     },
@@ -609,6 +609,17 @@ export async function validateVolunteerOutcomeSend(
   if (error) throw new Error(error.message);
 
   return data === true;
+}
+
+export async function replayVolunteerOutcomeBatchEvents(batchId: string, c: Context): Promise<number> {
+  const { data, error } = await getSupabaseAdminClient(c).rpc(
+    "replay_volunteer_follow_up_outcome_batch_events",
+    { p_batch_id: batchId },
+  );
+
+  if (error) throw new Error(error.message);
+
+  return typeof data === "number" ? data : 0;
 }
 
 export async function finalizeVolunteerOutcomeBatch(

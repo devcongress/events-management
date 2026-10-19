@@ -2632,6 +2632,14 @@ export interface Database {
         };
         Returns: boolean;
       };
+      validate_volunteer_follow_up_outcome_batch_send: {
+        Args: { p_batch_id: string; p_claim_token: string; p_lease_token: string };
+        Returns: boolean;
+      };
+      replay_volunteer_follow_up_outcome_batch_events: {
+        Args: { p_batch_id: string };
+        Returns: number;
+      };
       finalize_volunteer_follow_up_outcome_send: {
         Args: {
           p_delivery_id: string;

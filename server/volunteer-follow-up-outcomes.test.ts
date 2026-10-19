@@ -35,9 +35,10 @@ vi.mock("../lib/supabase/volunteer-follow-up", () => ({
   releaseVolunteerFollowUpDrainLease: mocks.releaseLease,
   hasDueVolunteerOutcomeDelivery: mocks.hasDue,
   claimVolunteerOutcome: mocks.claimOutcome,
-  validateVolunteerOutcomeSend: mocks.validateSend,
+  validateVolunteerOutcomeBatchSend: mocks.validateSend,
   finalizeVolunteerOutcomeBatch: mocks.finalizeBatch,
   replayVolunteerFollowUpProviderEvents: mocks.replayEvents,
+  replayVolunteerOutcomeBatchEvents: mocks.replayEvents,
   recordVolunteerFollowUpDrain: mocks.recordDrain,
   reconcileVolunteerFollowUpApplicants: vi.fn(),
 }));
@@ -213,7 +214,7 @@ describe("volunteer outcome email drain", () => {
       providerEmailIds: ["provider-email-1"],
       claimToken: expect.any(String),
     }), expect.anything());
-    expect(mocks.replayEvents).toHaveBeenCalledWith("provider-email-1", expect.anything());
+    expect(mocks.replayEvents).toHaveBeenCalledWith("batch-1", expect.anything());
   });
 
   it("does not report a provider-accepted batch as sent when its atomic receipt loses the claim", async () => {
@@ -252,42 +253,53 @@ describe("volunteer outcome email drain", () => {
   });
 
   it("sends one frozen batch with its stable key and maps provider IDs by payload order", async () => {
-    mocks.claimOutcome.mockResolvedValueOnce([
-      {
-        id: "delivery-1",
-        batch_id: "batch-1",
-        batch_idempotency_key: "volunteer-outcome-batch/preview-1/1",
-        attempt_count: 1,
-        first_attempt_at: new Date().toISOString(),
-        payload: { from: "DevCongress <volunteers@devcongress.org>", to: ["ama@example.test"], subject: "Outcome", html: "<p>Ama</p>", text: "Ama" },
-      },
-      {
-        id: "delivery-2",
-        batch_id: "batch-1",
-        batch_idempotency_key: "volunteer-outcome-batch/preview-1/1",
-        attempt_count: 1,
-        first_attempt_at: new Date().toISOString(),
-        payload: { from: "DevCongress <volunteers@devcongress.org>", to: ["kojo@example.test"], subject: "Outcome", html: "<p>Kojo</p>", text: "Kojo" },
-      },
-    ]);
+    const deliveries = Array.from({ length: 32 }, (_, index) => ({
+      id: `delivery-${index + 1}`,
+      batch_id: "batch-1",
+      batch_idempotency_key: "volunteer-outcome-batch/preview-1/1",
+      attempt_count: 1,
+      first_attempt_at: new Date().toISOString(),
+      payload: { from: "DevCongress <volunteers@devcongress.org>", to: [`applicant-${index + 1}@example.test`], subject: "Outcome", html: `<p>Applicant ${index + 1}</p>`, text: `Applicant ${index + 1}` },
+    }));
+    const providerIds = deliveries.map((_, index) => `provider-${index + 1}`);
+
+    mocks.claimOutcome.mockResolvedValueOnce(deliveries);
     mocks.sendBatch.mockResolvedValueOnce({
-      ids: ["provider-ama", "provider-kojo"],
+      ids: providerIds,
       quota: { dailyUsed: 7, monthlyUsed: 42 },
     });
 
     await drain();
 
+    expect(mocks.validateSend).toHaveBeenCalledOnce();
+    expect(mocks.validateSend).toHaveBeenCalledWith("batch-1", expect.any(String), expect.any(String), expect.anything());
     expect(mocks.sendBatch).toHaveBeenCalledWith(expect.objectContaining({
       idempotencyKey: "volunteer-outcome-batch/preview-1/1",
-      emails: [
-        expect.objectContaining({ to: ["ama@example.test"] }),
-        expect.objectContaining({ to: ["kojo@example.test"] }),
-      ],
+      emails: deliveries.map((delivery) => delivery.payload),
     }));
     expect(mocks.finalizeBatch).toHaveBeenCalledWith(expect.objectContaining({
       batchId: "batch-1",
-      providerEmailIds: ["provider-ama", "provider-kojo"],
+      providerEmailIds: providerIds,
       status: "accepted",
+    }), expect.anything());
+    expect(mocks.replayEvents).toHaveBeenCalledOnce();
+    expect(mocks.replayEvents).toHaveBeenCalledWith("batch-1", expect.anything());
+  });
+
+  it("clears the claim when pre-send batch validation is unavailable", async () => {
+    mocks.validateSend.mockRejectedValueOnce(new Error("Database unavailable"));
+
+    const response = await drain();
+    const payload = await response.json() as { reason: string };
+
+    expect(response.status).toBe(200);
+    expect(payload.reason).toContain("outcome_pre_send_verification_unavailable");
+    expect(mocks.sendBatch).not.toHaveBeenCalled();
+    expect(mocks.finalizeBatch).toHaveBeenCalledWith(expect.objectContaining({
+      status: "retrying",
+      deliveryStage: "queue",
+      providerHttpStatus: null,
+      failureCertainty: "definite",
     }), expect.anything());
   });
 

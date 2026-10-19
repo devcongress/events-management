@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-19 — Volunteer outcome batch recovery
+
+- Recovered the 32 stalled not-selected outcome emails with their original frozen payloads and batch idempotency key. Resend accepted all 32 and delivery webhooks marked all 32 delivered; the issue was a Worker outbound-request budget exhaustion before the provider call, not a Resend quota cut.
+- Validate an entire claimed outcome batch in one service-only database request and replay its provider events in one request after finalization. A failed pre-send verification now finalizes the claim with an explicit retry or attention state instead of leaving it indefinitely in progress.
+- Set the production quota guard to the paid Resend plan's 50,000 monthly emails, using the same ceiling as the effective daily guard because the provider reports no separate daily limit. Preserve the application's 54-per-day combined volunteer claim cap and 35-email transactional reserve.
+- Add a forward migration and catalog contracts for the two batch functions. Apply and verify the migration before deploying the Worker change.
+
 ## 2026-10-18 — Outcome delivery table and individual hold/resume
 
 - Separate acceptance/not-selected delivery tables from Delivery health, with search, status filters, ten-row pagination, mobile rows and plain-language delivery evidence.
