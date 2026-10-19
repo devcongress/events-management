@@ -3099,6 +3099,38 @@
           "defaultExpression": null
         }
       ]
+    },
+    {
+      "file": "20261019080000_volunteer_outcome_batch_validation.sql",
+      "sha256": "8d1a5b70fc928477feacca4e87d7c73314f5d86d6600a455c5a42565873634a6",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "validate_volunteer_follow_up_outcome_batch_send",
+          "argumentTypes": "uuid, uuid, uuid",
+          "result": "boolean",
+          "language": "sql",
+          "bodySha256": "c80c00221cc4be126850ef917ba530ba264c4c3702e6f952fe35dc6d97b52e5e",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "replay_volunteer_follow_up_outcome_batch_events",
+          "argumentTypes": "uuid",
+          "result": "integer",
+          "language": "plpgsql",
+          "bodySha256": "622ce27b92976daef5c5d65881e34fdb9cedb1cf5e7a1183ac2fcc8d35e00abb",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
     }
   ]
 }
