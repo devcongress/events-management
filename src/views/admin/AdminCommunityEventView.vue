@@ -6,6 +6,7 @@ import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import EventPublicationStatusPanel from '@/src/components/EventPublicationStatusPanel.vue';
 import ProjectNightRecurrencePanel from '@/src/components/ProjectNightRecurrencePanel.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import { checkEventPageNow, fetchEventById, fetchEventPageMonitor, fetchEventSlackAnnouncement, sendEventSlackAnnouncement, updateEventById, type EventPageMonitor, type EventPageMonitorOrganizerContact, type EventSlackAnnouncement, type EventSlackAnnouncementResponse } from '@/src/lib/api';
 import { compressMeetupImageForUpload, uploadEventMedia, validateMeetupImageFile } from '@/src/lib/meetup-media-client';
@@ -320,7 +321,7 @@ onMounted(load);
 <template>
   <div class="editorial-page event-overview-page">
     <div class="editorial-wrap event-overview-wrap">
-    <section v-if="loading" class="animate-pulse rounded-lg border border-dc-line bg-dc-paper p-8"><div class="h-10 w-2/5 bg-dc-cream" /><div class="mt-6 h-64 bg-dc-cream" /></section>
+    <BoneyardPageSkeleton v-if="loading" name="admin-community-event-detail" label="community event" layout="detail" :show-header="false" />
     <section v-else-if="!event" class="rounded-lg border-2 border-dc-ink bg-dc-paper p-8 shadow-[3px_3px_0_#111111]"><p class="font-mono text-xs font-bold tracking-[0.16em] text-dc-pink">COMMUNITY EVENT</p><h1 class="mt-3 text-3xl font-bold">Event unavailable</h1><p class="mt-2 text-dc-gray">{{ error || 'This listing no longer exists.' }}</p></section>
     <section v-else>
       <div class="flex flex-wrap items-center justify-between gap-3">

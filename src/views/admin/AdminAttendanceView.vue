@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { adminPath } from '@/src/admin-routes';
-import AdminAttendancePageSkeleton from '@/src/components/ui/page-skeletons/AdminAttendancePageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, EventAttendanceImport, EventAttendanceSummary, LumaAttendanceRecord } from '@/types';
@@ -385,7 +385,7 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap py-6">
-      <AdminAttendancePageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="admin-attendance" label="attendance readout" layout="table" />
 
       <template v-else>
         <header class="editorial-header mb-6 flex flex-col gap-5 pb-5 lg:flex-row lg:items-end lg:justify-between">

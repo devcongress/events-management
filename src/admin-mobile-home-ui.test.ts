@@ -32,7 +32,8 @@ describe("mobile organizer entry points", () => {
     expect(mobileHomeSource).toContain("enabled: canSeeEvents");
     expect(mobileHomeSource).toContain("enabled: authenticated");
     expect(mobileHomeSource).toContain("Next actions");
-    expect(mobileHomeSource).toContain("Loading your work");
+    expect(mobileHomeSource).toContain('name="organizer-mobile-next-actions"');
+    expect(mobileHomeSource).toContain('layout="mobile-actions"');
     expect(mobileHomeSource).toContain("Some actions could not load");
     expect(mobileHomeSource).toContain("You are clear for now");
     expect(mobileHomeSource).toContain("section: 'tasks'");

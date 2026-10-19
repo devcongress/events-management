@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
-import AdminFeedbackOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackOverviewPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import {
   fetchFeedbackMonths,
   queryKeys,
@@ -143,7 +143,7 @@ function periodButtonDetail(month: FeedbackMonth): string {
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <AdminFeedbackOverviewPageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="admin-feedback-overview" label="feedback overview" layout="workspace" />
 
       <template v-else>
         <header class="feedback-hub-hero">

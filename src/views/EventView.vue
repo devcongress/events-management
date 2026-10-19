@@ -4,6 +4,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
 import PublicEventPreviewBar from '@/src/components/PublicEventPreviewBar.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { adminPath } from '@/src/admin-routes';
 import { fetchAdminEventPreviewDetail, queryKeys } from '@/src/lib/api';
 import { canEmbedPublicMeetupMedia } from '@/src/lib/public-meetup-media';
@@ -258,14 +259,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
     />
 
     <div v-if="loading" class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
-      <div class="view-skeleton space-y-6" aria-busy="true" aria-label="Loading meetup">
-        <div class="skeleton-line skeleton-line--third h-12" />
-        <div class="skeleton-media aspect-[16/7] min-h-0" />
-        <div class="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-          <div class="skeleton-panel h-48" />
-          <div class="skeleton-panel h-48" />
-        </div>
-      </div>
+      <BoneyardPageSkeleton name="public-event-detail" label="event details" layout="detail" />
     </div>
 
     <div v-else-if="error || !meetup" class="mx-auto flex min-h-[60vh] max-w-5xl items-center justify-center px-4 py-12 text-center sm:px-6 lg:px-8">

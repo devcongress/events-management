@@ -1,0 +1,1100 @@
+{
+  "schemaVersion": 1,
+  "framework": "vue",
+  "boneyardVersion": "1.9.0",
+  "registryPath": "src/bones/registry.ts",
+  "sections": {
+    "public-events-list": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "public-events-list",
+      "artifactPaths": [
+        "src/bones/public-events-list.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/public-events-list.bones.json": "99397fd63b0ece2ea4f3efcca8dfd1611ca047a280cb3df78d4ab1edb02a4493"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "public-events-list",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "public-dashboard": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "public-dashboard",
+      "artifactPaths": [
+        "src/bones/public-dashboard.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/public-dashboard.bones.json": "1c8d4e3828e2c8552422c5f18ae2c713b0ee9c6032395583c3064359eeb49874"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "public-dashboard",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "speaker-talk-intake": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "speaker-talk-intake",
+      "artifactPaths": [
+        "src/bones/speaker-talk-intake.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/speaker-talk-intake.bones.json": "ae282ae360d7c9f95f2376e14f7a4c1987db92170a04c40282f9bfe058bfa005"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "speaker-talk-intake",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "event-registration": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "event-registration",
+      "artifactPaths": [
+        "src/bones/event-registration.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/event-registration.bones.json": "5b28b4f4b67a16e2542fa7f1581271c508ce2345577d8d665d3a09d96e4619da"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "event-registration",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "archive-event-detail": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "archive-event-detail",
+      "artifactPaths": [
+        "src/bones/archive-event-detail.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/archive-event-detail.bones.json": "93a66e4393ffb49411f2e98da1ff51c5624d217b6e7e7fdc7d562cc746880158"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "archive-event-detail",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "public-archive": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "public-archive",
+      "artifactPaths": [
+        "src/bones/public-archive.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/public-archive.bones.json": "96ea0bad4be55d2bf98901c33788cd591e19c78f210417f021446014041a93ed"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "public-archive",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "call-for-proposals": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "call-for-proposals",
+      "artifactPaths": [
+        "src/bones/call-for-proposals.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/call-for-proposals.bones.json": "b07f90bff1c1eceae1cba0ad9db53493094215fc1ec2581dcb596506c9b3739d"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "call-for-proposals",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "public-feedback": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "public-feedback",
+      "artifactPaths": [
+        "src/bones/public-feedback.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/public-feedback.bones.json": "c7e2fceafb827923684e057a48762ffd54a2cd9a6e40302ae8534a7e62b84b73"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "public-feedback",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "public-event-detail": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "public-event-detail",
+      "artifactPaths": [
+        "src/bones/public-event-detail.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/public-event-detail.bones.json": "b214825b17d86310ab507f826cb43393db75f3cf40b8716f1f3fb6033c16a005"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "public-event-detail",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "system-design-participant": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "system-design-participant",
+      "artifactPaths": [
+        "src/bones/system-design-participant.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/system-design-participant.bones.json": "c5d3057a0facd236fc5b3199ec5101bbc21893b4dc685b75cb59a6c41aca7320"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "system-design-participant",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-feedback-overview": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-feedback-overview",
+      "artifactPaths": [
+        "src/bones/admin-feedback-overview.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-feedback-overview.bones.json": "b5a3246de2007f2b09b5d5b475aba390b1fe718f5cd495b557d208b91905d950"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-feedback-overview",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-talks": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-talks",
+      "artifactPaths": [
+        "src/bones/admin-talks.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-talks.bones.json": "7fbebf406594553cfc4cf8d2e8163ff910d13003e24a7461c5887b889288a889"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-talks",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-speakers": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-speakers",
+      "artifactPaths": [
+        "src/bones/admin-speakers.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-speakers.bones.json": "ee299227a0baff37c52e411f1e519d9a06cf5ef9d821e6708cdcbe47576c4860"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-speakers",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-organizers": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-organizers",
+      "artifactPaths": [
+        "src/bones/admin-organizers.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-organizers.bones.json": "32dfdc6d218bcfeabe35f8826f45932eb744ec668e9b1659320ec4f438ef41e8"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-organizers",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-event-detail": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-event-detail",
+      "artifactPaths": [
+        "src/bones/admin-event-detail.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-event-detail.bones.json": "98aa07b5b59e97d72fde4326a28acc59bc852d8f584058a25618f57cc87c202a"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-event-detail",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-feedback": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-feedback",
+      "artifactPaths": [
+        "src/bones/admin-feedback.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-feedback.bones.json": "4aad27d736493df71ec6d154c8f3f0ad31751b1515db485d67910aef921a7b06"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-feedback",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-attendance": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-attendance",
+      "artifactPaths": [
+        "src/bones/admin-attendance.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-attendance.bones.json": "3717f66a8ba11440ef04eac23ef20779bd62202873834bb6509e491b8c7205c3"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-attendance",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-audit-log": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-audit-log",
+      "artifactPaths": [
+        "src/bones/admin-audit-log.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-audit-log.bones.json": "53f5b7d97efeed85ffc62aec24b67551118e805cb0614050b3076aed91819de2"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-audit-log",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-attendance-overview": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-attendance-overview",
+      "artifactPaths": [
+        "src/bones/admin-attendance-overview.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-attendance-overview.bones.json": "831441cb26a87205dcdd80bb4c333acab92ec0ad663849ca7002c31768af0ce2"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-attendance-overview",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-events-list": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-events-list",
+      "artifactPaths": [
+        "src/bones/admin-events-list.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-events-list.bones.json": "bcf88cf81d548867de52ff346e6145b51a5e0e25c872044b53474e0d7cfe54eb"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-events-list",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-registration-workspace": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-registration-workspace",
+      "artifactPaths": [
+        "src/bones/admin-registration-workspace.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-registration-workspace.bones.json": "6d5ed754163de3720a02301ff180da22a2b187ea264755d3e800388d26fd17f1"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-registration-workspace",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "annual-conference-finance": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "annual-conference-finance",
+      "artifactPaths": [
+        "src/bones/annual-conference-finance.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/annual-conference-finance.bones.json": "44260ba98d10efc9a7f7f2debce6953599b76aef25164e90f5231868a1bae548"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "annual-conference-finance",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "annual-conference-speakers": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "annual-conference-speakers",
+      "artifactPaths": [
+        "src/bones/annual-conference-speakers.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/annual-conference-speakers.bones.json": "d7c7e6488048b8820517cafcf850b2d28a21739930ed78a85f324ef11b017ce7"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "annual-conference-speakers",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "annual-conference-overview": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "annual-conference-overview",
+      "artifactPaths": [
+        "src/bones/annual-conference-overview.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/annual-conference-overview.bones.json": "0930bc7f2dd9fa267fc9e5a6b0ccc28ec09b2c275d23e5b3f3040e9e855b6f8f"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "annual-conference-overview",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "annual-conference-registrations": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "annual-conference-registrations",
+      "artifactPaths": [
+        "src/bones/annual-conference-registrations.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/annual-conference-registrations.bones.json": "aaafe1d6ad5919b2a3eec122ae2ce0afd57f8fd4a8acefa8e2f2c935cf9e2085"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "annual-conference-registrations",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "annual-conference-volunteers": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "annual-conference-volunteers",
+      "artifactPaths": [
+        "src/bones/annual-conference-volunteers.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/annual-conference-volunteers.bones.json": "2924dff3ae3c08a0549af69d14115ad30e9ccd59bb0a3843d48b2232387cb7dc"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "annual-conference-volunteers",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "annual-conference-work-plan": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "annual-conference-work-plan",
+      "artifactPaths": [
+        "src/bones/annual-conference-work-plan.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/annual-conference-work-plan.bones.json": "48a7e2bddd71fbe926f8083d394592c673ab8d44e04ed22f63c864436d106dcc"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "annual-conference-work-plan",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "annual-conference-ticketing": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "annual-conference-ticketing",
+      "artifactPaths": [
+        "src/bones/annual-conference-ticketing.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/annual-conference-ticketing.bones.json": "85e192bbd7bd1f3a89ef733dde225027f9395238b23db5ef311877fb00d33cc3"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "annual-conference-ticketing",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "organizer-mobile-next-actions": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "organizer-mobile-next-actions",
+      "artifactPaths": [
+        "src/bones/organizer-mobile-next-actions.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/organizer-mobile-next-actions.bones.json": "7221cca1106d5d0c23a24e9b5b6f50d4ea90ce668e077cd197af67d54efc348a"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "organizer-mobile-next-actions",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-event-submissions": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-event-submissions",
+      "artifactPaths": [
+        "src/bones/admin-event-submissions.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-event-submissions.bones.json": "1ec3d021df69175d209eaed21d592992f81bb229d39155cc794d8a79c7423c08"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-event-submissions",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-system-design": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-system-design",
+      "artifactPaths": [
+        "src/bones/admin-system-design.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-system-design.bones.json": "28e3bd8e1b98482bb23de43d472f5ef25ecd67e6450f3bc0d4211b09cbb6d2ca"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-system-design",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "event-amendment": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "event-amendment",
+      "artifactPaths": [
+        "src/bones/event-amendment.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/event-amendment.bones.json": "2231c0e22cba1582ca064dde942c6af8dd6eae80386d20da870629559edccaf6"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "event-amendment",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-community-event-detail": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-community-event-detail",
+      "artifactPaths": [
+        "src/bones/admin-community-event-detail.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-community-event-detail.bones.json": "21e848afa5b99531393f5daf75c916ca8e3262c1350a9351c644f0dbfc2484e5"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-community-event-detail",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "volunteer-follow-up-campaign": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "volunteer-follow-up-campaign",
+      "artifactPaths": [
+        "src/bones/volunteer-follow-up-campaign.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/volunteer-follow-up-campaign.bones.json": "4221b78ee1365a7d4af62dd349e0cf216630486358a9c921cbaf46d4a09d58cb"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "volunteer-follow-up-campaign",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-present-forms-board-1": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-present-forms-board-1",
+      "artifactPaths": [
+        "src/bones/admin-present-forms-board-1.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-present-forms-board-1.bones.json": "59f00dc4887a4caf209704ecf33b7e91df25a69bfec63b4d0a1afaf61ca5aeae"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-present-forms-board-1",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-present-forms-board-2": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-present-forms-board-2",
+      "artifactPaths": [
+        "src/bones/admin-present-forms-board-2.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-present-forms-board-2.bones.json": "1f4c36e0b7c528cb8e42a5fa06bb4607c7e8fab78da557cd366eee934e4facf8"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-present-forms-board-2",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "admin-present-forms-board-3": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "admin-present-forms-board-3",
+      "artifactPaths": [
+        "src/bones/admin-present-forms-board-3.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/admin-present-forms-board-3.bones.json": "8fac03893761605663e2c29f92c94e431f4a304efda8dab1011b052afcf38701"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "admin-present-forms-board-3",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "mobile-events-list": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "mobile-events-list",
+      "artifactPaths": [
+        "src/bones/mobile-events-list.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/mobile-events-list.bones.json": "990407b2f01584da65b907741e2826d2428176dfd23e38dd4cb6a057926f834e"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "mobile-events-list",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "mobile-event-detail": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "mobile-event-detail",
+      "artifactPaths": [
+        "src/bones/mobile-event-detail.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/mobile-event-detail.bones.json": "47b4af89a0ef6bfc7b0c49e19ffddfb1f7c50777b8a5732a7cee94fe42e6969e"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "mobile-event-detail",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "mobile-conference-workspace": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "mobile-conference-workspace",
+      "artifactPaths": [
+        "src/bones/mobile-conference-workspace.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/mobile-conference-workspace.bones.json": "0a88a7f9c17abd8c4147b03b1ab45c3884a547a92710b4afe276a61e56eedb51"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "mobile-conference-workspace",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "mobile-check-in-guests": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "mobile-check-in-guests",
+      "artifactPaths": [
+        "src/bones/mobile-check-in-guests.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/mobile-check-in-guests.bones.json": "befafe949ea7895f31a2b0c6d6b28cb0ad2b850f7ea30a615d149d258240d642"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "mobile-check-in-guests",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    },
+    "mobile-blasts-audience": {
+      "status": "completed",
+      "sourcePaths": [
+        "src/components/ui/BoneyardPageSkeleton.vue",
+        "src/components/ui/BoneyardPageSkeletonFixture.vue"
+      ],
+      "route": "/tools/boneyard-capture.html",
+      "fixture": "mobile-blasts-audience",
+      "artifactPaths": [
+        "src/bones/mobile-blasts-audience.bones.json"
+      ],
+      "artifactHashes": {
+        "src/bones/mobile-blasts-audience.bones.json": "3650dcff97bbeba6a225874aa2ab8854a4306306fbb6fe5192932b520b2f46e5"
+      },
+      "inputFingerprint": "64e542a71de2ab7a5780f4d235afa2c696d17d02bd1a709149cd4871247d74cd",
+      "captureConfig": {
+        "breakpoints": [
+          390,
+          768,
+          1280
+        ],
+        "fixture": "mobile-blasts-audience",
+        "generatorVersion": "boneyard-js@1.9.0"
+      },
+      "verification": "Targeted isolated fixture capture validated non-empty bones at 390px, 768px, and 1280px."
+    }
+  }
+}

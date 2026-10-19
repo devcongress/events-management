@@ -455,15 +455,12 @@ try {
 
       try {
         await two
-          .getByRole("region", { name: "Loading form QR codes" })
+          .getByRole("status", { name: "Loading form QR codes" })
           .waitFor();
         await two.evaluate(() => document.fonts.ready);
-        assert.equal(
-          await two.locator(".code-frame.board-skeleton").count(),
-          2,
-        );
+        assert.ok(await two.locator("[data-boneyard-bone]").count() > 0);
         assert.equal(await two.locator(".audience-card a").count(), 0);
-        skeletonBox = await two.locator(".code-frame").first().boundingBox();
+        skeletonBox = await two.locator(".boneyard-page-skeleton").boundingBox();
         await two.screenshot({
           path: `${artifacts}/presentation-loading.png`,
           fullPage: true,
@@ -476,7 +473,7 @@ try {
       }
 
       await two.locator(".code-frame img").nth(1).waitFor();
-      const loadedBox = await two.locator(".code-frame").first().boundingBox();
+      const loadedBox = await two.locator(".audience-grid").boundingBox();
 
       assert.ok(Math.abs(skeletonBox.y - loadedBox.y) < 1);
       assert.equal(skeletonBox.width, loadedBox.width);

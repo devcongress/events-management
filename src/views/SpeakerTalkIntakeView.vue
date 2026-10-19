@@ -6,7 +6,7 @@ import {
   SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
 } from '@/lib/speaker-intake-limits';
 import AppDropdown from '@/src/components/AppDropdown.vue';
-import SpeakerTalkIntakePageSkeleton from '@/src/components/ui/page-skeletons/SpeakerTalkIntakePageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import type { ArchiveItemKind, ArchiveMaterialField, Event, SpeakerIntakeLinkPurpose } from '@/types';
 
 type IntakeEvent = Pick<Event, 'id' | 'name' | 'event_date' | 'status'>;
@@ -261,7 +261,7 @@ function formatDeadline(value: string | null): string {
 <template>
   <div class="min-h-full bg-dc-cream text-dc-ink">
     <div v-if="loading" class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-      <SpeakerTalkIntakePageSkeleton />
+      <BoneyardPageSkeleton name="speaker-talk-intake" label="talk details form" layout="form" />
     </div>
 
     <div v-else-if="unavailableMessage" class="flex min-h-full items-center justify-center p-4">

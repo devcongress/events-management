@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
-import AdminFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { adminPath } from '@/src/admin-routes';
 import { buildEventFeedbackCsv } from '@/lib/event-feedback-export';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
@@ -592,7 +592,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <AdminFeedbackPageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="admin-feedback" label="feedback campaign" layout="workspace" />
 
       <template v-else>
         <header class="editorial-header flex flex-col gap-5 md:flex-row md:items-end md:justify-between">

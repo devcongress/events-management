@@ -5,6 +5,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import QRCode from 'qrcode';
 import PresentationPeekFace from '@/src/components/PresentationPeekFace.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { adminPath } from '@/src/admin-routes';
 import { ensureAdminShortLink, fetchJson } from '@/src/lib/api';
 import { formsForMonth, presentationCopy, presentationMonth, type PresentationForm } from '@/src/lib/presentation-forms';
@@ -98,17 +99,15 @@ onMounted(load);
       </div>
     </header>
 
-    <section v-if="loading" class="audience-grid" :style="{ '--card-count': loadingCardCount }" aria-busy="true" aria-label="Loading form QR codes">
-      <span class="sr-only" role="status">Preparing your board…</span>
-      <article v-for="index in loadingCardCount" :key="index" class="audience-card" aria-hidden="true">
-        <div class="card-heading">
-          <h2><span class="board-skeleton skeleton-heading" /></h2>
-          <p><span class="board-skeleton skeleton-description" /></p>
-        </div>
-        <div class="code-frame board-skeleton" />
-        <span class="card-url"><span class="board-skeleton skeleton-url" /></span>
-      </article>
-    </section>
+    <BoneyardPageSkeleton
+      v-if="loading"
+      :name="`admin-present-forms-board-${loadingCardCount}`"
+      label="form QR codes"
+      layout="form-board"
+      :fixture-count="loadingCardCount"
+      :show-header="false"
+      :style="{ '--card-count': loadingCardCount }"
+    />
     <div v-else-if="error" class="audience-error" role="alert"><p>{{ error }}</p><button class="editorial-secondary-action" @click="load">Retry</button><a :href="adminPath('present-forms')">Return to setup</a></div>
     <section v-else class="audience-grid" :style="{ '--card-count': cards.length }" aria-label="Forms to scan">
       <article v-for="card in cards" :key="card.url" class="audience-card">
@@ -292,31 +291,6 @@ footer {
   margin-top: 32px;
   color: #595750;
   font: 12px var(--font-mono), monospace;
-}
-
-.board-skeleton {
-  background: #e5e1d7;
-}
-
-.skeleton-heading, .skeleton-description, .skeleton-url {
-  display: block;
-  margin-inline: auto;
-  border-radius: 4px;
-}
-
-.skeleton-heading {
-  width: 70%;
-  height: 1.2em;
-}
-
-.skeleton-description {
-  width: 60%;
-  height: 1.5em;
-}
-
-.skeleton-url {
-  width: min(80%, 28ch);
-  height: 1.5em;
 }
 
 .audience-error {

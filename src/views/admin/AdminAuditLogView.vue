@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
-import AdminAuditLogPageSkeleton from '@/src/components/ui/page-skeletons/AdminAuditLogPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import AdminEmailPreviewsView from '@/src/views/admin/AdminEmailPreviewsView.vue';
 import AdminShortLinksState from '@/src/components/admin/AdminShortLinksState.vue';
 import { deleteEventById, fetchAdminArchivedEvents, fetchAdminAuditLog, fetchAdminShortLinks, queryKeys, regenerateAdminShortLink, restoreArchivedEvent, revokeAdminShortLink, type AdminAuditLogEntry, type ArchivedEvent, type EmailHealthLevel, type RecentEmailDelivery, type RecentEventBlast } from '@/src/lib/api';
@@ -597,7 +597,7 @@ onUnmounted(() => {
         {{ error }}
       </div>
 
-      <AdminAuditLogPageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="admin-audit-log" label="audit log" layout="table" />
 
       <div v-else class="flex w-full flex-1 min-h-0 flex-col" :style="auditStickyStyle">
         <nav class="audit-log-tabs mb-5" role="tablist" aria-label="Audit Log sections">

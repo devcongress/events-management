@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/vue-query';
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { eventSeriesBadgeLabel } from '@/lib/event-series';
 import { adminPath } from '@/src/admin-routes';
 import { fetchEvents, queryKeys } from '@/src/lib/api';
@@ -85,9 +86,7 @@ function eventActions(event: CommunityEvent): MobileEventAction[] {
         <p>Guest lists, presentation proposals, and event-day actions from your phone.</p>
       </header>
 
-      <div v-if="eventsQuery.isPending.value" class="mobile-ops-panel p-4">
-        <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">Loading events…</p>
-      </div>
+      <BoneyardPageSkeleton v-if="eventsQuery.isPending.value" name="mobile-events-list" label="organizer events" layout="mobile-events" :show-header="false" />
       <div v-else-if="eventsQuery.isError.value" class="mobile-ops-panel mobile-ops-panel--warning p-4">
         <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">Unable to load events</p>
         <p class="mt-2 text-sm leading-6 text-dc-gray">Check your connection and try again.</p>

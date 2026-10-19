@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
-import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import {
   ANNUAL_CONFERENCE_FINANCE_CATEGORIES,
   ANNUAL_CONFERENCE_FINANCE_CATEGORY_LABELS,
@@ -416,7 +416,7 @@ onUnmounted(() => {
         </button>
       </section>
 
-      <AnnualConferenceRouteSkeleton v-else-if="financeQuery.isLoading.value" variant="finance" />
+      <BoneyardPageSkeleton v-else-if="financeQuery.isLoading.value" name="annual-conference-finance" label="conference finance" layout="workspace" />
 
       <template v-else>
         <header class="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-dc-border pb-4">

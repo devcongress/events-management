@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { adminPath } from '@/src/admin-routes';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
-import AdminAttendanceOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminAttendanceOverviewPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import type {
   AttendanceLedgerMonth,
   AttendanceLedgerMonthEvent,
@@ -282,7 +282,7 @@ onMounted(fetchAttendanceLedger);
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <AdminAttendanceOverviewPageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="admin-attendance-overview" label="attendance overview" layout="workspace" />
 
       <template v-else>
         <header class="editorial-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">

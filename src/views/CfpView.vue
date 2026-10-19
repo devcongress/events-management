@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
-import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import SubmissionProgressLabel from '@/src/components/ui/SubmissionProgressLabel.vue';
 import LearningOutcomesEditor from '@/src/components/ui/LearningOutcomesEditor.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
@@ -326,7 +326,7 @@ onMounted(async () => {
       <span class="cfp-brace cfp-brace--close">}</span>
     </div>
     <div v-if="loading" class="mx-auto max-w-3xl px-4 py-8 sm:py-12">
-      <CfpPageSkeleton />
+      <BoneyardPageSkeleton name="call-for-proposals" label="proposal form" layout="form" />
     </div>
 
     <div v-else-if="loadError" class="flex min-h-screen items-center justify-center p-4 text-center">

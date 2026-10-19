@@ -5,6 +5,7 @@ import { onBeforeRouteLeave, RouterLink, useRoute } from 'vue-router';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import BlastEmailPreview from '@/src/components/ui/BlastEmailPreview.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import {
   createEventBlast,
   fetchEventBlasts,
@@ -327,9 +328,7 @@ onBeforeRouteLeave(() => {
         <p>{{ event?.name ?? 'Event update' }}</p>
       </section>
 
-      <section v-if="registrationQuery.isPending.value" class="mobile-blasts-state" role="status">
-        Loading event audience…
-      </section>
+      <BoneyardPageSkeleton v-if="registrationQuery.isPending.value" name="mobile-blasts-audience" label="event audience" layout="mobile-blasts" :show-header="false" />
       <section v-else-if="registrationQuery.isError.value" class="mobile-blasts-state mobile-blasts-state--error">
         <strong>The event audience could not be loaded.</strong>
         <button type="button" @click="registrationQuery.refetch()">Try again</button>

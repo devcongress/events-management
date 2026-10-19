@@ -25,6 +25,10 @@ const followUpPanelSource = readFileSync(
   new URL("./components/VolunteerFollowUpPanel.vue", import.meta.url),
   "utf8",
 );
+const followUpFixtureSource = readFileSync(
+  new URL("./components/ui/BoneyardPageSkeletonFixture.vue", import.meta.url),
+  "utf8",
+);
 const reviewsPanelSource = readFileSync(
   new URL("./components/VolunteerReviewsPanel.vue", import.meta.url),
   "utf8",
@@ -482,9 +486,7 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(followUpPanelSource).toContain(
       ".follow-up-owner-setup-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));",
     );
-    expect(followUpPanelSource).toContain(
-      ".follow-up-skeleton-setup-cell--controls {\n    grid-column: 1 / -1;",
-    );
+    expect(followUpFixtureSource).toContain("layout === 'volunteer-follow-up'");
   });
 
   it("groups the recipient filter beside search without a duplicate people count", () => {
@@ -508,9 +510,7 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(toolbar).toContain('aria-label="Filter follow-up recipients"');
     expect(toolbar).toContain('class="follow-up-search"');
     expect(toolbar).toContain('class="follow-up-range"');
-    expect(followUpPanelSource).toContain(
-      'class="follow-up-skeleton-inbox-toolbar"',
-    );
+    expect(followUpFixtureSource).toContain('class="boneyard-page-skeleton__fixture-follow-up-inbox"');
     expect(followUpPanelSource).toContain("@container (max-width: 43rem)");
     expect(followUpPanelSource).toContain("@container (max-width: 27rem)");
   });
@@ -588,20 +588,11 @@ describe("Volunteer follow-up workspace UI", () => {
 
   it("uses a content-shaped accessible first-load skeleton and retains cached data after refresh failures", () => {
     expect(followUpPanelSource).toContain(':aria-busy="query.isPending.value"');
-    expect(followUpPanelSource).toContain(
-      'class="follow-up-skeleton-progress"',
-    );
-    expect(followUpPanelSource).toContain(
-      'class="follow-up-skeleton-timeline"',
-    );
-    expect(followUpPanelSource).toContain('class="follow-up-skeleton-setup"');
-    expect(followUpPanelSource).toContain('class="follow-up-skeleton-inbox"');
-    expect(followUpPanelSource).toContain(
-      'role="status">Loading follow-up campaign…',
-    );
-    expect(followUpPanelSource).toContain(
-      'class="follow-up-skeleton-content" aria-hidden="true"',
-    );
+    expect(followUpPanelSource).toContain('name="volunteer-follow-up-campaign"');
+    expect(followUpPanelSource).toContain('layout="volunteer-follow-up"');
+    expect(followUpFixtureSource).toContain('class="boneyard-page-skeleton__fixture-follow-up-progress"');
+    expect(followUpFixtureSource).toContain('class="boneyard-page-skeleton__fixture-follow-up-setup"');
+    expect(followUpFixtureSource).toContain('class="boneyard-page-skeleton__fixture-follow-up-inbox"');
     expect(followUpPanelSource).toContain(
       "query.isError.value && !query.data.value",
     );

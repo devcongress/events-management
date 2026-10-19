@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-19 — App-wide loading and layout refresh
+
+- Replace routed and inline hand-built loading placeholders with responsive Boneyard captures tied to each page's initial data boundary. Preserve loaded content during background refresh and keep the protected pre-JavaScript boot screen.
+- Retune shared Inter/IBM Plex Mono typography, labels, navigation touch targets, and mobile arrangements while retaining the DevCongress cream, yellow, pink, and ink identity.
+- Add isolated synthetic fixture capture, an artifact manifest, hash-checked registry rebuild, and phone/tablet/desktop capture widths.
+
 ## 2026-10-19 — Volunteer outcome batch recovery
 
 - Recovered the 32 stalled not-selected outcome emails with their original frozen payloads and batch idempotency key. Resend accepted all 32 and delivery webhooks marked all 32 delivered; the issue was a Worker outbound-request budget exhaustion before the provider call, not a Resend quota cut.

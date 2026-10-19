@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { canonicalizeSystemDesignSchedule, isSystemDesignSessionItem, systemDesignDisplayTitle } from '@/lib/system-design';
 import { fetchPublicArchiveEvent } from '@/src/lib/api';
-import ArchiveEventPageSkeleton from '@/src/components/ui/page-skeletons/ArchiveEventPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { summarizeText, wordCount } from '@/src/lib/text-summary';
 import type { PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicMeetupScheduleItem } from '@/types';
 
@@ -129,7 +129,7 @@ onMounted(async () => {
         <span>&larr;</span> BACK TO ARCHIVE
       </RouterLink>
 
-      <ArchiveEventPageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="archive-event-detail" label="archive event" layout="detail" />
       <div v-else-if="error || !event" class="flex min-h-[50vh] items-center justify-center p-4">
         <div class="text-center">
           <p class="font-mono text-dc-ink">EVENT NOT FOUND</p>

@@ -203,7 +203,7 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
   >
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-        <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-dc-ink">
+        <p class="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-dc-ink">
           Annual Conference
         </p>
         <div v-if="canManageEditions" class="min-w-44 max-w-56 flex-1 sm:flex-none">
@@ -215,7 +215,7 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
             @update:model-value="changeEdition"
           />
         </div>
-        <strong v-else class="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
+        <strong v-else class="font-mono text-xs font-semibold uppercase tracking-[0.06em] text-dc-gray">
           {{ currentEdition?.label ?? `December ${year}` }}
         </strong>
       </div>
@@ -224,7 +224,7 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
         <button
           v-if="canCreateEdition"
           type="button"
-          class="motion-press min-h-10 rounded-md border border-dc-pink bg-dc-paper px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-pink"
+          class="motion-press min-h-11 rounded-md border border-dc-pink bg-dc-paper px-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-dc-pink"
           @click="openEditionForm"
         >
           New edition
@@ -298,8 +298,8 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
       <AppDatePicker v-model="editionForm.provisional_date" label="Conference date" required />
       <AppDropdown v-model="editionForm.task_creator_email" label="Planning owner" :options="planningOwnerOptions" menu-class="min-w-72" />
       <div class="flex justify-end gap-2 lg:col-span-2">
-        <button type="button" class="motion-press min-h-10 rounded-md border-2 border-dc-ink bg-dc-paper px-4 font-mono text-[10px] font-semibold uppercase" @click="showEditionForm = false">Cancel</button>
-        <button type="submit" class="motion-press min-h-10 rounded-md border-2 border-dc-ink bg-dc-pink px-4 font-mono text-[10px] font-semibold uppercase text-white" :disabled="createEditionMutation.isPending.value">{{ createEditionMutation.isPending.value ? 'Creating…' : 'Create edition' }}</button>
+        <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 font-mono text-xs font-semibold uppercase" @click="showEditionForm = false">Cancel</button>
+        <button type="submit" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-pink px-4 font-mono text-xs font-semibold uppercase text-white" :disabled="createEditionMutation.isPending.value">{{ createEditionMutation.isPending.value ? 'Creating…' : 'Create edition' }}</button>
       </div>
     </form>
 

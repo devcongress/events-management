@@ -48,11 +48,6 @@
     --surface-warm: #fefce8;
     --border-subtle: #e0ddd4;
     --border-strong: #e0ddd4;
-    --skeleton-base: #ebe6db;
-    --skeleton-soft: #f1ede4;
-    --skeleton-strong: #dfd8c9;
-    --skeleton-dark-base: rgba(255, 255, 255, 0.085);
-    --skeleton-dark-soft: rgba(255, 255, 255, 0.12);
   }
 
   html,
@@ -67,8 +62,10 @@
 
   body {
     font-family: var(--font-sans), system-ui, sans-serif;
+    font-kerning: normal;
     font-synthesis: none;
     font-weight: var(--font-weight-body);
+    letter-spacing: normal;
     margin: 0;
   }
 
@@ -308,15 +305,15 @@
   }
 
   .editorial-eyebrow {
-    @apply mb-3 font-mono text-xs font-semibold uppercase tracking-[0.24em] text-dc-pink;
+    @apply mb-3 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-dc-pink;
   }
 
   .editorial-title {
-    @apply text-4xl font-extrabold tracking-tight text-dc-ink sm:text-5xl;
+    @apply text-4xl font-bold leading-[1.08] text-dc-ink sm:text-5xl;
   }
 
   .editorial-subtitle {
-    @apply mt-3 max-w-2xl text-base leading-7 text-dc-gray sm:text-lg;
+    @apply mt-3 max-w-[65ch] text-base leading-7 text-dc-gray sm:text-lg;
   }
 
   .editorial-panel {
@@ -3020,296 +3017,8 @@
     }
   }
 
-  .view-skeleton {
-    @apply text-dc-gray;
-    width: 100%;
-    min-width: 0;
-    overflow: visible;
-  }
-
   .home-hero--loading {
     overflow: visible;
-  }
-
-  .skeleton-header {
-    @apply mb-10 flex flex-col gap-4 border-b border-dc-ink pb-7 lg:flex-row lg:items-end lg:justify-between;
-  }
-
-  .skeleton-panel,
-  .skeleton-card,
-  .skeleton-summary-card,
-  .skeleton-stat-card,
-  .skeleton-side-card,
-  .skeleton-form-card,
-  .skeleton-table {
-    @apply rounded-lg border border-dc-border bg-dc-paper shadow-[0_1px_0_rgba(17,17,17,0.05)];
-  }
-
-  .skeleton-chip,
-  .skeleton-eyebrow,
-  .skeleton-title,
-  .skeleton-line,
-  .skeleton-button,
-  .skeleton-media,
-  .skeleton-summary-card,
-  .skeleton-stat-card,
-  .skeleton-side-card,
-  .skeleton-form-card,
-  .skeleton-table,
-  .skeleton-dot,
-  .skeleton-number-pair,
-  .skeleton-option,
-  .skeleton-rank,
-  .skeleton-avatar,
-  .skeleton-score,
-  .skeleton-card-media {
-    position: relative;
-    overflow: hidden;
-    background: var(--skeleton-base);
-    animation: skeleton-pulse 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-    will-change: opacity;
-  }
-
-  .skeleton-chip::after,
-  .skeleton-eyebrow::after,
-  .skeleton-title::after,
-  .skeleton-line::after,
-  .skeleton-button::after,
-  .skeleton-media::after,
-  .skeleton-summary-card::after,
-  .skeleton-stat-card::after,
-  .skeleton-side-card::after,
-  .skeleton-form-card::after,
-  .skeleton-table::after,
-  .skeleton-dot::after,
-  .skeleton-number-pair::after,
-  .skeleton-option::after,
-  .skeleton-rank::after,
-  .skeleton-avatar::after,
-  .skeleton-score::after,
-  .skeleton-card-media::after {
-    content: none;
-  }
-
-  .skeleton-eyebrow {
-    @apply h-3 w-32 rounded-sm;
-  }
-
-  .skeleton-title {
-    @apply h-10 w-full max-w-xl rounded-md;
-  }
-
-  .skeleton-line {
-    @apply h-4 w-full rounded-sm;
-  }
-
-  .skeleton-line--hero {
-    @apply h-12 max-w-3xl;
-  }
-
-  .skeleton-line--hero-short {
-    @apply h-12 max-w-xl;
-  }
-
-  .skeleton-line--heading {
-    @apply h-8 max-w-md;
-  }
-
-  .skeleton-line--two-thirds {
-    @apply w-2/3;
-  }
-
-  .skeleton-line--half {
-    @apply w-1/2;
-  }
-
-  .skeleton-line--third {
-    @apply w-1/3;
-  }
-
-  .skeleton-chip {
-    @apply h-9 w-52 rounded-md border border-dc-border;
-  }
-
-  .skeleton-button {
-    @apply h-12 w-40 rounded-md border border-dc-border;
-  }
-
-  .skeleton-button--secondary {
-    background: var(--skeleton-soft);
-  }
-
-  .skeleton-media {
-    @apply min-h-[16rem] rounded-lg border border-dc-border bg-dc-paper shadow-[0_1px_0_rgba(17,17,17,0.05)];
-  }
-
-  .skeleton-summary-card {
-    @apply h-36 w-full lg:w-[26rem];
-  }
-
-  .skeleton-panel-header {
-    @apply h-14 border-b border-dc-border bg-dc-paper-warm;
-  }
-
-  .skeleton-row {
-    @apply border-b border-dc-border px-5 py-4 last:border-b-0;
-  }
-
-  .skeleton-row--program {
-    @apply grid min-h-[4.75rem] gap-4 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center;
-  }
-
-  .skeleton-row--action {
-    @apply grid min-h-[4.75rem] grid-cols-[2rem_minmax(0,1fr)] gap-4;
-  }
-
-  .skeleton-row--question {
-    @apply min-h-[6.5rem];
-  }
-
-  .skeleton-row--leaderboard {
-    @apply grid min-h-[4.25rem] grid-cols-[3rem_3.5rem_minmax(0,1fr)_7rem] items-center gap-4;
-  }
-
-  .skeleton-row--article {
-    @apply grid min-h-[6.25rem] gap-5 lg:grid-cols-[1fr_auto] lg:items-start;
-  }
-
-  .skeleton-number-pair {
-    @apply h-10 w-32 rounded-md sm:justify-self-end;
-  }
-
-  .skeleton-dot {
-    @apply mt-1 size-4 rounded-full;
-  }
-
-  .skeleton-stat-card {
-    @apply h-28 p-4;
-  }
-
-  .skeleton-side-card {
-    @apply h-32 p-5;
-  }
-
-  .skeleton-side-card--qr {
-    @apply h-52;
-  }
-
-  .skeleton-form-card {
-    @apply h-48 p-5;
-  }
-
-  .skeleton-form-card--compact {
-    @apply h-28;
-  }
-
-  .skeleton-form-card--tall {
-    @apply h-56;
-  }
-
-  .skeleton-option {
-    @apply h-12 rounded-md border border-dc-border;
-  }
-
-  .skeleton-rank,
-  .skeleton-score {
-    @apply h-9 rounded-md;
-  }
-
-  .skeleton-avatar {
-    @apply size-12 rounded-full;
-  }
-
-  .skeleton-table {
-    min-height: calc(3.5rem + (var(--skeleton-rows, 4) * 3.75rem));
-  }
-
-  .skeleton-table::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-      linear-gradient(var(--skeleton-soft) 0 0) 0 0 / 100% 3.5rem no-repeat,
-      repeating-linear-gradient(
-        to bottom,
-        transparent 0,
-        transparent 4.65rem,
-        rgba(17, 17, 17, 0.035) 4.65rem,
-        rgba(17, 17, 17, 0.035) 4.72rem
-      );
-  }
-
-  .skeleton-card {
-    @apply overflow-hidden border border-dc-border shadow-[0_1px_0_rgba(17,17,17,0.05)];
-  }
-
-  .skeleton-card-media {
-    @apply aspect-video border-b border-dc-border;
-  }
-
-  .view-skeleton--dark {
-    @apply text-white;
-  }
-
-  .view-skeleton--dark .skeleton-chip,
-  .view-skeleton--dark .skeleton-eyebrow,
-  .view-skeleton--dark .skeleton-title,
-  .view-skeleton--dark .skeleton-line,
-  .view-skeleton--dark .skeleton-button,
-  .view-skeleton--dark .skeleton-media,
-  .view-skeleton--dark .skeleton-summary-card,
-  .view-skeleton--dark .skeleton-stat-card,
-  .view-skeleton--dark .skeleton-side-card,
-  .view-skeleton--dark .skeleton-form-card,
-  .view-skeleton--dark .skeleton-table,
-  .view-skeleton--dark .skeleton-dot,
-  .view-skeleton--dark .skeleton-number-pair,
-  .view-skeleton--dark .skeleton-option,
-  .view-skeleton--dark .skeleton-rank,
-  .view-skeleton--dark .skeleton-avatar,
-  .view-skeleton--dark .skeleton-score,
-  .view-skeleton--dark .skeleton-card-media {
-    background: var(--skeleton-dark-base);
-  }
-
-  .view-skeleton--dark .skeleton-button--secondary {
-    background: var(--skeleton-dark-soft);
-  }
-
-  .view-skeleton--dark .skeleton-table::before {
-    background:
-      linear-gradient(var(--skeleton-dark-soft) 0 0) 0 0 / 100% 3.5rem no-repeat,
-      repeating-linear-gradient(
-        to bottom,
-        transparent 0,
-        transparent 4.65rem,
-        rgba(255, 255, 255, 0.05) 4.65rem,
-        rgba(255, 255, 255, 0.05) 4.72rem
-      );
-  }
-
-  .view-skeleton--dark .skeleton-play-panel {
-    @apply border-2 border-dc-yellow bg-dc-dark-1 p-8 shadow-glow sm:p-12;
-  }
-
-  .skeleton-play-corner {
-    @apply absolute size-20 border-dc-yellow/50;
-  }
-
-  .skeleton-play-corner--tl {
-    @apply -left-4 -top-4 border-l-4 border-t-4;
-  }
-
-  .skeleton-play-corner--tr {
-    @apply -right-4 -top-4 border-r-4 border-t-4;
-  }
-
-  .skeleton-play-corner--bl {
-    @apply -bottom-4 -left-4 border-b-4 border-l-4;
-  }
-
-  .skeleton-play-corner--br {
-    @apply -bottom-4 -right-4 border-b-4 border-r-4;
   }
 
   .editorial-action {
@@ -8724,8 +8433,8 @@
       min-height: 2.75rem !important;
       gap: 0.4rem;
       padding-inline: 0.65rem !important;
-      font-size: 0.62rem !important;
-      letter-spacing: 0.1em !important;
+      font-size: 0.75rem !important;
+      letter-spacing: 0.06em !important;
       box-shadow: 1px 1px 0 #111111 !important;
     }
 
@@ -8811,8 +8520,8 @@
 
     .editorial-eyebrow {
       margin-bottom: 0.5rem !important;
-      font-size: 0.66rem !important;
-      letter-spacing: 0.14em !important;
+      font-size: 0.75rem !important;
+      letter-spacing: 0.1em !important;
     }
 
     .editorial-title {
@@ -8874,8 +8583,8 @@
     }
 
     .community-masthead-stat .text-\[10px\] {
-      font-size: 0.56rem !important;
-      letter-spacing: 0.08em !important;
+      font-size: 0.75rem !important;
+      letter-spacing: 0.04em !important;
     }
 
     .editorial-panel {
@@ -8940,12 +8649,12 @@
 
     .admin-login-submit {
       min-height: 2.85rem !important;
-      font-size: 0.72rem !important;
+      font-size: 0.75rem !important;
     }
 
     .editorial-label {
-      font-size: 0.66rem !important;
-      letter-spacing: 0.1em !important;
+      font-size: 0.72rem !important;
+      letter-spacing: 0.06em !important;
     }
 
     .editorial-page main.mx-auto,
@@ -9015,8 +8724,8 @@
     }
 
     .editorial-page .font-mono.text-\[11px\] {
-      font-size: 0.62rem !important;
-      letter-spacing: 0.08em !important;
+      font-size: 0.75rem !important;
+      letter-spacing: 0.04em !important;
     }
 
     .editorial-page .px-3.py-1\.5 {
@@ -9042,12 +8751,6 @@
 
     .editorial-page .mt-5 {
       margin-top: 0.9rem !important;
-    }
-
-    .skeleton-header {
-      margin-bottom: 1.2rem;
-      padding-bottom: 0.9rem;
-      gap: 0.75rem;
     }
 
     .leaderboard-empty-state {
@@ -9291,17 +8994,6 @@
     }
   }
 
-  @keyframes skeleton-pulse {
-    0%,
-    100% {
-      opacity: 0.82;
-    }
-
-    50% {
-      opacity: 0.94;
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .page-enter-active,
     .page-leave-active,
@@ -9407,27 +9099,6 @@
     }
 
     .motion-spinner {
-      animation: none !important;
-    }
-
-    .skeleton-chip,
-    .skeleton-eyebrow,
-    .skeleton-title,
-    .skeleton-line,
-    .skeleton-button,
-    .skeleton-media,
-    .skeleton-summary-card,
-    .skeleton-stat-card,
-    .skeleton-side-card,
-    .skeleton-form-card,
-    .skeleton-table,
-    .skeleton-dot,
-    .skeleton-number-pair,
-    .skeleton-option,
-    .skeleton-rank,
-    .skeleton-avatar,
-    .skeleton-score,
-    .skeleton-card-media {
       animation: none !important;
     }
 
@@ -9937,5 +9608,699 @@
   .volunteer-follow-up-submit,
   .volunteer-follow-up-choice {
     transition: none;
+  }
+}
+
+/* Boneyard snapshots use the same responsive content footprint in capture and loading. */
+.boneyard-capture-fixtures {
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: 1.5rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .boneyard-capture-fixtures {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .boneyard-capture-fixtures {
+    padding-inline: 2rem;
+  }
+}
+
+.boneyard-page-skeleton {
+  width: 100%;
+  min-width: 0;
+  min-height: 18rem;
+}
+
+.boneyard-page-skeleton__fixture,
+.boneyard-page-skeleton__fallback {
+  width: 100%;
+  min-height: 18rem;
+}
+
+.boneyard-page-skeleton__fallback {
+  display: grid;
+  align-content: center;
+  border: 1px solid #e0ddd4;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  padding: 1.5rem;
+  color: #555555;
+  font-size: 0.875rem;
+}
+
+.boneyard-page-skeleton__fixture {
+  color: #111111;
+  pointer-events: none;
+}
+
+.boneyard-page-skeleton__fixture-header {
+  margin-bottom: 1.5rem;
+  max-width: 42rem;
+}
+
+.boneyard-page-skeleton__fixture-eyebrow {
+  color: #e8117f;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.boneyard-page-skeleton__fixture-header h1 {
+  margin-top: 0.5rem;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.08;
+}
+
+.boneyard-page-skeleton__fixture-header p {
+  margin-top: 0.5rem;
+  color: #555555;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.boneyard-page-skeleton__fixture-cards {
+  display: grid;
+  gap: 1rem;
+}
+
+.boneyard-page-skeleton__fixture-dashboard {
+  display: grid;
+  align-items: end;
+  gap: 2.5rem;
+  padding-block: 1rem;
+}
+
+.boneyard-page-skeleton__fixture-dashboard-kicker {
+  display: inline-block;
+  border: 2px solid #111;
+  background: #f9ed32;
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.boneyard-page-skeleton__fixture-dashboard h1 {
+  margin-top: 1.5rem;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.boneyard-page-skeleton__fixture-dashboard section > p {
+  margin-top: 1.75rem;
+  max-width: 38rem;
+  color: #555;
+  font-size: 1.25rem;
+  line-height: 1.5;
+}
+
+.boneyard-page-skeleton__fixture-dashboard button {
+  margin-top: 2rem;
+  min-height: 3rem;
+  border: 2px solid #111;
+  border-radius: 6px;
+  background: #ed008c;
+  padding-inline: 1.25rem;
+  color: #fff;
+  font-family: var(--font-mono), monospace;
+  text-transform: uppercase;
+}
+
+.boneyard-page-skeleton__fixture-dashboard aside {
+  min-width: 0;
+}
+
+.boneyard-page-skeleton__fixture-dashboard-photo {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border: 0.75rem solid #fff;
+  background: #dedbd2;
+}
+
+.boneyard-page-skeleton__fixture-dashboard aside > p {
+  margin-top: 0.75rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+}
+
+.boneyard-page-skeleton__fixture-learning-room {
+  width: min(100%, 28rem);
+  min-height: 42rem;
+  margin-inline: auto;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.boneyard-page-skeleton__fixture-avatar {
+  width: 8rem;
+  height: 8rem;
+  margin: 0 auto 1.5rem;
+  border-radius: 50%;
+  background: #dedbd2;
+}
+
+.boneyard-page-skeleton__fixture-learning-room h1 {
+  margin-top: 1rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 2.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.boneyard-page-skeleton__fixture-learning-room > p {
+  margin-top: 1rem;
+  color: #555;
+  line-height: 1.5;
+}
+
+.boneyard-page-skeleton__fixture-learning-form {
+  margin-top: 1.75rem;
+  border: 2px solid #111;
+  border-radius: 8px;
+  background: #fff;
+  padding: 1.25rem;
+  text-align: left;
+}
+
+.boneyard-page-skeleton__fixture-learning-form label {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.boneyard-page-skeleton__fixture-learning-form button {
+  width: 100%;
+  min-height: 3rem;
+  margin-top: 1rem;
+  border: 2px solid #111;
+  border-radius: 6px;
+  background: #ed008c;
+  color: #fff;
+}
+
+.boneyard-page-skeleton__fixture-card,
+.boneyard-page-skeleton__fixture-form,
+.boneyard-page-skeleton__fixture-detail,
+.boneyard-page-skeleton__fixture-table {
+  min-width: 0;
+  border: 1px solid #e0ddd4;
+  border-radius: 0.5rem;
+  background: #ffffff;
+}
+
+.boneyard-page-skeleton__fixture-card {
+  overflow: hidden;
+}
+
+.boneyard-page-skeleton__fixture-card h2,
+.boneyard-page-skeleton__fixture-card p {
+  margin: 1rem;
+}
+
+.boneyard-page-skeleton__fixture-card h2,
+.boneyard-page-skeleton__fixture-detail h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.boneyard-page-skeleton__fixture-card p,
+.boneyard-page-skeleton__fixture-detail p {
+  color: #555555;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.boneyard-page-skeleton__fixture-media {
+  aspect-ratio: 16 / 9;
+  background: #f5f2e8;
+}
+
+.boneyard-page-skeleton__fixture-media--wide {
+  aspect-ratio: 21 / 9;
+}
+
+.boneyard-page-skeleton__fixture-form,
+.boneyard-page-skeleton__fixture-detail {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1rem, 3vw, 1.75rem);
+}
+
+.boneyard-page-skeleton__fixture-form label {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.boneyard-page-skeleton__fixture-form input {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid #aaa79f;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  padding: 0.75rem;
+  color: #555555;
+}
+
+.boneyard-page-skeleton__fixture-form button,
+.boneyard-page-skeleton__fixture-row button {
+  min-height: 2.75rem;
+  border: 1px solid #111111;
+  border-radius: 0.375rem;
+  background: #f5e642;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.boneyard-page-skeleton__fixture-table {
+  overflow: hidden;
+}
+
+.boneyard-page-skeleton__fixture-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 1rem;
+  min-height: 4.5rem;
+  border-bottom: 1px solid #e0ddd4;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.boneyard-page-skeleton__fixture-row:last-child {
+  border-bottom: 0;
+}
+
+.boneyard-page-skeleton--mobile-actions,
+.boneyard-page-skeleton--mobile-actions .boneyard-page-skeleton__fixture,
+.boneyard-page-skeleton--mobile-actions .boneyard-page-skeleton__fallback {
+  min-height: 0;
+}
+
+.boneyard-page-skeleton__fixture-mobile-actions {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.8rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.5rem;
+  align-items: center;
+  column-gap: 0.85rem;
+  row-gap: 0.45rem;
+  min-height: 7.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  background: var(--surface-paper);
+  padding: 1rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-action span,
+.boneyard-page-skeleton__fixture-mobile-action p {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.boneyard-page-skeleton__fixture-mobile-action span {
+  color: #77736b;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.boneyard-page-skeleton__fixture-mobile-action h2 {
+  grid-column: 1;
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.boneyard-page-skeleton__fixture-mobile-action p {
+  color: #555555;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.boneyard-page-skeleton__fixture-mobile-action strong {
+  grid-column: 2;
+  grid-row: 1 / 4;
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.5rem;
+  background: var(--surface-warm);
+}
+
+.boneyard-page-skeleton__fixture-mobile-events,
+.boneyard-page-skeleton__fixture-mobile-event,
+.boneyard-page-skeleton__fixture-mobile-conference {
+  display: grid;
+  gap: 1rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-events article,
+.boneyard-page-skeleton__fixture-mobile-event > header,
+.boneyard-page-skeleton__fixture-mobile-event > section,
+.boneyard-page-skeleton__fixture-mobile-conference > header,
+.boneyard-page-skeleton__fixture-mobile-conference > section,
+.boneyard-page-skeleton__fixture-mobile-conference-stats > div {
+  border: 1px solid #d9d5cc;
+  border-radius: 12px;
+  background: #fff;
+  padding: 1.25rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-events span,
+.boneyard-page-skeleton__fixture-mobile-event span,
+.boneyard-page-skeleton__fixture-mobile-conference span {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.boneyard-page-skeleton__fixture-mobile-events h2,
+.boneyard-page-skeleton__fixture-mobile-event h1,
+.boneyard-page-skeleton__fixture-mobile-conference h1 {
+  margin-top: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.boneyard-page-skeleton__fixture-mobile-events p,
+.boneyard-page-skeleton__fixture-mobile-event p,
+.boneyard-page-skeleton__fixture-mobile-conference p {
+  margin-top: 0.65rem;
+  color: #555;
+  font-size: 0.875rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-events article > div {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-events button {
+  min-height: 2.75rem;
+  border: 1px solid #111;
+  border-radius: 6px;
+  padding-inline: 0.75rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-event h2,
+.boneyard-page-skeleton__fixture-mobile-conference h2 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.boneyard-page-skeleton__fixture-mobile-event section > p,
+.boneyard-page-skeleton__fixture-mobile-conference section > p {
+  border-top: 1px solid #e0ddd4;
+  padding-block: 0.75rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-conference-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-conference-stats strong {
+  display: block;
+  font-size: 1.75rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-check-in,
+.boneyard-page-skeleton__fixture-mobile-blasts {
+  display: grid;
+  gap: 1rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-check-in h2,
+.boneyard-page-skeleton__fixture-mobile-blasts h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.boneyard-page-skeleton__fixture-mobile-check-in label,
+.boneyard-page-skeleton__fixture-mobile-blasts label {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-check-in > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-check-in > div span {
+  border: 1px solid #d9d5cc;
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-check-in > p {
+  border-top: 1px solid #e0ddd4;
+  padding-block: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-blasts section {
+  border: 1px solid #d9d5cc;
+  border-radius: 12px;
+  background: #fff;
+  padding: 1.25rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-blasts section > strong {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 1.75rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-blasts section > p {
+  margin-top: 0.5rem;
+  color: #555;
+  font-size: 0.875rem;
+}
+
+.boneyard-page-skeleton__fixture-mobile-blasts label {
+  margin-top: 1rem;
+}
+
+.boneyard-page-skeleton__fixture-registration nav {
+  display: flex;
+  gap: 1.25rem;
+  overflow: hidden;
+  border-bottom: 1px solid #e0ddd4;
+  padding: 0.75rem 0.25rem;
+  white-space: nowrap;
+}
+
+.boneyard-page-skeleton__fixture-registration nav span {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.boneyard-page-skeleton__fixture-registration article {
+  margin-top: 1.25rem;
+  overflow: hidden;
+  border: 1px solid #e0ddd4;
+  border-radius: 0.75rem;
+  background: #ffffff;
+}
+
+.boneyard-page-skeleton__fixture-registration article > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.boneyard-page-skeleton__fixture-registration h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.boneyard-page-skeleton__fixture-registration article > header p {
+  margin-top: 0.5rem;
+  color: #555555;
+  font-size: 0.875rem;
+}
+
+.boneyard-page-skeleton__fixture-registration button {
+  min-height: 2.75rem;
+  border: 1px solid #e0ddd4;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.boneyard-page-skeleton__fixture-registration-stats {
+  display: grid;
+  gap: 0.75rem;
+  border-block: 1px solid #e0ddd4;
+  padding: 1.5rem;
+}
+
+.boneyard-page-skeleton__fixture-registration-stats > div {
+  display: grid;
+  gap: 0.25rem;
+  min-height: 5rem;
+  border: 1px solid #e0ddd4;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
+.boneyard-page-skeleton__fixture-registration-stats strong {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.boneyard-page-skeleton__fixture-registration-stats span {
+  color: #555555;
+  font-size: 0.75rem;
+}
+
+.boneyard-page-skeleton__fixture-registration article > section {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+}
+
+.boneyard-page-skeleton__fixture-registration h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.boneyard-page-skeleton__fixture-registration article > section p {
+  min-height: 2.75rem;
+  border-bottom: 1px solid #e0ddd4;
+  padding: 0.75rem 0;
+  color: #555555;
+  font-size: 0.875rem;
+}
+
+.boneyard-page-skeleton__fixture-submissions {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid #e0ddd4;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.boneyard-page-skeleton__fixture-submissions table {
+  width: 100%;
+  min-width: 48rem;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.boneyard-page-skeleton__fixture-submissions th,
+.boneyard-page-skeleton__fixture-submissions td {
+  padding: 1rem;
+  border-bottom: 1px solid #e0ddd4;
+}
+
+.boneyard-page-skeleton__fixture-submissions th {
+  font-weight: 700;
+}
+
+.boneyard-page-skeleton__fixture-form-board {
+  display: grid;
+  grid-template-columns: repeat(var(--card-count, 3), minmax(0, 1fr));
+  gap: clamp(1.25rem, 2vw, 2.25rem);
+}
+
+.boneyard-page-skeleton__fixture-form-board article {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  border-top: 1px solid #d2cfc5;
+  padding-top: 1rem;
+  text-align: center;
+}
+
+.boneyard-page-skeleton__fixture-form-board h2 {
+  font-size: clamp(1.25rem, 2vw, 2rem);
+  line-height: 1.1;
+}
+
+.boneyard-page-skeleton__fixture-form-board p,
+.boneyard-page-skeleton__fixture-form-board span {
+  font-size: 0.875rem;
+}
+
+.boneyard-page-skeleton__fixture-qr {
+  width: min(100%, 17rem);
+  aspect-ratio: 1;
+  border: 0.75rem solid #fff;
+  background: #f1ede4;
+}
+
+@media (min-width: 768px) {
+  .boneyard-page-skeleton__fixture-dashboard {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  }
+
+  .boneyard-page-skeleton__fixture-registration-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .boneyard-page-skeleton__fixture-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 639px) {
+  .boneyard-page-skeleton__fixture-form-board {
+    grid-template-columns: 1fr;
+  }
+
+  .boneyard-page-skeleton__fixture-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .boneyard-page-skeleton__fixture-row span:nth-child(2) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boneyard-page-skeleton [data-boneyard-bone] > div {
+    animation: none !important;
   }
 }

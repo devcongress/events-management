@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
-import ArchivePageSkeleton from '@/src/components/ui/page-skeletons/ArchivePageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { fetchPublicArchive, queryKeys } from '@/src/lib/api';
 import type { PublicArchiveTalk } from '@/types';
 
@@ -157,7 +157,7 @@ watch(years, (availableYears) => {
         description="Find the talks, product demos, presenters, and resources that keep the community useful after event night."
       />
 
-      <ArchivePageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="public-archive" label="event archive" layout="cards" />
       <div v-else-if="error" class="border-2 border-red-500/60 bg-red-950/30 p-12 text-center font-mono text-red-100">
         {{ error }}
       </div>

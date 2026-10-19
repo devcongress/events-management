@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import Devcon26TestCoupons from '@/src/components/Devcon26TestCoupons.vue';
-import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { formatTicketMoney, parseGhsAmountToMinor, tierSavings, validateAnnualConferenceCapacity, validateAnnualConferenceTicketPrices } from '@/lib/annual-conference-ticketing';
 import {
   createAnnualConferenceSponsorAllocation,
@@ -485,7 +485,7 @@ onUnmounted(() => {
     <div class="editorial-wrap">
       <AnnualConferenceNav :show-page-heading="false" />
 
-      <AnnualConferenceRouteSkeleton v-if="ticketingQuery.isLoading.value" variant="overview" />
+      <BoneyardPageSkeleton v-if="ticketingQuery.isLoading.value" name="annual-conference-ticketing" label="conference ticketing" layout="workspace" />
 
       <section v-else-if="ticketingQuery.isError.value" class="editorial-panel border-dc-pink p-6">
         <h2 class="text-xl font-semibold text-dc-ink">Ticketing is temporarily unavailable.</h2>
