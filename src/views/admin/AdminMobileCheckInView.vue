@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import RegistrationAlphabetFilter from '@/src/components/ui/RegistrationAlphabetFilter.vue';
 import {
   checkInEventRegistration,
@@ -152,13 +153,7 @@ watch(availableInitials, (initials) => {
       </header>
 
       <section class="mobile-ops-panel mobile-checkin-panel" aria-label="Guest check-in controls">
-        <p
-          v-if="registrationsQuery.isPending.value"
-          class="mobile-ops-checkin-state"
-          role="status"
-        >
-          Loading guest list…
-        </p>
+        <BoneyardPageSkeleton v-if="registrationsQuery.isPending.value" name="mobile-check-in-guests" label="guest list" layout="mobile-check-in" :show-header="false" />
         <div
           v-else-if="registrationsQuery.isError.value"
           class="mobile-ops-checkin-state mobile-ops-checkin-state--error"

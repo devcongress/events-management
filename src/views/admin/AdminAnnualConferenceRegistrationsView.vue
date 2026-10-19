@@ -11,7 +11,7 @@ import AppPagination from '@/src/components/AppPagination.vue';
 import { eventBlastStarters } from '@/src/lib/event-blast-workspace';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
-import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { validateAnnualConferenceCapacity } from '@/lib/annual-conference-ticketing';
 import { hasAnyAnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
 import {
@@ -255,7 +255,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
     <AnnualConferenceNav :show-page-heading="false" />
     <AnnualConferenceRegistrationNav :active="activeSection" :can-manage-registration="canManageRegistration" :can-check-in="canCheckIn" />
     <p v-if="message" role="status" aria-live="polite">{{ message }}</p>
-    <AnnualConferenceRouteSkeleton v-if="registrations.isPending.value" variant="overview" />
+    <BoneyardPageSkeleton v-if="registrations.isPending.value" name="annual-conference-registrations" label="conference registrations" layout="workspace" />
     <section v-else-if="registrations.isError.value" class="editorial-panel registration-panel"><h2>Registration unavailable</h2><p>Check your access and connection.</p><button @click="registrations.refetch()">Try again</button></section>
     <template v-else-if="registrations.data.value">
       <section v-if="activeSection === 'summary'" class="registration-overview">

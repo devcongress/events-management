@@ -1375,3 +1375,12 @@ Revisit when: Expense submitters need access without dashboard visibility, recei
 **Decision:** Future outcome confirmations create one recipient per immutable provider batch. Store hold metadata on each delivery and serialize hold/resume against claims with the existing campaign advisory lock. Keep legacy batches unchanged, with individual controls disabled.
 **Why:** Removing a recipient from an already-attempted batch changes the payload behind its idempotency key and risks duplicate mail. Singleton requests permit independent scheduling without rewriting provider evidence.
 **Tradeoffs:** A forward migration is required. Holding cannot recall an in-flight send. Resume preserves retries and cannot extend the four-attempt or 23-hour safety bounds. Existing scheduler turns and quotas stay unchanged, so singleton delivery is slower than batching. Legacy recovery remains batch-scoped.
+
+---
+
+## ADR-114: Captured responsive loading states
+
+**Date:** 2026-10-19
+**Decision:** Generate Vue loading placeholders with Boneyard from allowlisted, synthetic page fixtures at phone, tablet, and desktop widths. Keep stable IDs, a hash-checked manifest, and a generated runtime registry. Render each state only during its initial query, with accessible loading text when no capture is available.
+**Why:** Independent hand-built skeletons drifted from page structure and spacing across routes. Captured fixture layouts provide a consistent, reviewable source for the app's loading surfaces without requiring live or private data in captures.
+**Tradeoffs:** A meaningful layout change requires updating its fixture and deliberately regenerating its artifact. The pre-JavaScript organizer boot screen remains separately maintained because it renders before Vue loads.

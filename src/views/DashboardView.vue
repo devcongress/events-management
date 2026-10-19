@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/vue-query';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
-import DashboardPageSkeleton from '@/src/components/ui/page-skeletons/DashboardPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { fetchPublicHome, queryKeys } from '@/src/lib/api';
 import type { PublicArchiveTalk } from '@/types';
 
@@ -104,7 +104,7 @@ onUnmounted(() => {
       />
 
       <div class="home-hero-inner relative mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.2fr_0.8fr] lg:px-8 lg:py-20">
-        <DashboardPageSkeleton v-if="loading" class="lg:col-span-2" />
+        <BoneyardPageSkeleton v-if="loading" name="public-dashboard" label="community dashboard" layout="dashboard" :show-header="false" class="lg:col-span-2" />
 
         <div v-else-if="error" class="max-w-xl border-2 border-dc-ink bg-dc-paper p-6 font-mono text-dc-pink shadow-[3px_3px_0_#111111]">
           {{ error }}

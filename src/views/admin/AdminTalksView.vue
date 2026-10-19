@@ -8,7 +8,7 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import SelectedSpeakerEmailPreview, { type SelectedSpeakerEmailPreviewItem } from '@/src/components/ui/SelectedSpeakerEmailPreview.vue';
-import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { ensureAdminShortLink, fetchAdminSession, queryKeys } from '@/src/lib/api';
@@ -1294,7 +1294,7 @@ onUnmounted(() => {
 
       <div v-if="error" class="mb-4 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ error }}</div>
 
-      <AdminTalksPageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="admin-talks" label="talk management" layout="table" />
       <template v-else>
         <section v-if="activeTalkSection === 'cfp'" class="cfp-control-panel mb-8">
           <div class="cfp-control-visual" aria-hidden="true">

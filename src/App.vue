@@ -1062,7 +1062,7 @@ onUnmounted(() => {
           <span class="hidden h-8 w-px rounded-full bg-dc-ink/30 sm:block" />
           <button
             v-if="showSignOut"
-            class="motion-press flex min-h-11 items-center rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-wider text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
+            class="motion-press flex min-h-11 items-center rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
             @click="logout"
           >
             Sign Out
@@ -1071,7 +1071,7 @@ onUnmounted(() => {
 
         <button
           v-if="showPrimaryNavigation"
-          class="app-mobile-menu-toggle motion-press hidden min-h-11 items-center justify-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-dc-ink shadow-[2px_2px_0_#111111]"
+          class="app-mobile-menu-toggle motion-press hidden min-h-11 items-center justify-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-dc-ink shadow-[2px_2px_0_#111111]"
           type="button"
           :aria-expanded="mobileMenuOpen"
           aria-controls="mobile-menu-panel"
@@ -1088,7 +1088,7 @@ onUnmounted(() => {
 
         <nav
           v-if="showPrimaryNavigation"
-          class="app-primary-nav col-span-2 flex min-w-0 items-center gap-2 overflow-x-auto font-mono text-[11px] font-semibold uppercase tracking-wide sm:gap-3 sm:text-xs lg:order-2 lg:col-span-1"
+          class="app-primary-nav col-span-2 flex min-w-0 items-center gap-2 overflow-x-auto font-mono text-xs font-semibold uppercase tracking-wide sm:gap-3 lg:order-2 lg:col-span-1"
           aria-label="Primary"
         >
           <template v-for="(group, groupIndex) in navGroups" :key="groupIndex">
@@ -1182,7 +1182,7 @@ onUnmounted(() => {
           <RouterLink
             v-if="adminReturnLink"
             :to="adminReturnLink.href"
-            class="mb-3 inline-flex items-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
+            class="mb-3 inline-flex min-h-11 items-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
           >
             Back to {{ adminReturnLink.label }}
           </RouterLink>

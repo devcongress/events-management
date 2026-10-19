@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
-import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
   summarizeAnnualConferenceDependencies,
@@ -112,7 +112,7 @@ onUnmounted(() => {
         </button>
       </section>
 
-      <AnnualConferenceRouteSkeleton v-else-if="workPlanQuery.isLoading.value" variant="overview" />
+      <BoneyardPageSkeleton v-else-if="workPlanQuery.isLoading.value" name="annual-conference-overview" label="annual conference" layout="workspace" />
 
       <section v-else :class="['conference-brief', { 'conference-brief--volunteer': assignedAccess }]" aria-labelledby="conference-brief-date">
         <header class="conference-brief__masthead">

@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { adminPath } from '@/src/admin-routes';
 import { presentEventSubmissionReply } from '@/lib/email/event-submission-reply-presentation';
 import { compareEventAmendment } from '@/src/lib/event-submission-amendment';
@@ -529,28 +530,13 @@ function replyPresentation(reply: EventSubmissionReply) {
           </nav>
         </div>
 
-        <div v-if="submissionsQuery.isPending.value" class="submission-table-scroll" aria-busy="true" aria-label="Loading community submissions">
-          <table class="submission-table">
-            <thead>
-              <tr>
-                <th v-for="column in 7" :key="column"><span class="skeleton-line h-3" /></th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-dc-border">
-              <tr v-for="row in 4" :key="row">
-                <td>
-                  <div class="skeleton-line h-4 w-3/4" />
-                </td>
-                <td><div class="skeleton-line h-3 w-4/5" /></td>
-                <td><div class="skeleton-line h-3 w-full" /></td>
-                <td><div class="skeleton-line h-3 w-3/4" /></td>
-                <td><div class="skeleton-line h-3 w-full" /></td>
-                <td><div class="skeleton-option size-5" /></td>
-                <td><div class="skeleton-option ml-auto size-4" /></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <BoneyardPageSkeleton
+          v-if="submissionsQuery.isPending.value"
+          name="admin-event-submissions"
+          label="community submissions"
+          layout="submissions"
+          :show-header="false"
+        />
         <div v-else-if="submissionsQuery.isError.value" class="p-6 text-sm font-semibold text-red-800">Unable to load event submissions.</div>
         <div v-else-if="submissions.length === 0" class="submission-empty-state">
           <div class="submission-empty-icon" aria-hidden="true">

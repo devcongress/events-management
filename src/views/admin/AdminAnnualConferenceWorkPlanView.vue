@@ -16,7 +16,7 @@ import AnnualConferenceTaskBoard from '@/src/components/AnnualConferenceTaskBoar
 import AnnualConferenceTaskDrawer from '@/src/components/AnnualConferenceTaskDrawer.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
-import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { annualConferencePhaseTiming } from '@/lib/annual-conference-phase-pace';
 import {
   annualConferenceOwnerAvatarKey,
@@ -668,7 +668,7 @@ onBeforeUnmount(() => {
         </template>
       </AnnualConferenceNav>
 
-      <AnnualConferenceRouteSkeleton v-if="workPlanQuery.isLoading.value" variant="work-plan" />
+      <BoneyardPageSkeleton v-if="workPlanQuery.isLoading.value" name="annual-conference-work-plan" label="conference work plan" layout="workspace" />
 
       <section v-else-if="workPlanQuery.isError.value" class="editorial-panel border-dc-pink p-8">
         <p class="text-lg font-semibold text-dc-ink">The work plan could not be loaded.</p>

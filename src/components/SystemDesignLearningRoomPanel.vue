@@ -405,9 +405,9 @@ onMounted(fetchSession);
       </div>
     </div>
 
-    <div v-if="loading" class="border-t-2 border-dc-border px-6 py-5 sm:px-8">
-      <div class="skeleton-line w-1/3" />
-    </div>
+    <p v-if="loading" class="border-t-2 border-dc-border px-6 py-5 text-sm text-dc-gray sm:px-8" role="status">
+      Loading learning-room questions…
+    </p>
 
     <p v-else-if="error" class="mx-6 mb-6 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 sm:mx-8">
       {{ error }}

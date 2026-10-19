@@ -17,7 +17,7 @@ import VolunteerWorkspaceTabs from "@/src/components/VolunteerWorkspaceTabs.vue"
 import AppCopyButton from "@/src/components/ui/AppCopyButton.vue";
 import AppPagination from "@/src/components/AppPagination.vue";
 import VolunteerContactValue from "@/src/components/VolunteerContactValue.vue";
-import AnnualConferenceRouteSkeleton from "@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue";
+import BoneyardPageSkeleton from "@/src/components/ui/BoneyardPageSkeleton.vue";
 import { xProfile } from "@/src/lib/x-profile";
 import {
   VOLUNTEER_PUBLIC_PATH,
@@ -455,7 +455,7 @@ function clearVolunteerFilters() {
             "
             :tabindex="canViewReviews || canViewCampaign ? 0 : undefined"
           >
-            <AnnualConferenceRouteSkeleton variant="volunteers" />
+            <BoneyardPageSkeleton name="annual-conference-volunteers" label="conference volunteers" layout="table" />
           </div>
 
           <section

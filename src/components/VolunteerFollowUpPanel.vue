@@ -5,6 +5,7 @@ import ConfirmDialog from "@/src/components/ui/ConfirmDialog.vue";
 import AppDropdown from "@/src/components/AppDropdown.vue";
 import AppDatePicker from "@/src/components/ui/AppDatePicker.vue";
 import VolunteerOutcomeCampaignPanel from "@/src/components/VolunteerOutcomeCampaignPanel.vue";
+import BoneyardPageSkeleton from "@/src/components/ui/BoneyardPageSkeleton.vue";
 import { ensureAdminShortLink, fetchJson } from "@/src/lib/api";
 import { copyTextToClipboard } from "@/src/lib/clipboard";
 import { notify } from "@/src/lib/notify";
@@ -772,57 +773,7 @@ onUnmounted(() => {
       >
     </header>
 
-    <div v-if="query.isPending.value" class="follow-up-skeleton">
-      <span class="sr-only" role="status">Loading follow-up campaign…</span>
-      <div class="follow-up-skeleton-content" aria-hidden="true">
-        <div class="follow-up-skeleton-progress">
-          <div class="follow-up-skeleton-copy">
-            <i class="follow-up-skeleton-line follow-up-skeleton-line--short" />
-            <i class="follow-up-skeleton-line follow-up-skeleton-line--count" />
-          </div>
-          <i class="follow-up-skeleton-track" />
-          <div class="follow-up-skeleton-stats">
-            <i class="follow-up-skeleton-stat" />
-            <i class="follow-up-skeleton-stat" />
-            <i class="follow-up-skeleton-stat" />
-          </div>
-        </div>
-        <div v-if="props.isOwnerSession" class="follow-up-skeleton-setup">
-          <i class="follow-up-skeleton-line follow-up-skeleton-line--medium" />
-          <div class="follow-up-skeleton-setup-grid">
-            <i
-              class="follow-up-skeleton-setup-cell follow-up-skeleton-setup-cell--deadline"
-            />
-            <i
-              class="follow-up-skeleton-setup-cell follow-up-skeleton-setup-cell--preview"
-            />
-            <i
-              class="follow-up-skeleton-setup-cell follow-up-skeleton-setup-cell--controls"
-            />
-          </div>
-          <i class="follow-up-skeleton-line follow-up-skeleton-line--long" />
-        </div>
-        <div v-else class="follow-up-skeleton-timeline">
-          <i class="follow-up-skeleton-line follow-up-skeleton-line--medium" />
-          <i class="follow-up-skeleton-line follow-up-skeleton-line--long" />
-        </div>
-        <div class="follow-up-skeleton-inbox">
-          <div class="follow-up-skeleton-inbox-toolbar">
-            <i
-              class="follow-up-skeleton-line follow-up-skeleton-line--medium"
-            />
-            <div class="follow-up-skeleton-inbox-controls">
-              <i class="follow-up-skeleton-filter" />
-              <i class="follow-up-skeleton-search" />
-            </div>
-            <i class="follow-up-skeleton-line follow-up-skeleton-line--short" />
-          </div>
-          <div class="follow-up-skeleton-rows">
-            <i v-for="row in 2" :key="row" class="follow-up-skeleton-row" />
-          </div>
-        </div>
-      </div>
-    </div>
+    <BoneyardPageSkeleton v-if="query.isPending.value" name="volunteer-follow-up-campaign" label="volunteer follow-up campaign" layout="volunteer-follow-up" :show-header="false" />
     <p
       v-else-if="query.isError.value && !query.data.value"
       class="follow-up-error"
@@ -1836,8 +1787,7 @@ onUnmounted(() => {
   outline: 2px solid #c80d68;
   outline-offset: 3px;
 }
-.follow-up-inbox-toolbar,
-.follow-up-skeleton-inbox-toolbar {
+.follow-up-inbox-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content max-content;
   align-items: center;
@@ -1847,8 +1797,7 @@ onUnmounted(() => {
 .follow-up-inbox-title {
   margin: 0;
 }
-.follow-up-inbox-controls,
-.follow-up-skeleton-inbox-controls {
+.follow-up-inbox-controls {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -2662,147 +2611,16 @@ onUnmounted(() => {
   color: #704b12;
   font-size: 0.78rem;
 }
-.follow-up-skeleton-progress,
-.follow-up-skeleton-timeline,
-.follow-up-skeleton-inbox {
-  border: 1px solid #ded9cf;
-  border-radius: 8px;
-  background: #fff;
-}
-.follow-up-skeleton-progress {
-  margin: 1.4rem 0 1.1rem;
-  padding: 1rem 1.1rem 0.85rem;
-  background: #faf8f3;
-}
-.follow-up-skeleton-copy {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-.follow-up-skeleton-line,
-.follow-up-skeleton-track,
-.follow-up-skeleton-stat,
-.follow-up-skeleton-search,
-.follow-up-skeleton-filter,
-.follow-up-skeleton-row {
-  display: block;
-  border-radius: 5px;
-  background: #e9e6df;
-}
-.follow-up-skeleton-line {
-  height: 0.7rem;
-}
-.follow-up-skeleton-line--short {
-  width: 8rem;
-}
-.follow-up-skeleton-line--medium {
-  width: min(14rem, 55%);
-}
-.follow-up-skeleton-line--long {
-  width: min(24rem, 75%);
-}
-.follow-up-skeleton-line--count {
-  width: 12rem;
-  height: 1.35rem;
-}
-.follow-up-skeleton-track {
-  height: 7px;
-  margin: 0.9rem 0 0.8rem;
-  border-radius: 99px;
-}
-.follow-up-skeleton-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.8rem;
-}
-.follow-up-skeleton-stat {
-  height: 0.85rem;
-}
-.follow-up-skeleton-timeline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.1rem;
-  padding: 0.85rem 1rem;
-}
-.follow-up-skeleton-setup {
-  margin: 0 0 0.75rem;
-  padding: 1rem 1.1rem;
-  border: 1px solid #ded9cf;
-  border-radius: 8px;
-  background: #faf8f3;
-}
-.follow-up-skeleton-setup-grid {
-  display: grid;
-  grid-template-columns: minmax(13rem, 1fr) minmax(11rem, 0.8fr) minmax(
-      13rem,
-      1fr
-    );
-  gap: 1rem;
-  margin: 0.85rem 0;
-}
-.follow-up-skeleton-setup-cell {
-  display: block;
-  border-radius: 5px;
-  background: #e9e6df;
-}
-.follow-up-skeleton-setup-cell--deadline {
-  min-height: 10rem;
-}
-.follow-up-skeleton-setup-cell--preview {
-  min-height: 4.5rem;
-}
-.follow-up-skeleton-setup-cell--controls {
-  min-height: 8rem;
-}
-.follow-up-skeleton-inbox {
-  padding: 1rem;
-  container-type: inline-size;
-}
-.follow-up-skeleton-inbox-toolbar > .follow-up-skeleton-line--medium {
-  width: 8rem;
-}
-.follow-up-skeleton-inbox-toolbar > .follow-up-skeleton-line--short {
-  width: 5rem;
-}
-.follow-up-skeleton-search {
-  width: 18rem;
-  height: 2.6rem;
-}
-.follow-up-skeleton-filter {
-  width: 8rem;
-  height: 2rem;
-}
-.follow-up-skeleton-rows {
-  border-top: 1px solid #e5e1d9;
-}
-.follow-up-skeleton-row {
-  height: 4.1rem;
-  margin-top: 0.5rem;
-  border: 1px solid #e5e1d9;
-  background: linear-gradient(
-    90deg,
-    #f4f2ed 0 42%,
-    #faf9f6 42% 72%,
-    #f4f2ed 72%
-  );
-}
-
 @container (max-width: 43rem) {
-  .follow-up-inbox-toolbar,
-  .follow-up-skeleton-inbox-toolbar {
+  .follow-up-inbox-toolbar {
     grid-template-columns: minmax(0, 1fr) max-content;
   }
-  .follow-up-range,
-  .follow-up-skeleton-inbox-toolbar > :last-child {
+  .follow-up-range {
     grid-column: 2;
     grid-row: 1;
     justify-self: end;
   }
-  .follow-up-inbox-controls,
-  .follow-up-skeleton-inbox-controls {
+  .follow-up-inbox-controls {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-content: flex-end;
@@ -2810,25 +2628,16 @@ onUnmounted(() => {
 }
 
 @container (max-width: 27rem) {
-  .follow-up-inbox-controls,
-  .follow-up-skeleton-inbox-controls {
+  .follow-up-inbox-controls {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
-  .follow-up-search,
-  .follow-up-skeleton-search {
+  .follow-up-search {
     width: 100%;
   }
 }
 
 @media (max-width: 900px) {
-  .follow-up-skeleton-setup-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .follow-up-skeleton-setup-cell--controls {
-    grid-column: 1 / -1;
-    min-height: 9rem;
-  }
   .follow-up-layout,
   .follow-up-layout--selected {
     grid-template-columns: minmax(0, 1fr);
@@ -2868,55 +2677,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 600px) {
-  .follow-up-skeleton-progress {
-    margin-top: 1rem;
-    padding: 0.85rem;
-  }
-  .follow-up-skeleton-line--count {
-    width: 8rem;
-  }
-  .follow-up-skeleton-stats {
-    gap: 0.45rem;
-  }
-  .follow-up-skeleton-stat {
-    height: 1.8rem;
-  }
-  .follow-up-skeleton-timeline {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .follow-up-skeleton-setup-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.55rem;
-  }
-  .follow-up-skeleton-setup-cell {
-    min-height: 0;
-  }
-  .follow-up-skeleton-setup-cell--deadline {
-    min-height: 11rem;
-  }
-  .follow-up-skeleton-setup-cell--preview {
-    min-height: 4.5rem;
-  }
-  .follow-up-skeleton-setup-cell--controls {
-    grid-column: auto;
-    min-height: 9rem;
-  }
-  .follow-up-skeleton-inbox {
-    padding: 0.8rem;
-  }
-  .follow-up-skeleton-row {
-    height: 4.75rem;
-    background: linear-gradient(
-      180deg,
-      #f4f2ed 0 32%,
-      #faf9f6 32% 58%,
-      #f4f2ed 58%
-    );
-  }
-  .follow-up-skeleton-row:nth-child(n + 2) {
-    display: none;
-  }
   .follow-up-header {
     align-items: flex-start;
   }

@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER } from '@/lib/event-cover';
 import { compareEventAmendment, dateTimeInputInTimeZoneToIso, isoToDateTimeInputInTimeZone } from '@/src/lib/event-submission-amendment';
@@ -343,7 +344,7 @@ onBeforeUnmount(revokeCoverPreview);
 
 <template>
   <main class="min-h-full bg-dc-cream px-4 py-8 text-dc-ink sm:px-6 sm:py-12">
-    <section v-if="loading" class="mx-auto max-w-4xl animate-pulse rounded-lg border border-dc-line bg-dc-paper p-8"><div class="h-8 w-2/3 bg-dc-cream" /><div class="mt-5 h-5 w-full bg-dc-cream" /></section>
+    <BoneyardPageSkeleton v-if="loading" name="event-amendment" label="event amendment" layout="form" :show-header="false" />
     <section v-else-if="unavailable" class="mx-auto max-w-lg rounded-lg border-2 border-dc-ink bg-dc-paper p-8 shadow-[3px_3px_0_#111111]"><p class="font-mono text-xs font-bold tracking-[0.16em] text-dc-pink">EVENT LINK CLOSED</p><h1 class="mt-3 text-3xl font-bold">This event link is unavailable.</h1><p class="mt-3 text-dc-gray">{{ unavailable }}</p></section>
     <section v-else class="mx-auto max-w-4xl">
       <p class="font-mono text-xs font-bold tracking-[0.16em] text-dc-pink">COMMUNITY CALENDAR</p>

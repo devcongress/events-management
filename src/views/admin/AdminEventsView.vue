@@ -8,7 +8,7 @@ import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import EventCoverPicker from '@/src/components/ui/EventCoverPicker.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import GhanaVenueAutocomplete from '@/src/components/ui/GhanaVenueAutocomplete.vue';
-import AdminEventsPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventsPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { createNativeEvent, deleteEventById, fetchAdminSession, fetchEvents, queryKeys } from '@/src/lib/api';
 import {
   createEventFormSchema,
@@ -693,7 +693,7 @@ async function openEventNextStep(event: CommunityEvent) {
           </div>
         </div>
 
-        <AdminEventsPageSkeleton v-if="loading" />
+        <BoneyardPageSkeleton v-if="loading" name="admin-events-list" label="event management" layout="table" />
         <div v-else-if="eventsError" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ eventsError }}</div>
         <template v-else>
           <section class="mb-4 rounded-lg border border-dc-border bg-dc-paper px-4 py-3 shadow-[0_1px_0_rgba(17,17,17,0.05)]">

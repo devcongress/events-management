@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/vue-query';
 import { computed } from 'vue';
 import { RouterLink, type RouteLocationRaw } from 'vue-router';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION, mobileAnnualConferencePath } from '@/src/annual-conference';
 import {
   fetchAdminSession,
@@ -124,15 +125,13 @@ function retryActions() {
           <h2 id="mobile-home-actions-title">Next actions</h2>
         </header>
 
-        <div v-if="loadingActions" class="mobile-home-action-list" role="status" aria-busy="true" aria-label="Loading your work">
-          <span class="sr-only">Loading your work</span>
-          <div v-for="placeholder in 2" :key="placeholder" class="mobile-home-action mobile-home-action--skeleton" aria-hidden="true">
-            <span class="mobile-home-action__meta"><span class="action-bone action-bone--label"></span></span>
-            <h3><span class="action-bone action-bone--title"></span></h3>
-            <p class="mobile-home-action__detail"><span class="action-bone action-bone--date"></span></p>
-            <span class="mobile-home-action__arrow"><span class="action-bone action-bone--icon"></span></span>
-          </div>
-        </div>
+        <BoneyardPageSkeleton
+          v-if="loadingActions"
+          name="organizer-mobile-next-actions"
+          label="your work"
+          layout="mobile-actions"
+          :show-header="false"
+        />
 
         <template v-else>
           <div v-if="hasActionError" class="mobile-home-state mobile-home-state--warning" role="alert">
@@ -191,7 +190,7 @@ function retryActions() {
 .mobile-home-intro { position: relative; overflow: hidden; min-height: 14rem; border: 1px solid #111; border-radius: 12px; background: var(--surface-paper); padding: 1.2rem; color: #111; }
 .mobile-home-intro::after { position: absolute; bottom: 1.2rem; left: 1.2rem; width: 4rem; height: .35rem; background: #f5e642; content: ''; }
 .mobile-home-intro__meta { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
-.mobile-home-intro__meta > span, .mobile-home-actions > header > span, .mobile-home-action__meta { font-family: var(--font-mono), monospace; font-size: .6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.mobile-home-intro__meta > span, .mobile-home-actions > header > span, .mobile-home-action__meta { font-family: var(--font-mono), monospace; font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .mobile-home-intro__meta > span { color: #555; }
 .mobile-home-intro h1 { position: relative; z-index: 1; margin: 2.6rem 0 0; max-width: 10ch; font-size: clamp(2.35rem, 11vw, 3.2rem); font-weight: var(--font-weight-display); letter-spacing: -.045em; line-height: .94; }
 .mobile-home-intro p { position: relative; z-index: 1; margin: .85rem 0 0; color: #555; font-size: .92rem; font-weight: var(--font-weight-emphasis); line-height: 1.45; }
@@ -210,13 +209,6 @@ function retryActions() {
 .mobile-home-action__detail { grid-column: 1; margin: .1rem 0 0; color: #555; font-size: .78rem; line-height: 1.4; }
 .mobile-home-action__arrow { grid-column: 2; grid-row: 1 / 4; display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--surface-warm); }
 .mobile-home-action__arrow svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.mobile-home-action--skeleton { background: var(--surface-paper); }
-.mobile-home-action--skeleton .mobile-home-action__arrow { background: var(--surface-paper); }
-.action-bone { display: block; border-radius: 4px; background: var(--skeleton-base); }
-.action-bone--label { width: 6.5rem; height: .75rem; }
-.action-bone--title { width: 85%; height: 1.4rem; }
-.action-bone--date { width: 9rem; max-width: 100%; height: 1.1rem; }
-.action-bone--icon { width: 1.1rem; height: 1.1rem; }
 .mobile-home-state { display: flex; gap: .85rem; margin-top: .8rem; border: 1px solid #d9d5cc; border-radius: 12px; background: #fff; padding: 1rem; }
 .mobile-home-state--warning { border-color: #e8117f; }
 .mobile-home-state--warning .mobile-home-state__icon { color: #e8117f; }

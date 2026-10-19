@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import ProjectNightRecurrencePanel from '@/src/components/ProjectNightRecurrencePanel.vue';
 import { adminPath } from '@/src/admin-routes';
 import {
@@ -292,11 +293,7 @@ async function confirmProposalDecision() {
         </RouterLink>
       </div>
 
-      <div v-if="eventQuery.isPending.value" class="mobile-event-loading" role="status">
-        <div class="mobile-event-loading-line mobile-event-loading-line--short" />
-        <div class="mobile-event-loading-line" />
-        <div class="mobile-event-loading-block" />
-      </div>
+      <BoneyardPageSkeleton v-if="eventQuery.isPending.value" name="mobile-event-detail" label="event details" layout="mobile-event" :show-header="false" />
 
       <section v-else-if="eventQuery.isError.value || !event" class="mobile-event-error">
         <span>Event unavailable</span>
@@ -513,7 +510,7 @@ async function confirmProposalDecision() {
 .mobile-event-wrap { display: grid; width: min(100%, 42rem); margin: 0 auto; gap: .75rem; padding: max(.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); }
 .mobile-event-back-bar { position: sticky; top: env(safe-area-inset-top); z-index: 20; display: flex; padding-block: .2rem; background: rgba(245, 242, 232, .95); backdrop-filter: blur(10px); }
 .mobile-event-back { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .45rem; border: 1px solid #b8b3a9; border-radius: 8px; background: #fff; padding: .65rem .8rem; color: #111; font-family: var(--font-mono), monospace; font-size: .7rem; font-weight: 700; text-transform: uppercase; }
-.mobile-event-hero, .mobile-event-section, .mobile-event-error, .mobile-event-loading { overflow: hidden; border: 1px solid #d9d5cc; border-radius: 12px; background: #fff; }
+.mobile-event-hero, .mobile-event-section, .mobile-event-error { overflow: hidden; border: 1px solid #d9d5cc; border-radius: 12px; background: #fff; }
 .mobile-event-hero { padding: 1rem; }
 .mobile-event-status-row { display: flex; flex-wrap: wrap; gap: .45rem; }
 .mobile-event-status, .mobile-event-kind { display: inline-flex; min-height: 1.75rem; align-items: center; border: 1px solid #d9d5cc; border-radius: 6px; padding: 0 .55rem; font-family: var(--font-mono), monospace; font-size: .62rem; font-weight: 700; text-transform: uppercase; }
@@ -592,15 +589,10 @@ async function confirmProposalDecision() {
 .mobile-event-state p + button, .mobile-event-state p + a { margin-top: .75rem; }
 .mobile-event-state a { display: inline-flex; min-height: 2.75rem; align-items: center; color: #e8117f; font-weight: 700; }
 .mobile-event-state--error { color: #b91c1c; }
-.mobile-event-error, .mobile-event-loading { padding: 1.25rem; }
+.mobile-event-error { padding: 1.25rem; }
 .mobile-event-error > span { color: #e8117f; font-family: var(--font-mono), monospace; font-size: .62rem; font-weight: 700; text-transform: uppercase; }
 .mobile-event-error h1 { margin: .5rem 0 0; font-size: 1.35rem; }
 .mobile-event-error p { color: #5f5b54; font-size: .84rem; line-height: 1.5; }
-.mobile-event-loading { display: grid; gap: .75rem; }
-.mobile-event-loading-line, .mobile-event-loading-block { border-radius: 6px; background: #ece8de; }
-.mobile-event-loading-line { width: 85%; height: 1.1rem; }
-.mobile-event-loading-line--short { width: 35%; }
-.mobile-event-loading-block { height: 8rem; }
 .mobile-event-back:active, .mobile-event-tabs button:active, .mobile-event-signals button:active, .mobile-event-action-list > a:active, .mobile-event-filter-row button:active, .mobile-event-row-action:active, .mobile-event-submission-summary:active, .mobile-event-resource:active, .mobile-event-decision-actions button:active { transform: scale(.97); }
 .mobile-event-back:focus-visible, .mobile-event-tabs button:focus-visible, .mobile-event-signals button:focus-visible, .mobile-event-action-list > a:focus-visible, .mobile-event-filter-row button:focus-visible, .mobile-event-row-action:focus-visible, .mobile-event-submission-summary:focus-visible, .mobile-event-resource:focus-visible, .mobile-event-decision-actions button:focus-visible { outline: 2px solid #e8117f; outline-offset: 2px; }
 .mobile-event-panel-forward-enter-active, .mobile-event-panel-forward-leave-active, .mobile-event-panel-back-enter-active, .mobile-event-panel-back-leave-active { transition: opacity 160ms cubic-bezier(.16,1,.3,1), transform 160ms cubic-bezier(.16,1,.3,1); }

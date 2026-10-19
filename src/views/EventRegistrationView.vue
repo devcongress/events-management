@@ -7,7 +7,7 @@ import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { EVENT_REGISTRATION_TURNSTILE_ACTION } from '@/lib/turnstile';
 import { registrationFirstName } from '@/src/lib/registration-workspace';
-import RegistrationPageSkeleton from '@/src/components/ui/page-skeletons/RegistrationPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import SubmissionProgressLabel from '@/src/components/ui/SubmissionProgressLabel.vue';
 import {
   fetchPublicEventRegistration,
@@ -114,7 +114,7 @@ async function submitRegistration() {
         </div>
       </header>
 
-      <RegistrationPageSkeleton v-if="registrationQuery.isPending.value" />
+      <BoneyardPageSkeleton v-if="registrationQuery.isPending.value" name="event-registration" label="event registration" layout="form" />
 
       <section v-else-if="registrationQuery.isError.value || !registration" class="registration-state-card editorial-panel">
         <p class="editorial-eyebrow">registration unavailable</p>

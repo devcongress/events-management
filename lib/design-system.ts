@@ -54,27 +54,27 @@ export const designSystem = {
   styles: {
     // Button variants
     buttons: {
-      primary: 'bg-dc-yellow text-dc-dark font-semibold font-mono hover:shadow-glow transition-all uppercase tracking-wide',
-      secondary: 'border-2 border-dc-yellow text-dc-yellow font-semibold font-mono hover:shadow-glow-sm transition-all uppercase tracking-wide',
-      ghost: 'text-dc-yellow hover:text-dc-yellow-glow font-mono transition-colors',
+      primary: 'min-h-11 rounded-md border border-dc-ink bg-dc-yellow px-4 py-2 text-dc-ink font-mono text-xs font-semibold uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dc-pink',
+      secondary: 'min-h-11 rounded-md border border-dc-ink bg-dc-paper px-4 py-2 text-dc-ink font-mono text-xs font-semibold uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dc-pink',
+      ghost: 'min-h-11 rounded-md px-4 py-2 text-dc-ink font-mono text-xs font-semibold uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dc-pink',
     },
 
     // Card variants
     cards: {
-      default: 'bg-dc-dark-1 border-2 border-dc-dark-3',
-      highlighted: 'bg-dc-dark-1 border-2 border-dc-yellow',
-      glow: 'bg-dc-dark-1 border-2 border-dc-yellow shadow-glow',
+      default: 'rounded-lg border border-dc-border bg-dc-paper',
+      highlighted: 'rounded-lg border border-dc-ink bg-dc-paper',
+      glow: 'rounded-lg border border-dc-ink bg-dc-paper shadow-[2px_2px_0_#111111]',
     },
 
     // Input styles
     inputs: {
-      default: 'bg-dc-dark-2 border-2 border-dc-dark-3 focus:border-dc-yellow text-white font-mono outline-none transition-colors',
+      default: 'min-h-11 rounded-md border border-dc-border bg-dc-paper px-3 text-dc-ink outline-none focus-visible:border-dc-pink focus-visible:ring-2 focus-visible:ring-dc-pink/20',
     },
 
     // Badge styles
     badges: {
-      yellow: 'px-3 py-1 bg-dc-yellow text-dc-dark font-mono text-xs font-semibold uppercase tracking-wide',
-      outline: 'px-3 py-1 bg-dc-dark-2 border border-dc-yellow/30 font-mono text-xs text-dc-yellow',
+      yellow: 'rounded-md bg-dc-yellow px-3 py-1 text-dc-ink font-mono text-xs font-semibold uppercase tracking-wide',
+      outline: 'rounded-md border border-dc-border bg-dc-paper px-3 py-1 text-dc-ink font-mono text-xs',
     },
 
     // Corner decorations
@@ -105,11 +105,11 @@ export const designSystem = {
  */
 export function getStatusBadge(status: string) {
   const variants = {
-    pending: { bg: 'bg-dc-dark-2', text: 'text-dc-gray', label: 'PENDING' },
-    accepted: { bg: 'bg-green-900/30', text: 'text-green-400', label: 'ACCEPTED' },
-    rejected: { bg: 'bg-red-900/30', text: 'text-red-400', label: 'REJECTED' },
-    live: { bg: 'bg-red-500', text: 'text-white', label: '● LIVE' },
-    completed: { bg: 'bg-dc-dark-2', text: 'text-dc-gray', label: 'COMPLETED' },
+    pending: { bg: 'bg-dc-paper-warm', text: 'text-dc-gray', label: 'PENDING' },
+    accepted: { bg: 'bg-green-50', text: 'text-green-800', label: 'ACCEPTED' },
+    rejected: { bg: 'bg-red-50', text: 'text-red-800', label: 'REJECTED' },
+    live: { bg: 'bg-dc-pink', text: 'text-white', label: '● LIVE' },
+    completed: { bg: 'bg-dc-paper', text: 'text-dc-gray', label: 'COMPLETED' },
   };
 
   const variant = variants[status as keyof typeof variants] || variants.pending;

@@ -8,7 +8,7 @@ import AppPagination from '@/src/components/AppPagination.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
 import OrganizerRoleBadge from '@/src/components/OrganizerRoleBadge.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
-import AdminOrganizersPageSkeleton from '@/src/components/ui/page-skeletons/AdminOrganizersPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import {
   fetchAdminOrganizers,
   fetchAdminAccessRequests,
@@ -706,7 +706,7 @@ onUnmounted(() => {
         {{ pageError }}
       </div>
 
-      <AdminOrganizersPageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="admin-organizers" label="people and access" layout="table" />
 
       <div v-else class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <form class="rounded-lg border border-dc-border bg-dc-paper p-4 xl:col-start-2 xl:row-start-1" @submit.prevent="submitOrganizer">

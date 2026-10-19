@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
-import PublicFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/PublicFeedbackPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { EVENT_FEEDBACK_TURNSTILE_ACTION } from '@/lib/turnstile';
 import {
@@ -265,7 +265,7 @@ onMounted(fetchFeedbackForm);
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap max-w-4xl">
-      <PublicFeedbackPageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="public-feedback" label="feedback form" layout="form" />
 
       <section v-else-if="submitted" class="editorial-panel overflow-hidden">
         <div class="border-b-2 border-dc-ink bg-dc-yellow p-6">

@@ -1,11 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const skeletonSource = readFileSync(
-  new URL(
-    "./components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue",
-    import.meta.url,
-  ),
+const boneyardSource = readFileSync(
+  new URL("./components/ui/BoneyardPageSkeleton.vue", import.meta.url),
   "utf8",
 );
 const overviewSource = readFileSync(
@@ -39,21 +36,17 @@ const financeSource = readFileSync(
 );
 
 describe("Annual Conference route skeletons", () => {
-  it("keeps route-shaped, accessible loading layouts available for every desktop sub-route", () => {
-    expect(skeletonSource).toContain('aria-busy="true"');
-    expect(skeletonSource).toContain(
-      "'overview' | 'work-plan' | 'volunteers' | 'speakers' | 'finance'",
-    );
-    expect(skeletonSource).toContain("lg:grid-cols-4");
-    expect(skeletonSource).toContain("'--skeleton-rows': '5'");
+  it("uses the shared accessible Boneyard boundary", () => {
+    expect(boneyardSource).toContain('role="status"');
+    expect(boneyardSource).toContain('animate="pulse"');
   });
 
   it("uses the skeleton only while each primary route query has no initial result", () => {
     expect(overviewSource).toContain(
-      'v-else-if="workPlanQuery.isLoading.value" variant="overview"',
+      'v-else-if="workPlanQuery.isLoading.value" name="annual-conference-overview"',
     );
     expect(workPlanSource).toContain(
-      'v-if="workPlanQuery.isLoading.value" variant="work-plan"',
+      'v-if="workPlanQuery.isLoading.value" name="annual-conference-work-plan"',
     );
     expect(volunteersSource).toMatch(
       /const volunteerRouteLoading = computed\(\s*\(\)\s*=>\s*workPlanQuery\.isLoading\.value \|\| volunteerDirectoryLoading\.value\s*,?\s*\);/u,
@@ -62,13 +55,13 @@ describe("Annual Conference route skeletons", () => {
       "v-if=\"volunteerRouteLoading && volunteerView === 'directory'\"",
     );
     expect(volunteersSource).toContain(
-      '<AnnualConferenceRouteSkeleton variant="volunteers" />',
+      'name="annual-conference-volunteers"',
     );
     expect(speakersSource).toContain(
-      'v-else-if="speakersQuery.isLoading.value" variant="speakers"',
+      'v-else-if="speakersQuery.isLoading.value" name="annual-conference-speakers"',
     );
     expect(financeSource).toContain(
-      'v-else-if="financeQuery.isLoading.value" variant="finance"',
+      'v-else-if="financeQuery.isLoading.value" name="annual-conference-finance"',
     );
     expect(volunteersSource).toMatch(
       /const canLoadVolunteerApplications = computed\(\s*\(\)\s*=>\s*canReviewApplications\.value\s*&&\s*year\.value\s*===\s*['"]2026['"]\s*,?\s*\);/u,

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onMounted, onUnmounted } from 'vue';
 import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
 import PublicEventPreviewBar from '@/src/components/PublicEventPreviewBar.vue';
-import EventsPageSkeleton from '@/src/components/ui/page-skeletons/EventsPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { adminPath } from '@/src/admin-routes';
 import { fetchAdminEventPreview, queryKeys } from '@/src/lib/api';
 import type { PublicMeetup, PublicMeetupStatus } from '@/types';
@@ -89,7 +89,7 @@ onUnmounted(() => {
         :description="loading ? 'Loading the community calendar.' : `${sortedMeetups.length} event${sortedMeetups.length !== 1 ? 's' : ''}, ${totalPublishedTalks} published talk${totalPublishedTalks !== 1 ? 's' : ''}, and the next rooms we are gathering in.`"
       />
 
-      <EventsPageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="public-events-list" label="community events" layout="cards" :show-header="false" />
 
       <div v-else-if="error" class="rounded-lg border-2 border-red-500 bg-red-50 p-10 text-center font-mono text-red-700">
         {{ error }}

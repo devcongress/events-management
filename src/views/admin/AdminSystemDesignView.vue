@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { findSystemDesignSource, isSystemDesignSessionItem, systemDesignDisplayTitle } from '@/lib/system-design';
 import SystemDesignLearningRoomPanel from '@/src/components/SystemDesignLearningRoomPanel.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, PublicMeetupScheduleItem } from '@/types';
@@ -452,29 +453,7 @@ onMounted(async () => {
         {{ error }}
       </p>
 
-      <section v-if="loading" class="grid gap-5" aria-busy="true" aria-label="Loading System Design workspace">
-        <article class="skeleton-panel p-6 sm:p-8">
-          <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div class="min-w-0 space-y-3">
-              <div class="skeleton-eyebrow" />
-              <div class="skeleton-line h-8 w-72" />
-              <div class="skeleton-line h-4 w-full max-w-3xl" />
-            </div>
-            <div class="flex gap-3">
-              <div class="skeleton-button h-11 w-36" />
-              <div class="skeleton-button skeleton-button--secondary h-11 w-32" />
-            </div>
-          </div>
-        </article>
-        <article class="skeleton-panel p-6 sm:p-8">
-          <div class="skeleton-eyebrow" />
-          <div class="mt-3 skeleton-line h-8 w-3/5" />
-          <div class="mt-5 space-y-3">
-            <div class="skeleton-line h-4" />
-            <div class="skeleton-line h-4 w-4/5" />
-          </div>
-        </article>
-      </section>
+      <BoneyardPageSkeleton v-if="loading" name="admin-system-design" label="System Design workspace" layout="workspace" :show-header="false" />
 
       <section v-else-if="!editing && hasSavedDrafts" class="grid gap-5">
         <article

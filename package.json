@@ -27,6 +27,8 @@
     "dast:staging": "node --import tsx scripts/security/run-staging-dast.ts",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix --max-warnings 0",
+    "skeletons:capture": "node tools/capture-boneyard.mjs",
+    "skeletons:registry": "node tools/rebuild-boneyard-registry.mjs",
     "test": "vitest run",
     "test:journeys": "node scripts/organizer-journeys.mjs",
     "audit:dependencies": "pnpm audit --audit-level moderate"
@@ -64,6 +66,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^5.2.4",
     "autoprefixer": "^10.4.24",
+    "boneyard-js": "1.9.0",
     "eslint": "^10.10.0",
     "eslint-plugin-vue": "^10.11.0",
     "playwright": "^1.60.0",

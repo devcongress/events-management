@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import AdminSpeakersPageSkeleton from '@/src/components/ui/page-skeletons/AdminSpeakersPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import type { Event, EventSpeaker } from '@/types';
 
 const route = useRoute();
@@ -57,7 +57,7 @@ onMounted(fetchAll);
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <AdminSpeakersPageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="admin-speakers" label="speaker management" layout="table" />
       <template v-else>
         <div class="editorial-header">
           <p class="editorial-eyebrow">speaker access</p>

@@ -15,7 +15,7 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import EventPublicationStatusPanel from '@/src/components/EventPublicationStatusPanel.vue';
 import ProjectNightRecurrencePanel from '@/src/components/ProjectNightRecurrencePanel.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
-import AdminEventOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventOverviewPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import {
   EVENT_SERIES_HELP_TEXT,
   EVENT_SERIES_LABELS,
@@ -1211,7 +1211,7 @@ onMounted(fetchOverview);
 <template>
   <div class="editorial-page event-overview-page">
     <div class="editorial-wrap event-overview-wrap">
-      <AdminEventOverviewPageSkeleton v-if="loading" />
+      <BoneyardPageSkeleton v-if="loading" name="admin-event-detail" label="event overview" layout="detail" />
       <section v-else-if="overviewError" class="rounded-lg border border-dc-pink bg-dc-paper p-6 shadow-[4px_4px_0_0_#111]">
         <p class="editorial-eyebrow">event unavailable</p>
         <h1 class="mt-2 text-2xl font-extrabold text-dc-ink">We could not load this event.</h1>

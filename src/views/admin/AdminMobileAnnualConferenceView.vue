@@ -11,6 +11,7 @@ import VolunteerReviewsPanel from "@/src/components/VolunteerReviewsPanel.vue";
 import VolunteerWorkspaceTabs from "@/src/components/VolunteerWorkspaceTabs.vue";
 import AppCopyButton from "@/src/components/ui/AppCopyButton.vue";
 import AppDatePicker from "@/src/components/ui/AppDatePicker.vue";
+import BoneyardPageSkeleton from "@/src/components/ui/BoneyardPageSkeleton.vue";
 import { copyTextToClipboard } from "@/src/lib/clipboard";
 import { adminPath } from "@/src/admin-routes";
 import { useAnnualConferenceWorkspace } from "@/src/composables/useAnnualConferenceWorkspace";
@@ -988,14 +989,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
     </div>
 
     <main class="conference-mobile__content">
-      <section
-        v-if="workPlanQuery.isPending.value"
-        class="conference-state"
-        aria-live="polite"
-      >
-        <h1>Loading conference workspace</h1>
-        <p>Getting the latest plan.</p>
-      </section>
+      <BoneyardPageSkeleton v-if="workPlanQuery.isPending.value" name="mobile-conference-workspace" label="conference workspace" layout="mobile-conference" :show-header="false" />
 
       <section
         v-else-if="workPlanQuery.isError.value"

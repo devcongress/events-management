@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import CelebrationConfetti from '@/src/components/CelebrationConfetti.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
-import SystemDesignParticipantPageSkeleton from '@/src/components/ui/page-skeletons/SystemDesignParticipantPageSkeleton.vue';
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { getDeviceId } from '@/src/device';
 import type { QuizStateResponse } from '@/types';
 
@@ -212,7 +212,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <SystemDesignParticipantPageSkeleton v-else-if="joining || !state" />
+    <BoneyardPageSkeleton v-else-if="joining || !state" name="system-design-participant" label="learning room" layout="learning-room" :show-header="false" />
 
     <section v-else-if="state.session.status === 'waiting' || state.session.status === 'draft'" class="flex min-h-screen items-center justify-center p-6">
       <div class="w-full max-w-md text-center">
