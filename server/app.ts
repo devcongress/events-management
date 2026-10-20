@@ -256,9 +256,15 @@ import {
 import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
 import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
 import { registerAnnualConferenceTicketingRoutes } from '@/server/routes/annual-conference-ticketing';
+import { registerAnnualConferenceFlexibleOperationsRoutes } from '@/server/routes/annual-conference-flexible-operations';
+import { registerAnnualConferenceFlexibleRefundRoutes } from '@/server/routes/annual-conference-flexible-refunds';
 import { registerAnnualConferenceRegistrationRoutes } from '@/server/routes/annual-conference-registration';
 import { registerAnnualConferenceCheckInRoutes } from '@/server/routes/annual-conference-check-in';
 import { registerAnnualConferenceSocialCardRoutes } from '@/server/routes/annual-conference-social-cards';
+import {
+  isDevcon26FlexibleTicketAccessRequest,
+  registerDevcon26FlexibleTicketAccessRoutes,
+} from '@/server/routes/devcon26-flexible-ticket-access';
 import { devcon26TestConfigurationForRequest, registerDevcon26TestCheckoutRoutes } from '@/server/routes/devcon26-test-checkout';
 import {
   DEVCON26_TEST_CHECKOUT_PATH, DEVCON26_TEST_WEBHOOK_PATH,
@@ -361,6 +367,7 @@ app.use('*', async (c, next) => {
 
 const API_BODY_MAX_BYTES = 7 * 1024 * 1024;
 const PUBLIC_JSON_BODY_MAX_BYTES = 64 * 1024;
+const FLEXIBLE_CHECKOUT_BODY_MAX_BYTES = 512 * 1024;
 const PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES = 5 * 1024 * 1024 + 64 * 1024;
 const bodyTooLarge = (c: Context) => c.json({ error: 'Request body is too large.' }, 413);
 const PAYLOAD_REQUEST_METHODS = new Set(['POST', 'PUT', 'PATCH']);
@@ -381,7 +388,6 @@ app.use('/api/*', bodyLimitForPayloadMethods(API_BODY_MAX_BYTES));
 
 for (const publicWritePath of [
   '/api/public/annual-conference/2026/registration',
-  `${DEVCON26_PUBLIC_CHECKOUT_PATH}/*`,
   `${DEVCON26_TEST_CHECKOUT_PATH}/*`,
   DEVCON26_TEST_WEBHOOK_PATH,
   '/api/feedback',
@@ -411,6 +417,17 @@ for (const publicWritePath of [
 ]) {
   app.use(publicWritePath, bodyLimitForPayloadMethods(PUBLIC_JSON_BODY_MAX_BYTES));
 }
+
+const standardCheckoutBodyLimit = bodyLimitForPayloadMethods(PUBLIC_JSON_BODY_MAX_BYTES);
+const flexibleCheckoutBodyLimit = bodyLimitForPayloadMethods(FLEXIBLE_CHECKOUT_BODY_MAX_BYTES);
+
+app.use(`${DEVCON26_PUBLIC_CHECKOUT_PATH}/*`, (c, next) => {
+  const limit = c.req.path === `${DEVCON26_PUBLIC_CHECKOUT_PATH}/flexible/initialize`
+    ? flexibleCheckoutBodyLimit
+    : standardCheckoutBodyLimit;
+
+  return limit(c, next);
+});
 
 // Covers are optional and use a dedicated endpoint so the normal public
 // submission route keeps its small JSON body ceiling.
@@ -1194,6 +1211,7 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
   return (path === '/api/public/annual-conference/2026/registration' && ['GET', 'POST'].includes(method))
     || isDevcon26TestCheckoutRequest(path, method)
     || isDevcon26PublicCheckoutRequest(path, method)
+    || isDevcon26FlexibleTicketAccessRequest(path, method)
     || isBuyerSocialCardRequest(path, method)
     || ((method === 'GET' || method === 'HEAD') && (
     path === '/api/public/annual-conference/2026/ticket-prices'
@@ -5322,9 +5340,12 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 registerAnnualConferenceSpeakerRoutes(app);
 registerAnnualConferenceTaskResourceRoutes(app);
 registerAnnualConferenceTicketingRoutes(app);
+registerAnnualConferenceFlexibleOperationsRoutes(app);
+registerAnnualConferenceFlexibleRefundRoutes(app);
 registerAnnualConferenceRegistrationRoutes(app);
 registerAnnualConferenceCheckInRoutes(app);
 registerAnnualConferenceSocialCardRoutes(app);
+registerDevcon26FlexibleTicketAccessRoutes(app);
 registerDevcon26TestCheckoutRoutes(app);
 registerVolunteerFollowUpRoutes(app);
 

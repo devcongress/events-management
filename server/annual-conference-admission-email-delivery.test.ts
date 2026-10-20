@@ -8,6 +8,7 @@ vi.mock('@/lib/email/resend', () => ({ sendResendAttachedEmail: mocks.send }));
 vi.mock('@/server/env', () => ({ envValue: (key: string) => ({
   DEVCON26_ADMISSION_EMAILS_ENABLED: String(mocks.enabled), RESEND_API_KEY: 'fixture',
   DEVCON26_ADMISSION_EMAIL_FROM: 'events@example.test', DEVCON26_ADMISSION_EMAIL_REPLY_TO: 'help@example.test',
+  PUBLIC_WEBSITE_ORIGIN: 'https://devcongress.org',
 })[key] }));
 
 import { admissionEmailContent, admissionEmailReadiness, retryAnnualConferenceAdmissionEmails } from './annual-conference-admission-email-delivery';
@@ -48,6 +49,45 @@ describe('conference admission delivery', () => {
 
     expect(waitlist.attachments).toBeUndefined();
     expect(waitlist.text).toContain('not a confirmed place');
+  });
+
+  it('renders management and gift capabilities as private fragment links, not admission QR codes', async () => {
+    const capability = 'b'.repeat(64);
+
+    for (const kind of ['flexible_order_management', 'flexible_gift_claim'] as const) {
+      const email = await admissionEmailContent({ ...delivery, kind, payload: { capability } },
+        'events@example.test', 'help@example.test', 'https://devcongress.org');
+
+      expect(email.attachments).toBeUndefined();
+      expect(email.text).toContain(`#key=${capability}`);
+      expect(email.text).not.toContain(`?key=${capability}`);
+      expect(email.html).toContain('not an admission QR');
+    }
+  });
+
+  it('renders a bounded sponsor QR chunk as individual attachments', async () => {
+    const tickets = Array.from({ length: 20 }, (_, index) => ({
+      ticket_id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      order_seat_number: index + 1,
+      qr_token: String(index + 1).padStart(64, 'a'),
+    }));
+    const email = await admissionEmailContent({
+      ...delivery,
+      kind: 'flexible_buyer_bundle_delivery',
+      payload: { chunk_index: 1, chunk_count: 2, tickets },
+    }, 'events@example.test', 'help@example.test');
+
+    expect(email.subject).toContain('part 1 of 2');
+    expect(email.attachments).toHaveLength(20);
+    expect(email.attachments?.[0].filename).toBe('devcon26-admission-seat-1.png');
+    expect(email.attachments?.[19].filename).toBe('devcon26-admission-seat-20.png');
+    expect(email.html).not.toContain(tickets[0].qr_token);
+
+    await expect(admissionEmailContent({
+      ...delivery,
+      kind: 'flexible_buyer_bundle_delivery',
+      payload: { chunk_index: 1, chunk_count: 2, tickets: [...tickets, tickets[0]] },
+    }, 'events@example.test', 'help@example.test')).rejects.toThrow();
   });
 
   it('does not claim or send when disabled', async () => {

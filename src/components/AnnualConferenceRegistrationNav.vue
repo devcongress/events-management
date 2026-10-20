@@ -4,9 +4,10 @@ import { RouterLink, useRoute } from 'vue-router';
 import { annualConferencePath } from '@/src/annual-conference';
 
 const props = defineProps<{
-  active: 'summary' | 'guests' | 'form' | 'emails' | 'blasts';
+  active: 'summary' | 'guests' | 'form' | 'emails' | 'blasts' | 'community';
   canManageRegistration: boolean;
   canCheckIn: boolean;
+  canManageCommunity?: boolean;
 }>();
 const route = useRoute();
 const year = computed(() => String(route.params.year ?? '2026'));
@@ -16,6 +17,7 @@ const tabs = computed(() => [
     { key: 'guests', label: 'Guests', icon: 'guests' },
     { key: 'form', label: 'Form & capacity', icon: 'form' },
     { key: 'emails', label: 'Emails', icon: 'emails' },
+    ...(props.canManageCommunity ? [{ key: 'community', label: 'Community seats', icon: 'community' }] : []),
     { key: 'blasts', label: 'Blasts', icon: 'blasts' },
   ] : []),
   ...(!props.canManageRegistration && props.canCheckIn ? [{ key: 'guests', label: 'Guests', icon: 'guests' }] : []),
@@ -50,6 +52,9 @@ const tabs = computed(() => [
         </template>
         <template v-else-if="tab.icon === 'emails'">
           <rect x="2.75" y="4.25" width="14.5" height="11.5" rx="1.5" /><path d="m3.75 5.5 6.25 5 6.25-5" />
+        </template>
+        <template v-else-if="tab.icon === 'community'">
+          <circle cx="7" cy="6" r="2" /><circle cx="13.5" cy="7" r="1.75" /><path d="M3.5 16c.3-2.6 1.6-4 3.5-4s3.2 1.4 3.5 4M11.5 12.5c1.8-.6 4 .3 4.5 3.5" />
         </template>
         <template v-else><path d="m3 10.75 10.25-5v8.5L3 10.75Z" /><path d="M13.25 8.25h1.25a2.5 2.5 0 0 1 0 5h-1.25M6.25 12.25l.75 4" /></template>
       </svg>

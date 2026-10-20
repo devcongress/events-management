@@ -528,6 +528,8 @@ export interface Database {
           session_id: string;
           recipient_email: string;
           recipient_name: string;
+          preview_email_authorized_origin: string | null;
+          preview_email_authorized_until: string | null;
           tier_key: string;
           quantity: number;
           amount_minor: number;
@@ -560,6 +562,8 @@ export interface Database {
           coupon_code: string | null;
           purchaser_name: string | null;
           purchaser_email: string | null;
+          preview_email_authorized_origin: string | null;
+          preview_email_authorized_until: string | null;
           currency: 'GHS';
           payment_reference: string;
           status: 'prepared' | 'initialized' | 'verified' | 'rejected' | 'refund_required';
@@ -2459,7 +2463,7 @@ export interface Database {
         Returns: boolean;
       };
       prepare_devcon26_test_checkout: {
-        Args: { p_request_key: string; p_tier_key: string; p_purchaser_name: string; p_purchaser_email: string; p_coupon_code?: string };
+        Args: { p_request_key: string; p_tier_key: string; p_purchaser_name: string; p_purchaser_email: string; p_coupon_code?: string; p_preview_email_authorized_origin?: string | null };
         Returns: Database['public']['Tables']['devcon26_test_checkout_sessions']['Row'];
       };
       quote_devcon26_test_checkout: {

@@ -372,7 +372,7 @@
           "argumentTypes": "",
           "result": "trigger",
           "language": "plpgsql",
-          "bodySha256": "e6dead4de3ee1815aaf6524a6f207bafcac8ac5c9d2c2093b3b7fe04b1a0161f",
+          "bodySha256": "2a1d3f252a874c8fe5bf618fc8a86acc5debbedcc7175a7aed0dc7d7773e4e0a",
           "securityDefiner": true,
           "searchPath": "public, pg_temp",
           "private": true,
@@ -385,7 +385,7 @@
           "argumentTypes": "uuid",
           "result": "SETOF devcon26_test_checkout_email_outbox",
           "language": "plpgsql",
-          "bodySha256": "65a1f35ae1e2090da7524567c71a6abc92b991f975024820e5100cba0268fd46",
+          "bodySha256": "eb283fb152a8c616bc358c4a51a7113b3aeda17a3b21d5dbe114cbb70dd3cd76",
           "securityDefiner": true,
           "searchPath": "public, pg_temp",
           "private": true,
@@ -951,7 +951,7 @@
           "schema": "public",
           "name": "freeze_devcon26_test_checkout_terms",
           "argumentTypes": "",
-          "bodySha256": "5d24db6a536a60dd9a06f4663ec463a47112121df0120ef2d3cb61484a61b992",
+          "bodySha256": "e02f4983b8d6848d444243181a66f073097514a21022cdacf0837bd8e4dc96c0",
           "securityDefiner": false,
           "private": true,
           "serviceExecute": false,
@@ -971,19 +971,6 @@
           "searchPath": "public, pg_temp",
           "language": "plpgsql",
           "result": "devcon26_test_coupon_codes"
-        },
-        {
-          "kind": "function",
-          "schema": "public",
-          "name": "prepare_devcon26_test_checkout",
-          "argumentTypes": "uuid, text, text, text, text",
-          "bodySha256": "82f53a0f22748a5ef84473f68b68b9a9cf3d30c1cfc615287a71863a9443b7b2",
-          "securityDefiner": true,
-          "private": true,
-          "serviceExecute": true,
-          "searchPath": "public, pg_temp",
-          "language": "plpgsql",
-          "result": "devcon26_test_checkout_sessions"
         },
         {
           "kind": "function",
@@ -1367,7 +1354,7 @@
           "schema": "public",
           "name": "confirm_annual_conference_ticket_payment",
           "argumentTypes": "uuid, text, text, text, text, integer, text, text, jsonb",
-          "bodySha256": "67b5f69b6b2360e53f88d7c9417d4aef0d63bc3274822a69dabb8833729239ba",
+          "bodySha256": "63d19e9fd7d2d8b96368e0dfbb0e3d16ddeeb6cd6d29fb152eab5fd4cb38c78d",
           "securityDefiner": true,
           "private": true,
           "serviceExecute": true,
@@ -1840,7 +1827,7 @@
           "table": "annual_conference_ticket_email_outbox",
           "name": "annual_conference_ticket_email_outbox_kind",
           "contains": [
-            "CHECK ((kind = ANY (ARRAY['payment_receipt'::text, 'ticket_delivery'::text, 'ticket_bundle_delivery'::text, 'waitlist_notice'::text])))"
+            "CHECK ((kind = ANY (ARRAY['payment_receipt'::text, 'ticket_delivery'::text, 'ticket_bundle_delivery'::text, 'waitlist_notice'::text, 'flexible_order_management'::text, 'flexible_gift_claim'::text, 'flexible_admission_delivery'::text, 'flexible_buyer_bundle_delivery'::text])))"
           ]
         },
         {
@@ -2041,10 +2028,10 @@
           "schema": "public",
           "table": "annual_conference_ticket_orders",
           "name": "guard_conference_paid_intake",
-          "function": "guard_annual_conference_paid_intake",
+          "function": "guard_annual_conference_paid_intake_with_flexible",
           "functionSchema": "public",
           "contains": [
-            "CREATE TRIGGER guard_conference_paid_intake BEFORE INSERT ON public.annual_conference_ticket_orders FOR EACH ROW EXECUTE FUNCTION guard_annual_conference_paid_intake()"
+            "CREATE TRIGGER guard_conference_paid_intake BEFORE INSERT ON public.annual_conference_ticket_orders FOR EACH ROW EXECUTE FUNCTION guard_annual_conference_paid_intake_with_flexible()"
           ]
         },
         {
@@ -2702,7 +2689,7 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true,
-          "bodySha256": "67b5f69b6b2360e53f88d7c9417d4aef0d63bc3274822a69dabb8833729239ba"
+          "bodySha256": "63d19e9fd7d2d8b96368e0dfbb0e3d16ddeeb6cd6d29fb152eab5fd4cb38c78d"
         }
       ]
     },
@@ -2907,7 +2894,7 @@
           "argumentTypes": "",
           "result": "trigger",
           "language": "plpgsql",
-          "bodySha256": "001fd27277c92d98e0b956a92457d492d86665cb2497368ce5c995c3e8df7cf9",
+          "bodySha256": "3b206348734555b93d544bda1207556f86b5dca77bbe6432e8581030321f73b4",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -3129,6 +3116,380 @@
           "searchPath": "\"\"",
           "private": true,
           "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261020100000_annual_conference_flexible_ticket_allocation_foundation.sql",
+      "sha256": "e6bb09c5831271ef1096de9ceefecd5881bae6045e9668f44fda17be9e339fc2",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_flexible_ticket_allocations",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_ticket_orders",
+          "name": "annual_conference_ticket_orders_flexible_cart_snapshot",
+          "contains": [
+            "checkout_flow = 'flexible'",
+            "flexible_payment_fee_mode = 'merchant_absorbs'",
+            "provider = 'paystack'"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_flexible_ticket_allocations",
+          "name": "annual_conference_flexible_ticket_allocations_identity",
+          "contains": [
+            "allocation_kind = 'gift'::text",
+            "allocation_kind = ANY (ARRAY['buyer_managed'::text, 'community_managed'::text, 'community_shareable'::text])"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "create_annual_conference_flexible_checkout_hold",
+          "argumentTypes": "uuid, text, text, integer, jsonb, uuid",
+          "result": "annual_conference_ticket_orders",
+          "language": "plpgsql",
+          "bodySha256": "34bbe5b74f1a3ebdd7d1a3acc16ae38bf5c4aaa9720754b01033cb8a3c74cb29",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "block_unactivated_flexible_ticket_payment_attempt",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "0a2e7915d33fc61eeeac742b7e747ef868dcadd0aa35ac436b515d020b09e057",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_attempts",
+          "name": "block_unactivated_flexible_ticket_payment_attempt",
+          "function": "block_unactivated_flexible_ticket_payment_attempt",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE INSERT OR UPDATE"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "20261020110000_annual_conference_flexible_ticket_lifecycle.sql",
+      "sha256": "e5df869ebc0d6826ca762d4556f4d7923cb2b056ff3a956b2c621ab0366d34a2",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_flexible_ticket_claims",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_flexible_ticket_refunds",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_flexible_ticket_refund_provider_ids",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_flexible_ticket_refund_provider_ids",
+          "name": "annual_conference_flex_refund_provider_ids_resolution",
+          "contains": [
+            "resolution_status = 'bound'",
+            "resolution_status = ANY",
+            "provider_payload_sha256",
+            "resolved_at"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "prevent_annual_conference_refund_provider_id_mutation",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "0f9da7f3244c43c0dbe05dad5ce6da74bc074a15eef516c2ea413c5f1d4c9770",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_flexible_ticket_refund_provider_ids",
+          "name": "prevent_annual_conference_refund_provider_id_mutation",
+          "function": "prevent_annual_conference_refund_provider_id_mutation",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE UPDATE",
+            "FOR EACH ROW"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_flexible_ticket_refunds",
+          "name": "annual_conference_flexible_ticket_refunds_provider_evidence",
+          "contains": [
+            "NOT (provider IS DISTINCT FROM 'paystack'::text)",
+            "NOT (provider_refunded_amount_minor IS DISTINCT FROM amount_minor)",
+            "provider_payload_sha256"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "request_annual_conference_flexible_ticket_refund",
+          "argumentTypes": "uuid, uuid",
+          "result": "TABLE(outcome text, refund_id uuid, amount_minor integer)",
+          "language": "plpgsql",
+          "bodySha256": "11dd49f27d36cb761dfc3c15c3d6cfb18fcc1f165a2efb446621f719137fdb26",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "get_annual_conference_flexible_ticket_refund_payment",
+          "argumentTypes": "uuid, uuid",
+          "result": "TABLE(refund_id uuid, refund_status text, order_id uuid, allocation_id uuid, amount_minor integer, currency text, provider text, payment_reference text, provider_transaction_id text)",
+          "language": "sql",
+          "bodySha256": "95bb602f19b7d530db861a0906e782cc623d8503c32c9c2abea2bfc935d90842",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "bind_annual_conference_flexible_ticket_refund_provider_id",
+          "argumentTypes": "uuid, uuid, text",
+          "result": "TABLE(outcome text)",
+          "language": "plpgsql",
+          "bodySha256": "42160ffb497a9fa7c68e033b4b151d17e0a7127abc829fbd6063da160646c4f2",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "reject_annual_conference_flexible_ticket_refund",
+          "argumentTypes": "uuid, uuid, text, text, text, text",
+          "result": "TABLE(outcome text, ticket_id uuid, delivery_queued boolean)",
+          "language": "plpgsql",
+          "bodySha256": "8bf6123d4ebf06112f4f849be8923d6491fc017725dafcbf0ad5b7165f26d81a",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "finalize_annual_conference_flexible_ticket_refund",
+          "argumentTypes": "uuid, uuid, text, text, text, integer, text, text",
+          "result": "TABLE(outcome text, ticket_id uuid, order_status annual_conference_ticket_order_status)",
+          "language": "plpgsql",
+          "bodySha256": "e6534b7aefa5322175e37e390f7fb00a82e5f900b55a53987159dc8ac98a2028",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticketing_settings",
+          "name": "flexible_checkout_state",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": "'foundation'::text"
+        }
+      ]
+    },
+    {
+      "file": "20261020120000_devcon26_test_checkout_preview_email_authorization.sql",
+      "sha256": "3db2aaa33adf055e72d3cc971173ee1212bf73cfa5063c09991d65a64a186b43",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "preview_email_authorized_origin",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "preview_email_authorized_origin",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "preview_email_authorized_until",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "preview_email_authorized_until",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "devcon26_test_checkout_preview_email_origin_check",
+          "contains": [
+            "preview_email_authorized_origin IS NULL",
+            "preview_email_authorized_origin = btrim(preview_email_authorized_origin)",
+            "https://"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "devcon26_test_checkout_email_preview_origin_check",
+          "contains": [
+            "preview_email_authorized_origin IS NULL",
+            "preview_email_authorized_origin = btrim(preview_email_authorized_origin)",
+            "https://"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "devcon26_test_checkout_preview_email_authorization_check",
+          "contains": [
+            "preview_email_authorized_origin IS NULL",
+            "preview_email_authorized_until IS NULL",
+            "preview_email_authorized_origin IS NOT NULL",
+            "preview_email_authorized_until IS NOT NULL"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "devcon26_test_checkout_email_preview_authorization_check",
+          "contains": [
+            "preview_email_authorized_origin IS NULL",
+            "preview_email_authorized_until IS NULL",
+            "preview_email_authorized_origin IS NOT NULL",
+            "preview_email_authorized_until IS NOT NULL"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "freeze_devcon26_test_checkout_terms",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "e02f4983b8d6848d444243181a66f073097514a21022cdacf0837bd8e4dc96c0",
+          "securityDefiner": false,
+          "searchPath": "public, pg_temp",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "prepare_devcon26_test_checkout",
+          "argumentTypes": "uuid, text, text, text, text, text",
+          "result": "devcon26_test_checkout_sessions",
+          "language": "plpgsql",
+          "bodySha256": "fc904c17776cf00c9268ef158f299cafdb4db2da721d722cbf9d92034ef23a76",
+          "securityDefiner": true,
+          "searchPath": "public, pg_temp",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "queue_devcon26_test_checkout_email",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "2a1d3f252a874c8fe5bf618fc8a86acc5debbedcc7175a7aed0dc7d7773e4e0a",
+          "securityDefiner": true,
+          "searchPath": "public, pg_temp",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_devcon26_test_checkout_emails",
+          "argumentTypes": "uuid",
+          "result": "SETOF devcon26_test_checkout_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "eb283fb152a8c616bc358c4a51a7113b3aeda17a3b21d5dbe114cbb70dd3cd76",
+          "securityDefiner": true,
+          "searchPath": "public, pg_temp",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "devcon26_test_checkout_email_verified",
+          "function": "queue_devcon26_test_checkout_email",
+          "functionSchema": "public",
+          "contains": [
+            "AFTER UPDATE OF status",
+            "FOR EACH ROW",
+            "old.status IS DISTINCT FROM 'verified'::text",
+            "new.status = 'verified'::text"
+          ]
         }
       ]
     }

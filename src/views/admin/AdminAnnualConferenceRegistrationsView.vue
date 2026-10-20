@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceRegistrationNav from '@/src/components/AnnualConferenceRegistrationNav.vue';
 import AnnualConferenceRegistrationEmails from '@/src/components/AnnualConferenceRegistrationEmails.vue';
+import AnnualConferenceCommunityTickets from '@/src/components/AnnualConferenceCommunityTickets.vue';
 import AnnualConferenceGuests from '@/src/components/AnnualConferenceGuests.vue';
 import type { ConferenceRegistrationGuest as Registration } from '@/src/lib/conference-guests';
 import AppPagination from '@/src/components/AppPagination.vue';
@@ -32,7 +33,8 @@ const endpoint = computed(() => `/api/annual-conference/${year.value}/registrati
 const activeSection = computed(() => {
   const section = route.query.section;
 
-  return section === 'guests' || section === 'form' || section === 'emails' || section === 'blasts' ? section : 'summary';
+  return section === 'guests' || section === 'form' || section === 'emails' || section === 'blasts'
+    || (section === 'community' && year.value === '2026' && owner.value && canManageRegistration.value) ? section : 'summary';
 });
 const message = ref('');
 const busy = ref(false);
@@ -253,7 +255,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
 <template>
   <main class="editorial-page"><div class="editorial-wrap registration-content">
     <AnnualConferenceNav :show-page-heading="false" />
-    <AnnualConferenceRegistrationNav :active="activeSection" :can-manage-registration="canManageRegistration" :can-check-in="canCheckIn" />
+    <AnnualConferenceRegistrationNav :active="activeSection" :can-manage-registration="canManageRegistration" :can-check-in="canCheckIn" :can-manage-community="owner && canManageRegistration && year === '2026'" />
     <p v-if="message" role="status" aria-live="polite">{{ message }}</p>
     <BoneyardPageSkeleton v-if="registrations.isPending.value" name="annual-conference-registrations" label="conference registrations" layout="workspace" />
     <section v-else-if="registrations.isError.value" class="editorial-panel registration-panel"><h2>Registration unavailable</h2><p>Check your access and connection.</p><button @click="registrations.refetch()">Try again</button></section>
@@ -353,6 +355,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
         </ConfirmDialog>
 
       <AnnualConferenceRegistrationEmails v-if="activeSection === 'emails'" :year="year" />
+      <AnnualConferenceCommunityTickets v-if="owner && canManageRegistration && activeSection === 'community'" :year="year" />
       <section v-if="activeSection === 'blasts'" class="ops-panel registration-panel">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2>Blasts</h2>

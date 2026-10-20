@@ -9,7 +9,11 @@ import { allowConferenceEmail } from '@/server/annual-conference-registration-te
 
 const deliverySchema = z.object({
   id: z.string().uuid(), recipient_name: z.string(), recipient_email: z.string().email(),
-  kind: z.enum(['ticket_delivery', 'ticket_bundle_delivery', 'waitlist_notice', 'payment_receipt']),
+  kind: z.enum([
+    'ticket_delivery', 'ticket_bundle_delivery', 'waitlist_notice', 'payment_receipt',
+    'flexible_order_management', 'flexible_gift_claim', 'flexible_admission_delivery',
+    'flexible_buyer_bundle_delivery',
+  ]),
   payload: z.record(z.string(), z.unknown()), idempotency_key: z.string(),
   first_attempt_at: z.string(), claimed_until: z.string(),
 });
@@ -24,9 +28,46 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
 }
 
-export async function admissionEmailContent(delivery: z.infer<typeof deliverySchema>, from: string, replyTo: string): Promise<ResendAttachedEmail> {
+function privateCapabilityLink(websiteOrigin: string, path: string, capability: string): string {
+  const origin = new URL(websiteOrigin);
+
+  if (origin.protocol !== 'https:' || origin.origin !== websiteOrigin || origin.pathname !== '/' || origin.search || origin.hash) {
+    throw new Error('Conference website origin is invalid.');
+  }
+
+  const url = new URL(path, origin);
+
+  url.hash = new URLSearchParams({ key: capability }).toString();
+
+  return url.href;
+}
+
+export async function admissionEmailContent(
+  delivery: z.infer<typeof deliverySchema>,
+  from: string,
+  replyTo: string,
+  websiteOrigin?: string,
+): Promise<ResendAttachedEmail> {
   const name = escapeHtml(delivery.recipient_name);
   const base = { from, to: [delivery.recipient_email], reply_to: replyTo };
+
+  if (delivery.kind === 'flexible_order_management' || delivery.kind === 'flexible_gift_claim') {
+    const capability = z.string().regex(/^[0-9a-f]{64}$/).parse(delivery.payload.capability);
+    const management = delivery.kind === 'flexible_order_management';
+    const link = privateCapabilityLink(websiteOrigin ?? '',
+      management ? '/devcon26/tickets/manage/' : '/devcon26/tickets/claim/', capability);
+    const action = management ? 'Manage your DevCon26 tickets' : 'Claim your DevCon26 ticket';
+    const explanation = management
+      ? 'Your DevCon26 payment is confirmed. Use this private link to manage the tickets you purchased or supported.'
+      : 'A DevCon26 ticket has been gifted to you. Use this private link to enter your name and claim it.';
+
+    return {
+      ...base,
+      subject: management ? 'Manage your DevCon26 tickets' : 'Claim your DevCon26 gift ticket',
+      html: `<p>Hi ${name},</p><p>${explanation}</p><p><a href="${escapeHtml(link)}">${action}</a></p><p>Keep this link private. It is not an admission QR.</p>`,
+      text: `Hi ${delivery.recipient_name},\n\n${explanation}\n\n${action}: ${link}\n\nKeep this link private. It is not an admission QR.`,
+    };
+  }
 
   if (delivery.kind === 'waitlist_notice') return {
     ...base, subject: 'You’re on the DevCon26 waitlist',
@@ -38,14 +79,47 @@ export async function admissionEmailContent(delivery: z.infer<typeof deliverySch
     html: `<p>Hi ${name},</p><p>Your DevCon26 payment has been received. Admission QR codes arrive in a separate email.</p>`,
     text: `Hi ${delivery.recipient_name}, your DevCon26 payment has been received. Admission QR codes arrive in a separate email.`,
   };
-  const tokens = delivery.kind === 'ticket_bundle_delivery'
-    ? z.array(z.object({ qr_token: tokenSchema })).min(1).max(5).parse(delivery.payload.tickets).map((ticket) => ticket.qr_token)
-    : [tokenSchema.parse(delivery.payload.qr_token)];
-  const attachments = await Promise.all(tokens.map(async (token, index) => ({
-    filename: `devcon26-admission-${index + 1}.png`,
+  const flexibleBundle = delivery.kind === 'flexible_buyer_bundle_delivery'
+    ? z.object({
+      chunk_index: z.number().int().min(1),
+      chunk_count: z.number().int().min(1),
+      tickets: z.array(z.object({
+        ticket_id: z.string().uuid(),
+        order_seat_number: z.number().int().min(1),
+        qr_token: tokenSchema,
+      })).min(1).max(20),
+    }).parse(delivery.payload)
+    : null;
+
+  if (flexibleBundle && flexibleBundle.chunk_index > flexibleBundle.chunk_count) {
+    throw new Error('Conference ticket bundle is invalid.');
+  }
+
+  const tokens = flexibleBundle
+    ? flexibleBundle.tickets.map((ticket) => ({ token: ticket.qr_token, seat: ticket.order_seat_number }))
+    : delivery.kind === 'ticket_bundle_delivery'
+      ? z.array(z.object({ qr_token: tokenSchema })).min(1).max(5).parse(delivery.payload.tickets)
+        .map((ticket, index) => ({ token: ticket.qr_token, seat: index + 1 }))
+      : [{ token: tokenSchema.parse(delivery.payload.qr_token), seat: 1 }];
+  const attachments = await Promise.all(tokens.map(async ({ token, seat }, index) => ({
+    filename: `devcon26-admission-seat-${seat}.png`,
     content: (await QRCode.toBuffer(token, { width: 600, margin: 4, errorCorrectionLevel: 'M' })).toString('base64'),
     content_type: 'image/png', content_id: `admission-${index + 1}`,
   })));
+
+  if (flexibleBundle) {
+    const part = flexibleBundle.chunk_count > 1
+      ? ` (part ${flexibleBundle.chunk_index} of ${flexibleBundle.chunk_count})`
+      : '';
+
+    return {
+      ...base,
+      subject: `Your DevCon26 admission QR codes${part}`,
+      attachments,
+      html: `<p>Hi ${name},</p><p>Attached are ${attachments.length} private DevCon26 admission QR codes${part}. Each code admits one person once. Share each file only with its intended attendee.</p><p>Your optional social-sharing card is separate from admission.</p>`,
+      text: `Hi ${delivery.recipient_name},\n\nAttached are ${attachments.length} private DevCon26 admission QR codes${part}. Each code admits one person once. Share each file only with its intended attendee. Your optional social-sharing card is separate from admission.`,
+    };
+  }
 
   return {
     ...base, subject: 'Your DevCon26 admission QR', attachments,
@@ -67,6 +141,7 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context) {
   const apiKey = envValue('RESEND_API_KEY', c)?.trim();
   const from = envValue('DEVCON26_ADMISSION_EMAIL_FROM', c)?.trim();
   const replyTo = envValue('DEVCON26_ADMISSION_EMAIL_REPLY_TO', c)?.trim();
+  const websiteOrigin = envValue('PUBLIC_WEBSITE_ORIGIN', c)?.trim();
 
   if (envValue('DEVCON26_ADMISSION_EMAILS_ENABLED', c) !== 'true' || !apiKey || !from || !replyTo) {
     return { configured: false, accepted: 0, failed: 0 };
@@ -86,7 +161,7 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context) {
 
     try {
       if (!await allowConferenceEmail(c, 'admission', delivery.id, delivery.recipient_email, claim)) continue;
-      const content = await admissionEmailContent(delivery, from, replyTo);
+      const content = await admissionEmailContent(delivery, from, replyTo, websiteOrigin);
       const frozen = await client.rpc('freeze_annual_conference_admission_email' as never, {
         p_id: delivery.id, p_claim: claim, p_payload: content,
       } as never);
