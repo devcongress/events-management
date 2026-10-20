@@ -56,9 +56,9 @@ beforeEach(() => {
   vi.mocked(storage.toggleDevcon26TestCoupon).mockResolvedValue({ id, enabled: false });
   vi.mocked(ticketingStorage.getSupabaseAnnualConferencePublicTicketPrices).mockResolvedValue({
     currency: 'GHS', tiers: [
-      { tier_key: 'regular', quantity: 1, amount_minor: 19_999 },
-      { tier_key: 'team_3', quantity: 3, amount_minor: 54_999 },
-      { tier_key: 'team_5', quantity: 5, amount_minor: 89_999 },
+      { tier_key: 'regular', quantity: 1, amount_minor: 15_000 },
+      { tier_key: 'team_3', quantity: 3, amount_minor: 45_000 },
+      { tier_key: 'team_5', quantity: 5, amount_minor: 75_000 },
     ],
   });
   vi.mocked(requireAnnualConferenceCapability).mockImplementation(async (c) => (
@@ -101,6 +101,7 @@ describe('Ticketing-capable test coupon operations', () => {
 
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ coupon: { id, code } });
+    expect(ticketingStorage.getSupabaseAnnualConferencePublicTicketPrices).toHaveBeenCalledWith(2026, expect.anything(), 'sandbox');
     expect((await request('PATCH', `${path}/${id}`, { enabled: false })).status).toBe(200);
     expect(storage.createDevcon26TestCoupon).toHaveBeenCalledWith(expect.anything(), input, 'owner@example.test');
     const events = vi.mocked(recordProtectedMutationAudit).mock.calls.map((call) => call[1]);
@@ -119,7 +120,7 @@ describe('Ticketing-capable test coupon operations', () => {
   });
 
   it('validates fixed discounts against current EMS prices before creating a coupon', async () => {
-    const tooLarge = await request('POST', path, { ...input, eligible_tiers: ['team_5'], discount_value: 89_999 });
+    const tooLarge = await request('POST', path, { ...input, eligible_tiers: ['team_5'], discount_value: 75_000 });
 
     expect(tooLarge.status).toBe(400);
     expect(storage.createDevcon26TestCoupon).not.toHaveBeenCalled();

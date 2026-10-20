@@ -15,7 +15,7 @@ PUBLIC_API_CORS_ORIGINS = "https://devcongress.org,https://www.devcongress.org"
 # Production website form and test proposal verified before activation.
 DEVCON26_ANNUAL_CFP_WEBSITE_REDIRECT_ENABLED = "true"
 # Sandbox routes only; never extend general public or organizer CORS to previews.
-DEVCON26_TEST_CHECKOUT_ORIGINS = "https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev,https://63b14d94-devcongress-website.admins-a7d.workers.dev"
+DEVCON26_TEST_CHECKOUT_ORIGINS = "https://feature-devcon26-flexible-ticket-checkout-devcongress-website.admins-a7d.workers.dev"
 SHORT_LINK_PUBLIC_ORIGIN = "https://go.devcongress.org"
 TURNSTILE_EXPECTED_HOSTNAME = "em.devcongress.org"
 EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES = "devcongress.org,www.devcongress.org"

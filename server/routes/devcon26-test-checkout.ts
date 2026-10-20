@@ -98,7 +98,7 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
     if (limited) return limited;
     const [ready, prices] = await Promise.all([
       devcon26TestStorageReady(c).catch(() => false),
-      getSupabaseAnnualConferencePublicTicketPrices(2026, c).catch(() => null),
+      getSupabaseAnnualConferencePublicTicketPrices(2026, c, 'sandbox').catch(() => null),
     ]);
     const requestedOrigin = c.req.header('Origin');
     const previewEnvironment = Object.fromEntries([

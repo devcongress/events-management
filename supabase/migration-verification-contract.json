@@ -3492,6 +3492,25 @@
           ]
         }
       ]
+    },
+    {
+      "file": "20261020140000_annual_conference_closed_price_setup.sql",
+      "sha256": "90814854dae98d52c6bda22786ef4dffc51d8f9be737dff2fc5d641934cb4069",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "set_annual_conference_ticket_prices",
+          "argumentTypes": "uuid, integer, integer, integer, text",
+          "result": "annual_conference_ticketing_settings",
+          "language": "plpgsql",
+          "bodySha256": "250ba9dfaa994c7f9e4618b81dd7185912972f4100e4f415bd1c1c92a30da3c9",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
     }
   ]
 }

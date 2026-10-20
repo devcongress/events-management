@@ -37,9 +37,9 @@ describe('annual conference ticketing operations UI', () => {
     expect(readFileSync(new URL('./views/admin/AdminAnnualConferenceFinanceView.vue', import.meta.url), 'utf8')).toContain('fetchAnnualConferenceFinance');
   });
 
-  it('places check-in inside Registration and redirects the retired Ticketing screen', () => {
+  it('keeps check-in inside Registration and opens Ticketing only for managers', () => {
     expect(navSource).toContain("label: 'Ticketing'");
-    expect(navSource).toContain('disabled: true');
+    expect(navSource).toContain("label: 'Ticketing', icon: 'tickets' as const }");
     expect(navSource).toContain(':aria-disabled="link.disabled ? \'true\' : undefined"');
     expect(navSource).toContain("label: 'Registration'");
     expect(mobileSource).not.toContain("<span>Ticketing</span>");
@@ -47,7 +47,9 @@ describe('annual conference ticketing operations UI', () => {
     expect(mobileSource).toContain(':to="annualConferencePath(\'speakers\', year)"');
     expect(registrationSource).toContain('AnnualConferenceRegistrationNav :active="activeSection"');
     expect(checkInSource).toContain('AnnualConferenceRegistrationNav active="guests"');
-    expect(routerSource).toContain('redirect: (to) => annualConferencePath("registrations", String(to.params.year))');
+    expect(routerSource).toContain('component: () => import("./views/admin/AdminAnnualConferenceTicketingView.vue")');
+    expect(routerSource).toContain('canOpenAnnualConferenceTicketingRoute(year)');
+    expect(routerSource).toContain('hasAnyAnnualConferenceCapability(workspace.permissions.capabilities, ["ticketing.manage"])');
     expect(registrationSource).toContain('updateAnnualConferenceTicketingCapacity');
     expect(registrationSource).toContain('canManageRegistration');
   });
@@ -86,13 +88,14 @@ describe('annual conference ticketing operations UI', () => {
     expect(ticketingSource).toContain('Activation status');
   });
 
-  it('keeps pricing editable only while sales are draft, behind an accessible drawer', () => {
+  it('allows unpublished closed prices before orders, behind an accessible drawer', () => {
     expect(ticketingSource).toContain("ticketing.value?.settings.ticket_sales_status === 'draft'");
+    expect(ticketingSource).toContain("ticketing.value?.settings.ticket_sales_status === 'closed' && ticketing.value.settings.public_mode === 'free'");
     expect(ticketingSource).toContain('openPricingEditor');
     expect(ticketingSource).toContain('closePricingEditor');
-    expect(ticketingSource).toContain('Set draft prices');
+    expect(ticketingSource).toContain('Set ticket prices');
     expect(ticketingSource).toContain('Save prices');
-    expect(ticketingSource).toContain('first checkout hold exists');
+    expect(ticketingSource).toContain('The first checkout order locks them.');
     expect(ticketingSource).toContain('ticket-prices-error');
     expect(ticketingSource).toContain('<Teleport to="body">');
     expect(ticketingSource).toContain('pricing-drawer-enter-active');

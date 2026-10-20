@@ -25,8 +25,8 @@ const reference = 'devcon26-test-aaaaaaaaaaaa4aaa8aaaaaaaaaaaaaaa';
 const requestKey = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const checkoutUrl = 'https://checkout.paystack.com/test-fixture';
 const turnstileVerificationUrl = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
-const previewOrigin = 'https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev';
-const commitOrigin = 'https://63b14d94-devcongress-website.admins-a7d.workers.dev';
+const previewOrigin = 'https://feature-devcon26-flexible-ticket-checkout-devcongress-website.admins-a7d.workers.dev';
+const commitOrigin = 'https://dd742854-devcongress-website.admins-a7d.workers.dev';
 const buyer = { purchaser_name: 'Ada Lovelace', purchaser_email: 'ada@example.test' };
 let session: Devcon26TestSession;
 let provider: ReturnType<typeof vi.fn>;
@@ -52,21 +52,21 @@ beforeEach(() => {
 
   session = {
     id: requestKey, checkout_request_key: requestKey, tier_key: 'team_3', quantity: 3,
-    amount_minor: 54_999, currency: 'GHS', payment_reference: reference, status: 'prepared',
+    amount_minor: 45_000, currency: 'GHS', payment_reference: reference, status: 'prepared',
     authorization_url: null, initialization_lease: requestKey,
     initialization_lease_until: '2026-10-07T12:01:00Z', expires_at: '2026-10-08T12:00:00Z',
     verified_at: null, created_at: '2026-10-07T12:00:00Z',
-    base_amount_minor: 54_999, discount_amount_minor: 0, coupon_id: null, coupon_code: null,
+    base_amount_minor: 45_000, discount_amount_minor: 0, coupon_id: null, coupon_code: null,
     ...buyer, resolution_reason: null, preview_email_authorized_origin: null, preview_email_authorized_until: null,
   };
-  providerFacts = { id: 123, reference, domain: 'test', status: 'success', amount: 54_999, currency: 'GHS' };
+  providerFacts = { id: 123, reference, domain: 'test', status: 'success', amount: 45_000, currency: 'GHS' };
   vi.mocked(consumePublicRateLimit).mockResolvedValue({ allowed: true });
   vi.mocked(storage.devcon26TestStorageReady).mockResolvedValue(true);
   vi.mocked(ticketingStorage.getSupabaseAnnualConferencePublicTicketPrices).mockResolvedValue({
     currency: 'GHS', tiers: [
-      { tier_key: 'regular', quantity: 1, amount_minor: 19_999 },
-      { tier_key: 'team_3', quantity: 3, amount_minor: 54_999 },
-      { tier_key: 'team_5', quantity: 5, amount_minor: 89_999 },
+      { tier_key: 'regular', quantity: 1, amount_minor: 15_000 },
+      { tier_key: 'team_3', quantity: 3, amount_minor: 45_000 },
+      { tier_key: 'team_5', quantity: 5, amount_minor: 75_000 },
     ],
   });
   vi.mocked(storage.quoteDevcon26TestCheckout).mockImplementation(async () => devcon26TestQuoteForSession(session));
@@ -234,7 +234,7 @@ describe('public DevCon26 test checkout integration', () => {
     const response = await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey, coupon_code: ' test-coupon ' });
     const initialized = await response.json();
 
-    expect(initialized).toMatchObject({ base_amount_minor: 54_999, discount_amount_minor: 1000, final_amount_minor: 53_999, coupon_applied: 'TEST-COUPON' });
+    expect(initialized).toMatchObject({ base_amount_minor: 45_000, discount_amount_minor: 1000, final_amount_minor: 53_999, coupon_applied: 'TEST-COUPON' });
     expect(JSON.parse(provider.mock.calls[0][1].body)).toMatchObject({ amount: 53_999, email: 'sandbox@example.com' });
     expect(JSON.stringify(initialized)).not.toMatch(/Lovelace|ada@example/);
     expect(provider.mock.calls[0][1].body).not.toMatch(/Lovelace|ada@example/);
@@ -279,12 +279,14 @@ describe('public DevCon26 test checkout integration', () => {
     const catalog = await app.request(`https://ems.example${base}`, { headers: { Origin: origin } });
 
     expect(await catalog.json()).toMatchObject({ mode: 'test', tiers: [
-      { tier_key: 'regular', quantity: 1, amount_minor: 19_999, currency: 'GHS' },
-      { tier_key: 'team_3', quantity: 3, amount_minor: 54_999, currency: 'GHS' },
-      { tier_key: 'team_5', quantity: 5, amount_minor: 89_999, currency: 'GHS' },
+      { tier_key: 'regular', quantity: 1, amount_minor: 15_000, currency: 'GHS' },
+      { tier_key: 'team_3', quantity: 3, amount_minor: 45_000, currency: 'GHS' },
+      { tier_key: 'team_5', quantity: 5, amount_minor: 75_000, currency: 'GHS' },
     ] });
     expect(catalog.headers.get('access-control-allow-origin')).toBe(origin);
     expect(catalog.headers.get('access-control-allow-credentials')).toBeNull();
+    expect(ticketingStorage.getSupabaseAnnualConferencePublicTicketPrices)
+      .toHaveBeenCalledWith(2026, expect.anything(), 'sandbox');
 
     const preflight = await app.request(`https://ems.example${base}/initialize`, {
       method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' },
@@ -322,9 +324,9 @@ describe('public DevCon26 test checkout integration', () => {
       expect(response.headers.get('access-control-allow-credentials')).toBeNull();
       expect(response.headers.get('cache-control')).toContain('no-store');
       expect(await response.json()).toEqual({ currency: 'GHS', tiers: [
-        { tier_key: 'regular', quantity: 1, amount_minor: 19_999 },
-        { tier_key: 'team_3', quantity: 3, amount_minor: 54_999 },
-        { tier_key: 'team_5', quantity: 5, amount_minor: 89_999 },
+        { tier_key: 'regular', quantity: 1, amount_minor: 15_000 },
+        { tier_key: 'team_3', quantity: 3, amount_minor: 45_000 },
+        { tier_key: 'team_5', quantity: 5, amount_minor: 75_000 },
       ] });
     }
 
@@ -482,7 +484,7 @@ describe('public DevCon26 test checkout integration', () => {
     expect(provider).toHaveBeenCalledTimes(1);
     const outbound = JSON.parse(provider.mock.calls[0][1].body);
 
-    expect(outbound).toMatchObject({ amount: 54_999, currency: 'GHS', email: 'sandbox@example.com', reference,
+    expect(outbound).toMatchObject({ amount: 45_000, currency: 'GHS', email: 'sandbox@example.com', reference,
       callback_url: 'https://devcongress.org/devcon26/payment-confirmation/?test_checkout=return' });
     expect((await post(`${base}/initialize`, { ...input, tier_key: 'regular' })).status).toBe(409);
   });

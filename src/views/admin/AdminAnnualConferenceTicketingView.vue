@@ -93,7 +93,12 @@ const ticketOrderQuery = useQuery({
   queryFn: () => fetchAnnualConferenceTicketOrders(year.value, ticketOrderPage.value),
 });
 const regularTier = computed(() => ticketing.value?.settings.ticket_tiers.find((tier) => tier.key === 'regular'));
-const pricingIsEditable = computed(() => ticketing.value?.settings.ticket_sales_status === 'draft');
+const pricingIsEditable = computed(() => (
+  ticketOrderQuery.data.value?.total === 0 && (
+    ticketing.value?.settings.ticket_sales_status === 'draft'
+    || (ticketing.value?.settings.ticket_sales_status === 'closed' && ticketing.value.settings.public_mode === 'free')
+  )
+));
 const pricingValidation = computed(() => {
   const prices = {
     regular: parseGhsAmountToMinor(pricingForm.regular),
@@ -567,7 +572,7 @@ onUnmounted(() => {
             <div>
               <p class="editorial-eyebrow">Public passes</p>
               <h2 id="passes-title" class="mt-1 text-xl font-semibold text-dc-ink">Pricing</h2>
-              <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Prices are editable while sales are in draft. They lock when sales leave draft or the first checkout hold exists.</p>
+              <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Prices can be set before sales open, including while free registration is closed. The first checkout order locks them.</p>
             </div>
             <div class="flex items-center gap-3">
               <span class="rounded-full border border-dc-ink px-3 py-1 font-mono text-[10px] font-semibold uppercase">{{ ticketing.settings.ticket_sales_status }}</span>
@@ -586,7 +591,7 @@ onUnmounted(() => {
             </div>
           </dl>
 
-          <p v-if="!pricingIsEditable" class="mt-5 text-sm text-dc-gray">Prices are locked because ticket sales have started. Existing order amounts remain unchanged.</p>
+          <p v-if="!pricingIsEditable" class="mt-5 text-sm text-dc-gray">Price changes require draft or free/closed sales and no checkout orders. Existing order amounts remain unchanged.</p>
         </section>
 
         <section class="rounded-lg border border-dc-border bg-dc-paper" aria-labelledby="ticket-orders-title">
@@ -808,7 +813,7 @@ onUnmounted(() => {
           <header class="flex shrink-0 items-start justify-between gap-5 border-b border-dc-border px-5 py-5 sm:px-6">
             <div class="min-w-0">
               <p class="editorial-eyebrow">Public passes</p>
-              <h2 id="pricing-drawer-title" class="mt-1 text-2xl font-semibold tracking-tight text-dc-ink">Set draft prices</h2>
+              <h2 id="pricing-drawer-title" class="mt-1 text-2xl font-semibold tracking-tight text-dc-ink">Set ticket prices</h2>
               <p id="pricing-drawer-description" class="mt-2 max-w-md text-sm leading-6 text-dc-gray">Enter the price for each pass in GHS. Quantities and currency are fixed.</p>
             </div>
             <button ref="pricingDrawerCloseButton" type="button" class="motion-press inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-dc-border text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-50" aria-label="Close price editor" :disabled="pricingMutation.isPending.value" @click="requestClosePricingEditor">
