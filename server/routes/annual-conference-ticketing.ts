@@ -8,11 +8,13 @@ import {
   createSupabaseAnnualConferenceSponsorAllocation,
   getSupabaseAnnualConferenceTicketEmailDeliverySummary,
   getSupabaseAnnualConferencePublicTicketPrices,
+  getSupabaseAnnualConferenceFlexibleCheckoutState,
   getSupabaseAnnualConferenceTicketing,
   getSupabaseAnnualConferenceTicketPaymentAttempt,
   hasSupabaseAnnualConferenceTicketRefund,
   getSupabaseAnnualConferencePaidOrderSummary,
   createSupabaseAnnualConferenceCheckoutHold,
+  createSupabaseAnnualConferenceFlexibleCheckoutHold,
   prepareSupabaseAnnualConferenceTicketPaymentAttempt,
   listSupabaseAnnualConferenceTicketEmailDeliveries,
   listSupabaseAnnualConferenceTicketOrders,
@@ -23,7 +25,12 @@ import {
 } from '@/lib/supabase/annual-conference-ticketing';
 import { parseGhsAmountToMinor, validateAnnualConferenceTicketPrices } from '@/lib/annual-conference-ticketing';
 import { createAnnualConferenceSocialCardBuyerGrant, verifyAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
-import { DEVCON26_PUBLIC_CHECKOUT_PATH, devcon26PublicCheckoutConfiguration, devcon26PublicCheckoutInitializeSchema, devcon26PublicCheckoutOriginConfiguration, devcon26PublicCheckoutVerifySchema } from '@/lib/devcon26-public-checkout';
+import {
+  DEVCON26_FLEXIBLE_CHECKOUT_PATH, DEVCON26_PUBLIC_CHECKOUT_PATH,
+  devcon26FlexibleCheckoutInitializeSchema, devcon26FlexibleCheckoutVerifySchema,
+  devcon26PublicCheckoutConfiguration, devcon26PublicCheckoutInitializeSchema,
+  devcon26PublicCheckoutOriginConfiguration, devcon26PublicCheckoutVerifySchema,
+} from '@/lib/devcon26-public-checkout';
 import {
   annualConferencePaymentConfiguration,
   createPaystackHostedCheckout,
@@ -41,6 +48,9 @@ import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import { registerDevcon26TestCouponRoutes } from '@/server/routes/devcon26-test-coupons';
 import { enforcePublicRateLimit, publicClientKey } from '@/server/http/public-intake-protection';
 import { annualConferenceSocialCardEmailConfigurationForRequest } from '@/server/annual-conference-social-card-email-delivery';
+import { devcon26AvailablePaymentProviders } from '@/lib/devcon26-ticket-cart';
+import { DEVCON26_TICKET_UNIT_PRICE_MINOR, PAYSTACK_MAX_TRANSACTION_MINOR } from '@/lib/devcon26-ticket-cart';
+import { createDevcon26FlexibleCheckoutGrant, verifyDevcon26FlexibleCheckoutGrant } from '@/lib/devcon26-flexible-checkout-grant';
 
 const yearSchema = z.string().regex(/^\d{4}$/, 'Conference year must use four digits.');
 const capacitySchema = z.object({
@@ -112,15 +122,26 @@ function ticketPaymentEnvironment(c: Context<AppBindings>): Record<string, strin
   };
 }
 
+function flexibleCheckoutConfigurationReady(c: Context<AppBindings>, environment: Record<string, string | undefined>): boolean {
+  const payment = annualConferencePaymentConfiguration(environment);
+
+  return environment.DEVCON26_FLEXIBLE_CHECKOUT_ENABLED?.trim().toLowerCase() === 'true'
+    && payment.enabled
+    && payment.feeMode === 'merchant_absorbs'
+    && admissionEmailReadiness(c).ready
+    && Boolean(environment.PUBLIC_WEBSITE_ORIGIN);
+}
+
 export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>): void {
   registerDevcon26TestCouponRoutes(app);
 
   const publicCheckoutEnvironment = (c: Context<AppBindings>) => Object.fromEntries([
     'DEVCON26_PUBLIC_CHECKOUT_ENABLED', 'DEVCON26_PUBLIC_CHECKOUT_ORIGINS', 'DEVCON26_PAYMENT_PROVIDER',
-    'DEVCON26_PAYMENTS_ENABLED', 'DEVCON26_PAYSTACK_FEE_MODE', 'PAYSTACK_SECRET_KEY', 'PUBLIC_WEBSITE_ORIGIN', 'NODE_ENV',
+    'DEVCON26_PAYMENTS_ENABLED', 'DEVCON26_PAYSTACK_FEE_MODE', 'DEVCON26_FLEXIBLE_CHECKOUT_ENABLED',
+    'PAYSTACK_SECRET_KEY', 'PUBLIC_WEBSITE_ORIGIN', 'NODE_ENV',
   ].map((key) => [key, envValue(key, c)]));
 
-  for (const operation of ['initialize', 'verify']) {
+  for (const operation of ['initialize', 'verify', 'flexible/initialize', 'flexible/verify']) {
     app.use(`${DEVCON26_PUBLIC_CHECKOUT_PATH}/${operation}`, async (c, next) => {
       const configuration = devcon26PublicCheckoutConfiguration(publicCheckoutEnvironment(c));
 
@@ -146,8 +167,27 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
 
       if (!ticketing || ticketing.settings.public_mode !== 'paid' || ticketing.settings.ticket_sales_status !== 'open') return c.json({ mode: 'unavailable' });
 
+      const environment = publicCheckoutEnvironment(c);
+      const flexibleState = flexibleCheckoutConfigurationReady(c, environment)
+        ? await getSupabaseAnnualConferenceFlexibleCheckoutState(ticketing.settings.edition_id, c).catch(() => null)
+        : null;
+      const flexibleCheckout = flexibleState?.flexible_checkout_state === 'public'
+        && flexibleState.regular_price_minor === DEVCON26_TICKET_UNIT_PRICE_MINOR
+        && Number.isSafeInteger(flexibleState.flexible_checkout_max_amount_minor)
+        && Number(flexibleState.flexible_checkout_max_amount_minor) >= DEVCON26_TICKET_UNIT_PRICE_MINOR
+        ? {
+          mode: 'live' as const,
+          unit_amount_minor: DEVCON26_TICKET_UNIT_PRICE_MINOR,
+          max_per_payment: Math.floor(Math.min(
+            Number(flexibleState.flexible_checkout_max_amount_minor), PAYSTACK_MAX_TRANSACTION_MINOR,
+          ) / DEVCON26_TICKET_UNIT_PRICE_MINOR),
+        }
+        : { mode: 'unavailable' as const };
+
       return c.json({
         mode: 'live', accepts_coupon: false, currency: ticketing.settings.currency,
+        payment_providers: devcon26AvailablePaymentProviders(),
+        flexible_checkout: flexibleCheckout,
         tiers: ticketing.settings.ticket_tiers.filter((tier) => tier.key === 'regular').map((tier) => ({ tier_key: tier.key, quantity: tier.quantity, amount_minor: tier.price_minor, currency: ticketing.settings.currency })),
       });
     } catch {
@@ -176,6 +216,95 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
       });
     } catch {
       return c.json({ error: 'Ticket quote is not available.' }, 503);
+    }
+  });
+
+  app.post(`${DEVCON26_FLEXIBLE_CHECKOUT_PATH}/initialize`, async (c) => {
+    const environment = publicCheckoutEnvironment(c);
+    const rawConfiguration = devcon26PublicCheckoutConfiguration(environment);
+    const configuration = rawConfiguration && devcon26PublicCheckoutOriginConfiguration(rawConfiguration, c.req.header('Origin'));
+    const input = devcon26FlexibleCheckoutInitializeSchema.safeParse(await c.req.json().catch(() => null));
+
+    if (!configuration || !flexibleCheckoutConfigurationReady(c, environment)) {
+      return c.json({ error: 'Flexible ticket checkout is not available.' }, 503);
+    }
+    if (!input.success) return c.json({ error: 'Allocate every ticket and choose a valid payment provider.' }, 400);
+
+    const limited = await enforcePublicRateLimit(c, {
+      action: 'devcon26-flexible-checkout-initialize', clientKey: publicClientKey(c), maxAttempts: 5, windowSeconds: 300,
+    }, 'Please wait before starting another checkout.');
+
+    if (limited) return limited;
+
+    try {
+      const ticketing = await getSupabaseAnnualConferenceTicketing(2026, c);
+
+      if (!ticketing || ticketing.settings.public_mode !== 'paid' || ticketing.settings.ticket_sales_status !== 'open') {
+        return c.json({ error: 'Ticket sales are not open.' }, 409);
+      }
+
+      const flexibleState = await getSupabaseAnnualConferenceFlexibleCheckoutState(ticketing.settings.edition_id, c);
+
+      if (flexibleState?.flexible_checkout_state !== 'public'
+        || flexibleState.regular_price_minor !== DEVCON26_TICKET_UNIT_PRICE_MINOR
+        || !Number.isSafeInteger(flexibleState.flexible_checkout_max_amount_minor)
+        || Number(flexibleState.flexible_checkout_max_amount_minor) < DEVCON26_TICKET_UNIT_PRICE_MINOR) {
+        return c.json({ error: 'Flexible ticket checkout is not available.' }, 503);
+      }
+
+      const order = await createSupabaseAnnualConferenceFlexibleCheckoutHold({
+        editionId: ticketing.settings.edition_id,
+        purchaserName: input.data.purchaser_name,
+        purchaserEmail: input.data.purchaser_email,
+        checkoutRequestKey: input.data.checkout_request_key,
+        cart: input.data.cart,
+      }, c) as Record<string, unknown> | null;
+
+      if (!order?.id || !Number.isSafeInteger(order.amount_minor)
+        || Number(order.amount_minor) !== input.data.cart.quantity * DEVCON26_TICKET_UNIT_PRICE_MINOR
+        || Number(order.amount_minor) > PAYSTACK_MAX_TRANSACTION_MINOR) return ticketingUnavailable(c);
+
+      const reference = paystackReferenceForTicketOrder(String(order.id));
+
+      await prepareSupabaseAnnualConferenceTicketPaymentAttempt(String(order.id), reference, c);
+
+      const checkout = await createPaystackHostedCheckout({
+        secretKey: configuration.secretKey,
+        orderId: String(order.id),
+        purchaserEmail: input.data.purchaser_email,
+        amountMinor: Number(order.amount_minor),
+        callbackUrl: configuration.callbackUrl,
+        paymentReference: reference,
+      });
+      const checkoutVerifier = crypto.randomBytes(32).toString('base64url');
+      const checkoutGrant = createDevcon26FlexibleCheckoutGrant({
+        orderId: String(order.id),
+        verifier: checkoutVerifier,
+        origin: configuration.websiteOrigin,
+        secretKey: configuration.secretKey,
+      });
+
+      return c.json({
+        mode: 'live', authorization_url: checkout.authorizationUrl,
+        reference: checkout.paymentReference,
+        checkout_grant: checkoutGrant,
+        checkout_verifier: checkoutVerifier,
+        quantity: input.data.cart.quantity,
+        amount_minor: order.amount_minor,
+        currency: order.currency,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+
+      if (message.includes('ticketing_capacity_exhausted')) return c.json({ error: 'There are not enough tickets left.' }, 409);
+      if (message.includes('flexible_ticket_provider_ceiling_exceeded')) {
+        return c.json({ error: 'This payment exceeds the provider limit. Place separate orders for the remaining tickets.' }, 409);
+      }
+      if (message.includes('flexible_ticket_checkout_request_conflict')) {
+        return c.json({ error: 'This checkout request was already used for another cart.' }, 409);
+      }
+
+      return c.json({ error: 'We could not prepare this checkout.' }, 503);
     }
   });
 
@@ -306,6 +435,81 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
         tier_key: summary.tier_key, quantity: summary.quantity, currency: summary.currency,
         ticket_amount_minor: summary.ticket_amount_minor, amount_paid_minor: summary.amount_paid_minor,
         can_return_later: annualConferenceSocialCardEmailConfigurationForRequest(c).enabled,
+      });
+    } catch {
+      return c.json({ error: 'Payment is not confirmed yet. Check again shortly.' }, 503);
+    }
+  });
+
+  app.post(`${DEVCON26_FLEXIBLE_CHECKOUT_PATH}/verify`, async (c) => {
+    const environment = publicCheckoutEnvironment(c);
+    const rawConfiguration = devcon26PublicCheckoutConfiguration(environment);
+    const configuration = rawConfiguration && devcon26PublicCheckoutOriginConfiguration(rawConfiguration, c.req.header('Origin'));
+    const input = devcon26FlexibleCheckoutVerifySchema.safeParse(await c.req.json().catch(() => null));
+
+    if (!configuration || !annualConferencePaymentConfiguration(environment).enabled || !input.success) {
+      return c.json({ error: 'Checkout could not be verified.' }, 400);
+    }
+
+    const limited = await enforcePublicRateLimit(c, {
+      action: 'devcon26-flexible-checkout-verify', clientKey: publicClientKey(c), maxAttempts: 12, windowSeconds: 300,
+    }, 'Please wait before checking this payment again.');
+
+    if (limited) return limited;
+
+    const claims = verifyDevcon26FlexibleCheckoutGrant({
+      grant: input.data.checkout_grant,
+      verifier: input.data.checkout_verifier,
+      origin: configuration.websiteOrigin,
+      secretKey: configuration.secretKey,
+    });
+    const attempt = await getSupabaseAnnualConferenceTicketPaymentAttempt(input.data.reference, c);
+
+    if (!claims || !attempt || attempt.order_id !== claims.order_id || attempt.provider !== 'paystack') {
+      return c.json({ error: 'Checkout could not be verified.' }, 404);
+    }
+
+    try {
+      const providerResult = await inspectPaystackLiveTransaction({
+        secretKey: configuration.secretKey,
+        paymentReference: attempt.payment_reference,
+      });
+
+      if (providerResult.status !== 'success') {
+        return c.json({ mode: 'live', status: providerResult.status });
+      }
+
+      const charge = providerResult.charge;
+      const order = await confirmSupabaseAnnualConferenceTicketPayment({
+        orderId: attempt.order_id,
+        provider: charge.provider,
+        providerEventId: charge.providerEventId,
+        eventType: charge.eventType,
+        paymentReference: charge.paymentReference,
+        amountMinor: charge.amountMinor,
+        currency: charge.currency,
+        payloadSha256: crypto.createHash('sha256').update(JSON.stringify(charge.facts)).digest('hex'),
+        paymentFacts: { ...charge.facts, fee_mode: 'merchant_absorbs' },
+      }, c);
+
+      if (!order) return ticketingUnavailable(c);
+      if (order.status === 'expired' && await hasSupabaseAnnualConferenceTicketRefund(attempt.order_id, c)) {
+        return c.json({ mode: 'live', status: 'refund_required' });
+      }
+      if (order.status !== 'paid') return c.json({ mode: 'live', status: order.status === 'pending_payment' ? 'pending' : 'failed' });
+
+      const summary = await getSupabaseAnnualConferencePaidOrderSummary(attempt.order_id, c);
+
+      if (!summary || summary.status !== 'paid' || summary.currency !== 'GHS'
+        || !Number.isSafeInteger(summary.ticket_amount_minor)
+        || !Number.isSafeInteger(summary.amount_paid_minor)) return ticketingUnavailable(c);
+
+      return c.json({
+        mode: 'live', status: 'verified',
+        quantity: summary.quantity,
+        currency: summary.currency,
+        ticket_amount_minor: summary.ticket_amount_minor,
+        amount_paid_minor: summary.amount_paid_minor,
       });
     } catch {
       return c.json({ error: 'Payment is not confirmed yet. Check again shortly.' }, 503);

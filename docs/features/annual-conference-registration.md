@@ -2,6 +2,24 @@
 
 DevCon26 registration is an annual-conference domain, not a monthly meetup or a zero-price payment. The website uses `/api/public/annual-conference/2026/registration`; public duplicate responses never reveal attendee status or admission capabilities.
 
+## Flexible paid tickets (2026)
+
+The paid path is GH₵150 per person. A cart may mix a buyer's own seat, a named gift, a sponsor-managed QR handoff, an organizer-managed community seat, and a buyer-distributed private claim. A named gift is bound to its recipient email; community claims require the claimant to supply their own details. The sponsor-managed path sends the buyer the admission QR codes for onward distribution, without forcing an individual claim. The managed community pool reserves funded seats until an authorized organizer assigns them. Social badges are shareable artwork and never contain admission QR codes.
+
+Paystack is the only current payment provider, so the website selects it automatically. The API returns an explicit provider catalog for adding a choice later. The price and quantity are revalidated by EMS before initializing payment. There is no arbitrary buyer quantity cap, but a single Paystack payment cannot exceed its provider amount ceiling or the current capacity. A larger purchase requires additional orders. Payment verification, ticket issuance, recipient claims, and email queueing occur on the server; checkout and claim URLs alone do not prove admission.
+
+Registration → Community seats gives Owners a paged list of unassigned, already-paid organizer-managed places. An Owner supplies the recipient's name and email, reviews the irreversible assignment, and queues that person's admission message. This action is edition-scoped and idempotent; it cannot reassign an issued or checked-in ticket. Other ticketing managers cannot see or use this queue.
+
+Apply these forward migrations in order before any paid-flow activation:
+
+1. `20261020100000_annual_conference_flexible_ticket_allocation_foundation.sql`
+2. `20261020110000_annual_conference_flexible_ticket_lifecycle.sql`
+3. `20261020120000_devcon26_test_checkout_preview_email_authorization.sql`
+
+The schema starts with `flexible_checkout_state='foundation'`; it does not open sales. The Worker additionally requires `DEVCON26_FLEXIBLE_CHECKOUT_ENABLED=true`, existing live Paystack and admission-email readiness, the public checkout origin configuration, and Owner-controlled paid/open ticketing settings. The separate `DEVCON26_FLEXIBLE_TICKET_ACCESS_ENABLED=true` switch keeps already-paid claim and management links usable even if sales are paused; it still requires an exact allowed website origin. Do not switch to `public` until the full claim, organizer assignment, email, refund, preview, and check-in journeys have been reviewed against the deployed revision. A refund request is an operational record, not money returned; provider refund verification is required before any final cancellation is reported as reimbursed.
+
+For feature-branch previews, the separate test-checkout path may email entered tester addresses only with an exact preview origin, Turnstile action/hostname, enabled preview-email flags, verified Paystack test payment, recipient screening, and distributed rate limits. The message is marked as a test and contains no seat or QR. A preview origin also needs to remain on the test-checkout origin allowlist; the website's deployed commit origin and Turnstile hostname are configured after that URL is known. Neither preview email nor local migration tests authorize production ticket sales.
+
 ## Organizer workflow
 
 - Annual Conference → Registration has Summary, Guests, Form & capacity, Emails, and Blasts tabs. Guests combines confirmed, waitlisted, and cancelled registrations with admission actions and optional camera scanning in one list. Manager registrations are linked to admissions strictly by ticket identity; unmatched paid/bearer tickets remain visible. One normalized email owns at most one active registration per edition; cancelled history is retained. Duplicate requests neither rename nor resend. Cancelled registrations cannot self-reactivate.

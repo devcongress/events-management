@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { devcon26TicketCartSchema } from './devcon26-ticket-cart';
 
 export const DEVCON26_PUBLIC_CHECKOUT_PATH = '/api/public/annual-conference/2026/checkout';
+export const DEVCON26_FLEXIBLE_CHECKOUT_PATH = `${DEVCON26_PUBLIC_CHECKOUT_PATH}/flexible`;
 
 export const devcon26PublicCheckoutInitializeSchema = z.object({
   tier_key: z.literal('regular'),
@@ -9,10 +11,23 @@ export const devcon26PublicCheckoutInitializeSchema = z.object({
   purchaser_email: z.string().trim().toLowerCase().email().max(254),
 }).strict();
 
+export const devcon26FlexibleCheckoutInitializeSchema = z.object({
+  checkout_request_key: z.string().uuid(),
+  purchaser_name: z.string().trim().min(1).max(120).regex(/^[^\u0000-\u001f\u007f]+$/),
+  purchaser_email: z.string().trim().toLowerCase().email().max(254),
+  cart: devcon26TicketCartSchema,
+}).strict();
+
 export const devcon26PublicCheckoutVerifySchema = z.object({
   reference: z.string().regex(/^devcon26_[a-f0-9]{32}$/),
   buyer_grant: z.string().min(20).max(2_000),
   buyer_verifier: z.string().regex(/^[A-Za-z0-9_-]{40,100}$/),
+}).strict();
+
+export const devcon26FlexibleCheckoutVerifySchema = z.object({
+  reference: z.string().regex(/^devcon26_[a-f0-9]{32}$/),
+  checkout_grant: z.string().min(20).max(2_000),
+  checkout_verifier: z.string().regex(/^[A-Za-z0-9_-]{40,100}$/),
 }).strict();
 
 function validatedOrigin(value: string, development: boolean): string | null {
@@ -28,6 +43,31 @@ function validatedOrigin(value: string, development: boolean): string | null {
   } catch {
     return null;
   }
+}
+
+export function devcon26PublicTicketAccessOriginAllowed(
+  env: Record<string, string | undefined>,
+  requestOrigin: string | undefined,
+): boolean {
+  if (!requestOrigin) return false;
+
+  const development = env.NODE_ENV === 'development';
+  const websiteOrigin = validatedOrigin(env.PUBLIC_WEBSITE_ORIGIN ?? '', development);
+
+  if (!websiteOrigin) return false;
+  const allowedOrigins = new Set([websiteOrigin]);
+
+  const configuredOrigins = env.DEVCON26_PUBLIC_CHECKOUT_ORIGINS?.trim();
+
+  for (const entry of configuredOrigins ? configuredOrigins.split(',') : []) {
+    const value = entry.trim();
+    const origin = validatedOrigin(value, development);
+
+    if (!origin || origin !== value) return false;
+    allowedOrigins.add(origin);
+  }
+
+  return allowedOrigins.has(requestOrigin);
 }
 
 export function devcon26PublicCheckoutConfiguration(env: Record<string, string | undefined>) {
@@ -68,5 +108,11 @@ export function devcon26PublicCheckoutOriginConfiguration(
 
 export function isDevcon26PublicCheckoutRequest(path: string, method: string): boolean {
   return (method === 'GET' && path === DEVCON26_PUBLIC_CHECKOUT_PATH)
-    || (method === 'POST' && [`${DEVCON26_PUBLIC_CHECKOUT_PATH}/quote`, `${DEVCON26_PUBLIC_CHECKOUT_PATH}/initialize`, `${DEVCON26_PUBLIC_CHECKOUT_PATH}/verify`].includes(path));
+    || (method === 'POST' && [
+      `${DEVCON26_PUBLIC_CHECKOUT_PATH}/quote`,
+      `${DEVCON26_PUBLIC_CHECKOUT_PATH}/initialize`,
+      `${DEVCON26_PUBLIC_CHECKOUT_PATH}/verify`,
+      `${DEVCON26_FLEXIBLE_CHECKOUT_PATH}/initialize`,
+      `${DEVCON26_FLEXIBLE_CHECKOUT_PATH}/verify`,
+    ].includes(path));
 }

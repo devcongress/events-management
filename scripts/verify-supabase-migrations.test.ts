@@ -17,7 +17,7 @@ function fixtureCatalog(): Catalog {
   if (fixture) return structuredClone(fixture);
   const objects = contract.verified.flatMap((migration) => migration.checks.map((check) => {
     if (check.kind === 'function') {
-      const expression = new RegExp(`function\\s+public\\.${check.name}\\s*\\([\\s\\S]*?\\)\\s*returns\\b[\\s\\S]*?\\bas\\s*(\\$\\w*\\$)([\\s\\S]*?)\\1\\s*;`, 'i');
+      const expression = new RegExp(`\\bcreate\\s+(?:or\\s+replace\\s+)?function\\s+public\\.${check.name}\\s*\\([\\s\\S]*?\\)\\s*returns\\b[\\s\\S]*?\\bas\\s*(\\$\\w*\\$)([\\s\\S]*?)\\1\\s*;`, 'i');
       // Catalogs contain the final definition, not one copy per migration.
       const body = [...sources].reverse().map(source => source.sql.match(expression)?.[2]).find(Boolean)!;
 
@@ -38,10 +38,10 @@ function fixtureCatalog(): Catalog {
 }
 
 describe('migration contract inventory', () => {
-  it('covers the current files with an honest legacy exemption and twenty-five reviewed contracts', () => {
+  it('covers the current files with an honest legacy exemption and reviewed contracts', () => {
     expect(validateInventory(contract, sources)).toEqual([]);
     expect(Object.keys(contract.legacyInventory)).toHaveLength(92);
-    expect(contract.verified).toHaveLength(26);
+    expect(contract.verified).toHaveLength(29);
   });
 
   it('rejects unregistered SQL, changed legacy SQL, missing files and new version collisions', () => {

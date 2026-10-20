@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-20 — DevCon26 flexible paid ticket foundation
+
+- Add a GH₵150 per-seat Paystack checkout contract for mixed self, gift, sponsor-managed, organizer-managed community, and buyer-shareable community allocations. The provider's per-transaction amount ceiling bounds one payment; buyers can place additional orders.
+- Add immutable allocation snapshots, capacity-locked holds, private one-time claims, individual admission delivery, and separate social-card eligibility. Keep payment verification and admission QR generation on the server.
+- Add a restricted Paystack test-checkout preview email path so approved feature-origin testers can receive clearly marked test-only messages without live seats or QR codes.
+- Add forward migrations and read-only verification contracts. These files do not apply themselves or open sales; live schema verification and explicit activation remain separate rollout gates.
+
 ## 2026-10-19 — App-wide loading and layout refresh
 
 - Replace routed and inline hand-built loading placeholders with responsive Boneyard captures tied to each page's initial data boundary. Preserve loaded content during background refresh and keep the protected pre-JavaScript boot screen.

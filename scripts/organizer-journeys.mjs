@@ -2778,7 +2778,7 @@ try {
     const nav = page.getByRole("navigation", { name: "Registration sections" });
 
     assert.deepEqual(await nav.getByRole("link").allTextContents().then((items) => items.map((item) => item.trim())), [
-      "Summary", "Guests", "Form & capacity", "Emails", "Blasts",
+      "Summary", "Guests", "Form & capacity", "Emails", "Community seats", "Blasts",
     ]);
     const headingBefore = await page.getByRole("heading", { name: "Registration", exact: true }).boundingBox();
 

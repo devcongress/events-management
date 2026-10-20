@@ -7,6 +7,7 @@ import {
   validateAnnualConferenceTicketPrices,
 } from '@/lib/annual-conference-ticketing';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
+import { devcon26CartAllocationsForStorage, type Devcon26TicketCart } from '@/lib/devcon26-ticket-cart';
 
 const INVENTORY_PAGE_SIZE = 1_000;
 
@@ -137,6 +138,27 @@ export async function getSupabaseAnnualConferencePublicTicketPrices(year: number
   };
 }
 
+export async function getSupabaseAnnualConferenceFlexibleCheckoutState(editionId: string, c?: Context) {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+
+  const result = await getSupabaseAdminClient(c)
+    .from('annual_conference_ticketing_settings' as never)
+    .select('flexible_checkout_state,flexible_checkout_max_amount_minor,regular_price_minor')
+    .eq('edition_id', editionId)
+    .maybeSingle() as unknown as {
+      data: {
+        flexible_checkout_state: 'foundation' | 'internal' | 'public';
+        flexible_checkout_max_amount_minor: number | null;
+        regular_price_minor: number;
+      } | null;
+      error: { message: string } | null;
+    };
+
+  if (result.error) throw new Error(result.error.message);
+
+  return result.data;
+}
+
 export async function createSupabaseAnnualConferenceCheckoutHold(input: {
   editionId: string;
   purchaserName: string;
@@ -156,6 +178,35 @@ export async function createSupabaseAnnualConferenceCheckoutHold(input: {
       p_checkout_request_key: input.checkoutRequestKey,
     },
   );
+
+  if (result.error) throw new Error(result.error.message);
+
+  return result.data;
+}
+
+export async function createSupabaseAnnualConferenceFlexibleCheckoutHold(input: {
+  editionId: string;
+  purchaserName: string;
+  purchaserEmail: string;
+  checkoutRequestKey: string;
+  cart: Devcon26TicketCart;
+}, c?: Context) {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+
+  const result = await getSupabaseAdminClient(c).rpc(
+    'create_annual_conference_flexible_checkout_hold' as never,
+    {
+      p_edition_id: input.editionId,
+      p_purchaser_name: input.purchaserName,
+      p_purchaser_email: input.purchaserEmail,
+      p_quantity: input.cart.quantity,
+      p_allocations: devcon26CartAllocationsForStorage(input.cart, {
+        name: input.purchaserName,
+        email: input.purchaserEmail,
+      }),
+      p_checkout_request_key: input.checkoutRequestKey,
+    } as never,
+  ) as unknown as { data: unknown; error: { message: string } | null };
 
   if (result.error) throw new Error(result.error.message);
 

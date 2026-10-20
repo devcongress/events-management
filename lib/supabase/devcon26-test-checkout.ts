@@ -25,10 +25,12 @@ export async function quoteDevcon26TestCheckout(c: Context, tierKey: string, cou
 }
 
 export async function prepareDevcon26TestSession(c: Context, requestKey: string, tierKey: string,
-  purchaserName: string, purchaserEmail: string, couponCode?: string): Promise<Devcon26TestSession> {
+  purchaserName: string, purchaserEmail: string, couponCode?: string,
+  previewEmailAuthorizedOrigin?: string): Promise<Devcon26TestSession> {
   const { data, error } = await getSupabaseAdminClient(c).rpc('prepare_devcon26_test_checkout', {
     p_request_key: requestKey, p_tier_key: tierKey, p_purchaser_name: purchaserName,
     p_purchaser_email: purchaserEmail, p_coupon_code: couponCode,
+    p_preview_email_authorized_origin: previewEmailAuthorizedOrigin ?? null,
   });
 
   if (error || !data) throw new Error(error?.message ?? 'test_checkout_storage_unavailable');

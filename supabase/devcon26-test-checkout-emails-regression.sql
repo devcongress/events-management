@@ -1,5 +1,6 @@
 -- Run ONLY against a disposable database after the sandbox session table and
--- 20261013180000 migration exist. Fixtures and assertions roll back together.
+-- 20261013180000 and 20261020120000 migrations exist. Fixtures and assertions
+-- roll back together.
 begin;
 
 do $$
@@ -71,6 +72,97 @@ begin
   assert not has_function_privilege('anon', 'public.claim_devcon26_test_checkout_emails(uuid)', 'EXECUTE'), 'anon claims';
   assert not has_function_privilege('authenticated', 'public.finish_devcon26_test_checkout_email(uuid,uuid,text,text)', 'EXECUTE'), 'authenticated finalizes';
   assert has_function_privilege('service_role', 'public.claim_devcon26_test_checkout_emails(uuid)', 'EXECUTE'), 'service cannot claim';
+end;
+$$;
+
+rollback;
+
+begin;
+
+-- Preview authorization is immutable session evidence and is copied to the
+-- outbox only after a verified sandbox payment.
+do $$
+declare
+  v_legacy public.devcon26_test_checkout_sessions;
+  v_preview public.devcon26_test_checkout_sessions;
+  v_request_key uuid := gen_random_uuid();
+  v_preview_origin text := 'https://feature-checkout.example.test';
+  v_rejected boolean := false;
+begin
+  select * into v_legacy from public.prepare_devcon26_test_checkout(
+    gen_random_uuid(), 'regular', 'Legacy Fixture', 'legacy@example.test', null, null
+  );
+  assert v_legacy.preview_email_authorized_origin is null, 'legacy session gained preview authorization';
+  assert v_legacy.preview_email_authorized_until is null, 'legacy session gained preview deadline';
+
+  select * into v_preview from public.prepare_devcon26_test_checkout(
+    v_request_key, 'regular', 'Preview Fixture', 'unknown-tester@example.test', null, v_preview_origin
+  );
+  assert v_preview.preview_email_authorized_origin = v_preview_origin, 'preview authorization was not stored';
+  assert v_preview.preview_email_authorized_until > now()
+    and v_preview.preview_email_authorized_until <= now() + interval '1 hour',
+    'preview authorization deadline was not bounded';
+
+  begin
+    perform public.prepare_devcon26_test_checkout(
+      v_request_key, 'regular', 'Preview Fixture', 'unknown-tester@example.test', null,
+      'https://other.example.test'
+    );
+  exception when others then
+    v_rejected := sqlerrm like '%test_checkout_cart_conflict%';
+  end;
+  assert v_rejected, 'retry changed preview authorization';
+
+  v_rejected := false;
+  begin
+    perform public.prepare_devcon26_test_checkout(
+      gen_random_uuid(), 'regular', 'Invalid Fixture', 'invalid@example.test', null,
+      'https://*.example.test'
+    );
+  exception when others then
+    v_rejected := sqlerrm like '%test_checkout_invalid_preview_email_origin%';
+  end;
+  assert v_rejected, 'unsafe preview origin was accepted';
+
+  v_rejected := false;
+  begin
+    update public.devcon26_test_checkout_sessions
+      set preview_email_authorized_origin = 'https://other.example.test'
+      where id = v_preview.id;
+  exception when others then
+    v_rejected := sqlerrm like '%test_checkout_terms_immutable%';
+  end;
+  assert v_rejected, 'preview authorization was mutable';
+
+  v_rejected := false;
+  begin
+    update public.devcon26_test_checkout_sessions
+      set preview_email_authorized_until = now() + interval '2 hours'
+      where id = v_preview.id;
+  exception when others then
+    v_rejected := sqlerrm like '%test_checkout_terms_immutable%';
+  end;
+  assert v_rejected, 'preview authorization deadline was mutable';
+
+  update public.devcon26_test_checkout_sessions set status = 'verified'
+    where id in (v_legacy.id, v_preview.id);
+  assert (select preview_email_authorized_origin is null
+      and preview_email_authorized_until is null
+    from public.devcon26_test_checkout_email_outbox where session_id = v_legacy.id),
+    'legacy outbox gained preview authorization';
+  assert (select preview_email_authorized_origin = v_preview_origin
+      and preview_email_authorized_until = v_preview.preview_email_authorized_until
+    from public.devcon26_test_checkout_email_outbox where session_id = v_preview.id),
+    'preview authorization was not copied to outbox';
+
+  -- Simulate a scheduler backlog only inside this synthetic fixture.
+  update public.devcon26_test_checkout_email_outbox
+    set preview_email_authorized_until = now() - interval '1 minute'
+    where session_id = v_preview.id;
+  perform public.claim_devcon26_test_checkout_emails(gen_random_uuid());
+  assert (select status = 'suppressed'
+    from public.devcon26_test_checkout_email_outbox where session_id = v_preview.id),
+    'expired preview email was claimed instead of suppressed';
 end;
 $$;
 

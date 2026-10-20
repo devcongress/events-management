@@ -24,6 +24,7 @@ const webhookPath = '/api/webhooks/paystack/devcon26-test';
 const reference = 'devcon26-test-aaaaaaaaaaaa4aaa8aaaaaaaaaaaaaaa';
 const requestKey = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const checkoutUrl = 'https://checkout.paystack.com/test-fixture';
+const turnstileVerificationUrl = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 const previewOrigin = 'https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev';
 const commitOrigin = 'https://63b14d94-devcongress-website.admins-a7d.workers.dev';
 const buyer = { purchaser_name: 'Ada Lovelace', purchaser_email: 'ada@example.test' };
@@ -56,7 +57,7 @@ beforeEach(() => {
     initialization_lease_until: '2026-10-07T12:01:00Z', expires_at: '2026-10-08T12:00:00Z',
     verified_at: null, created_at: '2026-10-07T12:00:00Z',
     base_amount_minor: 54_999, discount_amount_minor: 0, coupon_id: null, coupon_code: null,
-    ...buyer, resolution_reason: null,
+    ...buyer, resolution_reason: null, preview_email_authorized_origin: null, preview_email_authorized_until: null,
   };
   providerFacts = { id: 123, reference, domain: 'test', status: 'success', amount: 54_999, currency: 'GHS' };
   vi.mocked(consumePublicRateLimit).mockResolvedValue({ allowed: true });
@@ -98,6 +99,103 @@ afterEach(() => {
 });
 
 describe('public DevCon26 test checkout integration', () => {
+  it('advertises entered-address preview email only when the exact origin and sender are ready', async () => {
+    const catalog = async (origin: string) => {
+      const response = await app.request(`https://ems.example${base}`, { headers: { Origin: origin } });
+
+      return response.json() as Promise<{ preview_email_available: boolean }>;
+    };
+
+    expect((await catalog(previewOrigin)).preview_email_available).toBe(false);
+
+    for (const [key, value] of Object.entries({
+      TURNSTILE_SECRET_KEY: 'turnstile-fixture',
+      DEVCON26_TEST_CHECKOUT_PREVIEW_EMAILS_ENABLED: 'true',
+      DEVCON26_TEST_CHECKOUT_PREVIEW_EMAIL_ORIGINS: previewOrigin,
+      DEVCON26_TEST_CHECKOUT_EMAILS_ENABLED: 'true',
+      DEVCON26_TEST_CHECKOUT_EMAIL_FROM: 'tickets@example.com',
+      DEVCON26_TEST_CHECKOUT_EMAIL_REPLY_TO: 'team@example.com',
+      RESEND_API_KEY: 're_fixture',
+    })) vi.stubEnv(key, value);
+
+    expect((await catalog(previewOrigin)).preview_email_available).toBe(true);
+    expect((await catalog(commitOrigin)).preview_email_available).toBe(false);
+  });
+
+  it('requires a preview-bound human check before authorizing an unknown-address test email', async () => {
+    vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'turnstile-fixture');
+    vi.stubEnv('DEVCON26_TEST_CHECKOUT_PREVIEW_EMAILS_ENABLED', 'true');
+    vi.stubEnv('DEVCON26_TEST_CHECKOUT_PREVIEW_EMAIL_ORIGINS', previewOrigin);
+
+    const input = { tier_key: 'team_3', checkout_request_key: requestKey };
+
+    vi.stubEnv('TURNSTILE_SECRET_KEY', '');
+    const unconfigured = await post(`${base}/initialize`, input, { Origin: previewOrigin });
+
+    expect(unconfigured.status).toBe(503);
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'turnstile-fixture');
+    const missing = await post(`${base}/initialize`, input, { Origin: previewOrigin });
+
+    expect(missing.status).toBe(400);
+    expect(storage.prepareDevcon26TestSession).not.toHaveBeenCalled();
+    expect(provider).not.toHaveBeenCalled();
+
+    provider.mockImplementation(async (url: string) => url === turnstileVerificationUrl
+      ? new Response(JSON.stringify({ success: true, action: 'devcon26_test_preview_email', hostname: 'wrong.example' }))
+      : new Response(JSON.stringify({ status: true, data: { authorization_url: checkoutUrl, reference } })));
+
+    const wrongHost = await post(`${base}/initialize`, {
+      ...input, turnstile_token: 'fixture-token', turnstile_action: 'devcon26_test_preview_email',
+    }, { Origin: previewOrigin });
+
+    expect(wrongHost.status).toBe(400);
+    expect(storage.prepareDevcon26TestSession).not.toHaveBeenCalled();
+
+    provider.mockImplementation(async (url: string) => url === turnstileVerificationUrl
+      ? new Response(JSON.stringify({
+        success: true, action: 'devcon26_test_preview_email', hostname: new URL(previewOrigin).hostname,
+      }))
+      : new Response(JSON.stringify({ status: true, data: { authorization_url: checkoutUrl, reference } })));
+
+    const valid = await post(`${base}/initialize`, {
+      ...input, turnstile_token: 'fixture-token', turnstile_action: 'devcon26_test_preview_email',
+    }, { Origin: previewOrigin });
+
+    expect(valid.status).toBe(200);
+    expect(storage.prepareDevcon26TestSession).toHaveBeenCalledWith(
+      expect.anything(), devcon26TestCheckoutRequestKey(previewOrigin, requestKey), 'team_3',
+      buyer.purchaser_name, buyer.purchaser_email, undefined, previewOrigin,
+    );
+    const paystackCall = provider.mock.calls.find(([url]) => url === 'https://api.paystack.co/transaction/initialize');
+
+    expect(JSON.parse(paystackCall![1].body).email).toBe('sandbox@example.com');
+  });
+
+  it('fails closed if preview email throttling is unavailable', async () => {
+    vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'turnstile-fixture');
+    vi.stubEnv('DEVCON26_TEST_CHECKOUT_PREVIEW_EMAILS_ENABLED', 'true');
+    vi.stubEnv('DEVCON26_TEST_CHECKOUT_PREVIEW_EMAIL_ORIGINS', previewOrigin);
+    provider.mockImplementation(async (url: string) => url === turnstileVerificationUrl
+      ? new Response(JSON.stringify({
+        success: true, action: 'devcon26_test_preview_email', hostname: new URL(previewOrigin).hostname,
+      }))
+      : new Response(JSON.stringify({ status: true, data: { authorization_url: checkoutUrl, reference } })));
+    vi.mocked(consumePublicRateLimit).mockImplementation(async (_c, input) => input.action === 'devcon26-test-preview-email-shared-day'
+      ? { allowed: false, retryAfterSeconds: 60, unavailable: true }
+      : { allowed: true });
+
+    const response = await post(`${base}/initialize`, {
+      tier_key: 'team_3', checkout_request_key: requestKey,
+      turnstile_token: 'fixture-token', turnstile_action: 'devcon26_test_preview_email',
+    }, { Origin: previewOrigin });
+
+    expect(response.status).toBe(503);
+    expect(storage.prepareDevcon26TestSession).not.toHaveBeenCalled();
+    expect(provider.mock.calls.every(([url]) => url === turnstileVerificationUrl)).toBe(true);
+  });
+
   it.each([previewOrigin, commitOrigin])('quotes from %s without holding a use or initializing a provider payment', async (origin) => {
     session = { ...session, coupon_code: 'TEST-COUPON', coupon_id: requestKey, discount_amount_minor: 1000, amount_minor: 53_999 };
     const response = await post(`${base}/quote`, { tier_key: 'team_3', coupon_code: ' test-coupon ' }, { Origin: origin });
@@ -204,7 +302,7 @@ describe('public DevCon26 test checkout integration', () => {
     expect(initialized.headers.get('access-control-allow-origin')).toBe(origin);
     expect(JSON.parse(provider.mock.calls[0][1].body).callback_url).toBe(`${origin}/devcon26/payment-confirmation/?test_checkout=return`);
     expect(storage.prepareDevcon26TestSession).toHaveBeenCalledWith(expect.anything(), devcon26TestCheckoutRequestKey(origin, requestKey), 'team_3',
-      buyer.purchaser_name, buyer.purchaser_email, undefined);
+      buyer.purchaser_name, buyer.purchaser_email, undefined, undefined);
 
     const verified = await post(`${base}/verify`, { reference }, { Origin: origin });
 

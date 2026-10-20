@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import type { Context } from 'hono';
-import { sandboxEmailConfiguration, sandboxEmailContent, sandboxProviderPayloadSchema } from '@/lib/devcon26-test-checkout-email-delivery';
+import {
+  sandboxEmailConfiguration, sandboxEmailContent, sandboxEmailRecipientAllowed, sandboxProviderPayloadSchema,
+} from '@/lib/devcon26-test-checkout-email-delivery';
 import { sendResendEmailBatch } from '@/lib/email/resend';
 import { claimSandboxEmails, finishSandboxEmail, freezeSandboxEmail } from '@/lib/supabase/devcon26-test-checkout-emails';
 import { envValue } from '@/server/env';
@@ -11,6 +13,7 @@ export async function retrySandboxCheckoutEmails(c: Context) {
     'DEVCON26_TEST_BUYER_EMAIL', 'PUBLIC_WEBSITE_ORIGIN', 'DEVCON26_TEST_CHECKOUT_ORIGINS', 'NODE_ENV',
     'DEVCON26_TEST_CHECKOUT_EMAILS_ENABLED', 'DEVCON26_TEST_CHECKOUT_EMAIL_FROM',
     'DEVCON26_TEST_CHECKOUT_EMAIL_REPLY_TO', 'DEVCON26_TEST_CHECKOUT_EMAIL_RECIPIENTS', 'RESEND_API_KEY',
+    'DEVCON26_TEST_CHECKOUT_PREVIEW_EMAILS_ENABLED', 'DEVCON26_TEST_CHECKOUT_PREVIEW_EMAIL_ORIGINS',
   ];
   const configuration = sandboxEmailConfiguration(Object.fromEntries(keys.map((key) => [key, envValue(key, c)])));
 
@@ -20,7 +23,12 @@ export async function retrySandboxCheckoutEmails(c: Context) {
   const counts = { configured: true, accepted: 0, failed: 0, suppressed: 0 };
 
   for (const delivery of deliveries) {
-    if (!configuration.recipients.has(delivery.recipient_email)) {
+    const authorizedDelivery = delivery as typeof delivery & {
+      preview_email_authorized_origin?: string | null;
+      preview_email_authorized_until?: string | null;
+    };
+
+    if (!sandboxEmailRecipientAllowed(configuration, authorizedDelivery)) {
       await finishSandboxEmail(c, delivery.id, claimToken, 'suppressed');
       counts.suppressed += 1;
       continue;
@@ -45,6 +53,14 @@ export async function retrySandboxCheckoutEmails(c: Context) {
     if (!Number.isFinite(leaseUntil) || !Number.isFinite(firstAttemptAt)
       || now + 30_000 >= leaseUntil
       || now + 30_000 >= firstAttemptAt + 60 * 60_000) continue;
+
+    // Recheck immediately before the provider call so time spent freezing and
+    // validating cannot cross a preview authorization deadline.
+    if (!sandboxEmailRecipientAllowed(configuration, authorizedDelivery, Date.now())) {
+      await finishSandboxEmail(c, delivery.id, claimToken, 'suppressed');
+      counts.suppressed += 1;
+      continue;
+    }
 
     let providerEmailId: string | undefined;
 
