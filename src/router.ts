@@ -432,7 +432,14 @@ export const router = createRouter({
     {
       path: adminPath("annual-conference/:year(\\d{4})/ticketing"),
       name: "admin-annual-conference-ticketing",
-      redirect: (to) => annualConferencePath("registrations", String(to.params.year)),
+      component: () => import("./views/admin/AdminAnnualConferenceTicketingView.vue"),
+      beforeEnter: async (to) => {
+        const year = String(to.params.year);
+
+        return await canOpenAnnualConferenceTicketingRoute(year)
+          ? true
+          : annualConferencePath("", year);
+      },
     },
     {
       path: adminPath("annual-conference/:year(\\d{4})/volunteers"),
@@ -591,6 +598,19 @@ async function canOpenAnnualConferenceCheckInRoute(yearParam: unknown): Promise<
     });
 
     return hasAnyAnnualConferenceCapability(workspace.permissions.capabilities, ["ticketing.check_in", "ticketing.manage"]);
+  } catch {
+    return false;
+  }
+}
+
+async function canOpenAnnualConferenceTicketingRoute(year: string): Promise<boolean> {
+  try {
+    const workspace = await queryClient.fetchQuery({
+      queryKey: queryKeys.annualConferenceWorkPlan(year),
+      queryFn: () => fetchAnnualConferenceWorkPlan(year),
+    });
+
+    return hasAnyAnnualConferenceCapability(workspace.permissions.capabilities, ["ticketing.manage"]);
   } catch {
     return false;
   }

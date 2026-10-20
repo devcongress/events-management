@@ -2,9 +2,12 @@
 
 ## 2026-10-20 — DevCon26 flexible paid ticket foundation
 
+- Restore the guarded Annual Conference Ticketing management tab and route for Owners and Organizers with `ticketing.manage`; keep Finance disabled and public ticket sales behind their separate activation gates.
+- Add a forward migration that lets a ticketing manager correct unpublished ticket prices while free registration is closed and no checkout order exists. This permits the GH₵150 sandbox rehearsal without opening paid sales; test coupons use the same sandbox price source.
 - Add a GH₵150 per-seat Paystack checkout contract for mixed self, gift, sponsor-managed, organizer-managed community, and buyer-shareable community allocations. The provider's per-transaction amount ceiling bounds one payment; buyers can place additional orders.
 - Add immutable allocation snapshots, capacity-locked holds, private one-time claims, individual admission delivery, and separate social-card eligibility. Keep payment verification and admission QR generation on the server.
 - Add a restricted Paystack test-checkout preview email path so approved feature-origin testers can receive clearly marked test-only messages without live seats or QR codes.
+- Let the GH₵150 sandbox rehearsal read configured edition prices while public sales remain free/closed. Keep the public price catalog closed, require the agreed regular and team prices, and replace stale sandbox preview origins with the current website branch origin.
 - Add forward migrations and read-only verification contracts. These files do not apply themselves or open sales; live schema verification and explicit activation remain separate rollout gates.
 
 ## 2026-10-19 — App-wide loading and layout refresh

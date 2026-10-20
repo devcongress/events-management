@@ -105,7 +105,11 @@ export async function getSupabaseAnnualConferenceTicketing(year: number, c?: Con
   };
 }
 
-export async function getSupabaseAnnualConferencePublicTicketPrices(year: number, c?: Context) {
+export async function getSupabaseAnnualConferencePublicTicketPrices(
+  year: number,
+  c?: Context,
+  availability: 'public' | 'sandbox' = 'public',
+) {
   if (!isSupabaseRuntimeEnabled(c)) return null;
 
   const client = getSupabaseAdminClient(c);
@@ -121,8 +125,8 @@ export async function getSupabaseAnnualConferencePublicTicketPrices(year: number
 
   if (settingsResult.error) throw new Error(settingsResult.error.message);
   if (!settingsResult.data || settingsResult.data.currency !== 'GHS') return undefined;
-  if ((settingsResult.data as unknown as { public_mode: string }).public_mode !== 'paid'
-    || settingsResult.data.sales_status !== 'open') return undefined;
+  if (availability === 'public' && ((settingsResult.data as unknown as { public_mode: string }).public_mode !== 'paid'
+    || settingsResult.data.sales_status !== 'open')) return undefined;
 
   const prices = {
     regular: settingsResult.data.regular_price_minor,
@@ -131,10 +135,14 @@ export async function getSupabaseAnnualConferencePublicTicketPrices(year: number
   };
 
   if (validateAnnualConferenceTicketPrices(prices)) return undefined;
+  if (availability === 'sandbox' && (prices.regular !== 15_000
+    || prices.team_3 !== 45_000 || prices.team_5 !== 75_000)) return undefined;
 
   return {
     currency: settingsResult.data.currency,
-    tiers: ticketTiersForPrices(prices).filter((tier) => tier.key === 'regular').map((tier) => ({ tier_key: tier.key, quantity: tier.quantity, amount_minor: tier.price_minor })),
+    tiers: ticketTiersForPrices(prices)
+      .filter((tier) => availability === 'sandbox' || tier.key === 'regular')
+      .map((tier) => ({ tier_key: tier.key, quantity: tier.quantity, amount_minor: tier.price_minor })),
   };
 }
 

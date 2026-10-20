@@ -57,7 +57,7 @@ export function registerDevcon26TestCouponRoutes(app: Hono<AppBindings>) {
     if (!input.success) return c.json({ error: input.error.issues[0]?.message ?? 'Check the coupon details.' }, 400);
 
     try {
-      const prices = await getSupabaseAnnualConferencePublicTicketPrices(2026, c);
+      const prices = await getSupabaseAnnualConferencePublicTicketPrices(2026, c, 'sandbox');
 
       if (!prices) return c.json({ error: 'Current ticket prices are not available.' }, 503);
 
