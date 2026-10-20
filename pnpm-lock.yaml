@@ -54,8 +54,8 @@ importers:
         specifier: 1.25.0
         version: 1.25.0
       hono:
-        specifier: ^4.13.7
-        version: 4.13.7
+        specifier: ^4.13.11
+        version: 4.13.11
       jsqr:
         specifier: ^1.4.0
         version: 1.4.0
@@ -86,7 +86,7 @@ importers:
         version: 3.1133.0
       '@hono/vite-dev-server':
         specifier: ^0.26.1
-        version: 0.26.1(hono@4.13.7)(miniflare@4.20260722.0(@types/node@20.19.41))(wrangler@4.130.0(@types/node@20.19.41))
+        version: 0.26.1(hono@4.13.11)(miniflare@4.20260722.0(@types/node@20.19.41))(wrangler@4.130.0(@types/node@20.19.41))
       '@stylistic/eslint-plugin':
         specifier: ^5.10.0
         version: 5.10.0(eslint@10.10.0(jiti@1.21.7))
@@ -1936,8 +1936,8 @@ packages:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
 
-  hono@4.13.7:
-    resolution: {integrity: sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ==}
+  hono@4.13.11:
+    resolution: {integrity: sha512-/SMX/RQNJn7oNmFwH6DtwDqcrzZU2otm1FD6OJe2cWF6cfy/F8hq0XVBv7xW3FTJshRQwuBnXHDq2kNsdZnshg==}
     engines: {node: '>=16.9.0'}
 
   hookified@1.15.1:
@@ -3168,14 +3168,14 @@ snapshots:
 
   '@fontsource/inter@5.2.8': {}
 
-  '@hono/node-server@2.0.12(hono@4.13.7)':
+  '@hono/node-server@2.0.12(hono@4.13.11)':
     dependencies:
-      hono: 4.13.7
+      hono: 4.13.11
 
-  '@hono/vite-dev-server@0.26.1(hono@4.13.7)(miniflare@4.20260722.0(@types/node@20.19.41))(wrangler@4.130.0(@types/node@20.19.41))':
+  '@hono/vite-dev-server@0.26.1(hono@4.13.11)(miniflare@4.20260722.0(@types/node@20.19.41))(wrangler@4.130.0(@types/node@20.19.41))':
     dependencies:
-      '@hono/node-server': 2.0.12(hono@4.13.7)
-      hono: 4.13.7
+      '@hono/node-server': 2.0.12(hono@4.13.11)
+      hono: 4.13.11
       minimatch: 10.2.6
     optionalDependencies:
       miniflare: 4.20260722.0(@types/node@20.19.41)
@@ -4409,7 +4409,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono@4.13.7: {}
+  hono@4.13.11: {}
 
   hookified@1.15.1: {}
 

@@ -2,6 +2,7 @@
 
 ## 2026-10-20 — DevCon26 flexible paid ticket foundation
 
+- Update Hono to patched version 4.13.11 to clear the static-path double-decoding advisory reported by the PR dependency audit.
 - Restore the guarded Annual Conference Ticketing management tab and route for Owners and Organizers with `ticketing.manage`; keep Finance disabled and public ticket sales behind their separate activation gates.
 - Add a forward migration that lets a ticketing manager correct unpublished ticket prices while free registration is closed and no checkout order exists. This permits the GH₵150 sandbox rehearsal without opening paid sales; test coupons use the same sandbox price source.
 - Add a GH₵150 per-seat Paystack checkout contract for mixed self, gift, sponsor-managed, organizer-managed community, and buyer-shareable community allocations. The provider's per-transaction amount ceiling bounds one payment; buyers can place additional orders.
