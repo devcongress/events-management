@@ -617,9 +617,9 @@ onUnmounted(() => {
               </thead>
               <tbody class="divide-y divide-dc-border">
                 <tr v-for="order in ticketOrderQuery.data.value?.orders" :key="order.id" class="group">
-                  <th scope="row" class="px-5 py-4 pr-4 font-normal"><p class="font-semibold text-dc-ink">{{ order.purchaser_name }}</p><p class="mt-1 max-w-[16rem] truncate text-xs text-dc-gray">{{ order.purchaser_email }}</p></th>
+                  <th scope="row" class="px-5 py-4 pr-4 font-normal"><p class="font-semibold text-dc-ink">{{ order.purchaser_name }} <span v-if="order.payment_mode === 'test'" class="text-xs font-normal text-dc-gray">· TEST PAYMENT</span></p><p class="mt-1 max-w-[16rem] truncate text-xs text-dc-gray">{{ order.purchaser_email }}</p></th>
                   <td class="px-4 py-4"><p class="font-semibold text-dc-ink">{{ ticketTierLabel(order.tier_key) }}</p><p class="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-dc-gray">{{ order.quantity }} {{ order.quantity === 1 ? 'seat' : 'seats' }}</p></td>
-                  <td class="px-4 py-4 text-right font-semibold text-dc-ink">{{ formatTicketMoney(order.amount_minor) }}</td>
+                  <td class="px-4 py-4 text-right font-semibold text-dc-ink">{{ formatTicketMoney(order.amount_minor) }}<span v-if="order.payment_mode === 'test'" class="block text-xs font-normal">Simulated · GH₵0 charged</span></td>
                   <td class="px-4 py-4"><span class="rounded-full border border-dc-border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase text-dc-ink">{{ order.delivery_status ?? 'Not queued' }}</span></td>
                   <td class="px-4 py-4 font-mono text-xs font-semibold text-dc-ink">{{ ticketOrderCheckInCount(order) }} / {{ order.quantity }}</td>
                   <td class="px-5 py-4 pl-4 text-right"><button type="button" class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray hover:border-dc-ink hover:text-dc-ink" @click="openTicketOrder(order, $event)">Details</button></td>
@@ -788,7 +788,7 @@ onUnmounted(() => {
           <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
             <dl class="divide-y divide-dc-border border-y border-dc-border">
               <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Pass</dt><dd class="text-right font-semibold text-dc-ink">{{ ticketTierLabel(selectedOrder.tier_key) }} · {{ selectedOrder.quantity }} {{ selectedOrder.quantity === 1 ? 'seat' : 'seats' }}</dd></div>
-              <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Paid amount</dt><dd class="font-semibold text-dc-ink">{{ formatTicketMoney(selectedOrder.amount_minor) }}</dd></div>
+              <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">{{ selectedOrder.payment_mode === 'test' ? 'Simulated amount (GH₵0 charged)' : 'Paid amount' }}</dt><dd class="font-semibold text-dc-ink">{{ formatTicketMoney(selectedOrder.amount_minor) }}</dd></div>
               <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Purchased</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ formatTicketDate(selectedOrder.created_at) }}</dd></div>
               <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Payment reference</dt><dd class="max-w-[16rem] break-all text-right font-mono text-xs font-semibold text-dc-ink">{{ selectedOrder.payment_reference ?? 'Not available' }}</dd></div>
               <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Delivery</dt><dd class="font-mono text-xs font-semibold uppercase text-dc-ink">{{ selectedOrder.delivery_status ?? 'Not queued' }}</dd></div>

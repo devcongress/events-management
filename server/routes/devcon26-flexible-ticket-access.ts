@@ -35,7 +35,7 @@ export function isDevcon26FlexibleTicketAccessRequest(path: string, method: stri
 function environment(c: Context<AppBindings>) {
   return Object.fromEntries([
     'DEVCON26_PUBLIC_CHECKOUT_ORIGINS', 'DEVCON26_FLEXIBLE_TICKET_ACCESS_ENABLED',
-    'PUBLIC_WEBSITE_ORIGIN', 'NODE_ENV',
+    'PUBLIC_WEBSITE_ORIGIN', 'NODE_ENV', 'DEVCON26_COMPLETE_TEST_ENABLED', 'DEVCON26_COMPLETE_TEST_ORIGIN',
   ].map((key) => [key, envValue(key, c)]));
 }
 
@@ -78,7 +78,8 @@ export function registerDevcon26FlexibleTicketAccessRoutes(app: Hono<AppBindings
   app.use(`${DEVCON26_FLEXIBLE_TICKET_ACCESS_PATH}/*`, async (c, next) => {
     const configuration = environment(c);
 
-    if (configuration.DEVCON26_FLEXIBLE_TICKET_ACCESS_ENABLED?.trim().toLowerCase() !== 'true'
+    if ((configuration.DEVCON26_FLEXIBLE_TICKET_ACCESS_ENABLED?.trim().toLowerCase() !== 'true'
+      && !(configuration.DEVCON26_COMPLETE_TEST_ENABLED === 'true' && c.req.header('Origin') === configuration.DEVCON26_COMPLETE_TEST_ORIGIN))
       || !devcon26PublicTicketAccessOriginAllowed(configuration, c.req.header('Origin'))) {
       return c.json({ error: 'Ticket access is not available.' }, 503);
     }

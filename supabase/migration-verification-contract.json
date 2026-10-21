@@ -3542,12 +3542,308 @@
           "type": "integer",
           "notNull": true,
           "defaultExpression": "75000"
+        }
+      ]
+    },
+    {
+      "file": "20261021150000_complete_test_ticket_checkout.sql",
+      "sha256": "503d266fb1850a6e9e2a7f9e6e3142f1fdc647fe24bf59ee6ea8470985957faa",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "create_annual_conference_complete_test_hold",
+          "argumentTypes": "uuid, text, text, integer, jsonb, uuid, text",
+          "result": "annual_conference_ticket_orders",
+          "language": "plpgsql",
+          "bodySha256": "d32b37e1dc32fd93c31205bd32d7c84002064ccc0485656c371cfd79f5c2cd20",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "guard_complete_test_order_identity",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "91beedfc0db908b736a5fb0f3793b3b18df37980c7fdbbe1fa3aa3b9c26395b7",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "guard_complete_test_payment_domain",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "0f12d820b54653f4f87d1a44732aa3d7ed3b4f01368a7f471ed441ed7798a9ee",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "guard_complete_test_ticket",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "c010af67d7bd4e1848e5ccd7a7d532072023494cac2e2bd30a43320b26e4f9d8",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "complete_test_email_context",
+          "argumentTypes": "text, uuid",
+          "result": "jsonb",
+          "language": "sql",
+          "bodySha256": "9b899abe1d25cfbe8e3f9faf365686ba2683dbfb2eaf7e962487a61497672492",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "guard_complete_test_email_lease",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "5ca431297254c08c6a36e90cd8be1206eb7af569f3ee6ab3fcb2d39a343c060f",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "guard_complete_test_refund",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "e6af76a0b9a39ed42d5b2760ec154ced8d2fb4d5add6389f46a38d5bc6cbbe8f",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_complete_test_aware_admission_emails",
+          "argumentTypes": "uuid, integer",
+          "result": "SETOF annual_conference_ticket_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "450ece9dcc12e231fffa1d2747323d06f18289204a8ff0783063960ad7a79b44",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_complete_test_aware_social_emails",
+          "argumentTypes": "uuid, integer",
+          "result": "SETOF annual_conference_social_card_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "b44c33d1fa00f2497e8c8dd895d84edbdb6dabc78887fa6f255b44bac18ccf78",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "mark_complete_test_badge",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "4043f1a78056eb3f77603b9cda230fa5b0c93452a93544902b6fe0c4619c72fd",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "guard_complete_test_live_launch",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "9432505683b8be4be3cf514b9ed5ae0cd3e5ce197a82c497df1ba5a7a36dffe1",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_orders",
+          "name": "payment_mode",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": "'live'::text"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_orders",
+          "name": "checkout_origin",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_social_cards",
+          "name": "is_test",
+          "type": "boolean",
+          "notNull": true,
+          "defaultExpression": "false"
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_ticket_orders",
+          "name": "guard_complete_test_order_identity",
+          "function": "guard_complete_test_order_identity",
+          "functionSchema": "public",
+          "contains": [
+            "EXECUTE FUNCTION guard_complete_test_order_identity"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_events",
+          "name": "guard_complete_test_payment_domain",
+          "function": "guard_complete_test_payment_domain",
+          "functionSchema": "public",
+          "contains": [
+            "EXECUTE FUNCTION guard_complete_test_payment_domain"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_tickets",
+          "name": "guard_complete_test_ticket",
+          "function": "guard_complete_test_ticket",
+          "functionSchema": "public",
+          "contains": [
+            "EXECUTE FUNCTION guard_complete_test_ticket"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_ticket_email_outbox",
+          "name": "guard_complete_test_admission_lease",
+          "function": "guard_complete_test_email_lease",
+          "functionSchema": "public",
+          "contains": [
+            "EXECUTE FUNCTION guard_complete_test_email_lease"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_social_card_email_outbox",
+          "name": "guard_complete_test_social_lease",
+          "function": "guard_complete_test_email_lease",
+          "functionSchema": "public",
+          "contains": [
+            "EXECUTE FUNCTION guard_complete_test_email_lease"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_ticket_refunds",
+          "name": "guard_complete_test_refund",
+          "function": "guard_complete_test_refund",
+          "functionSchema": "public",
+          "contains": [
+            "EXECUTE FUNCTION guard_complete_test_refund"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_social_cards",
+          "name": "mark_complete_test_badge",
+          "function": "mark_complete_test_badge",
+          "functionSchema": "public",
+          "contains": [
+            "EXECUTE FUNCTION mark_complete_test_badge"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_ticketing_settings",
+          "name": "guard_complete_test_live_launch",
+          "function": "guard_complete_test_live_launch",
+          "functionSchema": "public",
+          "contains": [
+            "EXECUTE FUNCTION guard_complete_test_live_launch"
+          ]
         },
         {
           "kind": "data",
           "schema": "public",
           "name": "devcon26_2026_ticket_price_state",
-          "value": "GHS|15000|45000|75000|foundation"
+          "value": "GHS|15000|45000|75000|internal"
+        }
+      ]
+    },
+    {
+      "file": "20261021160000_preview_only_ticket_email_leasing.sql",
+      "sha256": "785c830224873b4f2e0d80d84f4f4975e72c1846e138894ddfb4a2bb409b08e7",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_complete_test_only_admission_emails",
+          "argumentTypes": "uuid, integer, text",
+          "result": "SETOF annual_conference_ticket_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "ec998e59fbd0de77f4cdcf82f08537392798b559e45eced70a13c9eaf6b20113",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_complete_test_only_social_emails",
+          "argumentTypes": "uuid, integer, text",
+          "result": "SETOF annual_conference_social_card_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "b894de84dd815b4de212fa0a33b8bc6c06a649a58c570ce7efadb3678777a3ad",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
         }
       ]
     }

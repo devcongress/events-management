@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-21 — Full-flow preview ticket testing
+
+- Add a separate preview-only Paystack test checkout with real ticket/claim and badge email fulfillment for approved testers. Catalog and initialization share paid/open, internal-lifecycle, price, tester, and email-readiness checks.
+- Preserve immutable test-order provenance, reject live/test payment mismatches, block event admission and live refunds for test tickets, and mark badge downloads and organizer orders.
+- Route private email links back to the originating preview and keep test mail held when testing is disabled.
+- Include the two reviewed forward migrations applied separately by the user; this PR does not apply SQL or deploy production.
+
+
 ## 2026-10-21 — Align public tickets and sponsor operations
 
 - Show one GH₵150 individual ticket in 2026 organizer pricing and sandbox checkout; prevent new 2026 price edits and group coupon/test purchases. Retain legacy price columns and old orders for compatibility.
@@ -3208,3 +3216,16 @@ _Future entries go above this line._
 
 - Fixed approved-event change requests failing during the durable email insert because PostgreSQL treated the approval/rejection `CASE` result as text instead of the email-kind enum.
 - Applied the explicit enum conversion to the shared decision path so both approving and rejecting amendments can commit atomically.
+
+### 2026-10-21 — Complete-test checkout review safeguards
+
+- Require preview-bound human verification and durable IP, recipient, and shared quotas before creating test holds.
+- Render test-specific email wording and visibly labeled, scannable test QR PNGs; organizer amounts distinguish simulation from real charges.
+- Block public lifecycle activation until separately authorized test-data cleanup; test holds require the internal lifecycle under the same edition lock. The user applied the reviewed migrations separately; test-data cleanup remains separately authorized.
+
+### 2026-10-21 — Isolated preview delivery and deployed CSP diagnosis
+
+- Verified the applied complete-test migration against the live catalog and uploaded versioned EMS/website previews without changing active production versions.
+- Fixed the feature website CSP to allow its exact EMS preview backend only in the explicit test build; checkout now opens Paystack TEST mode.
+- Added the user-applied preview-only email leasing migration so the older queued badge message remains untouched; the new functions isolate every lease and terminal update by approved test provenance and preview origin.
+- A separate minute-based preview relay invokes only test-scoped delivery endpoints. Full-flow acceptance remains with the user; successful payment and new email delivery are not yet claimed.

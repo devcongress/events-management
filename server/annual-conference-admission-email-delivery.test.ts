@@ -1,3 +1,5 @@
+import { PNG } from 'pngjs';
+import jsQR from 'jsqr';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Context } from 'hono';
 
@@ -27,7 +29,7 @@ beforeEach(() => {
     error: null,
     data: name === 'claim_annual_conference_ticket_email_outbox' ? [delivery]
       : name === 'freeze_annual_conference_admission_email' ? args.p_payload
-        : name === 'annual_conference_email_allowed' ? true : {},
+        : name === 'complete_test_email_context' ? { is_test: false, allowed: true } : name === 'annual_conference_email_allowed' ? true : {},
   }));
 });
 
@@ -105,9 +107,40 @@ describe('conference admission delivery', () => {
   it('does not turn an ambiguous accepted acknowledgement into a new failed delivery', async () => {
     mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
       error: name === 'finalize_annual_conference_ticket_email_outbox' ? { message: 'unavailable' } : null,
-      data: name === 'claim_annual_conference_ticket_email_outbox' ? [delivery] : name === 'annual_conference_email_allowed' ? true : args.p_payload,
+      data: name === 'claim_annual_conference_ticket_email_outbox' ? [delivery] : name === 'complete_test_email_context' ? { is_test: false, allowed: true } : name === 'annual_conference_email_allowed' ? true : args.p_payload,
     }));
     await expect(retryAnnualConferenceAdmissionEmails({} as Context)).rejects.toThrow('acknowledgement');
     expect(mocks.rpc.mock.calls.filter(([name]) => name === 'finalize_annual_conference_ticket_email_outbox')).toHaveLength(1);
+  });
+});
+
+describe('test admission artifacts', () => {
+  it('sends a marked, still-decodable PNG without claiming event admission', async () => {
+    const content = await admissionEmailContent(delivery, 'events@example.test', 'help@example.test', 'https://preview.account.workers.dev', true);
+    const attachment = content.attachments![0];
+    const image = PNG.sync.read(Buffer.from(attachment.content, 'base64'));
+
+    expect(attachment.filename).toContain('TEST-NOT-VALID-FOR-ADMISSION');
+    expect([image.width, image.height]).toEqual([600, 720]);
+    expect(jsQR(new Uint8ClampedArray(image.data), image.width, image.height)?.data).toBe(delivery.payload.qr_token);
+    for (const [start, end] of [[0, 60], [660, 720]]) {
+      const band = image.data.subarray(start * 600 * 4, end * 600 * 4);
+      const colors = new Set(Array.from(band).filter((_v, index) => index % 4 !== 3));
+
+      expect(colors).toEqual(new Set([0, 255]));
+    }
+    expect(content.text).toContain('cannot be used to check in');
+    expect(content.text).not.toMatch(/place.*confirmed|Show.*entrance|admits one person/);
+  });
+
+  it('uses preview payment and claim wording instead of live admission promises', async () => {
+    for (const kind of ['flexible_order_management', 'flexible_gift_claim', 'payment_receipt'] as const) {
+      const content = await admissionEmailContent({ ...delivery, kind, payload: { capability: 'b'.repeat(64) } },
+        'events@example.test', 'help@example.test', 'https://preview.account.workers.dev', true);
+
+      expect(content.text).toMatch(/test|preview/);
+      expect(content.text).not.toContain('Your DevCon26 payment is confirmed');
+      if (kind !== 'payment_receipt') expect(content.text).toContain('https://preview.account.workers.dev/');
+    }
   });
 });

@@ -453,6 +453,7 @@ export interface AnnualConferenceTicketOrderSeat {
 }
 
 export interface AnnualConferenceTicketOrderOverview {
+  payment_mode?: 'live' | 'test';
   id: string;
   purchaser_name: string;
   purchaser_email: string;
@@ -487,7 +488,7 @@ export async function listSupabaseAnnualConferenceTicketOrders(input: {
   const client = getSupabaseAdminClient(c);
   const orderResult = await client
     .from('annual_conference_ticket_orders')
-    .select('id, purchaser_name, purchaser_email, tier_key, quantity, amount_minor, currency, status, payment_reference, paid_at, created_at', { count: 'exact' })
+    .select('id, purchaser_name, purchaser_email, tier_key, quantity, amount_minor, currency, status, payment_reference, paid_at, created_at, payment_mode', { count: 'exact' })
     .eq('edition_id', input.editionId)
     .order('created_at', { ascending: false })
     .range(from, to);

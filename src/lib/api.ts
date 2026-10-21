@@ -441,6 +441,7 @@ export interface AnnualConferenceTicketOrderSeat {
   checked_in_at: string | null;
 }
 export interface AnnualConferenceTicketOrderOverview {
+  payment_mode?: 'live' | 'test';
   id: string;
   purchaser_name: string;
   purchaser_email: string;
