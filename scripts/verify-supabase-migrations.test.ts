@@ -41,7 +41,7 @@ describe('migration contract inventory', () => {
   it('covers the current files with an honest legacy exemption and reviewed contracts', () => {
     expect(validateInventory(contract, sources)).toEqual([]);
     expect(Object.keys(contract.legacyInventory)).toHaveLength(92);
-    expect(contract.verified).toHaveLength(30);
+    expect(contract.verified).toHaveLength(31);
   });
 
   it('rejects unregistered SQL, changed legacy SQL, missing files and new version collisions', () => {
@@ -106,6 +106,7 @@ describe('read-only schema verification', () => {
         && (!('table' in probe) || object.table === probe.table))!;
 
       switch (probe.kind) {
+        case 'data': item.value = 'wrong'; break;
         case 'table': item.private = !probe.private; break;
         case 'column': item.type = 'wrong'; break;
         case 'constraint':

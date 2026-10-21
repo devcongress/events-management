@@ -1,6 +1,5 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { DEVCON26_TICKET_TIERS } from '@/lib/annual-conference-ticketing';
 
 const migration = await readFile(new URL('./migrations/20261007050000_devcon26_test_checkout.sql', import.meta.url), 'utf8');
 
@@ -25,8 +24,8 @@ describe('isolated DevCon26 test persistence contract', () => {
     expect(migration).toContain("p_domain is distinct from 'test'");
     expect(migration).toContain('session.amount_minor = p_amount_minor and session.currency = p_currency');
 
-    for (const tier of DEVCON26_TICKET_TIERS) {
-      expect(migration).toContain(`when '${tier.key}' then price := ${tier.price_minor}; seats := ${tier.quantity};`);
-    }
+    expect(migration).toContain("when 'regular' then price := 19999; seats := 1;");
+    expect(migration).toContain("when 'team_3' then price := 54999; seats := 3;");
+    expect(migration).toContain("when 'team_5' then price := 84999; seats := 5;");
   });
 });

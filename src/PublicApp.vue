@@ -7,6 +7,7 @@
             <PublicFormRouteFrame
               v-if="isPublicFormRouteName(route.name)"
               :key="route.fullPath"
+              :center-content="route.name === 'event-registration' || route.name === 'event-registration-short'"
             >
               <component :is="Component" class="page-view" />
             </PublicFormRouteFrame>

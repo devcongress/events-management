@@ -3511,6 +3511,45 @@
           "serviceExecute": true
         }
       ]
+    },
+    {
+      "file": "20261021120000_devcon26_ticket_price_reconciliation.sql",
+      "sha256": "523d2090e204d8cc7a2139bd1919762b9059e0edfc8e130409e438d77c0d668b",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticketing_settings",
+          "name": "regular_price_minor",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "15000"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticketing_settings",
+          "name": "team_3_price_minor",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "45000"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticketing_settings",
+          "name": "team_5_price_minor",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "75000"
+        },
+        {
+          "kind": "data",
+          "schema": "public",
+          "name": "devcon26_2026_ticket_price_state",
+          "value": "GHS|15000|45000|75000|foundation"
+        }
+      ]
     }
   ]
 }

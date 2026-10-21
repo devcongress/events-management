@@ -33,6 +33,13 @@ describe('deployed response-layer security parity', () => {
     }
   });
 
+  it('permits the public website font hosts at every response layer', () => {
+    for (const source of [staticHeaders, outerWorker, apiApp]) {
+      expect(source).toContain('https://fonts.googleapis.com');
+      expect(source).toContain('https://fonts.gstatic.com');
+    }
+  });
+
   it('edge-caches only bounded public reads and keeps capability routes out of cache', () => {
     expect(outerWorker).toContain('cacheEverything: true');
     expect(outerWorker).toContain("path === '/api/public/events'");

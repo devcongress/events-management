@@ -11,14 +11,14 @@ import {
 } from '@/lib/annual-conference-ticketing';
 
 describe('annual conference ticketing policy', () => {
-  it('starts with DevCon26 prices in pesewas and discounts group packs', () => {
+  it('starts with the GH₵150 per-seat DevCon26 prices in pesewas', () => {
     const [regular, team3, team5] = DEVCON26_TICKET_TIERS;
 
-    expect(regular.price_minor).toBe(19_999);
-    expect(team3.price_minor).toBe(54_999);
-    expect(team5.price_minor).toBe(84_999);
-    expect(tierSavings(team3, regular)).toBe(4_998);
-    expect(tierSavings(team5, regular)).toBe(14_996);
+    expect(regular.price_minor).toBe(15_000);
+    expect(team3.price_minor).toBe(45_000);
+    expect(team5.price_minor).toBe(75_000);
+    expect(tierSavings(team3, regular)).toBe(0);
+    expect(tierSavings(team5, regular)).toBe(0);
   });
 
   it('parses editable GHS amounts exactly, without floating point input', () => {
@@ -50,9 +50,9 @@ describe('annual conference ticketing policy', () => {
   });
 
   it('only resolves published tier keys and never trusts a client price or quantity', () => {
-    expect(ticketTierForKey('regular')).toMatchObject({ quantity: 1, price_minor: 19_999 });
-    expect(ticketTierForKey('team_3')).toMatchObject({ quantity: 3, price_minor: 54_999 });
-    expect(ticketTierForKey('team_5')).toMatchObject({ quantity: 5, price_minor: 84_999 });
+    expect(ticketTierForKey('regular')).toMatchObject({ quantity: 1, price_minor: 15_000 });
+    expect(ticketTierForKey('team_3')).toMatchObject({ quantity: 3, price_minor: 45_000 });
+    expect(ticketTierForKey('team_5')).toMatchObject({ quantity: 5, price_minor: 75_000 });
     expect(ticketTierForKey('free')).toBeNull();
   });
 });

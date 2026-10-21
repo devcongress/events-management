@@ -314,6 +314,30 @@ async function submitRegistration() {
     max(clamp(1rem, 3svh, 2rem), env(safe-area-inset-bottom))
     max(clamp(1rem, 3vw, 2rem), env(safe-area-inset-left));
   color: #111111;
+  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
+}
+
+.registration-page h1,
+.registration-page h2 {
+  font-family: 'Bricolage Grotesque', var(--font-sans), sans-serif;
+  font-weight: 600;
+}
+
+.registration-page .editorial-eyebrow,
+.registration-page .editorial-label,
+.registration-page .editorial-action {
+  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
+  font-weight: 600;
+}
+
+.registration-page .editorial-secondary-action {
+  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
+  font-weight: 600;
+}
+
+:global(.registration-page input.editorial-input) {
+  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
+  font-weight: 400;
 }
 
 .registration-shell {
@@ -344,7 +368,7 @@ async function submitRegistration() {
 .registration-brand-name,
 .registration-event-meta dt {
   color: #e8117f;
-  font-family: var(--font-mono), monospace;
+  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
   font-size: 0.68rem;
   font-weight: var(--font-weight-label);
   letter-spacing: 0.08em;
@@ -356,7 +380,7 @@ async function submitRegistration() {
   margin-top: 0.18rem;
   color: #555555;
   font-size: 0.82rem;
-  font-weight: var(--font-weight-label);
+  font-weight: 400;
   line-height: 1.2;
 }
 
@@ -447,7 +471,7 @@ async function submitRegistration() {
   overflow: visible;
   color: #111111;
   font-size: clamp(2rem, 4vw, 4.25rem);
-  font-weight: var(--font-weight-heading);
+  font-weight: 600;
   letter-spacing: -0.035em;
   line-height: 0.96;
   overflow-wrap: anywhere;
@@ -483,7 +507,7 @@ async function submitRegistration() {
   margin-top: 0.35rem;
   overflow: hidden;
   font-size: 0.82rem;
-  font-weight: var(--font-weight-heading);
+  font-weight: 500;
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -625,7 +649,7 @@ async function submitRegistration() {
   border-left: 1px solid #c9c2b3;
   padding-left: 0.75rem;
   color: #6b675f;
-  font-family: var(--font-mono), monospace;
+  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
   font-size: 0.62rem;
   font-weight: var(--font-weight-label);
   letter-spacing: 0.12em;
@@ -638,7 +662,7 @@ async function submitRegistration() {
   margin-top: 0.55rem;
   overflow: hidden;
   font-size: clamp(1.65rem, 3vw, 2.6rem);
-  font-weight: var(--font-weight-heading);
+  font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1;
   -webkit-box-orient: vertical;

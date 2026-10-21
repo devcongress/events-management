@@ -10,6 +10,7 @@ const object = { schema: schemaName, name: identifier };
 const relation = { ...object, table: identifier };
 
 export const probeSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('data'), ...object, value: z.string().min(1) }).strict(),
   z.object({ kind: z.literal('table'), ...object, rls: z.boolean(), private: z.boolean() }).strict(),
   z.object({ kind: z.literal('column'), ...relation, type: z.string().min(1), notNull: z.boolean(), defaultExpression: z.string().nullable() }).strict(),
   z.object({ kind: z.literal('index'), ...relation, contains: definition }).strict(),

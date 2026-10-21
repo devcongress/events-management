@@ -13,9 +13,9 @@ export interface AnnualConferenceTicketTier {
 }
 
 export const DEVCON26_TICKET_TIERS: readonly AnnualConferenceTicketTier[] = [
-  { key: 'regular', label: 'Regular pass', quantity: 1, price_minor: 19_999, public: true },
-  { key: 'team_3', label: 'Team of 3', quantity: 3, price_minor: 54_999, public: true },
-  { key: 'team_5', label: 'Team of 5', quantity: 5, price_minor: 84_999, public: true },
+  { key: 'regular', label: 'Regular pass', quantity: 1, price_minor: 15_000, public: true },
+  { key: 'team_3', label: 'Team of 3', quantity: 3, price_minor: 45_000, public: true },
+  { key: 'team_5', label: 'Team of 5', quantity: 5, price_minor: 75_000, public: true },
 ] as const;
 
 export function ticketTierForKey(key: string): AnnualConferenceTicketTier | null {
