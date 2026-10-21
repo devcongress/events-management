@@ -85,3 +85,71 @@ Allow the website origin in `PUBLIC_API_CORS_ORIGINS` and its host in the Turnst
 The exact website branch preview origin `https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev` is allowed on the DevCon26 registration GET/POST endpoint and the DevCon26 annual CFP route. Registration and CFP Turnstile checks accept that hostname only for their respective 2026 flows; neither origin is added to general public or organizer CORS. The widget administrator must separately allow that hostname in Cloudflare Turnstile. This does not open registration or CFP, or enable email delivery. Preview registrations and proposals use the configured EMS database, not an isolated sandbox. Deploy the EMS change before testing the hosted preview.
 
 `scripts/test-conference-registration.mjs` is restricted to a disposable local PostgreSQL socket/database. It exercises real migrations, capacity contention, normalized duplicates, cancellation/promotion, concurrent scanning, private grants, reviewed update snapshots, immutable retry payloads, suppression, and late-payment refunds. Vitest covers public/admin access and admission sender behavior without sending email. A production migration or real attendee email is never part of automated local verification.
+
+## Full-flow Paystack preview testing (2026-10-21)
+
+The separately enabled `/api/public/annual-conference/2026/complete-test-checkout`
+path uses Paystack test payments with the real flexible-cart issuance, private
+claims, admission email, and social-card delivery queues. The live checkout key
+and domain checks remain unchanged. Preview configuration requires
+`DEVCON26_COMPLETE_TEST_ENABLED=true`, one exact
+`DEVCON26_COMPLETE_TEST_ORIGIN` on the feature preview hostname, and a test key in
+`PAYSTACK_TEST_SECRET_KEY` (or the existing `PAYSTACK_SECRET_KEY` only if it is a
+test key). `TURNSTILE_SECRET_KEY` is mandatory; the website widget must permit the exact preview hostname. No secret is exposed to the website. Build the preview with
+`PUBLIC_DEVCON26_COMPLETE_TEST=true`; omit it for the production website.
+
+Apply the reviewed `20261021150000_complete_test_ticket_checkout.sql` before
+backend deployment. It adds permanent test provenance, internal-only lifecycle
+activation, domain/recipient guards, test-aware email leases and a test badge
+marker, and a database guard blocking public launch while any test orders remain. It does not enable tester settings, public sales, send email, delete
+records, or change historical payment modes. Its catalog contract supersedes the
+price-reconciliation contract's `foundation` state assertion with `internal`.
+
+Owner-managed Registration testing must be enabled and include every buyer,
+gift recipient, and later community claimant. Both admission and social-card
+senders must be configured. Test tickets use shared capacity until an explicitly
+authorized cleanup; orders display TEST PAYMENT and simulated amounts (GH₵0 charged). The database rejects activation of `public` checkout while any test orders remain, including expired or cancelled orders. A separately reviewed cleanup must remove their dependent artifacts before live launch. Test QR codes cannot be checked
+in, test refunds cannot enter the live refund workflow, and test badges cannot be
+published publicly. Badge downloads visibly carry TEST. Email subjects/bodies
+identify testing without live admission promises. Test QR PNGs carry TEST ONLY / NOT VALID FOR ADMISSION bands outside the scannable QR area. Private management, claim, and badge links return to the
+order's immutable preview origin. Disabling testing or removing a recipient
+holds further test delivery. The existing scheduler drains the queues; queued,
+provider-accepted, delivered, and inbox receipt remain separate evidence.
+
+Set the Paystack test webhook to the separately signed
+`/api/webhooks/paystack/devcon26-complete-test` endpoint. Browser return also
+verifies payments; both paths use the same provider event identifier for
+idempotency. Keep the complete-test flag disabled until the migration, schema
+gate, tester list, exact origin and senders have been verified. Before launch,
+disable the test endpoint and review an explicit cleanup of test orders and
+their dependent tickets, cards, claims and outboxes. No automatic purge is part
+of this change. Existing test admission QR codes remain unusable at the event.
+
+Complete-test initialization requires a single-use Turnstile token bound to `devcon26_complete_test_checkout` and the exact preview hostname. Existing durable rate limits cap attempts at 5 per IP per 5 minutes, 12 per IP per day, 3 per distinct approved buyer/gift recipient per day, and 60 shared per day. Tester membership is checked before daily budgets are consumed; database checks remain authoritative.
+
+### Preview-only delivery scope
+
+The follow-up `20261021160000_preview_only_ticket_email_leasing.sql` adds two
+service-only claim functions scoped to allowed test orders and their exact
+preview origin. Terminal retry updates and leases exclude all unrelated mail.
+When complete-test configuration validates, senders use these functions and the
+admission retry route skips attendee updates. Invalid enabled preview configuration
+fails closed instead of falling back to generic queues. Apply only after review.
+
+The feature website must permit the exact EMS preview backend in its build-time
+CSP. The additional connect source is included only when both the complete-test
+flag and exact backend build variable match; ordinary website builds stay unchanged.
+
+The separate `tools/complete-test-email-relay` Worker runs once per minute and
+has no public HTTP endpoint. It first confirms the fixed preview catalog is in
+test mode, then invokes the preview admission and social-card retry endpoints
+independently using `SLACK_EVENTS_RETRY_SECRET`. Redirects are rejected, requests
+have deadlines, and errors do not log authentication values or provider bodies.
+Its configuration is separate from the main Worker; committing it does not
+change the production schedule. It must not be repointed at production.
+
+Both reviewed migrations were applied separately by the user before this PR.
+Publishing the branch does not apply SQL, clean test records, send historical
+queued messages, or deploy either Worker. Full payment-to-inbox acceptance
+remains pending user testing; disposable PostgreSQL and unit checks verify the
+transactional and queue-isolation invariants without exercising live delivery.

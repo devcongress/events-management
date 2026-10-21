@@ -77,6 +77,7 @@ function buyerOrderId(c: Context<AppBindings>): string | null {
 
 function managementCardResponse(card: NonNullable<Awaited<ReturnType<typeof getSupabaseAnnualConferenceSocialCardByCapability>>>) {
   return {
+    is_test: Boolean(card.is_test),
     display_name: card.display_name,
     role: card.role,
     crop: { x: card.crop_x, y: card.crop_y, scale: card.crop_scale },
@@ -88,6 +89,7 @@ function managementCardResponse(card: NonNullable<Awaited<ReturnType<typeof getS
 
 function publicCardResponse(card: NonNullable<Awaited<ReturnType<typeof getSupabasePublicAnnualConferenceSocialCard>>>) {
   return {
+    is_test: Boolean(card.is_test),
     display_name: card.display_name,
     role: card.role,
     event_name: 'DevCon26',

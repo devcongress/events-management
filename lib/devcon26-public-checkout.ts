@@ -50,6 +50,9 @@ export function devcon26PublicTicketAccessOriginAllowed(
   requestOrigin: string | undefined,
 ): boolean {
   if (!requestOrigin) return false;
+  if (env.DEVCON26_COMPLETE_TEST_ENABLED === 'true'
+    && /^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/.test(env.DEVCON26_COMPLETE_TEST_ORIGIN ?? '')
+    && requestOrigin === env.DEVCON26_COMPLETE_TEST_ORIGIN) return true;
 
   const development = env.NODE_ENV === 'development';
   const websiteOrigin = validatedOrigin(env.PUBLIC_WEBSITE_ORIGIN ?? '', development);

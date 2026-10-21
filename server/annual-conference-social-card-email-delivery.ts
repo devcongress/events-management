@@ -1,3 +1,4 @@
+import { completeTestEmailContext, markCompleteTestEmail } from '@/server/complete-test-email-context';
 import crypto from 'crypto';
 import type { Context } from 'hono';
 import { z } from 'zod';
@@ -27,11 +28,12 @@ export function annualConferenceSocialCardEmailConfigurationForRequest(c: Contex
   });
 }
 
-function deliveryContent(recipientName: string, capability: string, isCollection: boolean, local: boolean) {
+function deliveryContent(recipientName: string, capability: string, isCollection: boolean, local: boolean, testOrigin?: string) {
   const canonicalUrl = isCollection
     ? annualConferenceSocialCardCollectionManagementUrl(capability)
     : annualConferenceSocialCardManagementUrl(capability);
-  const privateUrl = local ? canonicalUrl.replace('https://devcongress.org', 'http://localhost:4321') : canonicalUrl;
+  const privateUrl = testOrigin ? canonicalUrl.replace('https://devcongress.org', testOrigin)
+    : local ? canonicalUrl.replace('https://devcongress.org', 'http://localhost:4321') : canonicalUrl;
   const name = htmlEscape(recipientName);
   const title = isCollection ? 'Create your DevCon26 ticket cards' : 'Create your DevCon26 social card';
   const prompt = isCollection
@@ -70,7 +72,12 @@ export async function retryAnnualConferenceSocialCardEmails(c: Context): Promise
   for (const delivery of deliveries) {
     try {
       if (!await allowConferenceEmail(c, 'social', delivery.id, delivery.recipient_email, claimToken)) continue;
-      const content = deliveryContent(delivery.recipient_name, delivery.capability, Boolean(delivery.collection_order_id), envValue('NODE_ENV', c) === 'development');
+      const testContext = await completeTestEmailContext(c, 'social', delivery.id);
+
+      if (!testContext.allowed) continue;
+
+      const original = deliveryContent(delivery.recipient_name, delivery.capability, Boolean(delivery.collection_order_id), envValue('NODE_ENV', c) === 'development', testContext.is_test ? testContext.origin : undefined);
+      const content = testContext.is_test ? markCompleteTestEmail(original) : original;
       const result = await sendResendEmailBatch({
         apiKey: configured.apiKey,
         idempotencyKey: delivery.idempotency_key,

@@ -255,6 +255,8 @@ import {
 } from '@/server/annual-conference-request';
 import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
 import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
+import { registerDevcon26CompleteTestCheckout } from '@/server/routes/devcon26-complete-test-checkout';
+import { COMPLETE_TEST_CHECKOUT_PATH, completeTestConfiguration } from '@/lib/devcon26-complete-test-checkout';
 import { registerAnnualConferenceTicketingRoutes } from '@/server/routes/annual-conference-ticketing';
 import { registerAnnualConferenceFlexibleOperationsRoutes } from '@/server/routes/annual-conference-flexible-operations';
 import { registerAnnualConferenceFlexibleRefundRoutes } from '@/server/routes/annual-conference-flexible-refunds';
@@ -1210,6 +1212,9 @@ function isPublicEventSubmissionRequest(path: string, method: string): boolean {
 export function isUnauthenticatedApiRequest(path: string, method: string): boolean {
   return (path === '/api/public/annual-conference/2026/registration' && ['GET', 'POST'].includes(method))
     || isDevcon26TestCheckoutRequest(path, method)
+    || (method === 'POST' && path === '/api/webhooks/paystack/devcon26-complete-test')
+    || (method === 'GET' && path === COMPLETE_TEST_CHECKOUT_PATH)
+    || (method === 'POST' && [COMPLETE_TEST_CHECKOUT_PATH + '/initialize', COMPLETE_TEST_CHECKOUT_PATH + '/verify'].includes(path))
     || isDevcon26PublicCheckoutRequest(path, method)
     || isDevcon26FlexibleTicketAccessRequest(path, method)
     || isBuyerSocialCardRequest(path, method)
@@ -1500,6 +1505,12 @@ const publicTestCheckoutCors = cors({
 
 const publicDevcon26CheckoutCors = cors({
   origin: (origin, c) => {
+    const completeTest = completeTestConfiguration(Object.fromEntries([
+      'DEVCON26_COMPLETE_TEST_ENABLED', 'DEVCON26_COMPLETE_TEST_ORIGIN', 'PAYSTACK_TEST_SECRET_KEY', 'PAYSTACK_SECRET_KEY',
+    ].map((key) => [key, envValue(key, c)])));
+
+    if (completeTest?.origin === origin && isDevcon26FlexibleTicketAccessRequest(c.req.path, 'POST')) return origin;
+
     const configuration = devcon26PublicCheckoutConfiguration(Object.fromEntries([
       'DEVCON26_PUBLIC_CHECKOUT_ENABLED', 'DEVCON26_PUBLIC_CHECKOUT_ORIGINS', 'DEVCON26_PAYMENT_PROVIDER',
       'DEVCON26_PAYMENTS_ENABLED', 'PAYSTACK_SECRET_KEY', 'PUBLIC_WEBSITE_ORIGIN', 'NODE_ENV',
@@ -1517,6 +1528,7 @@ app.use(DEVCON26_PUBLIC_CHECKOUT_PATH, publicDevcon26CheckoutCors);
 
 const socialCardWebsiteCors = cors({
   origin: (origin, c) => {
+    if (envValue('DEVCON26_COMPLETE_TEST_ENABLED', c) === 'true' && origin === envValue('DEVCON26_COMPLETE_TEST_ORIGIN', c)) return origin;
     if (origin === 'https://devcongress.org') return origin;
     if (envValue('NODE_ENV', c) === 'development' && /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin)) return origin;
 
@@ -5339,6 +5351,7 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 
 registerAnnualConferenceSpeakerRoutes(app);
 registerAnnualConferenceTaskResourceRoutes(app);
+registerDevcon26CompleteTestCheckout(app);
 registerAnnualConferenceTicketingRoutes(app);
 registerAnnualConferenceFlexibleOperationsRoutes(app);
 registerAnnualConferenceFlexibleRefundRoutes(app);

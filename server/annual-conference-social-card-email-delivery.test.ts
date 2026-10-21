@@ -7,7 +7,10 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   health: vi.fn(),
   allow: vi.fn(),
+  context: vi.fn(),
 }));
+
+vi.mock('@/server/complete-test-email-context', async (original) => ({ ...await original<Record<string, unknown>>(), completeTestEmailContext: mocks.context }));
 
 vi.mock('@/server/annual-conference-registration-testing', () => ({ allowConferenceEmail: mocks.allow }));
 
@@ -37,6 +40,7 @@ import { retryAnnualConferenceSocialCardEmails } from './annual-conference-socia
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.allow.mockResolvedValue(true);
+  mocks.context.mockResolvedValue({ is_test: false, allowed: true });
   mocks.claim.mockResolvedValue([{
     id: '10000000-0000-4000-8000-000000000001',
     recipient_name: 'Ama Mensah',

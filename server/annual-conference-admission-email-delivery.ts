@@ -1,3 +1,6 @@
+import { completeTestDispatchOrigin } from '@/server/complete-test-dispatch';
+import { completeTestQrPng } from '@/server/complete-test-qr';
+import { completeTestEmailContext, markCompleteTestEmail } from '@/server/complete-test-email-context';
 import crypto from 'node:crypto';
 import QRCode from 'qrcode';
 import { z } from 'zod';
@@ -47,6 +50,7 @@ export async function admissionEmailContent(
   from: string,
   replyTo: string,
   websiteOrigin?: string,
+  isTest = false,
 ): Promise<ResendAttachedEmail> {
   const name = escapeHtml(delivery.recipient_name);
   const base = { from, to: [delivery.recipient_email], reply_to: replyTo };
@@ -57,7 +61,11 @@ export async function admissionEmailContent(
     const link = privateCapabilityLink(websiteOrigin ?? '',
       management ? '/devcon26/tickets/manage/' : '/devcon26/tickets/claim/', capability);
     const action = management ? 'Manage your DevCon26 tickets' : 'Claim your DevCon26 ticket';
-    const explanation = management
+    const explanation = isTest
+      ? management
+        ? 'Your Paystack test payment is complete. No money was charged. Manage your preview tickets using this private link.'
+        : 'You have been invited to claim a preview test ticket. No event admission is included. Use this private link to test the claim process.'
+      : management
       ? 'Your DevCon26 payment is confirmed. Use this private link to manage the tickets you purchased or supported.'
       : 'A DevCon26 ticket has been gifted to you. Use this private link to enter your name and claim it.';
 
@@ -67,6 +75,14 @@ export async function admissionEmailContent(
       html: `<p>Hi ${name},</p><p>${explanation}</p><p><a href="${escapeHtml(link)}">${action}</a></p><p>Keep this link private. It is not an admission QR.</p>`,
       text: `Hi ${delivery.recipient_name},\n\n${explanation}\n\n${action}: ${link}\n\nKeep this link private. It is not an admission QR.`,
     };
+  }
+
+  if (isTest && (delivery.kind === 'waitlist_notice' || delivery.kind === 'payment_receipt')) {
+    const message = delivery.kind === 'payment_receipt'
+      ? 'Your Paystack test payment is complete. No money was charged. Test QR codes arrive separately and do not provide event admission.'
+      : 'Your preview waitlist request was recorded. This does not reserve admission to DevCon26.';
+
+    return { ...base, subject: 'DevCon26 preview test update', html: `<p>Hi ${name},</p><p>${message}</p>`, text: `Hi ${delivery.recipient_name}, ${message}` };
   }
 
   if (delivery.kind === 'waitlist_notice') return {
@@ -102,10 +118,21 @@ export async function admissionEmailContent(
         .map((ticket, index) => ({ token: ticket.qr_token, seat: index + 1 }))
       : [{ token: tokenSchema.parse(delivery.payload.qr_token), seat: 1 }];
   const attachments = await Promise.all(tokens.map(async ({ token, seat }, index) => ({
-    filename: `devcon26-admission-seat-${seat}.png`,
-    content: (await QRCode.toBuffer(token, { width: 600, margin: 4, errorCorrectionLevel: 'M' })).toString('base64'),
+    filename: `devcon26-${isTest ? 'TEST-NOT-VALID-FOR-ADMISSION' : 'admission'}-seat-${seat}.png`,
+    content: (isTest ? await completeTestQrPng(token)
+      : await QRCode.toBuffer(token, { width: 600, margin: 4, errorCorrectionLevel: 'M' })).toString('base64'),
     content_type: 'image/png', content_id: `admission-${index + 1}`,
   })));
+
+  if (isTest) {
+    const explanation = `Attached are ${attachments.length} preview test QR codes. No money was charged and no event admission is included. These codes cannot be used to check in. Keep them private. Your test badge links arrive separately.`;
+
+    return {
+      ...base, subject: 'Your DevCon26 test QR codes', attachments,
+      html: `<p>Hi ${name},</p><p>${explanation}</p>`,
+      text: `Hi ${delivery.recipient_name},\n\n${explanation}`,
+    };
+  }
 
   if (flexibleBundle) {
     const part = flexibleBundle.chunk_count > 1
@@ -148,7 +175,11 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context) {
   }
   const client = getSupabaseAdminClient(c);
   const claim = crypto.randomUUID();
-  const result = await client.rpc('claim_annual_conference_ticket_email_outbox' as never, { p_claim_token: claim, p_limit: 10 } as never);
+  const previewOrigin = completeTestDispatchOrigin(c);
+  const result = await client.rpc((previewOrigin ? 'claim_complete_test_only_admission_emails' : 'claim_annual_conference_ticket_email_outbox') as never, {
+    p_claim_token: claim, p_limit: 10,
+    ...(previewOrigin ? { p_origin: previewOrigin } : {}),
+  } as never);
 
   if (result.error) throw new Error('Admission email queue unavailable.');
   const deliveries = z.array(deliverySchema).parse(result.data);
@@ -161,7 +192,12 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context) {
 
     try {
       if (!await allowConferenceEmail(c, 'admission', delivery.id, delivery.recipient_email, claim)) continue;
-      const content = await admissionEmailContent(delivery, from, replyTo, websiteOrigin);
+      const testContext = await completeTestEmailContext(c, 'admission', delivery.id);
+
+      if (!testContext.allowed) continue;
+
+      const original = await admissionEmailContent(delivery, from, replyTo, testContext.is_test ? testContext.origin : websiteOrigin, testContext.is_test);
+      const content = testContext.is_test ? markCompleteTestEmail(original) : original;
       const frozen = await client.rpc('freeze_annual_conference_admission_email' as never, {
         p_id: delivery.id, p_claim: claim, p_payload: content,
       } as never);
@@ -169,6 +205,8 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context) {
 
       if (frozen.error || !payload.success || payload.data.to[0] !== delivery.recipient_email) throw new Error('Admission lease unavailable.');
       if (!await allowConferenceEmail(c, 'admission', delivery.id, payload.data.to[0], claim)) continue;
+      if (!(await completeTestEmailContext(c, 'admission', delivery.id)).allowed) continue;
+
       providerId = await sendResendAttachedEmail({ apiKey, idempotencyKey: delivery.idempotency_key, email: payload.data });
     } catch {
       const failed = await client.rpc('finalize_annual_conference_ticket_email_outbox' as never, {

@@ -1,3 +1,4 @@
+import { completeTestDispatchOrigin } from '@/server/complete-test-dispatch';
 import type { Hono, Context } from 'hono';
 import crypto from 'node:crypto';
 import { z } from 'zod';
@@ -34,7 +35,9 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
 
     try {
       const admissions = await retryAnnualConferenceAdmissionEmails(c);
-      const updates = await retryAnnualConferenceAttendeeUpdates(c);
+      const updates = Boolean(completeTestDispatchOrigin(c))
+        ? { configured: false, accepted: 0, failed: 0 }
+        : await retryAnnualConferenceAttendeeUpdates(c);
 
       return c.json({ admissions, updates });
     } catch {
@@ -229,7 +232,9 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
     });
     const admissions = await retryAnnualConferenceAdmissionEmails(c);
     const social = await retryAnnualConferenceSocialCardEmails(c);
-    const updates = await retryAnnualConferenceAttendeeUpdates(c);
+    const updates = Boolean(completeTestDispatchOrigin(c))
+        ? { configured: false, accepted: 0, failed: 0 }
+        : await retryAnnualConferenceAttendeeUpdates(c);
 
     return c.json({ admissions, social, updates });
   });

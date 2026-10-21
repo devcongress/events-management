@@ -1,8 +1,10 @@
+import { completeTestDispatchOrigin } from '@/server/complete-test-dispatch';
 import type { Context } from 'hono';
 import { DEVCON26_SOCIAL_CARD_BUCKET, hashDevcon26SocialCardCapability, type Devcon26SocialCardRole } from '@/lib/annual-conference-social-cards';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 
 export type AnnualConferenceSocialCard = {
+  is_test?: boolean;
   id: string;
   edition_id: string;
   role: Devcon26SocialCardRole;
@@ -29,6 +31,7 @@ export type AnnualConferenceSocialCardEmailDelivery = {
 
 function mapCard(row: Record<string, unknown>): AnnualConferenceSocialCard {
   return {
+    is_test: Boolean(row.is_test),
     id: String(row.id), edition_id: String(row.edition_id), role: row.subject_type as 'attendee' | 'speaker',
     display_name: String(row.display_name), public_slug: String(row.public_slug), photo_path: typeof row.photo_path === 'string' ? row.photo_path : null,
     crop_x: Number(row.crop_x), crop_y: Number(row.crop_y), crop_scale: Number(row.crop_scale), public_enabled: Boolean(row.public_enabled),
@@ -77,7 +80,9 @@ export async function issueSupabaseAnnualConferenceSocialCardDelivery(input: { e
 
 export async function claimSupabaseAnnualConferenceSocialCardEmailDeliveries(claimToken: string, limit: number, c?: Context): Promise<AnnualConferenceSocialCardEmailDelivery[]> {
   if (!isSupabaseRuntimeEnabled(c)) throw new Error('Social-card delivery storage is not configured.');
-  const result = await getSupabaseAdminClient(c).rpc('claim_annual_conference_social_card_email_outbox' as never, {
+  const previewOrigin = completeTestDispatchOrigin(c);
+  const result = await getSupabaseAdminClient(c).rpc((previewOrigin ? 'claim_complete_test_only_social_emails' : 'claim_annual_conference_social_card_email_outbox') as never, {
+    ...(previewOrigin ? { p_origin: previewOrigin } : {}),
     p_claim_token: claimToken,
     p_limit: limit,
   } as never) as unknown as { data: AnnualConferenceSocialCardEmailDelivery[] | null; error: { message: string } | null };

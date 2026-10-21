@@ -1403,3 +1403,22 @@ Revisit when: Expense submitters need access without dashboard visibility, recei
 **Decision:** The separately gated Paystack test catalog may read the edition's configured prices while the shared conference stays `free` and `closed`. It advertises the regular and legacy team rehearsals only when all three prices are GH₵150/GH₵450/GH₵750. The public ticket-price catalog still requires paid/open status, and the sandbox still requires test credentials, an exact approved origin, ready storage, and independent email controls.
 **Why:** Requiring paid/open status for a test-only email and payment rehearsal would expose shared registration state before the feature-branch review. The sandbox quote and frozen session already read the same edition prices without issuing real admission.
 **Rollout:** Apply `20261020140000_annual_conference_closed_price_setup.sql` and pass the live schema gate before deploying the matching Worker. A `ticketing.manage` operator can then set regular, team-of-three, and team-of-five prices to GH₵150/GH₵450/GH₵750 while the edition is free/closed and has no historical admission checkout order. Verify the deployed branch and test-only email gates separately; do not open public sales to rehearse the sandbox.
+
+## ADR-118: Full-flow Paystack tests retain immutable test provenance
+
+**Date:** 2026-10-21
+**Decision:** Use a separately enabled exact-preview-origin checkout endpoint with
+Paystack test credentials and the existing transactional flexible-ticket
+fulfillment. Persist payment mode and preview origin on each order, enforce
+provider-domain matching in PostgreSQL, reuse the Owner's tester allowlist, and
+mark resulting email and badge artifacts. Standard check-in and live refund
+operations reject these test orders. Public sales remain gated independently.
+**Tradeoff:** This is shared-database testing: test holds and issued tickets
+consume capacity until separately authorized cleanup. The migration activates
+only the internal lifecycle and does not send email or enable testers. A separate
+staging database would provide stronger inventory isolation but would duplicate
+the deployment, auth, scheduler, and storage environment.
+
+ADR-118 follow-up: shared rehearsal capacity is permitted only before live launch. A database trigger prevents the `public` lifecycle while any test order remains; cleanup must be separately reviewed and authorized. Test initialization requires preview-bound Turnstile and durable daily quotas, and emailed QR PNGs carry warning bands without obscuring their modules.
+
+ADR-118 delivery follow-up: preview dispatch must not lease historical registration/live-order mail. Add dedicated test-only claim functions rather than filtering after generic claims, because generic terminal sweeps also mutate queue rows. Exact-origin provenance and current tester permission scope every mutation. Enabled-but-invalid preview configuration fails closed. Production scheduler code and active versions remain unchanged.
