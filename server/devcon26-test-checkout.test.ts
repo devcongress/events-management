@@ -51,22 +51,20 @@ beforeEach(() => {
   })) vi.stubEnv(key, value);
 
   session = {
-    id: requestKey, checkout_request_key: requestKey, tier_key: 'team_3', quantity: 3,
-    amount_minor: 45_000, currency: 'GHS', payment_reference: reference, status: 'prepared',
+    id: requestKey, checkout_request_key: requestKey, tier_key: 'regular', quantity: 1,
+    amount_minor: 15_000, currency: 'GHS', payment_reference: reference, status: 'prepared',
     authorization_url: null, initialization_lease: requestKey,
     initialization_lease_until: '2026-10-07T12:01:00Z', expires_at: '2026-10-08T12:00:00Z',
     verified_at: null, created_at: '2026-10-07T12:00:00Z',
-    base_amount_minor: 45_000, discount_amount_minor: 0, coupon_id: null, coupon_code: null,
+    base_amount_minor: 15_000, discount_amount_minor: 0, coupon_id: null, coupon_code: null,
     ...buyer, resolution_reason: null, preview_email_authorized_origin: null, preview_email_authorized_until: null,
   };
-  providerFacts = { id: 123, reference, domain: 'test', status: 'success', amount: 45_000, currency: 'GHS' };
+  providerFacts = { id: 123, reference, domain: 'test', status: 'success', amount: 15_000, currency: 'GHS' };
   vi.mocked(consumePublicRateLimit).mockResolvedValue({ allowed: true });
   vi.mocked(storage.devcon26TestStorageReady).mockResolvedValue(true);
   vi.mocked(ticketingStorage.getSupabaseAnnualConferencePublicTicketPrices).mockResolvedValue({
     currency: 'GHS', tiers: [
       { tier_key: 'regular', quantity: 1, amount_minor: 15_000 },
-      { tier_key: 'team_3', quantity: 3, amount_minor: 45_000 },
-      { tier_key: 'team_5', quantity: 5, amount_minor: 75_000 },
     ],
   });
   vi.mocked(storage.quoteDevcon26TestCheckout).mockImplementation(async () => devcon26TestQuoteForSession(session));
@@ -128,7 +126,7 @@ describe('public DevCon26 test checkout integration', () => {
     vi.stubEnv('DEVCON26_TEST_CHECKOUT_PREVIEW_EMAILS_ENABLED', 'true');
     vi.stubEnv('DEVCON26_TEST_CHECKOUT_PREVIEW_EMAIL_ORIGINS', previewOrigin);
 
-    const input = { tier_key: 'team_3', checkout_request_key: requestKey };
+    const input = { tier_key: 'regular', checkout_request_key: requestKey };
 
     vi.stubEnv('TURNSTILE_SECRET_KEY', '');
     const unconfigured = await post(`${base}/initialize`, input, { Origin: previewOrigin });
@@ -164,7 +162,7 @@ describe('public DevCon26 test checkout integration', () => {
 
     expect(valid.status).toBe(200);
     expect(storage.prepareDevcon26TestSession).toHaveBeenCalledWith(
-      expect.anything(), devcon26TestCheckoutRequestKey(previewOrigin, requestKey), 'team_3',
+      expect.anything(), devcon26TestCheckoutRequestKey(previewOrigin, requestKey), 'regular',
       buyer.purchaser_name, buyer.purchaser_email, undefined, previewOrigin,
     );
     const paystackCall = provider.mock.calls.find(([url]) => url === 'https://api.paystack.co/transaction/initialize');
@@ -187,7 +185,7 @@ describe('public DevCon26 test checkout integration', () => {
       : { allowed: true });
 
     const response = await post(`${base}/initialize`, {
-      tier_key: 'team_3', checkout_request_key: requestKey,
+      tier_key: 'regular', checkout_request_key: requestKey,
       turnstile_token: 'fixture-token', turnstile_action: 'devcon26_test_preview_email',
     }, { Origin: previewOrigin });
 
@@ -197,15 +195,15 @@ describe('public DevCon26 test checkout integration', () => {
   });
 
   it.each([previewOrigin, commitOrigin])('quotes from %s without holding a use or initializing a provider payment', async (origin) => {
-    session = { ...session, coupon_code: 'TEST-COUPON', coupon_id: requestKey, discount_amount_minor: 1000, amount_minor: 53_999 };
-    const response = await post(`${base}/quote`, { tier_key: 'team_3', coupon_code: ' test-coupon ' }, { Origin: origin });
+    session = { ...session, coupon_code: 'TEST-COUPON', coupon_id: requestKey, discount_amount_minor: 1000, amount_minor: 14_000 };
+    const response = await post(`${base}/quote`, { tier_key: 'regular', coupon_code: ' test-coupon ' }, { Origin: origin });
     const quote = await response.json();
 
     expect(response.status).toBe(200);
     expect(response.headers.get('access-control-allow-origin')).toBe(origin);
     expect(response.headers.get('access-control-allow-credentials')).toBeNull();
     expect(quote).toEqual(devcon26TestQuoteForSession(session));
-    expect(storage.quoteDevcon26TestCheckout).toHaveBeenCalledWith(expect.anything(), 'team_3', 'TEST-COUPON');
+    expect(storage.quoteDevcon26TestCheckout).toHaveBeenCalledWith(expect.anything(), 'regular', 'TEST-COUPON');
     expect(storage.prepareDevcon26TestSession).not.toHaveBeenCalled();
     expect(provider).not.toHaveBeenCalled();
     expect(JSON.stringify(quote)).not.toMatch(/purchaser|Lovelace|example\.test|initialization_lease/);
@@ -217,7 +215,7 @@ describe('public DevCon26 test checkout integration', () => {
 
     for (const operation of ['quote', 'initialize']) {
       const response = await post(`${base}/${operation}`, {
-        tier_key: 'team_3', ...(operation === 'initialize' ? { checkout_request_key: requestKey } : {}), coupon_code: 'TEST-COUPON',
+        tier_key: 'regular', ...(operation === 'initialize' ? { checkout_request_key: requestKey } : {}), coupon_code: 'TEST-COUPON',
       });
       const payload = await response.json();
 
@@ -229,23 +227,23 @@ describe('public DevCon26 test checkout integration', () => {
   });
 
   it('charges only the stored discounted total and never sends visitor PII to the test provider', async () => {
-    session = { ...session, coupon_code: 'TEST-COUPON', coupon_id: requestKey, discount_amount_minor: 1000, amount_minor: 53_999 };
-    providerFacts.amount = 53_999;
-    const response = await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey, coupon_code: ' test-coupon ' });
+    session = { ...session, coupon_code: 'TEST-COUPON', coupon_id: requestKey, discount_amount_minor: 1000, amount_minor: 14_000 };
+    providerFacts.amount = 14_000;
+    const response = await post(`${base}/initialize`, { tier_key: 'regular', checkout_request_key: requestKey, coupon_code: ' test-coupon ' });
     const initialized = await response.json();
 
-    expect(initialized).toMatchObject({ base_amount_minor: 45_000, discount_amount_minor: 1000, final_amount_minor: 53_999, coupon_applied: 'TEST-COUPON' });
-    expect(JSON.parse(provider.mock.calls[0][1].body)).toMatchObject({ amount: 53_999, email: 'sandbox@example.com' });
+    expect(initialized).toMatchObject({ base_amount_minor: 15_000, discount_amount_minor: 1000, final_amount_minor: 14_000, coupon_applied: 'TEST-COUPON' });
+    expect(JSON.parse(provider.mock.calls[0][1].body)).toMatchObject({ amount: 14_000, email: 'sandbox@example.com' });
     expect(JSON.stringify(initialized)).not.toMatch(/Lovelace|ada@example/);
     expect(provider.mock.calls[0][1].body).not.toMatch(/Lovelace|ada@example/);
     const verified = await (await post(`${base}/verify`, { reference })).json();
 
-    expect(verified).toMatchObject({ status: 'verified', amount_minor: 53_999, final_amount_minor: 53_999, coupon_applied: 'TEST-COUPON' });
+    expect(verified).toMatchObject({ status: 'verified', amount_minor: 14_000, final_amount_minor: 14_000, coupon_applied: 'TEST-COUPON' });
   });
 
   it.each(['finished', 'cart_conflict', 'in_progress'])('returns the bounded %s retry state', async (code) => {
     vi.mocked(storage.prepareDevcon26TestSession).mockRejectedValue(new Error(`test_checkout_${code}`));
-    const response = await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey });
+    const response = await post(`${base}/initialize`, { tier_key: 'regular', checkout_request_key: requestKey });
 
     expect(response.status).toBe(409);
     expect((await response.json()).checkout_error).toBe(code);
@@ -255,7 +253,7 @@ describe('public DevCon26 test checkout integration', () => {
   it('rejects missing purchaser details and closes quote neighbors and Owner coupon routes', async () => {
     const response = await app.request(`https://ems.example${base}/initialize`, {
       method: 'POST', headers: { Origin: 'https://devcongress.org', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tier_key: 'team_3', checkout_request_key: requestKey }),
+      body: JSON.stringify({ tier_key: 'regular', checkout_request_key: requestKey }),
     });
 
     expect(response.status).toBe(400);
@@ -280,8 +278,6 @@ describe('public DevCon26 test checkout integration', () => {
 
     expect(await catalog.json()).toMatchObject({ mode: 'test', tiers: [
       { tier_key: 'regular', quantity: 1, amount_minor: 15_000, currency: 'GHS' },
-      { tier_key: 'team_3', quantity: 3, amount_minor: 45_000, currency: 'GHS' },
-      { tier_key: 'team_5', quantity: 5, amount_minor: 75_000, currency: 'GHS' },
     ] });
     expect(catalog.headers.get('access-control-allow-origin')).toBe(origin);
     expect(catalog.headers.get('access-control-allow-credentials')).toBeNull();
@@ -298,12 +294,12 @@ describe('public DevCon26 test checkout integration', () => {
     expect(preflight.headers.get('access-control-allow-headers')).toContain('Content-Type');
     expect(preflight.headers.get('access-control-allow-credentials')).toBeNull();
 
-    const initialized = await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey }, { Origin: origin });
+    const initialized = await post(`${base}/initialize`, { tier_key: 'regular', checkout_request_key: requestKey }, { Origin: origin });
 
     expect(initialized.status).toBe(200);
     expect(initialized.headers.get('access-control-allow-origin')).toBe(origin);
     expect(JSON.parse(provider.mock.calls[0][1].body).callback_url).toBe(`${origin}/devcon26/payment-confirmation/?test_checkout=return`);
-    expect(storage.prepareDevcon26TestSession).toHaveBeenCalledWith(expect.anything(), devcon26TestCheckoutRequestKey(origin, requestKey), 'team_3',
+    expect(storage.prepareDevcon26TestSession).toHaveBeenCalledWith(expect.anything(), devcon26TestCheckoutRequestKey(origin, requestKey), 'regular',
       buyer.purchaser_name, buyer.purchaser_email, undefined, undefined);
 
     const verified = await post(`${base}/verify`, { reference }, { Origin: origin });
@@ -325,9 +321,7 @@ describe('public DevCon26 test checkout integration', () => {
       expect(response.headers.get('cache-control')).toContain('no-store');
       expect(await response.json()).toEqual({ currency: 'GHS', tiers: [
         { tier_key: 'regular', quantity: 1, amount_minor: 15_000 },
-        { tier_key: 'team_3', quantity: 3, amount_minor: 45_000 },
-        { tier_key: 'team_5', quantity: 5, amount_minor: 75_000 },
-      ] });
+              ] });
     }
 
     expect(isUnauthenticatedApiRequest(ticketPricesPath, 'GET')).toBe(true);
@@ -377,7 +371,7 @@ describe('public DevCon26 test checkout integration', () => {
   });
 
   it('fails closed for wildcard configuration and preview requests with live credentials', async () => {
-    const input = { tier_key: 'team_3', checkout_request_key: requestKey };
+    const input = { tier_key: 'regular', checkout_request_key: requestKey };
 
     for (const override of [{ DEVCON26_TEST_CHECKOUT_ORIGINS: 'https://*.workers.dev' }, { PAYSTACK_SECRET_KEY: 'sk_live_fixture' }]) {
       vi.stubEnv('DEVCON26_TEST_CHECKOUT_ORIGINS', `${previewOrigin},${commitOrigin}`);
@@ -394,7 +388,7 @@ describe('public DevCon26 test checkout integration', () => {
   });
 
   it.each(['null', '', `${previewOrigin}/`, `${previewOrigin}.attacker.example`, 'http://localhost:4321'])('rejects an unapproved request origin %s before storage or provider work', async (origin) => {
-    const response = await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey }, { Origin: origin });
+    const response = await post(`${base}/initialize`, { tier_key: 'regular', checkout_request_key: requestKey }, { Origin: origin });
 
     expect(response.status).toBe(403);
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
@@ -405,7 +399,7 @@ describe('public DevCon26 test checkout integration', () => {
   it('rejects browser initialization without an Origin header', async () => {
     const response = await app.request(`https://ems.example${base}/initialize`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tier_key: 'team_3', checkout_request_key: requestKey }),
+      body: JSON.stringify({ tier_key: 'regular', checkout_request_key: requestKey }),
     });
 
     expect(response.status).toBe(403);
@@ -429,7 +423,7 @@ describe('public DevCon26 test checkout integration', () => {
       return saved;
     });
 
-    const input = { tier_key: 'team_3', checkout_request_key: requestKey };
+    const input = { tier_key: 'regular', checkout_request_key: requestKey };
 
     for (const origin of [previewOrigin, previewOrigin, commitOrigin]) {
       expect((await post(`${base}/initialize`, input, { Origin: origin })).status).toBe(200);
@@ -446,7 +440,7 @@ describe('public DevCon26 test checkout integration', () => {
     const payload = await response.json();
 
     expect(payload.mode).toBe('test');
-    expect(payload.tiers).toHaveLength(3);
+    expect(payload.tiers).toHaveLength(1);
     expect(JSON.stringify(payload)).not.toMatch(/secret|buyer|sandbox@example/);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('access-control-allow-origin')).toBe('https://devcongress.org');
@@ -456,7 +450,7 @@ describe('public DevCon26 test checkout integration', () => {
 
   it('rejects live keys and missing configuration before any storage/provider work', async () => {
     vi.stubEnv('PAYSTACK_SECRET_KEY', 'sk_live_fixture');
-    expect((await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey })).status).toBe(503);
+    expect((await post(`${base}/initialize`, { tier_key: 'regular', checkout_request_key: requestKey })).status).toBe(503);
     expect(await (await app.request(`https://ems.example${base}`)).json()).toEqual({ mode: 'unavailable' });
     expect(provider).not.toHaveBeenCalled();
     expect(storage.prepareDevcon26TestSession).not.toHaveBeenCalled();
@@ -464,7 +458,7 @@ describe('public DevCon26 test checkout integration', () => {
 
   it('does not reuse a provider response with a different initialization reference', async () => {
     provider.mockResolvedValue(new Response(JSON.stringify({ status: true, data: { reference: 'wrong', authorization_url: checkoutUrl } })));
-    expect((await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey })).status).toBe(503);
+    expect((await post(`${base}/initialize`, { tier_key: 'regular', checkout_request_key: requestKey })).status).toBe(503);
     expect(storage.initializeDevcon26TestSession).not.toHaveBeenCalled();
   });
 
@@ -475,7 +469,7 @@ describe('public DevCon26 test checkout integration', () => {
   });
 
   it('uses server pricing, email, currency, reference and callback; duplicate requests reuse the URL', async () => {
-    const input = { tier_key: 'team_3', checkout_request_key: requestKey };
+    const input = { tier_key: 'regular', checkout_request_key: requestKey };
     const first = await post(`${base}/initialize`, input);
     const second = await post(`${base}/initialize`, input);
 
@@ -484,13 +478,13 @@ describe('public DevCon26 test checkout integration', () => {
     expect(provider).toHaveBeenCalledTimes(1);
     const outbound = JSON.parse(provider.mock.calls[0][1].body);
 
-    expect(outbound).toMatchObject({ amount: 45_000, currency: 'GHS', email: 'sandbox@example.com', reference,
+    expect(outbound).toMatchObject({ amount: 15_000, currency: 'GHS', email: 'sandbox@example.com', reference,
       callback_url: 'https://devcongress.org/devcon26/payment-confirmation/?test_checkout=return' });
-    expect((await post(`${base}/initialize`, { ...input, tier_key: 'regular' })).status).toBe(409);
+    expect((await post(`${base}/initialize`, { ...input, tier_key: 'team_3' })).status).toBe(400);
   });
 
   it('rejects caller pricing and unsafe origins before initializing', async () => {
-    const input = { tier_key: 'team_3', checkout_request_key: requestKey };
+    const input = { tier_key: 'regular', checkout_request_key: requestKey };
 
     expect((await post(`${base}/initialize`, { ...input, amount_minor: 1 })).status).toBe(400);
     const denied = await post(`${base}/initialize`, input, { Origin: 'https://attacker.example' });
@@ -518,7 +512,7 @@ describe('public DevCon26 test checkout integration', () => {
 
   it('fails closed when the distributed throttle is unavailable or exhausted', async () => {
     vi.mocked(consumePublicRateLimit).mockResolvedValue({ allowed: false, retryAfterSeconds: 60, unavailable: true });
-    expect((await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey })).status).toBe(503);
+    expect((await post(`${base}/initialize`, { tier_key: 'regular', checkout_request_key: requestKey })).status).toBe(503);
     expect(provider).not.toHaveBeenCalled();
     vi.mocked(consumePublicRateLimit).mockResolvedValue({ allowed: false, retryAfterSeconds: 60 });
     expect((await post(`${base}/verify`, { reference })).status).toBe(429);
@@ -584,7 +578,7 @@ describe('public DevCon26 test checkout integration', () => {
 
   it.each(['https://attacker.example/checkout', 'https://checkout.paystack.com.attacker.example/x', 'http://checkout.paystack.com/x', 'https://user@checkout.paystack.com/x'])('refuses an unsafe checkout redirect %s', async (authorizationUrl) => {
     provider.mockResolvedValue(new Response(JSON.stringify({ status: true, data: { reference, authorization_url: authorizationUrl } })));
-    expect((await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey })).status).toBe(503);
+    expect((await post(`${base}/initialize`, { tier_key: 'regular', checkout_request_key: requestKey })).status).toBe(503);
     expect(storage.initializeDevcon26TestSession).not.toHaveBeenCalled();
   });
 });

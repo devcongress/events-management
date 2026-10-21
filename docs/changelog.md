@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-21 — Align public tickets and sponsor operations
+
+- Show one GH₵150 individual ticket in 2026 organizer pricing and sandbox checkout; prevent new 2026 price edits and group coupon/test purchases. Retain legacy price columns and old orders for compatibility.
+- Reject new buyer-managed sponsor allocations from public flexible checkout. Keep buyer-managed history readable while sponsors are reserved separately in EMS.
+- Clarify that sponsor reservations hold capacity but do not yet issue or email QR tickets.
+
 ## 2026-10-21 — Clear PR dependency audit
 
 - Update Vite from 6.4.3 to the patched 6.4.5 release so the DevCon26 price reconciliation PR passes the dependency audit. Application and migration behavior are unchanged.

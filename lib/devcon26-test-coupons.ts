@@ -15,7 +15,7 @@ export interface Devcon26TestQuote {
 export const createDevcon26TestCouponSchema = z.object({
   discount_type: z.enum(['fixed_minor', 'percentage_bps']),
   discount_value: z.number().int().positive(),
-  eligible_tiers: z.array(z.enum(['regular', 'team_3', 'team_5'])).min(1).max(3),
+  eligible_tiers: z.array(z.literal('regular')).length(1),
   expires_at: z.string().datetime({ offset: true }),
   max_completed: z.number().int().min(1).max(1_000_000),
 }).strict().superRefine((coupon, context) => {

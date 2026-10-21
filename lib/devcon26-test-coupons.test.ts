@@ -4,7 +4,7 @@ import { devcon26TestInitializeSchema, devcon26TestQuoteSchema } from '@/lib/dev
 
 const coupon = {
   discount_type: 'fixed_minor' as const, discount_value: 1000,
-  eligible_tiers: ['regular', 'team_3'], expires_at: '2099-12-19T23:00:00Z', max_completed: 5,
+  eligible_tiers: ['regular'], expires_at: '2099-12-19T23:00:00Z', max_completed: 5,
 };
 const buyer = {
   tier_key: 'regular', checkout_request_key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -51,20 +51,18 @@ describe('test coupon input and public summaries', () => {
     expect(createDevcon26TestCouponSchema.safeParse({ ...coupon, ...override }).success).toBe(false);
   });
 
-  it('supports a fixed discount above regular price only when regular passes are excluded', () => {
-    expect(createDevcon26TestCouponSchema.safeParse({ ...coupon, eligible_tiers: ['team_5'], discount_value: 30_000 }).success).toBe(true);
+  it('rejects legacy team passes in new coupons', () => {
+    expect(createDevcon26TestCouponSchema.safeParse({ ...coupon, eligible_tiers: ['team_5'], discount_value: 30_000 }).success).toBe(false);
     expect(createDevcon26TestCouponSchema.safeParse({ ...coupon, discount_type: 'percentage_bps', discount_value: 1 }).success).toBe(true);
   });
 
   it('validates fixed discounts against current EMS ticket prices', () => {
     const prices = { tiers: [
-      { tier_key: 'regular', amount_minor: 19_999 },
-      { tier_key: 'team_3', amount_minor: 54_999 },
-      { tier_key: 'team_5', amount_minor: 89_999 },
+      { tier_key: 'regular', amount_minor: 15_000 },
     ] };
 
-    expect(validateDevcon26TestCouponDiscount({ ...coupon, eligible_tiers: ['team_5'], discount_value: 85_000 }, prices)).toBeNull();
-    expect(validateDevcon26TestCouponDiscount({ ...coupon, eligible_tiers: ['team_5'], discount_value: 89_999 }, prices)).toContain('less than');
+    expect(validateDevcon26TestCouponDiscount({ ...coupon, eligible_tiers: ['regular'], discount_value: 14_999 }, prices)).toBeNull();
+    expect(validateDevcon26TestCouponDiscount({ ...coupon, eligible_tiers: ['regular'], discount_value: 15_000 }, prices)).toContain('less than');
   });
 
   it('redacts purchaser details and exposes only bounded coupon errors', () => {

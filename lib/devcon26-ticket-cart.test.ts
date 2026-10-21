@@ -14,24 +14,22 @@ import {
 } from './devcon26-ticket-cart';
 
 describe('DevCon26 ticket cart', () => {
-  it('accepts every allocation kind in one mixed order and normalizes gift recipients', () => {
+  it('accepts the public allocation choices in one mixed order and normalizes gift recipients', () => {
     expect(devcon26TicketCartSchema.parse({
-      quantity: 5,
+      quantity: 4,
       allocations: [
         { kind: 'gift', recipient_email: ' GUEST@Example.Test ' },
         { kind: 'community_managed' },
         { kind: 'self' },
         { kind: 'community_shareable' },
-        { kind: 'buyer_managed' },
       ],
     })).toEqual({
-      quantity: 5,
+      quantity: 4,
       allocations: [
         { kind: 'gift', recipient_email: 'guest@example.test' },
         { kind: 'community_managed' },
         { kind: 'self' },
         { kind: 'community_shareable' },
-        { kind: 'buyer_managed' },
       ],
       payment_provider: 'paystack',
     });
@@ -39,11 +37,10 @@ describe('DevCon26 ticket cart', () => {
 
   it('derives indexed self identity and leaves unassigned seats free of recipient data', () => {
     const cart = devcon26TicketCartSchema.parse({
-      quantity: 4,
+      quantity: 3,
       allocations: [
         { kind: 'self' },
         { kind: 'gift', recipient_email: ' Recipient@Example.Test ' },
-        { kind: 'buyer_managed' },
         { kind: 'community_managed' },
       ],
     });
@@ -51,15 +48,13 @@ describe('DevCon26 ticket cart', () => {
     expect(devcon26CartAllocationsForStorage(cart, { name: ' Ada ', email: ' ADA@Example.Test ' })).toEqual([
       { seat_index: 1, kind: 'self', recipient_name: 'Ada', recipient_email: 'ada@example.test' },
       { seat_index: 2, kind: 'gift', recipient_email: 'recipient@example.test' },
-      { seat_index: 3, kind: 'buyer_managed' },
-      { seat_index: 4, kind: 'community_managed' },
+      { seat_index: 3, kind: 'community_managed' },
     ]);
   });
 
   it.each([
     { kind: 'self' },
     { kind: 'gift', recipient_email: 'person@example.test' },
-    { kind: 'buyer_managed' },
     { kind: 'community_managed' },
     { kind: 'community_shareable' },
   ])('accepts the $kind allocation on its own', (allocation) => {
@@ -76,7 +71,7 @@ describe('DevCon26 ticket cart', () => {
 
     for (const allocations of [
       [{ kind: 'community_managed' }],
-      [{ kind: 'community_shareable' }, { kind: 'buyer_managed' }, { kind: 'gift', recipient_email: 'person@example.test' }],
+      [{ kind: 'community_shareable' }, { kind: 'community_managed' }, { kind: 'gift', recipient_email: 'person@example.test' }],
     ]) {
       const result = devcon26TicketCartSchema.safeParse({ quantity: 2, allocations });
 
@@ -92,12 +87,12 @@ describe('DevCon26 ticket cart', () => {
     expect(DEVCON26_MAX_TICKETS_PER_PAYSTACK_PAYMENT).toBe(666);
     expect(devcon26TicketCartSchema.safeParse({
       quantity: DEVCON26_MAX_TICKETS_PER_PAYSTACK_PAYMENT,
-      allocations: Array.from({ length: DEVCON26_MAX_TICKETS_PER_PAYSTACK_PAYMENT }, () => ({ kind: 'buyer_managed' })),
+      allocations: Array.from({ length: DEVCON26_MAX_TICKETS_PER_PAYSTACK_PAYMENT }, () => ({ kind: 'community_managed' })),
     }).success).toBe(true);
     expect(DEVCON26_MAX_TICKETS_PER_PAYSTACK_PAYMENT * DEVCON26_TICKET_UNIT_PRICE_MINOR).toBeLessThanOrEqual(PAYSTACK_MAX_TRANSACTION_MINOR);
     expect(devcon26TicketCartSchema.safeParse({
       quantity: DEVCON26_MAX_TICKETS_PER_PAYSTACK_PAYMENT + 1,
-      allocations: Array.from({ length: DEVCON26_MAX_TICKETS_PER_PAYSTACK_PAYMENT + 1 }, () => ({ kind: 'buyer_managed' })),
+      allocations: Array.from({ length: DEVCON26_MAX_TICKETS_PER_PAYSTACK_PAYMENT + 1 }, () => ({ kind: 'community_managed' })),
     }).success).toBe(false);
   });
 
@@ -122,6 +117,7 @@ describe('DevCon26 ticket cart', () => {
     { quantity: 1, allocations: [{ kind: 'self', recipient_email: 'person@example.test' }] },
     { quantity: 1, allocations: [{ kind: 'gift', recipient_email: 'person@example.test', claim_token: 'private' }] },
     { quantity: 1, allocations: [{ kind: 'unknown' }] },
+    { quantity: 1, allocations: [{ kind: 'buyer_managed' }] },
     { quantity: 1, allocations: [{ kind: 'community_managed' }], amount_minor: 15_000 },
     { quantity: 1, allocations: [{ kind: 'community_shareable' }], payment_provider: 'unknown' },
   ])('rejects unsafe or caller-owned cart input %j', (cart) => {
