@@ -749,6 +749,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
     const accessError = await requireTicketingManagement(c, Number(year.data));
 
     if (accessError) return accessError;
+    if (year.data === '2026') return c.json({ error: 'DevCon26 tickets have one fixed GH₵150 price per person.' }, 409);
 
     try {
       const ticketing = await getSupabaseAnnualConferenceTicketing(Number(year.data), c);

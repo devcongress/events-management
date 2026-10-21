@@ -14,7 +14,7 @@ const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const input: Devcon26TestCouponInput = {
   discount_type: 'fixed_minor',
   discount_value: 1000,
-  eligible_tiers: ['regular', 'team_3'],
+  eligible_tiers: ['regular'],
   expires_at: '2099-12-19T23:00:00Z',
   max_completed: 5,
 };

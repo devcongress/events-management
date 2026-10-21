@@ -11,7 +11,6 @@ export const DEVCON26_MAX_TICKETS_PER_PAYSTACK_PAYMENT = Math.floor(
 export const DEVCON26_MAX_TICKETS_FOR_INTEGER_AMOUNT = Math.floor(2_147_483_647 / DEVCON26_TICKET_UNIT_PRICE_MINOR);
 
 const selfSeatSchema = z.object({ kind: z.literal('self') }).strict();
-const buyerManagedSeatSchema = z.object({ kind: z.literal('buyer_managed') }).strict();
 const managedCommunitySeatSchema = z.object({ kind: z.literal('community_managed') }).strict();
 const shareableCommunitySeatSchema = z.object({ kind: z.literal('community_shareable') }).strict();
 const giftSeatSchema = z.object({
@@ -21,7 +20,6 @@ const giftSeatSchema = z.object({
 
 export const devcon26SeatAllocationSchema = z.discriminatedUnion('kind', [
   selfSeatSchema,
-  buyerManagedSeatSchema,
   giftSeatSchema,
   managedCommunitySeatSchema,
   shareableCommunitySeatSchema,

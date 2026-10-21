@@ -4,7 +4,6 @@ import {
   summarizeAnnualConferenceTicketingInventory,
   ticketTiersForPrices,
   type AnnualConferenceTicketingSettings,
-  validateAnnualConferenceTicketPrices,
 } from '@/lib/annual-conference-ticketing';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 import { devcon26CartAllocationsForStorage, type Devcon26TicketCart } from '@/lib/devcon26-ticket-cart';
@@ -48,6 +47,7 @@ export async function getSupabaseAnnualConferenceTicketing(year: number, c?: Con
 
   if (settingsResult.error) throw new Error(settingsResult.error.message);
 
+  const defaultSettings = defaultAnnualConferenceTicketingSettings(editionId);
   const settings = settingsResult.data
     ? {
       edition_id: settingsResult.data.edition_id,
@@ -59,10 +59,14 @@ export async function getSupabaseAnnualConferenceTicketing(year: number, c?: Con
         regular: settingsResult.data.regular_price_minor,
         team_3: settingsResult.data.team_3_price_minor,
         team_5: settingsResult.data.team_5_price_minor,
-      }),
+      }).filter((tier) => year !== 2026 || tier.key === 'regular'),
       updated_at: settingsResult.data.updated_at,
     } satisfies AnnualConferenceTicketingSettings
-    : defaultAnnualConferenceTicketingSettings(editionId);
+    : {
+      ...defaultSettings,
+      ticket_tiers: defaultSettings.ticket_tiers
+        .filter((tier) => year !== 2026 || tier.key === 'regular'),
+    };
 
   const [paidSeats, sponsorSeatsHeld, checkoutSeatsHeld] = await Promise.all([
     sumTicketingQuantities({
@@ -134,14 +138,13 @@ export async function getSupabaseAnnualConferencePublicTicketPrices(
     team_5: settingsResult.data.team_5_price_minor,
   };
 
-  if (validateAnnualConferenceTicketPrices(prices)) return undefined;
-  if (availability === 'sandbox' && (prices.regular !== 15_000
-    || prices.team_3 !== 45_000 || prices.team_5 !== 75_000)) return undefined;
+  if (!Number.isSafeInteger(prices.regular) || prices.regular <= 0) return undefined;
+  if (availability === 'sandbox' && prices.regular !== 15_000) return undefined;
 
   return {
     currency: settingsResult.data.currency,
     tiers: ticketTiersForPrices(prices)
-      .filter((tier) => availability === 'sandbox' || tier.key === 'regular')
+      .filter((tier) => tier.key === 'regular')
       .map((tier) => ({ tier_key: tier.key, quantity: tier.quantity, amount_minor: tier.price_minor })),
   };
 }

@@ -94,7 +94,7 @@ const ticketOrderQuery = useQuery({
 });
 const regularTier = computed(() => ticketing.value?.settings.ticket_tiers.find((tier) => tier.key === 'regular'));
 const pricingIsEditable = computed(() => (
-  ticketOrderQuery.data.value?.total === 0 && (
+  year.value !== '2026' && ticketOrderQuery.data.value?.total === 0 && (
     ticketing.value?.settings.ticket_sales_status === 'draft'
     || (ticketing.value?.settings.ticket_sales_status === 'closed' && ticketing.value.settings.public_mode === 'free')
   )
@@ -572,7 +572,7 @@ onUnmounted(() => {
             <div>
               <p class="editorial-eyebrow">Public passes</p>
               <h2 id="passes-title" class="mt-1 text-xl font-semibold text-dc-ink">Pricing</h2>
-              <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Prices can be set before sales open, including while free registration is closed. The first checkout order locks them.</p>
+              <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">{{ year === '2026' ? 'One ticket costs GH₵150 per person. Buyers can choose any quantity within payment and venue capacity.' : 'Prices can be set before sales open, including while free registration is closed. The first checkout order locks them.' }}</p>
             </div>
             <div class="flex items-center gap-3">
               <span class="rounded-full border border-dc-ink px-3 py-1 font-mono text-[10px] font-semibold uppercase">{{ ticketing.settings.ticket_sales_status }}</span>
@@ -583,15 +583,15 @@ onUnmounted(() => {
           <dl class="mt-5 divide-y divide-dc-border border-y border-dc-border">
             <div v-for="tier in ticketing.settings.ticket_tiers" :key="tier.key" class="grid gap-1 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-6">
               <div>
-                <dt class="font-semibold text-dc-ink">{{ tier.label }}</dt>
+                <dt class="font-semibold text-dc-ink">{{ year === '2026' ? 'Individual ticket' : tier.label }}</dt>
                 <dd class="mt-1 text-sm text-dc-gray">{{ tier.quantity }} {{ tier.quantity === 1 ? 'seat' : 'seats' }}<span v-if="regularTier && tier.key !== 'regular' && tierSavings(tier, regularTier) > 0"> · saves {{ formatTicketMoney(tierSavings(tier, regularTier)) }} against regular passes</span></dd>
               </div>
               <dd class="font-mono text-2xl font-semibold tracking-tight text-dc-ink">{{ formatTicketMoney(tier.price_minor) }}</dd>
-              <dd class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">GHS · fixed quantity</dd>
+              <dd class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">{{ year === '2026' ? 'GHS · per person' : 'GHS · fixed quantity' }}</dd>
             </div>
           </dl>
 
-          <p v-if="!pricingIsEditable" class="mt-5 text-sm text-dc-gray">Price changes require draft or free/closed sales and no checkout orders. Existing order amounts remain unchanged.</p>
+          <p v-if="year !== '2026' && !pricingIsEditable" class="mt-5 text-sm text-dc-gray">Price changes require draft or free/closed sales and no checkout orders. Existing order amounts remain unchanged.</p>
         </section>
 
         <section class="rounded-lg border border-dc-border bg-dc-paper" aria-labelledby="ticket-orders-title">
@@ -709,7 +709,7 @@ onUnmounted(() => {
         <section class="rounded-lg border-2 border-dc-ink bg-dc-paper p-5" aria-labelledby="sponsor-title">
           <p class="editorial-eyebrow">Sponsor allocations</p>
           <h2 id="sponsor-title" class="mt-1 text-xl font-semibold text-dc-ink">Reserve private sponsor tickets</h2>
-          <p class="mt-2 text-sm leading-6 text-dc-gray">These seats are held in the inventory ledger immediately and are not public pass types.</p>
+          <p class="mt-2 text-sm leading-6 text-dc-gray">These seats are held in the inventory ledger immediately and are not public pass types. Reserving does not yet issue QR codes or send an email.</p>
 
           <form class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1.15fr)_8rem]" novalidate @submit.prevent="saveSponsorAllocation">
             <label for="sponsor-allocation-name">

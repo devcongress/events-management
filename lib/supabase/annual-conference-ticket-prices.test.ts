@@ -45,8 +45,6 @@ describe('DevCon26 ticket price visibility', () => {
     await expect(getSupabaseAnnualConferencePublicTicketPrices(2026, undefined, 'sandbox')).resolves.toEqual({
       currency: 'GHS', tiers: [
         { tier_key: 'regular', quantity: 1, amount_minor: 15_000 },
-        { tier_key: 'team_3', quantity: 3, amount_minor: 45_000 },
-        { tier_key: 'team_5', quantity: 5, amount_minor: 75_000 },
       ],
     });
   });
@@ -58,11 +56,11 @@ describe('DevCon26 ticket price visibility', () => {
       .resolves.toBeUndefined();
   });
 
-  it('fails closed when a legacy sandbox team price differs from the per-seat amount', async () => {
+  it('does not use retired team prices to gate the individual ticket catalog', async () => {
     mocks.settings.team_3_price_minor = 44_999;
 
     await expect(getSupabaseAnnualConferencePublicTicketPrices(2026, undefined, 'sandbox'))
-      .resolves.toBeUndefined();
+      .resolves.toEqual({ currency: 'GHS', tiers: [{ tier_key: 'regular', quantity: 1, amount_minor: 15_000 }] });
   });
 
   it('opens the public price catalog only after the Owner opens paid sales', async () => {

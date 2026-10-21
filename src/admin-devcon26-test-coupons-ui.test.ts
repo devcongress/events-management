@@ -124,8 +124,8 @@ describe('Owner test coupon interface boundary', () => {
     const controls = Array.from(html.matchAll(/<label\b[^>]*>[\s\S]*?<\/label>/g), ([control]) => control)
       .filter((control) => control.includes('name="eligible_tiers"'));
 
-    expect(controls).toHaveLength(3);
-    for (const [index, value] of ['regular', 'team_3', 'team_5'].entries()) {
+    expect(controls).toHaveLength(1);
+    for (const [index, value] of ['regular'].entries()) {
       const control = controls[index];
 
       expect(control).toContain('min-h-11');
@@ -140,7 +140,7 @@ describe('Owner test coupon interface boundary', () => {
       expect(control).toMatch(/<svg\b[^>]*aria-hidden="true"/);
       expect(control).not.toContain('role="checkbox"');
     }
-    for (const label of ['Regular pass', 'Team of 3', 'Team of 5']) {
+    for (const label of ['Individual ticket']) {
       expect(controls.some((control) => control.includes(label))).toBe(true);
     }
     expect(source).toContain('v-model="form.eligible_tiers"');

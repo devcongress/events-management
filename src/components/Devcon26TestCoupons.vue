@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { formatTicketMoney, parseGhsAmountToMinor, type AnnualConferenceTicketTierKey } from '@/lib/annual-conference-ticketing';
+import { formatTicketMoney, parseGhsAmountToMinor, ticketTierForKey, type AnnualConferenceTicketTierKey } from '@/lib/annual-conference-ticketing';
 import { createDevcon26TestCouponSchema, type Devcon26TestCheckoutLedgerRow, type Devcon26TestCoupon, type Devcon26TestCouponCreated } from '@/lib/devcon26-test-coupons';
 import { createDevcon26TestCoupon, DEVCON26_TEST_CHECKOUT_PAGE_SIZE, fetchDevcon26TestCoupons, toggleDevcon26TestCoupon } from '@/src/lib/api';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
@@ -32,7 +32,7 @@ let previousDocumentOverflow = '';
 
 const form = reactive({
   discount_type: 'fixed_minor' as 'fixed_minor' | 'percentage_bps', discount: '',
-  eligible_tiers: ['regular', 'team_3', 'team_5'] as AnnualConferenceTicketTierKey[],
+  eligible_tiers: ['regular'] as AnnualConferenceTicketTierKey[],
   expires_at: '', max_completed: 1,
 });
 const discountTypes = [
@@ -40,8 +40,12 @@ const discountTypes = [
   { value: 'percentage_bps', label: 'Percentage' },
 ];
 const tiers: Array<{ key: AnnualConferenceTicketTierKey; label: string }> = [
-  { key: 'regular', label: 'Regular pass' }, { key: 'team_3', label: 'Team of 3' }, { key: 'team_5', label: 'Team of 5' },
+  { key: 'regular', label: 'Individual ticket' },
 ];
+
+function tierLabel(key: AnnualConferenceTicketTierKey): string {
+  return key === 'regular' ? 'Individual ticket' : ticketTierForKey(key)?.label ?? 'Legacy ticket';
+}
 const query = useQuery({
   queryKey: computed(() => ['devcon26-test-coupons', props.year, page.value, checkoutPage.value, DEVCON26_TEST_CHECKOUT_PAGE_SIZE]),
   queryFn: () => fetchDevcon26TestCoupons(props.year, page.value, checkoutPage.value),
@@ -371,7 +375,7 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
             </div>
             <button type="button" class="motion-press min-h-11 rounded-md border border-dc-ink px-3 text-sm disabled:opacity-50" :disabled="toggleMutation.isPending.value" :aria-label="`${coupon.enabled ? 'Disable' : 'Enable'} ${coupon.code}`" @click="toggleMutation.mutate(coupon)">{{ coupon.enabled ? 'Disable' : 'Enable' }}</button>
           </div>
-          <p class="mt-2 text-xs leading-5 text-dc-gray">{{ coupon.eligible_tiers.map((key) => tiers.find((tier) => tier.key === key)?.label).join(', ') }} · Expires {{ dateLabel(coupon.expires_at) }}</p>
+          <p class="mt-2 text-xs leading-5 text-dc-gray">{{ coupon.eligible_tiers.map(tierLabel).join(', ') }} · Expires {{ dateLabel(coupon.expires_at) }}</p>
           <dl class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div><dt class="text-xs text-dc-gray">Completed / maximum</dt><dd class="mt-1 font-mono text-sm text-dc-ink">{{ coupon.completed }} / {{ coupon.max_completed }}</dd></div>
             <div><dt class="text-xs text-dc-gray">Active holds</dt><dd class="mt-1 font-mono text-sm text-dc-ink">{{ coupon.active_holds }}</dd></div>
@@ -415,7 +419,7 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
                   <p class="mt-1 text-xs text-dc-gray">Open private details</p>
                 </td>
                 <td class="px-4 py-4">
-                  <p class="whitespace-nowrap font-medium text-dc-ink">{{ tiers.find((tier) => tier.key === checkout.tier_key)?.label }}</p>
+                  <p class="whitespace-nowrap font-medium text-dc-ink">{{ tierLabel(checkout.tier_key) }}</p>
                   <p class="mt-1 text-xs text-dc-gray">{{ checkout.quantity }} {{ checkout.quantity === 1 ? 'seat' : 'seats' }}</p>
                   <p class="mt-1 max-w-48 break-all text-xs text-dc-gray">{{ checkout.coupon_code ?? 'No coupon' }}</p>
                 </td>
@@ -461,7 +465,7 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
           <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
             <dl class="divide-y divide-dc-border border-y border-dc-border">
               <div class="py-3"><dt class="text-sm text-dc-gray">Purchaser</dt><dd class="mt-1 break-words font-semibold text-dc-ink">{{ selectedCheckout.purchaser_name ?? 'Legacy test checkout' }}</dd><dd class="mt-1 break-all text-sm text-dc-gray">{{ selectedCheckout.purchaser_email ?? 'Purchaser not collected' }}</dd></div>
-              <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Pass</dt><dd class="text-right font-semibold text-dc-ink">{{ tiers.find((tier) => tier.key === selectedCheckout?.tier_key)?.label }} · {{ selectedCheckout.quantity }} {{ selectedCheckout.quantity === 1 ? 'seat' : 'seats' }}</dd></div>
+              <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Pass</dt><dd class="text-right font-semibold text-dc-ink">{{ selectedCheckout ? tierLabel(selectedCheckout.tier_key) : '' }} · {{ selectedCheckout.quantity }} {{ selectedCheckout.quantity === 1 ? 'seat' : 'seats' }}</dd></div>
               <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Paid amount</dt><dd class="font-semibold text-dc-ink">{{ formatTicketMoney(selectedCheckout.amount_minor) }}</dd></div>
               <div class="py-3"><dt class="text-sm text-dc-gray">Payment reference</dt><dd class="mt-1 break-all font-mono text-xs font-semibold text-dc-ink">{{ selectedCheckout.payment_reference }}</dd></div>
               <div class="py-3"><dt class="text-sm text-dc-gray">Checkout ID</dt><dd class="mt-1 break-all font-mono text-xs font-semibold text-dc-ink">{{ selectedCheckout.id }}</dd></div>
