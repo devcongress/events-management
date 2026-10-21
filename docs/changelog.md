@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-21 — Clear PR dependency audit
+
+- Update Vite from 6.4.3 to the patched 6.4.5 release so the DevCon26 price reconciliation PR passes the dependency audit. Application and migration behavior are unchanged.
+
 ## 2026-10-21 — Reconcile DevCon26 ticket prices
 
 - Match EMS fallback prices and new database defaults to the agreed GH₵150 per person, with GH₵450/GH₵750 legacy group totals and no group discount.
