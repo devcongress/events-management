@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-21 — Clear PR dependency audit
+
+- Update Vite from 6.4.3 to the patched 6.4.5 release so the DevCon26 price reconciliation PR passes the dependency audit. Application and migration behavior are unchanged.
+
+## 2026-10-21 — Reconcile DevCon26 ticket prices
+
+- Match EMS fallback prices and new database defaults to the agreed GH₵150 per person, with GH₵450/GH₵750 legacy group totals and no group discount.
+- Add a forward migration that corrects the 2026 stored prices only when the old values and zero-order safety conditions hold. Existing test quote and coupon functions use those stored prices for future sessions. Verify the exact 2026 row in the read-only delivery gate. Keep flexible checkout in `foundation`; migration application and sales activation remain separate.
+
+## 2026-10-21 — Meetup registration layout and typography
+
+- Center the desktop registration card both horizontally and vertically within the viewport while leaving the fixed collaboration illustration in its existing bottom-right position behind the card. Keep the artwork out of document flow so it cannot add page height.
+- Match the public website's Bricolage Grotesque headings and Source Sans 3 body type on the meetup registration page, with calmer metadata and form weights. Allow the same Google Fonts stylesheet and font hosts through each EMS response CSP layer.
+
 ## 2026-10-20 — DevCon26 flexible paid ticket foundation
 
 - Update Hono to patched version 4.13.11 to clear the static-path double-decoding advisory reported by the PR dependency audit.

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineProps<{ centerContent?: boolean }>();
+
 const DEVCONGRESS_FORM_COLLABORATION_PATH = '/illustrations/devcongress-form-collaboration.png';
 </script>
 
@@ -15,7 +17,10 @@ const DEVCONGRESS_FORM_COLLABORATION_PATH = '/illustrations/devcongress-form-col
         />
       </div>
     </aside>
-    <div class="public-form-route-frame__content">
+    <div
+      class="public-form-route-frame__content"
+      :class="{ 'public-form-route-frame__content--centered': centerContent }"
+    >
       <slot />
     </div>
   </div>
@@ -95,9 +100,19 @@ const DEVCONGRESS_FORM_COLLABORATION_PATH = '/illustrations/devcongress-form-col
   }
 }
 
+@media (min-width: 48rem) {
+  .public-form-route-frame__content--centered {
+    height: 100%;
+  }
+}
+
 @media (min-width: 80rem) {
   .public-form-route-frame__content {
     width: calc(100% - clamp(20rem, 30vw, 30rem));
+  }
+
+  .public-form-route-frame__content--centered {
+    width: 100%;
   }
 }
 </style>

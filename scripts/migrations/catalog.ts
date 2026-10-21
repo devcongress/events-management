@@ -58,6 +58,15 @@ SELECT json_build_object(
       JOIN pg_proc p ON p.oid = t.tgfoid
       JOIN pg_namespace fn ON fn.oid = p.pronamespace
       WHERE n.nspname = 'public' AND NOT t.tgisinternal
+      UNION ALL
+      SELECT json_build_object('kind', 'data', 'schema', 'public', 'name', 'devcon26_2026_ticket_price_state',
+        'value', (
+          SELECT s.currency || '|' || s.regular_price_minor || '|' || s.team_3_price_minor || '|'
+            || s.team_5_price_minor || '|' || s.flexible_checkout_state
+          FROM public.annual_conference_editions e
+          JOIN public.annual_conference_ticketing_settings s ON s.edition_id = e.id
+          WHERE e.year = 2026
+        ))
     ) catalog
   ), '[]'::json)
 );
@@ -66,6 +75,7 @@ ROLLBACK;
 
 const catalogObjectSchema = z.object({
   kind: z.string(), schema: z.string(), name: z.string(), table: z.string().optional(),
+  value: z.string().nullable().optional(),
   type: z.string().optional(), notNull: z.boolean().optional(), rls: z.boolean().optional(),
   defaultExpression: z.string().nullable().optional(),
   private: z.boolean().optional(), valid: z.boolean().optional(), definition: z.string().optional(),
@@ -90,6 +100,7 @@ export function probePasses(probe: Probe, catalog: Catalog): boolean {
     if ('table' in probe && object.table !== probe.table) return false;
 
     switch (probe.kind) {
+      case 'data': return object.value === probe.value;
       case 'table': return object.rls === probe.rls && object.private === probe.private;
       case 'column': return object.type === probe.type && object.notNull === probe.notNull
         && object.defaultExpression === probe.defaultExpression;

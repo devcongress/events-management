@@ -39,6 +39,8 @@ As of 2026-10-20 the inventory contains 122 SQL files: 92 historical hash-only e
 
 Checks cover column types/nullability/defaults, index and constraint definitions/validity, table RLS and effective public privileges, exact function overload/body/return-type/language/security/search-path/privileges, and enabled trigger binding to the correct function schema. This catches partial schema changes where an object name exists but its required definition does not.
 
+The DevCon26 price reconciliation also has one fixed read-only data probe: the 2026 settings row must contain GHS and 15000/45000/75000 pesewas while flexible checkout stays at `foundation`. A matching column default alone does not prove the existing edition was corrected.
+
 For each new migration:
 
 1. Use a unique timestamp and a forward-only SQL file. Do not rename/replay old migrations to work around duplicate historical versions.
