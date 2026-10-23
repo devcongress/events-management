@@ -62,7 +62,7 @@ export type ResendEmail = {
 };
 
 export type ResendAttachedEmail = ResendEmail & {
-  attachments?: Array<{ filename: string; content: string; content_type: string; content_id: string }>;
+  attachments?: Array<{ filename: string; content: string; content_type: string; content_id?: string }>;
 };
 
 export async function sendResendAttachedEmail(input: {

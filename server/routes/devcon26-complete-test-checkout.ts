@@ -1,3 +1,5 @@
+import { createAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
+import { getSupabaseAnnualConferenceSocialCardByOrderSeat } from '@/lib/supabase/annual-conference-social-cards';
 import crypto from 'node:crypto';
 import { cors } from 'hono/cors';
 import type { Context, Hono } from 'hono';
@@ -137,7 +139,7 @@ export function registerDevcon26CompleteTestCheckout(app: Hono<AppBindings>) {
         if (quota) return quota;
       }
 
-      const result = await getSupabaseAdminClient(c).rpc('create_annual_conference_complete_test_hold' as never, {
+      const result = await getSupabaseAdminClient(c).rpc('create_complete_test_hold_v2' as never, {
         p_edition_id: ticketing.settings.edition_id,
         p_purchaser_name: input.data.purchaser_name, p_purchaser_email: input.data.purchaser_email,
         p_quantity: input.data.cart.quantity, p_checkout_request_key: input.data.checkout_request_key,
@@ -212,7 +214,25 @@ export function registerDevcon26CompleteTestCheckout(app: Hono<AppBindings>) {
 
       if (!summary) throw new Error('Missing summary');
 
-      return c.json({ ...summary, mode: 'test', status: 'verified' });
+      const allocation = await getSupabaseAdminClient(c).from('annual_conference_flexible_ticket_allocations' as never)
+        .select('seat_index').eq('order_id', grant.order_id).eq('allocation_kind', 'self').maybeSingle() as unknown as {
+          data: { seat_index: number } | null; error: unknown;
+        };
+
+      if (allocation.error) throw new Error('Badge allocation unavailable');
+
+      const seat = allocation.data?.seat_index;
+      const card = seat ? await getSupabaseAnnualConferenceSocialCardByOrderSeat(grant.order_id, seat, c) : null;
+      const badge = card?.is_test && seat ? {
+        buyer_grant: createAnnualConferenceSocialCardBuyerGrant({
+          orderId: grant.order_id, verifier: input.data.checkout_verifier, origin: config.origin,
+          secretKey: config.secretKey, seatNumbers: [seat],
+        }),
+        card_quantity: 1,
+        can_return_later: true,
+      } : { card_quantity: 0 };
+
+      return c.json({ ...summary, ...badge, mode: 'test', status: 'verified' });
     } catch {
       return c.json({ error: 'Test payment could not be confirmed yet.' }, 503);
     }

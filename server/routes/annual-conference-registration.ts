@@ -40,7 +40,11 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
         : await retryAnnualConferenceAttendeeUpdates(c);
 
       return c.json({ admissions, updates });
-    } catch {
+    } catch (error) {
+      const known = ['Admission email queue unavailable.', 'Admission email claim invalid.', 'Admission email acknowledgement failed.'];
+
+      console.error(JSON.stringify({ event: 'admission_email_retry_failed', reason: error instanceof Error && known.includes(error.message) ? error.message : 'Unexpected dispatcher failure' }));
+
       return c.json({ error: 'Admission email retry could not complete.' }, 503);
     }
   });

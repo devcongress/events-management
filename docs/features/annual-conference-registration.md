@@ -153,3 +153,16 @@ Publishing the branch does not apply SQL, clean test records, send historical
 queued messages, or deploy either Worker. Full payment-to-inbox acceptance
 remains pending user testing; disposable PostgreSQL and unit checks verify the
 transactional and queue-isolation invariants without exercising live delivery.
+
+Verified complete-test returns include a separate buyer badge grant only for the self allocation. Its signed seat scope prevents editing gifted seats, and preview buyer routes recheck paid/test/origin provenance and testing enablement. The relay checks dispatcher result counts as well as HTTP status; HTTP 200 with missing configuration or failed deliveries is not treated as success.
+
+The preview ticket QR email includes event date/venue and a separate seat-scoped badge grant valid for 30 days; this does not depend on the raw capability scrubbed after the standalone badge email is accepted. The existing personal badge link remains valid. `20261023001000_preview_admission_email_finalization.sql` adds a preview-only finalizer with integer retry intervals and claim-token ownership, leaving the production function untouched. Application is a separate user-reviewed operation.
+
+
+### Combined preview ticket email (v2)
+
+New preview holds use `create_complete_test_hold_v2` after applying `20261023010000_preview_combined_ticket_email.sql`. The immutable order opt-in is test-only. Applying the migration alone does not activate this path; the updated preview Worker must create new orders through the v2 RPC. Existing request keys are not upgraded.
+
+For a self ticket, first issuance atomically merges purchaser management access into the ticket email and includes a seat-scoped badge link. The QR is a branded PDF attachment, not an inline image. Separate EMS receipt and first-issue badge messages are not queued. Paystack owns payment receipts. Gift-only purchasers still receive management access, gift recipients receive claim invitations, and claimed gifts receive their own PDF/badge email without purchaser management access. Explicit later badge email inserts are not suppressed.
+
+Existing rows, prior accepted provider payloads, live orders, and unrelated queued badge mail are unchanged. The sender freezes HTML, text, and PDF bytes under the existing idempotency key before delivery. Old preview and live email rendering remains unchanged until a separately reviewed rollout. Custom email fonts have system fallbacks; actual mail clients may override dark-mode CSS.

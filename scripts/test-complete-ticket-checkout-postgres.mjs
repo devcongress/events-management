@@ -123,3 +123,99 @@ execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', 
   assert.equal(results[0].status, 'verified', JSON.stringify(results));
 `], { stdio: 'inherit' });
 console.log('Preview-only leases preserve unrelated mail byte-for-byte, isolate preview origin, and prevent double claims.');
+
+sql(migration('20261023001000_preview_admission_email_finalization.sql'));
+const previewReceipt = sql(`select id from public.annual_conference_ticket_email_outbox where order_id='${order}' and kind='payment_receipt'`);
+const receiptClaim = sql(`select claim_token from public.annual_conference_ticket_email_outbox where id='${previewReceipt}'`);
+const finalize = (status, site = origin, claim = receiptClaim) => `select status from public.finalize_complete_test_only_admission_email('${previewReceipt}', '${claim}', '${status}', '${site}', ${status === 'accepted' ? "'fixture-provider'" : 'null'})`;
+
+assert.throws(() => sql(finalize('failed', 'https://other.account.workers.dev')), /complete_test_email_unavailable/);
+assert.throws(() => sql(finalize('failed', origin, '00000000-0000-4000-8000-000000000099')), /ticket_email_claim_lost/);
+assert.equal(sql(finalize('failed')), 'failed');
+assert.equal(sql(`select (next_attempt_at > now()) from public.annual_conference_ticket_email_outbox where id='${previewReceipt}'`), 't');
+assert.equal(snapshotOtherMail('annual_conference_ticket_email_outbox', 'admission'), admissionBefore);
+assert.equal(snapshotOtherMail('annual_conference_social_card_email_outbox', 'social'), socialBefore);
+console.log('Preview-only finalization: retry backoff works, wrong origin/token blocked, unrelated mail unchanged.');
+
+sql(`update public.annual_conference_ticket_email_outbox set next_attempt_at=now() where id='${previewReceipt}';
+select count(*) from public.claim_complete_test_only_admission_emails('${receiptClaim}', 20, '${origin}');
+update public.annual_conference_ticket_email_outbox set claimed_until=now()-interval '1 second' where id='${previewReceipt}';
+select public.configure_annual_conference_registration_testing('${edition}', false, array['tester@example.test'], 'owner@example.test');`);
+assert.equal(sql(finalize('accepted')), 'accepted');
+assert.equal(snapshotOtherMail('annual_conference_ticket_email_outbox', 'admission'), admissionBefore);
+assert.equal(snapshotOtherMail('annual_conference_social_card_email_outbox', 'social'), socialBefore);
+console.log('Accepted preview sends remain acknowledgeable after testing disablement and lease timeout.');
+
+// Combined delivery is opt-in for newly created preview orders, never a backfill.
+const oldAdmission = sql('select jsonb_agg(to_jsonb(d) order by id) from public.annual_conference_ticket_email_outbox d');
+const oldSocial = sql('select jsonb_agg(to_jsonb(d) order by id) from public.annual_conference_social_card_email_outbox d');
+
+sql(migration('20261023010000_preview_combined_ticket_email.sql'));
+assert.equal(sql('select jsonb_agg(to_jsonb(d) order by id) from public.annual_conference_ticket_email_outbox d'), oldAdmission);
+assert.equal(sql('select jsonb_agg(to_jsonb(d) order by id) from public.annual_conference_social_card_email_outbox d'), oldSocial);
+sql(`select public.configure_annual_conference_registration_testing('${edition}', true, array['tester@example.test', 'gift@example.test'], 'owner@example.test')`);
+assert.throws(() => sql(hold().replace('create_annual_conference_complete_test_hold', 'create_complete_test_hold_v2')), /flexible_ticket_checkout_request_conflict/);
+
+// Restore the real social-card issuance command after the minimal legacy fixture.
+const issueSql = migration('20261016150000_conference_registration_crypto_resolution.sql').match(/create or replace function public\.issue_annual_conference_social_card_delivery\([\s\S]*?\n\$\$;/)[0];
+
+sql('drop function public.issue_annual_conference_social_card_delivery(uuid, public.annual_conference_social_card_subject, uuid)');
+sql(issueSql);
+const makeOrder = (allocations) => {
+  const request = sql('select gen_random_uuid()');
+  const create = `select id from public.create_complete_test_hold_v2('${edition}', 'Tester', 'tester@example.test', ${allocations.length}, '${JSON.stringify(allocations)}'::jsonb, '${request}', '${origin}')`;
+  const id = sql(create);
+
+  assert.equal(sql(create), id);
+  const ref = `devcon26-complete-test-${id.replaceAll('-', '')}`;
+
+  sql(`select public.prepare_annual_conference_ticket_payment_attempt('${id}', 'paystack', '${ref}')`);
+  const confirmV2 = `select status from public.confirm_annual_conference_ticket_payment('${id}', 'paystack', '${id}', 'charge.success', '${ref}', ${allocations.length * 15000}, 'GHS', 'fixture', '{"domain":"test"}'::jsonb)`;
+
+  assert.equal(sql(confirmV2), 'paid');
+  assert.equal(sql(confirmV2), 'paid');
+  assert.throws(() => sql(`update public.annual_conference_ticket_orders set preview_combined_email=false where id='${id}'`), /preview_email_policy_immutable/);
+
+  return id;
+};
+const self = { seat_index: 1, kind: 'self', recipient_name: 'Tester', recipient_email: 'tester@example.test' };
+const gift = { seat_index: 2, kind: 'gift', recipient_email: 'gift@example.test' };
+const combinedOrder = makeOrder([self]);
+const rowsFor = (id) => JSON.parse(sql(`select jsonb_agg(to_jsonb(d)) from public.annual_conference_ticket_email_outbox d where order_id='${id}'`));
+const combinedRows = rowsFor(combinedOrder);
+
+assert.equal(combinedRows.length, 1);
+assert.equal(combinedRows[0].kind, 'flexible_admission_delivery');
+assert.equal(combinedRows[0].payload.badge_included, true);
+assert.equal(combinedRows[0].payload.seat_number, 1);
+assert.match(combinedRows[0].payload.capability, /^[a-f0-9]{64}$/);
+assert.equal(sql(`select count(*) from public.annual_conference_social_card_email_outbox d join public.annual_conference_social_cards c on c.id=d.social_card_id join public.annual_conference_tickets t on t.id=c.ticket_id where t.order_id='${combinedOrder}'`), '0');
+const mixed = makeOrder([self, gift]);
+
+assert.deepEqual(rowsFor(mixed).map((row) => row.kind).sort(), ['flexible_admission_delivery', 'flexible_gift_claim']);
+const giftOnly = makeOrder([{ ...gift, seat_index: 1 }]);
+
+assert.deepEqual(rowsFor(giftOnly).map((row) => row.kind).sort(), ['flexible_gift_claim', 'flexible_order_management']);
+const claimCapability = rowsFor(mixed).find((row) => row.kind === 'flexible_gift_claim').payload.capability;
+
+sql(`select * from public.claim_annual_conference_flexible_ticket('${claimCapability}', 'Friend', 'gift@example.test')`);
+const recipientTicket = rowsFor(mixed).find((row) => row.kind === 'flexible_admission_delivery' && row.recipient_email === 'gift@example.test');
+
+assert.equal(recipientTicket.payload.badge_included, true);
+assert.equal(sql(`select count(*) from public.annual_conference_social_card_email_outbox d join public.annual_conference_social_cards c on c.id=d.social_card_id where c.ticket_id='${recipientTicket.payload.ticket_id}'`), '0');
+assert.equal(recipientTicket.payload.capability, undefined, 'gift recipient must never receive purchaser management capability');
+// An explicit later badge resend remains available.
+sql(`insert into public.annual_conference_social_card_email_outbox (edition_id,social_card_id,recipient_name,recipient_email,capability,idempotency_key) select '${edition}', id, 'Tester', 'tester@example.test', repeat('c',43), 'explicit-v2-reissue' from public.annual_conference_social_cards where ticket_id='${combinedRows[0].payload.ticket_id}'`);
+assert.equal(sql(`select count(*) from public.annual_conference_social_card_email_outbox d join public.annual_conference_social_cards c on c.id=d.social_card_id where c.ticket_id='${combinedRows[0].payload.ticket_id}'`), '1');
+assert.equal(snapshotOtherMail('annual_conference_ticket_email_outbox', 'admission'), admissionBefore);
+assert.equal(snapshotOtherMail('annual_conference_social_card_email_outbox', 'social'), socialBefore);
+execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
+  import assert from 'node:assert/strict';
+  import { readFileSync } from 'node:fs';
+  import { readCatalog, evaluateCatalog } from './scripts/migrations/catalog.ts';
+  const contract = JSON.parse(readFileSync('supabase/migration-verification-contract.json', 'utf8'));
+  contract.verified = contract.verified.filter(entry => entry.file === '20261023010000_preview_combined_ticket_email.sql');
+  const results = evaluateCatalog(contract, readCatalog(process.env));
+  assert.equal(results[0].status, 'verified', JSON.stringify(results));
+`], { stdio: 'inherit' });
+console.log('Combined preview emails: self, mixed, gift claim, no duplicate receipt/badge, explicit reissue, replay, production isolation and catalog contract passed.');

@@ -42,3 +42,13 @@ describe('DevCon26 buyer social-card grants', () => {
     expect(verifyAnnualConferenceSocialCardBuyerGrant({ grant, verifier, origin, secretKey, now: now + (24 * 60 * 60 * 1000) })).toBeNull();
   });
 });
+
+ it('signs one explicit self seat and rejects malformed scopes', () => {
+  for (const seats of [[3], [], [1, 2], [-1]]) {
+    const grant = createAnnualConferenceSocialCardBuyerGrant({ orderId, verifier, origin, secretKey, now, seatNumbers: seats });
+    const result = verifyAnnualConferenceSocialCardBuyerGrant({ grant, origin, secretKey, now });
+
+    if (seats.length === 1 && seats[0] === 3) expect(result?.seat_numbers).toEqual([3]);
+    else expect(result).toBeNull();
+  }
+ });

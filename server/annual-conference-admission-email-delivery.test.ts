@@ -1,16 +1,18 @@
+import { verifyAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
 import { PNG } from 'pngjs';
 import jsQR from 'jsqr';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Context } from 'hono';
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), send: vi.fn(), enabled: true }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), send: vi.fn(), enabled: true, preview: false }));
 
-vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc }) }));
+vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
 vi.mock('@/lib/email/resend', () => ({ sendResendAttachedEmail: mocks.send }));
 vi.mock('@/server/env', () => ({ envValue: (key: string) => ({
   DEVCON26_ADMISSION_EMAILS_ENABLED: String(mocks.enabled), RESEND_API_KEY: 'fixture',
   DEVCON26_ADMISSION_EMAIL_FROM: 'events@example.test', DEVCON26_ADMISSION_EMAIL_REPLY_TO: 'help@example.test',
   PUBLIC_WEBSITE_ORIGIN: 'https://devcongress.org',
+  DEVCON26_COMPLETE_TEST_ENABLED: String(mocks.preview), DEVCON26_COMPLETE_TEST_ORIGIN: 'https://preview.account.workers.dev', PAYSTACK_TEST_SECRET_KEY: 'sk_test_fixture',
 })[key] }));
 
 import { admissionEmailContent, admissionEmailReadiness, retryAnnualConferenceAdmissionEmails } from './annual-conference-admission-email-delivery';
@@ -23,6 +25,7 @@ const delivery = {
 
 beforeEach(() => {
   mocks.enabled = true;
+  mocks.preview = false;
   mocks.rpc.mockReset();
   mocks.send.mockReset().mockResolvedValue('provider-fixture');
   mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
@@ -143,4 +146,47 @@ describe('test admission artifacts', () => {
       if (kind !== 'payment_receipt') expect(content.text).toContain('https://preview.account.workers.dev/');
     }
   });
+});
+
+it('includes the private badge editor and event details alongside the preview QR', async () => {
+  const badgeUrl = 'https://preview.account.workers.dev/devcon26/social-card/#' + 'b'.repeat(64);
+  const email = await admissionEmailContent(delivery, 'events@example.test', 'help@example.test', 'https://preview.account.workers.dev', true, badgeUrl);
+
+  expect(email.text).toContain(badgeUrl);
+  expect(email.html).toContain('Create your conference badge');
+  expect(email.text).toContain('19 December 2026');
+  expect(email.text).toContain('Ghana Digital Center, Accra');
+  expect(email.attachments).toHaveLength(1);
+  const png = PNG.sync.read(Buffer.from(email.attachments![0].content, 'base64'));
+
+  expect(jsQR(new Uint8ClampedArray(png.data), png.width, png.height)?.data).toBe(delivery.payload.qr_token);
+});
+
+it('sends ticket QR and independent badge access after the separate badge email was accepted and scrubbed', async () => {
+  mocks.preview = true;
+  mocks.from.mockImplementation((table) => {
+    expect(['annual_conference_social_cards', 'annual_conference_tickets']).toContain(table);
+    const query = { select: () => query, eq: () => query, single: async () => ({ error: null, data:
+      table === 'annual_conference_social_cards' ? { id: 'card', is_test: true, revoked_at: null }
+        : { order_id: delivery.id, order_seat_number: 3, attendee_email: delivery.recipient_email },
+    }) };
+
+    return query;
+  });
+  mocks.rpc.mockImplementation(async (name, args) => ({ error: null, data:
+    name === 'claim_complete_test_only_admission_emails' ? [{ ...delivery, kind: 'flexible_admission_delivery', payload: { ...delivery.payload, ticket_id: delivery.id } }]
+      : name === 'complete_test_email_context' ? { is_test: true, allowed: true, origin: 'https://preview.account.workers.dev' }
+        : name === 'annual_conference_email_allowed' ? true : name === 'freeze_annual_conference_admission_email' ? args.p_payload : {},
+  }));
+
+  expect(await retryAnnualConferenceAdmissionEmails({} as Context)).toEqual({ configured: true, accepted: 1, failed: 0 });
+  const email = mocks.send.mock.calls[0][0].email;
+
+  expect(email.attachments).toHaveLength(1);
+  expect(email.html).toContain('/social-card/#buyer_grant=');
+  const grant = decodeURIComponent(email.html.match(/buyer_grant=([^"]+)/)![1]);
+
+  expect(verifyAnnualConferenceSocialCardBuyerGrant({ grant, origin: 'https://preview.account.workers.dev', secretKey: 'sk_test_fixture' })).toMatchObject({ order_id: delivery.id, seat_numbers: [3] });
+  expect(email.html).toContain('Ghana Digital Center');
+  expect(mocks.rpc).toHaveBeenCalledWith('finalize_complete_test_only_admission_email', expect.objectContaining({ p_origin: 'https://preview.account.workers.dev', p_status: 'accepted' }));
 });
