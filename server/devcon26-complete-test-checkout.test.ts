@@ -2,10 +2,10 @@ import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppBindings } from './http/app-bindings';
 
-const mocks = vi.hoisted(() => ({ env: {} as Record<string, string>, rpc: vi.fn(), challenge: vi.fn(), limit: vi.fn(), enabled: true, state: 'internal', publicMode: 'paid', salesStatus: 'open' }));
+const mocks = vi.hoisted(() => ({ env: {} as Record<string, string>, rpc: vi.fn(), from: vi.fn(), attempt: vi.fn(), confirm: vi.fn(), summary: vi.fn(), payment: vi.fn(), card: vi.fn(), challenge: vi.fn(), limit: vi.fn(), enabled: true, state: 'internal', publicMode: 'paid', salesStatus: 'open' }));
 
 vi.mock('@/server/env', () => ({ envValue: (key: string) => mocks.env[key] }));
-vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc }) }));
+vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
 vi.mock('@/server/http/public-intake-protection', () => ({ enforcePublicRateLimit: mocks.limit, requirePublicTurnstile: mocks.challenge, publicClientKey: () => 'fixture' }));
 vi.mock('@/server/annual-conference-admission-email-delivery', () => ({ admissionEmailReadiness: () => ({ ready: true }) }));
 vi.mock('@/server/annual-conference-social-card-email-delivery', () => ({ annualConferenceSocialCardEmailConfigurationForRequest: () => ({ enabled: true }) }));
@@ -14,9 +14,9 @@ vi.mock('@/lib/supabase/annual-conference-ticketing', () => ({
   getSupabaseAnnualConferenceTicketing: async () => ({ settings: { edition_id: '10000000-0000-4000-8000-000000000001', public_mode: mocks.publicMode, ticket_sales_status: mocks.salesStatus } }),
   getSupabaseAnnualConferenceFlexibleCheckoutState: async () => ({ flexible_checkout_state: mocks.state, regular_price_minor: 15000 }),
   prepareSupabaseAnnualConferenceTicketPaymentAttempt: vi.fn(),
-  getSupabaseAnnualConferenceTicketPaymentAttempt: vi.fn(),
-  confirmSupabaseAnnualConferenceTicketPayment: vi.fn(),
-  getSupabaseAnnualConferencePaidOrderSummary: vi.fn(),
+  getSupabaseAnnualConferenceTicketPaymentAttempt: mocks.attempt,
+  confirmSupabaseAnnualConferenceTicketPayment: mocks.confirm,
+  getSupabaseAnnualConferencePaidOrderSummary: mocks.summary,
 }));
 
 import { registerDevcon26CompleteTestCheckout } from './routes/devcon26-complete-test-checkout';
@@ -143,5 +143,53 @@ describe('complete test email abuse protection', () => {
       { action: 'complete-test-recipient-day', clientKey: 'gift@example.test', maxAttempts: 3, windowSeconds: 86400 },
     ]);
     expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+});
+
+vi.mock('@/lib/annual-conference-ticket-payments', async (original) => ({
+  ...await original<object>(), readPaystackTestTransaction: mocks.payment,
+}));
+vi.mock('@/lib/supabase/annual-conference-social-cards', () => ({ getSupabaseAnnualConferenceSocialCardByOrderSeat: mocks.card }));
+
+import { createDevcon26FlexibleCheckoutGrant } from '@/lib/devcon26-flexible-checkout-grant';
+import { verifyAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
+
+describe('verified preview badge grant', () => {
+  it.each([3, null])('grants only the self allocation %s after verified payment', async (seat) => {
+    const orderId = '10000000-0000-4000-8000-000000000001';
+    const verifier = 'v'.repeat(43);
+    const secretKey = 'sk_test_fixture';
+    const reference = 'devcon26-complete-test-10000000000040008000000000000001';
+
+    mocks.attempt.mockResolvedValue({ order_id: orderId });
+    mocks.payment.mockResolvedValue({ status: 'verified', amountMinor: 15000, currency: 'GHS', paymentReference: reference });
+    mocks.confirm.mockResolvedValue({ status: 'paid' });
+    mocks.summary.mockResolvedValue({ quantity: 3 });
+    mocks.card.mockReset().mockResolvedValue({ is_test: true });
+    mocks.from.mockImplementation(() => {
+      const query = {
+        select: () => query, eq: () => query,
+        single: async () => ({ data: { payment_mode: 'test', checkout_origin: origin, edition_id: orderId }, error: null }),
+        maybeSingle: async () => ({ data: seat ? { seat_index: seat } : null, error: null }),
+      };
+
+      return query;
+    });
+    const response = await app.request(path + '/verify', {
+      method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reference, checkout_verifier: verifier,
+        checkout_grant: createDevcon26FlexibleCheckoutGrant({ orderId, verifier, origin, secretKey }) }),
+    });
+    const result = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(result.card_quantity).toBe(seat ? 1 : 0);
+    if (seat) {
+      expect(verifyAnnualConferenceSocialCardBuyerGrant({ grant: result.buyer_grant, origin, secretKey })?.seat_numbers).toEqual([3]);
+      expect(mocks.card).toHaveBeenCalledWith(orderId, 3, expect.anything());
+    } else {
+      expect(result.buyer_grant).toBeUndefined();
+      expect(mocks.card).not.toHaveBeenCalled();
+    }
   });
 });

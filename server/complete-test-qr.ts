@@ -45,12 +45,24 @@ function label(image: PNG, text: string, top: number, scale: number) {
 }
 
 export async function completeTestQrPng(token: string): Promise<Buffer> {
-  const qr = PNG.sync.read(await QRCode.toBuffer(token, { width: 600, margin: 4, errorCorrectionLevel: 'M' }));
+  // Workers resolves qrcode's browser entry, which exposes create but not toBuffer.
+  const matrix = QRCode.create(token, { errorCorrectionLevel: 'M' }).modules;
+  const margin = 4;
+  const scale = 600 / (matrix.size + margin * 2);
   const image = new PNG({ width: 600, height: 720 });
 
   image.data.fill(0);
   for (let offset = 3; offset < image.data.length; offset += 4) image.data[offset] = 255;
-  PNG.bitblt(qr, image, 0, 0, qr.width, qr.height, 0, 60);
+  for (let y = 0; y < 600; y++) {
+    for (let x = 0; x < 600; x++) {
+      const row = Math.floor(y / scale) - margin;
+      const column = Math.floor(x / scale) - margin;
+      const dark = row >= 0 && row < matrix.size && column >= 0 && column < matrix.size && matrix.get(row, column);
+      const offset = ((y + 60) * image.width + x) * 4;
+
+      image.data.fill(dark ? 0 : 255, offset, offset + 3);
+    }
+  }
   label(image, 'TEST ONLY', 12, 5);
   label(image, 'NOT VALID FOR ADMISSION', 678, 4);
 

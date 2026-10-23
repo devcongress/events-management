@@ -3846,6 +3846,138 @@
           "serviceExecute": true
         }
       ]
+    },
+    {
+      "file": "20261023001000_preview_admission_email_finalization.sql",
+      "sha256": "fd443e94388c9f24162c752a801df2fd6ba4cae1260db861846fe3306e5b11e3",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "finalize_complete_test_only_admission_email",
+          "argumentTypes": "uuid, uuid, annual_conference_ticket_email_status, text, text, text, timestamp with time zone",
+          "result": "annual_conference_ticket_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "fa643b188e556f69b040894a4df583cc9667213495eae6d45fa1bb5e35b0036c",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261023010000_preview_combined_ticket_email.sql",
+      "sha256": "019622ab40478aa546903b8e0bda21d961e663e4afad1f40bb07ff870b329ac2",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "guard_preview_combined_email",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "d538de13ea1264c53d0be474d600ea7ffe518ac3221ecb8381e7eecf8d601bd4",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "create_complete_test_hold_v2",
+          "argumentTypes": "uuid, text, text, integer, jsonb, uuid, text",
+          "result": "annual_conference_ticket_orders",
+          "language": "plpgsql",
+          "bodySha256": "812c93b5035a9e47e98eb95bb116d322c11512bc84a6e5a4f5ebcb8763851400",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "combine_preview_ticket_email",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "12f9036a91f35e61bafefa88e971fb8c60cfc7b642e0e802bcaa1c5d98879c7a",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "combine_preview_badge_email",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "5ba77e862a2c993717e606ee15e3520e9dc6100fd18b674e135a3757699d9f52",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "name": "guard_preview_combined_email",
+          "table": "annual_conference_ticket_orders",
+          "function": "guard_preview_combined_email",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE UPDATE",
+            "FOR EACH ROW"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "name": "combine_preview_ticket_email",
+          "table": "annual_conference_ticket_email_outbox",
+          "function": "combine_preview_ticket_email",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE INSERT",
+            "FOR EACH ROW"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "name": "combine_preview_badge_email",
+          "table": "annual_conference_social_card_email_outbox",
+          "function": "combine_preview_badge_email",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE INSERT",
+            "FOR EACH ROW"
+          ]
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "name": "preview_combined_email",
+          "table": "annual_conference_ticket_orders",
+          "type": "boolean",
+          "notNull": true,
+          "defaultExpression": "false"
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "name": "preview_combined_email_test_only",
+          "table": "annual_conference_ticket_orders",
+          "contains": [
+            "NOT preview_combined_email",
+            "payment_mode = 'test'::text"
+          ]
+        }
+      ]
     }
   ]
 }

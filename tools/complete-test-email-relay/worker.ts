@@ -33,7 +33,20 @@ export default {
       });
 
       if (!response.ok) throw new Error(`${job.label} preview delivery returned ${response.status}.`);
-      await response.body?.cancel();
+      const result = await response.json() as {
+        configured?: boolean; accepted?: number; failed?: number;
+        admissions?: { configured?: boolean; accepted?: number; failed?: number };
+      };
+      const delivery = job.label === 'admission' ? result.admissions : result;
+
+      if (!delivery?.configured || !Number.isInteger(delivery.accepted) || !Number.isInteger(delivery.failed)) {
+        throw new Error(`${job.label} preview delivery is not configured.`);
+      }
+
+      console.info(JSON.stringify({ event: 'preview_email_delivery', queue: job.label,
+        accepted: delivery.accepted, failed: delivery.failed }));
+
+      if (delivery.failed! > 0) throw new Error(`${job.label} preview delivery failed.`);
     }));
 
     if (results.some((result) => result.status === 'rejected')) {

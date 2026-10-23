@@ -1,3 +1,6 @@
+import { conferenceTicketEmail } from '@/lib/email/templates/conference-ticket';
+import { conferenceTicketPdf } from './conference-ticket-pdf';
+import { createAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
 import { completeTestDispatchOrigin } from '@/server/complete-test-dispatch';
 import { completeTestQrPng } from '@/server/complete-test-qr';
 import { completeTestEmailContext, markCompleteTestEmail } from '@/server/complete-test-email-context';
@@ -23,7 +26,7 @@ const deliverySchema = z.object({
 const frozenSchema = z.object({
   from: z.string(), to: z.array(z.string().email()).length(1), reply_to: z.string(),
   subject: z.string(), html: z.string(), text: z.string(),
-  attachments: z.array(z.object({ filename: z.string(), content: z.string(), content_type: z.string(), content_id: z.string() })).optional(),
+  attachments: z.array(z.object({ filename: z.string(), content: z.string(), content_type: z.string(), content_id: z.string().optional() })).optional(),
 });
 const tokenSchema = z.string().regex(/^[0-9a-f]{64}$/);
 
@@ -51,7 +54,31 @@ export async function admissionEmailContent(
   replyTo: string,
   websiteOrigin?: string,
   isTest = false,
+  badgeUrl?: string,
 ): Promise<ResendAttachedEmail> {
+  if (isTest && delivery.payload.email_version === 2) {
+    const hasTicket = delivery.kind === 'flexible_admission_delivery';
+    const capability = delivery.payload.capability === undefined ? undefined : tokenSchema.parse(delivery.payload.capability);
+    const claim = delivery.kind === 'flexible_gift_claim';
+    const link = capability ? privateCapabilityLink(websiteOrigin ?? '',
+      claim ? '/devcon26/tickets/claim/' : '/devcon26/tickets/manage/', capability) : undefined;
+
+    if (hasTicket && (delivery.payload.badge_included !== true || !badgeUrl)) {
+      throw new Error('Combined ticket badge unavailable.');
+    }
+    const attachments = hasTicket ? [{
+      filename: `devcon26-TEST-ticket-${z.number().int().positive().parse(delivery.payload.seat_number)}.pdf`,
+      content: Buffer.from(await conferenceTicketPdf({ token: tokenSchema.parse(delivery.payload.qr_token),
+        name: delivery.recipient_name, seat: z.number().int().positive().parse(delivery.payload.seat_number), isTest: true })).toString('base64'),
+      content_type: 'application/pdf',
+    }] : undefined;
+
+    return { from, to: [delivery.recipient_email], reply_to: replyTo,
+      ...conferenceTicketEmail({ name: delivery.recipient_name, hasTicket,
+        badgeUrl: hasTicket ? badgeUrl : undefined, managementUrl: claim ? undefined : link, claimUrl: claim ? link : undefined }),
+      ...(attachments ? { attachments } : {}),
+    };
+  }
   const name = escapeHtml(delivery.recipient_name);
   const base = { from, to: [delivery.recipient_email], reply_to: replyTo };
 
@@ -125,12 +152,12 @@ export async function admissionEmailContent(
   })));
 
   if (isTest) {
-    const explanation = `Attached are ${attachments.length} preview test QR codes. No money was charged and no event admission is included. These codes cannot be used to check in. Keep them private. Your test badge links arrive separately.`;
+    const explanation = `Attached are ${attachments.length} preview test QR codes. No money was charged and no event admission is included. These codes cannot be used to check in. Keep them private.`;
 
     return {
       ...base, subject: 'Your DevCon26 test QR codes', attachments,
-      html: `<p>Hi ${name},</p><p>${explanation}</p>`,
-      text: `Hi ${delivery.recipient_name},\n\n${explanation}`,
+      html: `<p>Hi ${name},</p><p>${explanation}</p><p><strong>DevCon26 · 19 December 2026</strong><br>Ghana Digital Center, Accra</p>${attachments.map((attachment) => `<p><img src="cid:${attachment.content_id}" width="300" height="360" alt="Private test ticket QR" /></p>`).join('')}${badgeUrl ? `<p><a href="${escapeHtml(badgeUrl)}">Create your conference badge</a> (private link expires after 30 days)</p>` : ''}<p>Save the attached QR image. Keep this email and its private links.</p>`,
+      text: `Hi ${delivery.recipient_name},\n\n${explanation}\n\nDevCon26 · 19 December 2026\nGhana Digital Center, Accra\n${badgeUrl ? `\nCreate your conference badge: ${badgeUrl}\n` : ''}\nSave the attached QR image. Keep this email and its private links.`,
     };
   }
 
@@ -153,6 +180,33 @@ export async function admissionEmailContent(
     html: `<p>Hi ${name},</p><p>Your place at DevCon26 is confirmed. Show this QR at the entrance. Keep it private: each code admits one person once.</p>${attachments.map((attachment) => `<p><img src="cid:${attachment.content_id}" width="300" height="300" alt="Private DevCon26 admission QR" /></p>`).join('')}<p>Save the attached image for event day. Your optional social-sharing card arrives separately.</p>`,
     text: `Hi ${delivery.recipient_name}, your place at DevCon26 is confirmed. Show the attached QR at the entrance. Each code admits one person once. Keep it private. Your optional social-sharing card arrives separately.`,
   };
+}
+
+async function previewAdmissionBadgeUrl(c: Context, delivery: z.infer<typeof deliverySchema>, origin: string): Promise<string> {
+  const ticketId = z.string().uuid().parse(delivery.payload.ticket_id);
+  const client = getSupabaseAdminClient(c);
+  const card = await client.from('annual_conference_social_cards' as never)
+    .select('id,is_test,revoked_at').eq('ticket_id', ticketId).single() as unknown as {
+      data: { id: string; is_test: boolean; revoked_at: string | null } | null; error: unknown;
+    };
+
+  if (card.error || !card.data?.is_test || card.data.revoked_at) throw new Error('Preview badge unavailable.');
+  const ticket = await client.from('annual_conference_tickets' as never)
+    .select('order_id,order_seat_number,attendee_email').eq('id', ticketId).single() as unknown as {
+      data: { order_id: string; order_seat_number: number; attendee_email: string } | null; error: unknown;
+    };
+  const secretKey = (envValue('PAYSTACK_TEST_SECRET_KEY', c) || envValue('PAYSTACK_SECRET_KEY', c))?.trim();
+
+  if (ticket.error || !ticket.data || ticket.data.attendee_email !== delivery.recipient_email
+    || !secretKey?.startsWith('sk_test_')) throw new Error('Preview badge link unavailable.');
+  // Independent signed access survives scrubbing of the separately sent badge email.
+  // It neither rotates nor invalidates that existing personal link.
+  const grant = createAnnualConferenceSocialCardBuyerGrant({
+    orderId: ticket.data.order_id, seatNumbers: [ticket.data.order_seat_number],
+    verifier: delivery.id, origin, secretKey, lifetimeSeconds: 30 * 24 * 60 * 60,
+  });
+
+  return `${origin}/devcon26/social-card/#buyer_grant=${encodeURIComponent(grant)}`;
 }
 
 export function admissionEmailReadiness(c: Context) {
@@ -182,22 +236,38 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context) {
   } as never);
 
   if (result.error) throw new Error('Admission email queue unavailable.');
-  const deliveries = z.array(deliverySchema).parse(result.data);
+  const parsed = z.array(deliverySchema).safeParse(result.data);
+
+  if (!parsed.success) {
+    console.error(JSON.stringify({ event: 'admission_email_invalid_claim', issues: parsed.error.issues.map((issue) => ({ path: issue.path, code: issue.code })) }));
+
+    throw new Error('Admission email claim invalid.');
+  }
+  const deliveries = parsed.data;
   const counts = { configured: true, accepted: 0, failed: 0 };
 
   for (const delivery of deliveries) {
     if (Date.now() + 30000 >= Date.parse(delivery.claimed_until)
       || Date.now() + 30000 >= Date.parse(delivery.first_attempt_at) + 3600000) continue;
     let providerId: string;
+    let stage = 'recipient_policy';
 
     try {
       if (!await allowConferenceEmail(c, 'admission', delivery.id, delivery.recipient_email, claim)) continue;
+      stage = 'test_policy';
       const testContext = await completeTestEmailContext(c, 'admission', delivery.id);
 
       if (!testContext.allowed) continue;
 
-      const original = await admissionEmailContent(delivery, from, replyTo, testContext.is_test ? testContext.origin : websiteOrigin, testContext.is_test);
-      const content = testContext.is_test ? markCompleteTestEmail(original) : original;
+      stage = 'badge_link';
+      const badgeUrl = testContext.is_test && delivery.kind === 'flexible_admission_delivery'
+        ? await previewAdmissionBadgeUrl(c, delivery, testContext.origin) : undefined;
+
+      stage = 'content';
+      const original = await admissionEmailContent(delivery, from, replyTo, testContext.is_test ? testContext.origin : websiteOrigin, testContext.is_test, badgeUrl);
+      const content = testContext.is_test && delivery.payload.email_version !== 2 ? markCompleteTestEmail(original) : original;
+
+      stage = 'freeze';
       const frozen = await client.rpc('freeze_annual_conference_admission_email' as never, {
         p_id: delivery.id, p_claim: claim, p_payload: content,
       } as never);
@@ -207,20 +277,28 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context) {
       if (!await allowConferenceEmail(c, 'admission', delivery.id, payload.data.to[0], claim)) continue;
       if (!(await completeTestEmailContext(c, 'admission', delivery.id)).allowed) continue;
 
+      stage = 'provider';
       providerId = await sendResendAttachedEmail({ apiKey, idempotencyKey: delivery.idempotency_key, email: payload.data });
     } catch {
-      const failed = await client.rpc('finalize_annual_conference_ticket_email_outbox' as never, {
+      console.error(JSON.stringify({ event: 'admission_email_failed', stage }));
+      const failed = await client.rpc((previewOrigin ? 'finalize_complete_test_only_admission_email' : 'finalize_annual_conference_ticket_email_outbox') as never, {
+        ...(previewOrigin ? { p_origin: previewOrigin } : {}),
         p_outbox_id: delivery.id, p_claim_token: claim, p_status: 'failed', p_last_error: 'Admission email was not accepted.',
         p_next_attempt_at: new Date(Date.now() + 5 * 60000).toISOString(),
       } as never);
 
-      if (failed.error) throw new Error('Admission email acknowledgement failed.');
+      if (failed.error) {
+        console.error(JSON.stringify({ event: 'admission_email_acknowledgement_failed', code: failed.error.code }));
+
+        throw new Error('Admission email acknowledgement failed.');
+      }
       counts.failed += 1;
       continue;
     }
 
     // A failed acknowledgement must retain the lease and frozen provider payload.
-    const finalized = await client.rpc('finalize_annual_conference_ticket_email_outbox' as never, {
+    const finalized = await client.rpc((previewOrigin ? 'finalize_complete_test_only_admission_email' : 'finalize_annual_conference_ticket_email_outbox') as never, {
+        ...(previewOrigin ? { p_origin: previewOrigin } : {}),
       p_outbox_id: delivery.id, p_claim_token: claim, p_status: 'accepted', p_provider_email_id: providerId,
     } as never);
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-23 — Combined preview ticket email
+
+- New opt-in preview orders receive one branded ticket email containing a private QR PDF attachment, a badge-editor link, and purchaser management access where applicable. Paystack remains responsible for payment receipts. Gift recipients retain separate, scoped access.
+- Reused DevCongress logo, Inter typography, restrained pink/yellow branding, and mobile light/dark email styling. QR codes are no longer embedded in the new email body.
+- Added a preview-only opt-in migration and transactional insertion hooks; no existing email rows are backfilled, and live orders cannot opt in. User-applied migration verified against the live catalog; preview activation follows the Worker deployment.
+
+## 2026-10-23 — Patch preview test dependencies
+
+- Upgrade Vitest and its mocker dependencies to 4.1.12 to resolve both reported moderate advisories and restore the dependency audit gate. Existing audit exceptions are unchanged.
+
+## 2026-10-22 — Preview badge completion and delivery visibility
+
+- Return a self-seat-scoped badge grant after verified complete-test payment; keep gift recipients and legacy live access isolated.
+- Validate paid test-order provenance and testing enablement for preview badge editing.
+- Inspect preview relay delivery counts and fail visibly when a queue is unconfigured or reports failures; preserve test-only leasing and unrelated queued mail.
+- Add a separately reviewed preview-only email finalizer migration correcting PostgreSQL retry backoff typing, without replacing the production finalizer.
+- Render preview QR PNGs from the portable QR matrix and include event details plus independent, seat-scoped badge access in the ticket email. Preserve existing badge links.
+
 ## 2026-10-21 — Full-flow preview ticket testing
 
 - Add a separate preview-only Paystack test checkout with real ticket/claim and badge email fulfillment for approved testers. Catalog and initialization share paid/open, internal-lifecycle, price, tester, and email-readiness checks.

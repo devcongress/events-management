@@ -8,6 +8,7 @@ type BuyerGrantClaims = {
   verifier_hash: string;
   origin: string;
   expires_at: number;
+  seat_numbers?: number[];
 };
 
 function signingKey(secretKey: string): Buffer {
@@ -30,12 +31,15 @@ export function createAnnualConferenceSocialCardBuyerGrant(input: {
   origin: string;
   secretKey: string;
   now?: number;
+  seatNumbers?: number[];
+  lifetimeSeconds?: number;
 }): string {
   const claims: BuyerGrantClaims = {
+    ...(input.seatNumbers ? { seat_numbers: input.seatNumbers } : {}),
     order_id: input.orderId,
     verifier_hash: crypto.createHash('sha256').update(input.verifier).digest('hex'),
     origin: input.origin,
-    expires_at: Math.floor((input.now ?? Date.now()) / 1000) + GRANT_TTL_SECONDS,
+    expires_at: Math.floor((input.now ?? Date.now()) / 1000) + (input.seatNumbers?.length === 1 ? Math.min(30 * 24 * 60 * 60, Math.max(60, input.lifetimeSeconds ?? GRANT_TTL_SECONDS)) : GRANT_TTL_SECONDS),
   };
   const payload = encode(claims);
   const signature = crypto.createHmac('sha256', signingKey(input.secretKey)).update(payload).digest('base64url');
@@ -66,7 +70,11 @@ export function verifyAnnualConferenceSocialCardBuyerGrant(input: {
       || typeof claims.verifier_hash !== 'string' || !/^[0-9a-f]{64}$/.test(claims.verifier_hash)
       || typeof claims.origin !== 'string' || claims.origin !== input.origin
       || !Number.isSafeInteger(claims.expires_at) || (claims.expires_at ?? 0) <= now
-      || (claims.expires_at ?? 0) > now + GRANT_TTL_SECONDS + 60) return null;
+      || (claims.expires_at ?? 0) > now + (claims.seat_numbers?.length === 1 ? 30 * 24 * 60 * 60 : GRANT_TTL_SECONDS) + 60) return null;
+
+    if (claims.seat_numbers !== undefined && (!Array.isArray(claims.seat_numbers)
+      || claims.seat_numbers.length !== 1
+      || !claims.seat_numbers.every((seat) => Number.isSafeInteger(seat) && seat > 0))) return null;
 
     if (input.verifier) {
       const verifierHash = crypto.createHash('sha256').update(input.verifier).digest();

@@ -18,7 +18,7 @@ describe('preview-only email relay', () => {
 
   it('drains only fixed preview endpoints once the test catalog is ready', async () => {
     const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ mode: 'test' }))
-      .mockResolvedValueOnce(Response.json({ accepted: 1 })).mockResolvedValueOnce(Response.json({ accepted: 1 }));
+      .mockResolvedValueOnce(Response.json({ admissions: { configured: true, accepted: 1, failed: 0 } })).mockResolvedValueOnce(Response.json({ configured: true, accepted: 1, failed: 0 }));
 
     vi.stubGlobal('fetch', fetcher);
     await relay.scheduled({}, { SLACK_EVENTS_RETRY_SECRET: secret });
@@ -38,3 +38,10 @@ describe('preview-only email relay', () => {
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
 });
+
+ it('reports a disabled dispatcher even when HTTP succeeded', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(Response.json({ mode: 'test' }))
+    .mockResolvedValueOnce(Response.json({ admissions: { configured: false, accepted: 0, failed: 0 } }))
+    .mockResolvedValueOnce(Response.json({ configured: true, accepted: 0, failed: 0 })));
+  await expect(relay.scheduled({}, { SLACK_EVENTS_RETRY_SECRET: secret })).rejects.toThrow('A preview email delivery job failed.');
+ });

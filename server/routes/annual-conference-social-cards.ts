@@ -1,3 +1,5 @@
+import { completeTestDispatchOrigin } from '@/server/complete-test-dispatch';
+import { registrationTesting } from '@/server/annual-conference-registration-testing';
 import crypto from 'crypto';
 import type { Context, Hono } from 'hono';
 import { z } from 'zod';
@@ -65,14 +67,25 @@ async function managedCollectionCard(c: Context<AppBindings>, seatNumber: number
   return getSupabaseAnnualConferenceSocialCardByCollectionCapability(capability, seatNumber, c);
 }
 
-function buyerOrderId(c: Context<AppBindings>): string | null {
+function buyerClaims(c: Context<AppBindings>) {
   const grant = c.req.header('x-social-card-buyer-grant')?.trim();
   const origin = c.req.header('origin');
-  const secretKey = envValue('PAYSTACK_SECRET_KEY', c)?.trim();
+  const previewOrigin = completeTestDispatchOrigin(c);
+  const secretKey = (previewOrigin ? envValue('PAYSTACK_TEST_SECRET_KEY', c) || envValue('PAYSTACK_SECRET_KEY', c)
+    : envValue('PAYSTACK_SECRET_KEY', c))?.trim();
 
-  if (!grant || !origin || !secretKey?.startsWith('sk_live_')) return null;
+  if (!grant || !origin || !secretKey?.startsWith(previewOrigin ? 'sk_test_' : 'sk_live_')
+    || (previewOrigin && origin !== previewOrigin)) return null;
 
-  return verifyAnnualConferenceSocialCardBuyerGrant({ grant, origin, secretKey })?.order_id ?? null;
+  const claims = verifyAnnualConferenceSocialCardBuyerGrant({ grant, origin, secretKey });
+
+  if (previewOrigin && !claims?.seat_numbers) return null;
+
+  return claims;
+}
+
+function buyerOrderId(c: Context<AppBindings>): string | null {
+  return buyerClaims(c)?.order_id ?? null;
 }
 
 function managementCardResponse(card: NonNullable<Awaited<ReturnType<typeof getSupabaseAnnualConferenceSocialCardByCapability>>>) {
@@ -101,7 +114,29 @@ function publicCardResponse(card: NonNullable<Awaited<ReturnType<typeof getSupab
 
 export function registerAnnualConferenceSocialCardRoutes(app: Hono<AppBindings>): void {
   app.use(`${buyerCollectionPath}*`, async (c, next) => {
-    if (!buyerOrderId(c)) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
+    const claims = buyerClaims(c);
+
+    if (!claims) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
+
+    const seatMatch = c.req.path.match(/\/seats\/(\d+)(?:\/photo)?$/);
+
+    if (claims.seat_numbers && seatMatch && !claims.seat_numbers.includes(Number(seatMatch[1]))) {
+      return c.json({ error: 'This ticket card is not part of your session.' }, 403);
+    }
+
+    const previewOrigin = completeTestDispatchOrigin(c);
+
+    if (previewOrigin) {
+      const order = await getSupabaseAdminClient(c).from('annual_conference_ticket_orders' as never)
+        .select('payment_mode,checkout_origin,edition_id,status').eq('id', claims.order_id).single() as unknown as {
+          data: { payment_mode: string; checkout_origin: string; edition_id: string; status: string } | null; error: unknown;
+        };
+
+      if (order.error || order.data?.payment_mode !== 'test' || order.data.checkout_origin !== previewOrigin
+        || order.data.status !== 'paid' || !(await registrationTesting(c, order.data.edition_id)).enabled) {
+        return c.json({ error: 'This preview badge is unavailable.' }, 403);
+      }
+    }
     const limited = await enforcePublicRateLimit(c, {
       action: 'devcon26-buyer-social-card', clientKey: publicClientKey(c), maxAttempts: 80, windowSeconds: 300,
     }, 'Please wait before editing more ticket cards.');
@@ -131,7 +166,10 @@ export function registerAnnualConferenceSocialCardRoutes(app: Hono<AppBindings>)
     if (collection === undefined) return unavailable(c);
     if (!collection?.length) return c.json({ error: 'Ticket cards are available after payment is confirmed.' }, 409);
 
-    return c.json({ seats: collection.map((seat) => ({ seat_number: seat.seat_number, card: managementCardResponse(seat.card) })) });
+    const scope = buyerClaims(c)?.seat_numbers;
+    const visibleSeats = scope ? collection.filter((seat) => scope.includes(seat.seat_number ?? 0)) : collection;
+
+    return c.json({ seats: visibleSeats.map((seat) => ({ seat_number: seat.seat_number, card: managementCardResponse(seat.card) })) });
   });
 
   app.get(`${buyerCollectionPath}/seats/:seatNumber`, async (c) => {
