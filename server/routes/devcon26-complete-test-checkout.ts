@@ -17,6 +17,7 @@ import {
 } from '@/lib/supabase/annual-conference-ticketing';
 import { envValue } from '@/server/env';
 import { registrationTesting } from '@/server/annual-conference-registration-testing';
+import { dispatchCompleteTestEmails } from '@/server/complete-test-immediate-emails';
 import { admissionEmailReadiness } from '@/server/annual-conference-admission-email-delivery';
 import { annualConferenceSocialCardEmailConfigurationForRequest } from '@/server/annual-conference-social-card-email-delivery';
 import { enforcePublicRateLimit, publicClientKey, requirePublicTurnstile } from '@/server/http/public-intake-protection';
@@ -210,6 +211,8 @@ export function registerDevcon26CompleteTestCheckout(app: Hono<AppBindings>) {
 
       if (order?.status !== 'paid') return c.json({ mode: 'test', status: 'pending' });
 
+      await dispatchCompleteTestEmails(c);
+
       const summary = await getSupabaseAnnualConferencePaidOrderSummary(grant.order_id, c);
 
       if (!summary) throw new Error('Missing summary');
@@ -279,6 +282,7 @@ export function registerDevcon26CompleteTestCheckout(app: Hono<AppBindings>) {
       }, c);
 
       if (!order) throw new Error('Confirmation unavailable');
+      if (order.status === 'paid') await dispatchCompleteTestEmails(c);
 
       return c.body(null, 204);
     } catch {

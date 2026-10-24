@@ -1,8 +1,11 @@
+import crypto from 'node:crypto';
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppBindings } from './http/app-bindings';
 
-const mocks = vi.hoisted(() => ({ env: {} as Record<string, string>, rpc: vi.fn(), from: vi.fn(), attempt: vi.fn(), confirm: vi.fn(), summary: vi.fn(), payment: vi.fn(), card: vi.fn(), challenge: vi.fn(), limit: vi.fn(), enabled: true, state: 'internal', publicMode: 'paid', salesStatus: 'open' }));
+const mocks = vi.hoisted(() => ({ dispatch: vi.fn(), env: {} as Record<string, string>, rpc: vi.fn(), from: vi.fn(), attempt: vi.fn(), confirm: vi.fn(), summary: vi.fn(), payment: vi.fn(), card: vi.fn(), challenge: vi.fn(), limit: vi.fn(), enabled: true, state: 'internal', publicMode: 'paid', salesStatus: 'open' }));
+
+vi.mock('@/server/complete-test-immediate-emails', () => ({ dispatchCompleteTestEmails: mocks.dispatch }));
 
 vi.mock('@/server/env', () => ({ envValue: (key: string) => mocks.env[key] }));
 vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
@@ -27,6 +30,7 @@ const app = new Hono<AppBindings>();
 
 registerDevcon26CompleteTestCheckout(app);
 beforeEach(() => {
+  mocks.dispatch.mockReset().mockResolvedValue(undefined);
   mocks.enabled = true;
   mocks.state = 'internal';
   mocks.publicMode = 'paid';
@@ -75,6 +79,7 @@ describe('complete test checkout boundary', () => {
     });
 
     expect(response.status).toBe(401);
+    expect(mocks.dispatch).not.toHaveBeenCalled();
   });
 });
 
@@ -191,6 +196,7 @@ describe('verified preview badge grant', () => {
 
     expect(response.status).toBe(200);
     expect(result.card_quantity).toBe(seat ? 1 : 0);
+    expect(mocks.dispatch).toHaveBeenCalledOnce();
     if (seat) {
       expect(verifyAnnualConferenceSocialCardBuyerGrant({ grant: result.buyer_grant, origin, secretKey })?.seat_numbers).toEqual([3]);
       expect(mocks.card).toHaveBeenCalledWith(orderId, 3, expect.anything());
@@ -199,4 +205,28 @@ describe('verified preview badge grant', () => {
       expect(mocks.card).not.toHaveBeenCalled();
     }
   });
+});
+
+it('dispatches after a signed webhook confirms a paid preview order', async () => {
+  const orderId = '10000000-0000-4000-8000-000000000001';
+  const reference = 'devcon26-complete-test-10000000000040008000000000000001';
+
+  mocks.confirm.mockReset();
+  mocks.attempt.mockResolvedValue({ order_id: orderId });
+  mocks.payment.mockResolvedValue({ status: 'verified', providerEventId: 'charge:1', amountMinor: 15000, currency: 'GHS', paymentReference: reference });
+  mocks.confirm.mockResolvedValue({ status: 'paid' });
+  mocks.from.mockImplementation(() => {
+    const query = { select: () => query, eq: () => query, single: async () => ({ data: { payment_mode: 'test', checkout_origin: origin, edition_id: orderId }, error: null }) };
+
+    return query;
+  });
+  const body = JSON.stringify({ event: 'charge.success', data: { id: 1, reference, status: 'success', amount: 15000, currency: 'GHS', domain: 'test' } });
+  const signature = crypto.createHmac('sha512', 'sk_test_fixture').update(body).digest('hex');
+  const response = await app.request('/api/webhooks/paystack/devcon26-complete-test', {
+    method: 'POST', headers: { 'x-paystack-signature': signature }, body,
+  });
+
+  expect(response.status).toBe(204);
+  expect(mocks.confirm).toHaveBeenCalled();
+  expect(mocks.dispatch).toHaveBeenCalledOnce();
 });
