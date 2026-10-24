@@ -125,8 +125,12 @@ export function registerDevcon26CompleteTestCheckout(app: Hono<AppBindings>) {
         ...input.data.cart.allocations.flatMap((seat) => seat.kind === 'gift' ? [seat.recipient_email] : []),
       ]);
 
+      if (!testing.tester_emails.includes(input.data.purchaser_email)) {
+        return c.json({ error: 'Your email is not approved for preview checkout yet. Go back to Your details to use an approved email, or ask the organizer to add yours, then try again.' }, 409);
+      }
+
       if (Array.from(recipients).some((email) => !testing.tester_emails.includes(email))) {
-        return c.json({ error: 'Test checkout requires approved tester email addresses.' }, 409);
+        return c.json({ error: 'A gift recipient email is not approved for preview checkout yet. Go back to Tickets to check the recipient emails, or ask the organizer to approve them, then try again.' }, 409);
       }
 
       for (const limit of [
@@ -150,7 +154,9 @@ export function registerDevcon26CompleteTestCheckout(app: Hono<AppBindings>) {
       const order = result.data;
 
       if (result.error || !order || order.payment_mode !== 'test' || order.checkout_origin !== config.origin
-        || order.amount_minor !== input.data.cart.quantity * 15000) return c.json({ error: 'Test checkout requires approved tester email addresses.' }, 409);
+        || order.amount_minor !== input.data.cart.quantity * 15000) {
+        return c.json({ error: 'We could not reserve your tickets. No payment was started. Please try again; if this continues, contact the organizer.' }, 503);
+      }
 
       const reference = `devcon26-complete-test-${order.id.replaceAll('-', '')}`;
 

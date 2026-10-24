@@ -3267,3 +3267,9 @@ _Future entries go above this line._
 ## 2026-10-24 — Preview checkout testing allowance
 
 - Increased complete-test checkout limits to 20 attempts per five minutes, 50 per recipient/day, 100 per IP/day and 500 shared/day. Live checkout limits are unchanged.
+
+## 2026-10-24 — Preview checkout failure guidance
+
+- Distinguish unapproved buyer and gift-recipient emails with directions to the relevant checkout step.
+- Report reservation/storage failures separately with HTTP 503 instead of blaming tester approval.
+- Verified 20 focused checkout tests and ESLint. Preview-only route; no migration or production deployment.
