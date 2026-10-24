@@ -132,6 +132,30 @@ describe('complete test email abuse protection', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it('explains buyer approval without blaming human verification', async () => {
+    const response = await initialize({ ...input, purchaser_email: 'stranger@example.test' });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('Go back to Your details') });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('directs unapproved gift recipients back to Tickets', async () => {
+    const response = await initialize({ ...input, cart: { ...input.cart, allocations: [{ kind: 'self' }, { kind: 'gift', recipient_email: 'stranger@example.test' }] } });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('Go back to Tickets') });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('does not mislabel storage errors as email approval failures', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'internal detail' } });
+    const response = await initialize();
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('No payment was started') });
+  });
+
   it.each(['complete-test-ip-day', 'complete-test-recipient-day', 'complete-test-shared-day'])('blocks %s exhaustion before payment or email work', async (action) => {
     mocks.limit.mockImplementation(async (_c, limit) => limit.action === action ? new Response('{}', { status: 429 }) : null);
     expect((await initialize()).status).toBe(429);
@@ -140,7 +164,7 @@ describe('complete test email abuse protection', () => {
 
   it('counts each distinct recipient before reserving a test order', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: null });
-    expect((await initialize()).status).toBe(409);
+    expect((await initialize()).status).toBe(503);
     const recipients = mocks.limit.mock.calls.map((call) => call[1]).filter((limit) => limit.action === 'complete-test-recipient-day');
 
     expect(recipients).toEqual([
