@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import RegistrationEmailDrawer from '@/src/components/RegistrationEmailDrawer.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import {
   fetchAnnualConferenceTicketEmailDeliveries,
@@ -19,7 +20,7 @@ const error = ref('');
 const message = ref('');
 const recipient = ref('');
 const recipientFilter = ref('');
-const expanded = ref<string | null>(null);
+const detailId = ref<string | null>(null);
 let generation = 0;
 const deliveries = useQuery({
   queryKey: computed(() => ['conference-registration-emails', props.year, props.registrationId, page.value, status.value, recipientFilter.value]),
@@ -30,6 +31,7 @@ const deliveries = useQuery({
   refetchInterval: 15_000,
   refetchIntervalInBackground: false,
 });
+const detail = computed(() => deliveries.data.value?.deliveries.find((delivery) => delivery.id === detailId.value) ?? null);
 const total = computed(() => deliveries.data.value?.total ?? 0);
 const pages = computed(() => Math.max(1, Math.ceil(total.value / 8)));
 const summaries = computed(() => {
@@ -90,7 +92,7 @@ watch([() => props.year, () => props.registrationId], () => {
   busy.value = false;
   error.value = '';
   message.value = '';
-  expanded.value = null;
+  detailId.value = null;
 });
 watch(pages, (count) => { page.value = Math.min(page.value, count); });
 </script>
@@ -146,24 +148,35 @@ watch(pages, (count) => { page.value = Math.min(page.value, count); });
           <div class="flex items-center gap-3">
             <span class="rounded-sm border border-dc-border px-2 py-1 font-mono text-[10px] uppercase">{{ delivery.status === 'accepted' ? 'Accepted by provider' : delivery.status }}</span>
             <button v-if="canRetry(delivery)" class="editorial-action" :disabled="busy" @click="selected = delivery; error = ''">Retry</button>
-            <button type="button" class="editorial-action" :aria-expanded="expanded === delivery.id" @click="expanded = expanded === delivery.id ? null : delivery.id">Details</button>
-          </div>
-          <div v-if="expanded === delivery.id || registrationId" class="w-full border-t border-dc-border pt-3 text-sm">
-            <dl class="grid gap-2 sm:grid-cols-2">
-              <div><dt class="text-dc-gray">Queued</dt><dd>{{ formatTime(delivery.created_at) }}</dd></div>
-              <div><dt class="text-dc-gray">Attempts</dt><dd>{{ delivery.attempt_count }}</dd></div>
-              <div v-if="delivery.accepted_at"><dt class="text-dc-gray">Accepted by provider</dt><dd>{{ formatTime(delivery.accepted_at) }}</dd></div>
-              <div v-if="delivery.delivered_at"><dt class="text-dc-gray">Delivered</dt><dd>{{ formatTime(delivery.delivered_at) }}</dd></div>
-            </dl>
-            <p v-if="delivery.last_error" class="mt-3 text-red-700" role="status">{{ delivery.last_error }}</p>
-            <p v-if="delivery.status === 'accepted'" class="mt-3 text-dc-gray">Accepted by the email provider; inbox delivery is not yet confirmed.</p>
-            <p v-if="delivery.status === 'queued' && !delivery.attempt_count" class="mt-3 text-dc-gray">Waiting for delivery. No send attempts yet.</p>
-            <p v-if="delivery.status === 'failed' && !canRetry(delivery)" class="mt-3 text-dc-gray">Review provider records before recovery. A blind resend could duplicate a previous send.</p>
+            <button type="button" class="editorial-action" aria-haspopup="dialog" @click="detailId = delivery.id">Details</button>
           </div>
         </div>
       </div>
       <AppPagination v-if="total > 8" v-model:page="page" :page-count="pages" :total="total" :range-start="(page - 1) * 8 + 1" :range-end="Math.min(page * 8, total)" item-label="emails" />
     </template>
+    <RegistrationEmailDrawer :open="Boolean(detail)" @close="detailId = null">
+      <template v-if="detail">
+        <p class="text-xl font-bold text-dc-ink">{{ detail.recipient_name }}</p>
+        <p class="mt-1 break-all text-sm text-dc-gray">{{ detail.recipient_email }}</p>
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+          <p class="font-mono text-xs uppercase text-dc-gray">{{ kindLabel(detail) }}</p>
+          <span class="rounded border border-dc-border px-2 py-1 font-mono text-xs uppercase">{{ detail.status === 'accepted' ? 'Accepted by provider' : detail.status }}</span>
+        </div>
+        <div v-if="detail" class="mt-5 border-t border-dc-border pt-5 text-sm">
+          <dl class="grid gap-2 sm:grid-cols-2">
+            <div><dt class="text-dc-gray">Queued</dt><dd>{{ formatTime(detail.created_at) }}</dd></div>
+            <div><dt class="text-dc-gray">Attempts</dt><dd>{{ detail.attempt_count }}</dd></div>
+            <div v-if="detail.accepted_at"><dt class="text-dc-gray">Accepted by provider</dt><dd>{{ formatTime(detail.accepted_at) }}</dd></div>
+            <div v-if="detail.delivered_at"><dt class="text-dc-gray">Delivered</dt><dd>{{ formatTime(detail.delivered_at) }}</dd></div>
+          </dl>
+          <p v-if="detail.last_error" class="mt-3 text-red-700" role="status">{{ detail.last_error }}</p>
+          <p v-if="detail.status === 'accepted'" class="mt-3 text-dc-gray">Accepted by the email provider; inbox delivery is not yet confirmed.</p>
+          <p v-if="detail.status === 'queued' && !detail.attempt_count" class="mt-3 text-dc-gray">Waiting for delivery. No send attempts yet.</p>
+          <p v-if="detail.status === 'failed' && !canRetry(detail)" class="mt-3 text-dc-gray">Review provider records before recovery. A blind resend could duplicate a previous send.</p>
+        </div>
+        <button v-if="canRetry(detail)" type="button" class="editorial-action mt-6" :disabled="busy" @click="selected = detail; detailId = null; error = ''">Retry email</button>
+      </template>
+    </RegistrationEmailDrawer>
     <section v-if="selected" class="border-t-2 border-dc-ink bg-dc-paper-warm p-5" aria-label="Confirm email retry">
       <h3 class="font-bold">Retry {{ kindLabel(selected).toLowerCase() }}?</h3>
       <p class="mt-2 break-words text-sm">{{ selected.recipient_name }} · {{ selected.recipient_email }}</p>

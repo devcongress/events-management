@@ -2803,6 +2803,27 @@ try {
     await page.screenshot({ path: artifacts + "/annual-registration-guests-desktop.png", fullPage: true });
     await nav.getByRole("link", { name: "Emails", exact: true }).click();
     await page.getByText("Waitlist notice", { exact: true }).waitFor();
+    const detailsButton = page.getByRole("button", { name: "Details", exact: true });
+
+    await detailsButton.click();
+    const emailDrawer = page.getByRole("dialog", { name: "Email details" });
+
+    await emailDrawer.getByText("Fixture Recipient", { exact: true }).waitFor();
+    assert.equal(await page.locator("#app").getAttribute("inert"), "");
+    await page.locator(".registration-email-drawer-enter-active").waitFor({ state: "detached" });
+    await page.screenshot({ path: artifacts + "/registration-email-drawer-desktop.png" });
+    await page.keyboard.press("Escape");
+    await emailDrawer.waitFor({ state: "detached" });
+    assert.equal(await detailsButton.evaluate((element) => element === document.activeElement), true);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await detailsButton.click();
+    await emailDrawer.waitFor();
+    assert.equal(await emailDrawer.evaluate((element) => element.scrollWidth <= element.clientWidth), true);
+    await page.locator(".registration-email-drawer-enter-active").waitFor({ state: "detached" });
+    await page.screenshot({ path: artifacts + "/registration-email-drawer-mobile.png" });
+    await emailDrawer.getByRole("button", { name: "Close email details" }).click();
+    await emailDrawer.waitFor({ state: "detached" });
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole("button", { name: "Retry", exact: true }).click();
     assert.equal(requests.filter((item) => item.path.endsWith("/mail-1/retry")).length, 0);
     await page.getByRole("button", { name: "Queue retry", exact: true }).click();

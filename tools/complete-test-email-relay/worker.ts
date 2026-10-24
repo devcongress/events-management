@@ -17,10 +17,10 @@ export default {
 
     const catalog = await fetch(`${backend}/api/public/annual-conference/2026/complete-test-checkout`, {
       headers: { Origin: website, 'Cache-Control': 'no-store' },
-      redirect: 'error', signal: AbortSignal.timeout(15000),
+      redirect: 'manual', signal: AbortSignal.timeout(15000),
     });
 
-    if (!catalog.ok) return;
+    if (!catalog.ok) throw new Error(`Preview catalog returned ${catalog.status}.`);
 
     const state = await catalog.json() as { mode?: string };
 
@@ -29,7 +29,7 @@ export default {
     const results = await Promise.allSettled(jobs.map(async (job) => {
       const response = await fetch(`${backend}${job.path}`, {
         method: 'POST', headers: { 'x-scheduled-job-secret': secret },
-        redirect: 'error', signal: AbortSignal.timeout(30000),
+        redirect: 'manual', signal: AbortSignal.timeout(30000),
       });
 
       if (!response.ok) throw new Error(`${job.label} preview delivery returned ${response.status}.`);

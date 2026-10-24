@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-24 — Prompt preview delivery and email details drawer
+
+- Start the existing preview-only admission outbox dispatcher after confirmed test payments, including signed webhooks; preserve leases, idempotency and scheduled retries.
+- Fix the preview relay’s unsupported redirect mode and report catalog failures.
+- Open Registration email details in an accessible right drawer with live status, keyboard dismissal and focus restoration.
+
 ## 2026-10-24 — Patch dependency audit findings
 
 - Upgrade Zod to at least 4.6.6 and the Undici override to 7.30.1 to resolve the four reported dependency advisories. Preserve audit enforcement without adding exceptions.

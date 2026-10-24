@@ -25,7 +25,7 @@ describe('preview-only email relay', () => {
     expect(fetcher).toHaveBeenCalledTimes(3);
     for (const [url, options] of fetcher.mock.calls.slice(1)) {
       expect(url).toMatch(/^https:\/\/devcon26-full-test-events-management\.admins-a7d\.workers\.dev\/api\/internal\/annual-conference-(admission|social-card)-emails\/retry$/);
-      expect(options).toMatchObject({ method: 'POST', redirect: 'error', headers: { 'x-scheduled-job-secret': secret } });
+      expect(options).toMatchObject({ method: 'POST', redirect: 'manual', headers: { 'x-scheduled-job-secret': secret } });
     }
   });
 
@@ -45,3 +45,12 @@ describe('preview-only email relay', () => {
     .mockResolvedValueOnce(Response.json({ configured: true, accepted: 0, failed: 0 })));
   await expect(relay.scheduled({}, { SLACK_EVENTS_RETRY_SECRET: secret })).rejects.toThrow('A preview email delivery job failed.');
  });
+
+it('rejects catalog redirects before sending dispatcher credentials', async () => {
+  const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 302, headers: { Location: 'https://untrusted.example' } }));
+
+  vi.stubGlobal('fetch', fetcher);
+  await expect(relay.scheduled({}, { SLACK_EVENTS_RETRY_SECRET: secret })).rejects.toThrow('Preview catalog returned 302.');
+  expect(fetcher).toHaveBeenCalledOnce();
+  expect(fetcher.mock.calls[0][1].redirect).toBe('manual');
+});
