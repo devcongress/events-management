@@ -74,6 +74,7 @@ export async function getSupabaseAnnualConferenceTicketing(year: number, c?: Con
         .select('quantity')
         .eq('edition_id', editionId)
         .eq('status', 'paid')
+        .eq('payment_mode', 'live')
         .range(from, to),
     }),
     sumTicketingQuantities({
@@ -87,6 +88,7 @@ export async function getSupabaseAnnualConferenceTicketing(year: number, c?: Con
         .select('quantity')
         .eq('edition_id', editionId)
         .eq('status', 'pending_payment')
+        .eq('payment_mode', 'live')
         .gt('expires_at', new Date().toISOString())
         .range(from, to),
     }),

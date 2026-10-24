@@ -168,3 +168,9 @@ For a self ticket, first issuance atomically merges purchaser management access 
 Existing rows, prior accepted provider payloads, live orders, and unrelated queued badge mail are unchanged. The sender freezes HTML, text, and PDF bytes under the existing idempotency key before delivery. Old preview and live email rendering remains unchanged until a separately reviewed rollout. Custom email fonts have system fallbacks; actual mail clients may override dark-mode CSS.
 
 Preview paid verification and signed payment webhooks start a bounded admission outbox drain using Worker waitUntil. The minute relay remains the retry fallback and rejects redirects without forwarding credentials. Registration email Details opens a right drawer rather than expanding the list.
+
+### Preview tickets and venue inventory
+
+After applying `20261024140000_test_orders_outside_venue_inventory.sql`, paid and pending Paystack test orders do not reserve venue seats. The organizer totals, capacity changes, sponsor reservations and checkout checks use live orders, sponsor allocations and confirmed registrations. Existing test QR tickets, badge links and payment history remain intact. Test holds are inserted with test provenance atomically through a private helper, and may complete when live capacity is full. Public RPC signatures and test recipient/domain/admission restrictions are preserved. The separate live-launch cleanup guard remains in place; retaining test tickets does not authorize opening public sales.
+
+Run `scripts/test-preview-inventory-postgres.mjs` only with the disposable local PostgreSQL fixture socket and database required by its imported harness. It checks record preservation, live capacity boundaries, full-capacity test payment, cross-mode replay rejection and the migration catalog.

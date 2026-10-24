@@ -51,6 +51,17 @@ sql(`select public.configure_annual_conference_registration_testing('${edition}'
 assert.equal(JSON.parse(sql(`select public.complete_test_email_context('admission', '${delivery}')`)).allowed, false);
 console.log('Complete test checkout: provenance, replay, tester restrictions, domain mismatch, idempotent issuance, badge marking, disabled delivery and admission rejection passed.');
 
+// Apply inventory isolation after issuing a legacy test ticket. Preserve its QR,
+// badge and order rows byte-for-byte on the first application, not only a replay.
+const inventoryRecordSnapshot = () => sql(`select jsonb_build_object(
+  'orders', (select jsonb_agg(to_jsonb(o) order by id) from public.annual_conference_ticket_orders o),
+  'tickets', (select jsonb_agg(to_jsonb(t) order by id) from public.annual_conference_tickets t),
+  'badges', (select jsonb_agg(to_jsonb(c) order by id) from public.annual_conference_social_cards c))`);
+const legacyInventoryRecords = inventoryRecordSnapshot();
+
+sql(migration('20261024140000_test_orders_outside_venue_inventory.sql'));
+assert.equal(inventoryRecordSnapshot(), legacyInventoryRecords);
+
 // Verify the new contract against the actual local catalog, not only SQL text.
 execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
   import assert from 'node:assert/strict';

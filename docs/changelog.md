@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-24 — Keep preview tickets outside venue inventory
+
+- Exclude test orders from organizer inventory and SQL venue-capacity checks while preserving their tickets, badge links and payment history.
+- Insert preview holds with test provenance atomically through a private helper; retain live capacity, recipient, payment-domain and admission guards.
+- Requires reviewed migration `20261024140000_test_orders_outside_venue_inventory.sql`; no settings or existing records are rewritten.
+
 ## 2026-10-24 — Prompt preview delivery and email details drawer
 
 - Start the existing preview-only admission outbox dispatcher after confirmed test payments, including signed webhooks; preserve leases, idempotency and scheduled retries.

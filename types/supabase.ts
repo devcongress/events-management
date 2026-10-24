@@ -627,8 +627,8 @@ export interface Database {
         Relationships: [];
       };
       annual_conference_ticket_orders: {
-        Row: { id: string; edition_id: string; status: 'pending_payment' | 'paid' | 'refunded' | 'expired' | 'cancelled'; purchaser_name: string; purchaser_email: string; tier_key: string; quantity: number; amount_minor: number; currency: 'GHS'; payment_reference: string | null; provider: string | null; checkout_request_key: string | null; expires_at: string | null; paid_at: string | null; refunded_at: string | null; created_at: string; updated_at: string };
-        Insert: Omit<Database['public']['Tables']['annual_conference_ticket_orders']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Row: { id: string; edition_id: string; status: 'pending_payment' | 'paid' | 'refunded' | 'expired' | 'cancelled'; purchaser_name: string; purchaser_email: string; tier_key: string; quantity: number; amount_minor: number; currency: 'GHS'; payment_mode: 'live' | 'test'; payment_reference: string | null; provider: string | null; checkout_request_key: string | null; expires_at: string | null; paid_at: string | null; refunded_at: string | null; created_at: string; updated_at: string };
+        Insert: Omit<Database['public']['Tables']['annual_conference_ticket_orders']['Row'], 'id' | 'created_at' | 'updated_at' | 'payment_mode'> & { payment_mode?: 'live' | 'test'; id?: string; created_at?: string; updated_at?: string };
         Update: Partial<Database['public']['Tables']['annual_conference_ticket_orders']['Insert']>;
         Relationships: [];
       };
