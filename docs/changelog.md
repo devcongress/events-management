@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-24 — Patch dependency audit findings
+
+- Upgrade Zod to at least 4.6.6 and the Undici override to 7.30.1 to resolve the four reported dependency advisories. Preserve audit enforcement without adding exceptions.
+
 ## 2026-10-23 — Combined preview ticket email
 
 - New opt-in preview orders receive one branded ticket email containing a private QR PDF attachment, a badge-editor link, and purchaser management access where applicable. Paystack remains responsible for payment receipts. Gift recipients retain separate, scoped access.
@@ -3247,3 +3251,7 @@ _Future entries go above this line._
 - Fixed the feature website CSP to allow its exact EMS preview backend only in the explicit test build; checkout now opens Paystack TEST mode.
 - Added the user-applied preview-only email leasing migration so the older queued badge message remains untouched; the new functions isolate every lease and terminal update by approved test provenance and preview origin.
 - A separate minute-based preview relay invokes only test-scoped delivery endpoints. Full-flow acceptance remains with the user; successful payment and new email delivery are not yet claimed.
+
+## 2026-10-24 — Preview checkout testing allowance
+
+- Increased complete-test checkout limits to 20 attempts per five minutes, 50 per recipient/day, 100 per IP/day and 500 shared/day. Live checkout limits are unchanged.

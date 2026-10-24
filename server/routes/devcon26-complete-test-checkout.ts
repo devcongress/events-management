@@ -96,7 +96,7 @@ export function registerDevcon26CompleteTestCheckout(app: Hono<AppBindings>) {
     if (!input.success || input.data.cart.quantity > 20) return c.json({ error: 'Choose up to 20 test tickets.' }, 400);
 
     const limited = await enforcePublicRateLimit(c, {
-      action: 'complete-test-initialize', clientKey: publicClientKey(c), maxAttempts: 5, windowSeconds: 300,
+      action: 'complete-test-initialize', clientKey: publicClientKey(c), maxAttempts: 20, windowSeconds: 300,
     }, 'Please wait before trying again.');
 
     if (limited) return limited;
@@ -129,9 +129,9 @@ export function registerDevcon26CompleteTestCheckout(app: Hono<AppBindings>) {
       }
 
       for (const limit of [
-        { action: 'complete-test-ip-day', clientKey: publicClientKey(c), maxAttempts: 12 },
-        ...Array.from(recipients, (clientKey) => ({ action: 'complete-test-recipient-day', clientKey, maxAttempts: 3 })),
-        { action: 'complete-test-shared-day', clientKey: 'all', maxAttempts: 60 },
+        { action: 'complete-test-ip-day', clientKey: publicClientKey(c), maxAttempts: 100 },
+        ...Array.from(recipients, (clientKey) => ({ action: 'complete-test-recipient-day', clientKey, maxAttempts: 50 })),
+        { action: 'complete-test-shared-day', clientKey: 'all', maxAttempts: 500 },
       ]) {
         const quota = await enforcePublicRateLimit(c, { ...limit, windowSeconds: 86_400 },
           'The test checkout limit has been reached. Please try again tomorrow.');

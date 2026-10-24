@@ -125,7 +125,7 @@ disable the test endpoint and review an explicit cleanup of test orders and
 their dependent tickets, cards, claims and outboxes. No automatic purge is part
 of this change. Existing test admission QR codes remain unusable at the event.
 
-Complete-test initialization requires a single-use Turnstile token bound to `devcon26_complete_test_checkout` and the exact preview hostname. Existing durable rate limits cap attempts at 5 per IP per 5 minutes, 12 per IP per day, 3 per distinct approved buyer/gift recipient per day, and 60 shared per day. Tester membership is checked before daily budgets are consumed; database checks remain authoritative.
+Complete-test initialization requires a single-use Turnstile token bound to `devcon26_complete_test_checkout` and the exact preview hostname. Existing durable rate limits cap attempts at 20 per IP per 5 minutes, 100 per IP per day, 50 per distinct approved buyer/gift recipient per day, and 500 shared per day. Tester membership is checked before daily budgets are consumed; database checks remain authoritative.
 
 ### Preview-only delivery scope
 

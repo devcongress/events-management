@@ -139,8 +139,15 @@ describe('complete test email abuse protection', () => {
     const recipients = mocks.limit.mock.calls.map((call) => call[1]).filter((limit) => limit.action === 'complete-test-recipient-day');
 
     expect(recipients).toEqual([
-      { action: 'complete-test-recipient-day', clientKey: 'tester@example.test', maxAttempts: 3, windowSeconds: 86400 },
-      { action: 'complete-test-recipient-day', clientKey: 'gift@example.test', maxAttempts: 3, windowSeconds: 86400 },
+      { action: 'complete-test-recipient-day', clientKey: 'tester@example.test', maxAttempts: 50, windowSeconds: 86400 },
+      { action: 'complete-test-recipient-day', clientKey: 'gift@example.test', maxAttempts: 50, windowSeconds: 86400 },
+    ]);
+    expect(mocks.limit.mock.calls.map((call) => ({ action: call[1].action, maxAttempts: call[1].maxAttempts, windowSeconds: call[1].windowSeconds }))).toEqual([
+      { action: 'complete-test-initialize', maxAttempts: 20, windowSeconds: 300 },
+      { action: 'complete-test-ip-day', maxAttempts: 100, windowSeconds: 86400 },
+      { action: 'complete-test-recipient-day', maxAttempts: 50, windowSeconds: 86400 },
+      { action: 'complete-test-recipient-day', maxAttempts: 50, windowSeconds: 86400 },
+      { action: 'complete-test-shared-day', maxAttempts: 500, windowSeconds: 86400 },
     ]);
     expect(mocks.rpc).toHaveBeenCalledOnce();
   });
