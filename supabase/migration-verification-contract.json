@@ -1880,7 +1880,7 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true,
-          "bodySha256": "5888203c914b65fd4e467123194936ebe91ecf8f4b09a7fd8bb1ed6160703a0c"
+          "bodySha256": "b0cccc9839460b8ddb76cdca762280da76a33fd034b614d76269985d00c8e6a8"
         },
         {
           "kind": "function",
@@ -1893,7 +1893,7 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true,
-          "bodySha256": "94f23962007cd7cab90473ac662f9840fee33af6eee203e18e3d45961354e984"
+          "bodySha256": "2522e6ff8f5255f702df651e010a0b1a1e244ed73b2d422a12b5108b3195ad0f"
         },
         {
           "kind": "function",
@@ -3157,8 +3157,8 @@
           "name": "create_annual_conference_flexible_checkout_hold",
           "argumentTypes": "uuid, text, text, integer, jsonb, uuid",
           "result": "annual_conference_ticket_orders",
-          "language": "plpgsql",
-          "bodySha256": "34bbe5b74f1a3ebdd7d1a3acc16ae38bf5c4aaa9720754b01033cb8a3c74cb29",
+          "language": "sql",
+          "bodySha256": "e63a6fce133c087241d9093142561b8343d645385ecd9bfc3a127d743a79410e",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -3556,7 +3556,7 @@
           "argumentTypes": "uuid, text, text, integer, jsonb, uuid, text",
           "result": "annual_conference_ticket_orders",
           "language": "plpgsql",
-          "bodySha256": "d32b37e1dc32fd93c31205bd32d7c84002064ccc0485656c371cfd79f5c2cd20",
+          "bodySha256": "eb221282fa9ca62e73a8dd294d0131872e0f7b9eeb58750121b3458ab873b678",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -3976,6 +3976,142 @@
             "NOT preview_combined_email",
             "payment_mode = 'test'::text"
           ]
+        }
+      ]
+    },
+    {
+      "file": "20261024140000_test_orders_outside_venue_inventory.sql",
+      "sha256": "f7306fa01dea5efc2d0c4e116e2866201ee2fad8cc1d83ac35c8bac7ea6b6f64",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "annual_conference_reserved_seats",
+          "argumentTypes": "uuid",
+          "securityDefiner": true,
+          "result": "integer",
+          "language": "sql",
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "b0cccc9839460b8ddb76cdca762280da76a33fd034b614d76269985d00c8e6a8"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "set_annual_conference_ticketing_capacity",
+          "argumentTypes": "uuid, integer, text",
+          "result": "annual_conference_ticketing_settings",
+          "language": "plpgsql",
+          "bodySha256": "170da6e36eaf5baf0c7ac16417cc66bedf505dd0c4afd02d9fb1f360c8db8081",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "allocate_annual_conference_sponsor_tickets",
+          "argumentTypes": "uuid, text, text, text, integer, text",
+          "result": "annual_conference_sponsor_ticket_allocations",
+          "language": "plpgsql",
+          "bodySha256": "7e814ec4f02e746c38dd00e1c69f85eb3064fccd945ba8ac9ab79c2e73b403e7",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "create_annual_conference_checkout_hold",
+          "argumentTypes": "uuid, text, text, text, uuid",
+          "result": "annual_conference_ticket_orders",
+          "language": "plpgsql",
+          "bodySha256": "95d8998ba05655b3b3a2db7458479d1d6ff51ec01cc1d5355e800656db3377ee",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "configure_annual_conference_registration",
+          "argumentTypes": "uuid, text, annual_conference_ticket_sales_status, text",
+          "securityDefiner": true,
+          "result": "void",
+          "language": "plpgsql",
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "2522e6ff8f5255f702df651e010a0b1a1e244ed73b2d422a12b5108b3195ad0f"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "confirm_annual_conference_standard_ticket_payment",
+          "argumentTypes": "uuid, text, text, text, text, integer, text, text, jsonb",
+          "result": "annual_conference_ticket_orders",
+          "language": "plpgsql",
+          "bodySha256": "e1a5bf7c7020609e458956ae01d71f3286c2e4b2c353fee7c91f608fd5f6454c",
+          "securityDefiner": true,
+          "searchPath": "public, extensions",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "confirm_annual_conference_flexible_ticket_payment",
+          "argumentTypes": "uuid, text, text, text, text, integer, text, text, jsonb",
+          "result": "annual_conference_ticket_orders",
+          "language": "plpgsql",
+          "bodySha256": "364b5313eaf4b68e9540a2498f24928a0c4b7816d990d06b4d2255d3a5ac94c5",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "create_conference_checkout_hold_for_mode",
+          "argumentTypes": "uuid, text, text, integer, jsonb, uuid, text, text",
+          "result": "annual_conference_ticket_orders",
+          "language": "plpgsql",
+          "bodySha256": "0cb9f5848b5b8138b73b830861c8ddc7aacfdb95cdb0f6ba63bc11199453b95b",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "create_annual_conference_flexible_checkout_hold",
+          "argumentTypes": "uuid, text, text, integer, jsonb, uuid",
+          "result": "annual_conference_ticket_orders",
+          "language": "sql",
+          "bodySha256": "e63a6fce133c087241d9093142561b8343d645385ecd9bfc3a127d743a79410e",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "create_annual_conference_complete_test_hold",
+          "argumentTypes": "uuid, text, text, integer, jsonb, uuid, text",
+          "result": "annual_conference_ticket_orders",
+          "language": "plpgsql",
+          "bodySha256": "eb221282fa9ca62e73a8dd294d0131872e0f7b9eeb58750121b3458ab873b678",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
         }
       ]
     }
