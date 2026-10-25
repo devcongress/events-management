@@ -24,8 +24,9 @@ describe('admin access request view', () => {
     expect(viewSource).toContain('class="editorial-secondary-action mt-5"');
   });
 
-  it('keeps the review policy inline with the introduction', () => {
-    expect(viewSource).toContain('class="editorial-subtitle mt-2">A DevCongress owner reviews every request. Access is never automatic, and no email is sent.</p>');
+  it('explains owner review and the absence of email updates', () => {
+    expect(viewSource).toContain('An owner reviews each request before granting access.');
+    expect(viewSource).toContain('We don’t send email updates for access requests.');
     expect(viewSource).not.toContain('<aside');
     expect(viewSource).not.toContain('access-review-notice-title');
     expect(viewSource).not.toContain('Owner review required');

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
 
@@ -12,13 +12,24 @@ const router = useRouter();
 const DEVCONGRESS_LOGO_PATH = '/brand/dev-con-logo.png';
 const loading = ref(true);
 const submitting = ref(false);
+const refreshing = ref(false);
+const lastChecked = ref('');
+const resultHeading = ref<HTMLElement | null>(null);
+const requestDate = computed(() => {
+  const value = status.value?.request?.created_at;
+
+  return value ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(value)) : '';
+});
 const error = ref('');
 const status = ref<AccessRequestStatus | null>(null);
 const form = reactive({ display_name: '', reason: '' });
 const canSubmit = computed(() => form.display_name.trim().length > 0 && form.display_name.trim().length <= 120 && form.reason.length <= 1000 && !submitting.value);
 
 async function load() {
-  loading.value = true;
+  if (refreshing.value) return;
+
+  loading.value = !status.value;
+  refreshing.value = true;
   error.value = '';
   try {
     const response = await fetch('/api/auth/admin/access-request', { credentials: 'include' });
@@ -32,11 +43,12 @@ async function load() {
     status.value = await response.json() as AccessRequestStatus;
     form.display_name = status.value.request?.display_name ?? status.value.identity.display_name;
     form.reason = status.value.request?.reason ?? '';
+    lastChecked.value = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date());
   } catch (caught) {
-    status.value = null;
     error.value = caught instanceof Error ? caught.message : 'Unable to load your access request.';
   } finally {
     loading.value = false;
+    refreshing.value = false;
   }
 }
 
@@ -48,7 +60,12 @@ async function submit() {
     const response = await fetch('/api/auth/admin/access-request', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ display_name: form.display_name, reason: form.reason || undefined }) });
 
     if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? 'Unable to submit your request.');
+    const result = await response.json() as { request: AccessRequestStatus['request'] };
+
+    if (status.value) status.value = { ...status.value, request: result.request };
     await load();
+    await nextTick();
+    resultHeading.value?.focus();
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : 'Unable to submit your request.';
   } finally {
@@ -67,9 +84,9 @@ onMounted(() => {
       <header class="mb-8" aria-labelledby="access-title">
         <img :src="DEVCONGRESS_LOGO_PATH" alt="DevCongress" class="w-32 sm:w-40">
         <p class="editorial-eyebrow mt-8">Organizer desk / Request access</p>
-        <h1 id="access-title" class="editorial-title">Ask to join the work.</h1>
-        <p class="editorial-subtitle">Tell us a little about how you’d like to contribute to DevCongress.</p>
-        <p class="editorial-subtitle mt-2">A DevCongress owner reviews every request. Access is never automatic, and no email is sent.</p>
+        <h1 id="access-title" class="editorial-title">{{ status?.request?.status === 'pending' || status?.request?.status === 'approved' ? 'Your access request' : 'Join the organizer team' }}</h1>
+        <p v-if="!status?.request || status.request.status === 'declined'" class="editorial-subtitle">Tell us a little about how you’d like to contribute to DevCongress.</p>
+        <p v-if="!status?.request || status.request.status === 'declined'" class="mt-3 text-sm leading-6 text-dc-gray">An owner reviews each request before granting access.</p>
       </header>
 
       <p v-if="error" class="mb-6 rounded-md border-2 border-red-700 bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert">{{ error }}</p>
@@ -83,10 +100,24 @@ onMounted(() => {
         <button type="button" class="editorial-secondary-action mt-5" @click="load">Try again</button>
       </section>
 
-      <section v-else-if="status?.request?.status === 'pending'" class="editorial-panel bg-dc-yellow p-6">
-        <h2 class="text-2xl font-bold tracking-tight text-dc-ink">Your request is in the room.</h2>
-        <p class="mt-3 max-w-2xl text-base leading-7 text-dc-ink">An owner will review it. Come back here any time to check in.</p>
-        <button type="button" class="editorial-secondary-action mt-5" @click="load">Refresh status</button>
+      <section v-else-if="status?.request?.status === 'pending'" class="rounded-xl border border-dc-border bg-dc-paper p-6 sm:p-8" aria-labelledby="request-result-title">
+        <div class="flex items-center gap-3">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-dc-paper-warm text-dc-pink" aria-hidden="true"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+          <span class="rounded-full border border-dc-border px-3 py-1 text-xs font-medium text-dc-gray">Awaiting review</span>
+        </div>
+        <h2 id="request-result-title" ref="resultHeading" tabindex="-1" class="mt-5 text-2xl font-semibold text-dc-ink focus:outline-none">Request received</h2>
+        <p class="mt-2 text-sm leading-6 text-dc-gray">Thanks for offering to help shape DevCongress. An owner will review your request and decide on your access.</p>
+        <dl class="mt-6 grid gap-4 border-y border-dc-border py-5 text-sm sm:grid-cols-[1fr_auto]">
+          <div class="min-w-0"><dt class="text-xs text-dc-gray">Google account</dt><dd class="mt-1 break-all font-medium text-dc-ink">{{ status.identity.email }}</dd></div>
+          <div><dt class="text-xs text-dc-gray">Submitted</dt><dd class="mt-1 text-dc-ink"><time :datetime="status.request.created_at">{{ requestDate }}</time></dd></div>
+        </dl>
+        <h3 class="mt-5 text-sm font-semibold text-dc-ink">What happens next?</h3>
+        <p class="mt-2 text-sm leading-6 text-dc-gray">Check your status here. Once approved, sign in with this same Google account to enter the organizer workspace.</p>
+        <p class="mt-2 text-xs leading-5 text-dc-gray">We don’t send email updates for access requests. If your session expires, choose Request access on the sign-in page to return here.</p>
+        <div class="mt-6 flex flex-wrap items-center gap-3">
+          <button type="button" class="min-h-11 rounded-md bg-dc-pink px-4 text-sm font-semibold text-white disabled:opacity-50" :disabled="refreshing" :aria-busy="refreshing" @click="load">{{ refreshing ? 'Checking…' : 'Check status' }}</button>
+          <p class="text-xs text-dc-gray" role="status" aria-live="polite">{{ refreshing ? 'Checking for an update…' : `Last checked at ${lastChecked}` }}</p>
+        </div>
       </section>
 
       <section v-else-if="status?.request?.status === 'approved'" class="editorial-panel p-6">
