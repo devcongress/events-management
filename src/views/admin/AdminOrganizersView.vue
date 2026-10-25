@@ -4,6 +4,7 @@ import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { z } from 'zod';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AccessRequestDrawer from '@/src/components/AccessRequestDrawer.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
 import OrganizerRoleBadge from '@/src/components/OrganizerRoleBadge.vue';
@@ -115,9 +116,45 @@ const organizerPageEnd = computed(() => Math.min(organizers.value.length, organi
 const paginatedOrganizers = computed(() => organizers.value.slice(organizerPageStart.value, organizerPageEnd.value));
 const accessRequests = computed(() => accessRequestsQuery.data.value?.requests ?? []);
 const accessRequestPage = ref(1);
-const accessRequestsPerPage = 5;
-const accessRequestPageCount = computed(() => Math.max(1, Math.ceil(accessRequests.value.length / accessRequestsPerPage)));
-const paginatedAccessRequests = computed(() => accessRequests.value.slice((accessRequestPage.value - 1) * accessRequestsPerPage, accessRequestPage.value * accessRequestsPerPage));
+const accessRequestSearch = ref('');
+const accessRequestsPerPage = 10;
+const filteredAccessRequests = computed(() => {
+  const search = accessRequestSearch.value.trim().toLowerCase();
+
+  return accessRequests.value.filter((request) => !search
+    || [request.display_name, request.email, request.reason ?? ''].some((value) => value.toLowerCase().includes(search)));
+});
+
+watch(accessRequestSearch, () => { accessRequestPage.value = 1; });
+const accessRequestPageCount = computed(() => Math.max(1, Math.ceil(filteredAccessRequests.value.length / accessRequestsPerPage)));
+const paginatedAccessRequests = computed(() => filteredAccessRequests.value.slice((accessRequestPage.value - 1) * accessRequestsPerPage, accessRequestPage.value * accessRequestsPerPage));
+const requestDetails = ref<AdminAccessRequest | null>(null);
+const queuedRequestDecision = ref<{ request: AdminAccessRequest; approve: boolean } | null>(null);
+const accessRequestsHeading = ref<HTMLElement | null>(null);
+
+function openRequestDetails(request: AdminAccessRequest, event: MouseEvent) {
+  if (currentUserRole.value !== 'owner') return;
+  const target = event.currentTarget as HTMLElement;
+
+  (target.matches('button') ? target : target.querySelector<HTMLButtonElement>('button'))?.focus();
+  requestDetails.value = request;
+}
+
+function queueRequestDecision(approve: boolean) {
+  if (!requestDetails.value || decideAccessRequestMutation.isPending.value) return;
+  queuedRequestDecision.value = { request: requestDetails.value, approve };
+  requestDetails.value = null;
+}
+
+function finishRequestDrawerClose() {
+  const decision = queuedRequestDecision.value;
+
+  queuedRequestDecision.value = null;
+  if (!decision) return;
+  if (decision.approve) approveAccessRequest(decision.request);
+  else declineAccessRequest(decision.request);
+}
+
 const accessRequestCandidate = ref<AdminAccessRequest | null>(null);
 const declineAccessRequestCandidate = ref<AdminAccessRequest | null>(null);
 const accessRequestRole = ref<'organizer' | 'volunteer'>('organizer');
@@ -257,12 +294,15 @@ const decideAccessRequestMutation = useMutation({
     declineAccessRequestCandidate.value = null;
     await queryClient.invalidateQueries({ queryKey: queryKeys.adminAccessRequests });
     await queryClient.invalidateQueries({ queryKey: queryKeys.adminOrganizers });
+    await nextTick();
+    accessRequestsHeading.value?.focus();
   },
   onError: (caught) => notifyActionError(caught, 'Unable to decide this access request.'),
 });
 
 function approveAccessRequest(request: AdminAccessRequest) {
-  if (currentUserRole.value !== 'owner') return;
+  if (currentUserRole.value !== 'owner' || decideAccessRequestMutation.isPending.value) return;
+  accessRequestRole.value = 'organizer';
   accessRequestCandidate.value = request;
 }
 
@@ -709,7 +749,56 @@ onUnmounted(() => {
       <BoneyardPageSkeleton v-if="loading" name="admin-organizers" label="people and access" layout="table" />
 
       <div v-else class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <form class="rounded-lg border border-dc-border bg-dc-paper p-4 xl:col-start-2 xl:row-start-1" @submit.prevent="submitOrganizer">
+        <section v-if="currentUserRole === 'owner'" class="min-w-0 overflow-hidden rounded-lg border border-dc-border bg-dc-paper xl:col-span-2" aria-labelledby="access-requests-title">
+          <div class="flex flex-wrap items-end justify-between gap-4 border-b border-dc-border p-4 sm:px-5">
+            <div>
+              <p class="editorial-eyebrow">Review queue</p>
+              <h2 ref="accessRequestsHeading" tabindex="-1" id="access-requests-title" class="mt-1 text-lg font-semibold text-dc-ink">Access requests <span v-if="!accessRequestsQuery.isPending.value && !accessRequestsQuery.isError.value" class="ml-2 rounded-full bg-dc-paper-warm px-2 py-0.5 font-mono text-xs">{{ accessRequests.length }}</span></h2>
+              <p class="mt-1 text-xs leading-5 text-dc-gray">Review each request, then choose a workspace role when approving.</p>
+            </div>
+            <label class="w-full sm:w-72">
+              <span class="sr-only">Search access requests</span>
+              <input v-model="accessRequestSearch" type="search" class="editorial-input !min-h-11 !rounded-md !px-3 !py-2 !text-sm" placeholder="Search name, email or reason">
+            </label>
+          </div>
+          <p v-if="accessRequestsQuery.isPending.value" class="p-5 text-sm text-dc-gray" role="status">Loading requests…</p>
+          <div v-else-if="accessRequestsQuery.isError.value" class="p-5" role="alert">
+            <p class="text-sm text-red-700">Unable to load access requests.</p>
+            <button type="button" class="mt-2 min-h-11 text-sm font-semibold text-dc-pink" @click="accessRequestsQuery.refetch()">Try again</button>
+          </div>
+          <p v-else-if="!accessRequests.length" class="p-5 text-sm text-dc-gray">You’re all caught up. New requests will appear here.</p>
+          <p v-else-if="!filteredAccessRequests.length" class="p-5 text-sm text-dc-gray" role="status">No requests match your search.</p>
+          <div v-else>
+            <table class="block w-full text-left text-sm sm:table">
+              <caption class="sr-only">Pending access requests</caption>
+              <thead class="hidden border-b border-dc-border bg-dc-paper-warm text-xs text-dc-gray sm:table-header-group">
+                <tr><th scope="col" class="px-5 py-3 font-medium">Person</th><th scope="col" class="px-5 py-3 font-medium">How they’d like to help</th><th scope="col" class="px-5 py-3 font-medium">Requested</th><th scope="col" class="px-5 py-3 text-right font-medium">Review</th></tr>
+              </thead>
+              <tbody class="block divide-y divide-dc-border sm:table-row-group">
+                <tr v-for="request in paginatedAccessRequests" :key="request.id" class="block cursor-pointer p-4 hover:bg-dc-paper-warm sm:table-row sm:p-0" @click="openRequestDetails(request, $event)">
+                  <td class="block break-words pb-2 align-top sm:table-cell sm:w-1/4 sm:px-5 sm:py-4">
+                    <p class="mb-1 text-xs text-dc-gray sm:hidden">Person</p>
+                    <p class="font-semibold text-dc-ink">{{ request.display_name }}</p>
+                    <p class="mt-0.5 break-all text-xs text-dc-gray">{{ request.email }}</p>
+                  </td>
+                  <td class="block pb-2 align-top sm:table-cell sm:w-2/5 sm:px-5 sm:py-4">
+                    <p class="mb-1 text-xs font-medium text-dc-ink sm:hidden">How they’d like to help</p>
+                    <p class="line-clamp-2 break-words text-xs leading-5 text-dc-gray">{{ request.reason || 'No note provided.' }}</p>
+                  </td>
+                  <td class="block pb-3 align-top text-xs text-dc-gray sm:table-cell sm:px-5 sm:py-4"><span class="sm:hidden">Requested </span><time :datetime="request.created_at">{{ formatDateTime(request.created_at) }}</time></td>
+                  <td class="block align-top sm:table-cell sm:px-5 sm:py-3">
+                    <div class="flex sm:justify-end">
+                      <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-xs font-semibold text-dc-ink" :aria-label="`Review ${request.display_name}`" @click.stop="openRequestDetails(request, $event)">Review →</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <AppPagination v-if="filteredAccessRequests.length > accessRequestsPerPage" v-model:page="accessRequestPage" class="border-t border-dc-border p-4" :page-count="accessRequestPageCount" :total="filteredAccessRequests.length" :range-start="(accessRequestPage - 1) * accessRequestsPerPage + 1" :range-end="Math.min(accessRequestPage * accessRequestsPerPage, filteredAccessRequests.length)" item-label="requests" aria-label="Access request pagination" />
+          </div>
+        </section>
+
+        <form class="rounded-lg border border-dc-border bg-dc-paper p-4 xl:col-start-2 xl:row-start-2" @submit.prevent="submitOrganizer">
           <p class="editorial-eyebrow">Invite</p>
           <h2 class="mt-1 text-lg font-semibold text-dc-ink">Add access</h2>
           <p class="mt-1 text-xs leading-5 text-dc-gray">Add one person and choose the access they need.</p>
@@ -734,7 +823,7 @@ onUnmounted(() => {
 
         <section
           v-if="currentUserRole === 'owner'"
-          class="rounded-lg border border-dc-border bg-dc-paper p-4 xl:col-start-2 xl:row-start-2"
+          class="rounded-lg border border-dc-border bg-dc-paper p-4 xl:col-start-2 xl:row-start-3"
           aria-labelledby="delegation-section-title"
         >
           <p class="editorial-eyebrow">Delegation</p>
@@ -766,31 +855,7 @@ onUnmounted(() => {
           </p>
         </section>
 
-        <section
-          v-if="currentUserRole === 'owner'"
-          class="rounded-lg border border-dc-border bg-dc-paper p-4 xl:col-start-2 xl:row-start-3"
-          aria-labelledby="access-requests-title"
-        >
-          <p class="editorial-eyebrow">Review queue</p>
-          <h2 id="access-requests-title" class="mt-1 text-lg font-semibold text-dc-ink">Access requests</h2>
-          <p v-if="accessRequestsQuery.isPending.value" class="mt-1 text-xs leading-5 text-dc-gray">Loading requests…</p>
-          <p v-else-if="accessRequestsQuery.isError.value" class="mt-1 text-xs leading-5 text-red-700">Unable to load access requests.</p>
-          <p v-else class="mt-1 text-xs leading-5 text-dc-gray">{{ accessRequests.length ? `${accessRequests.length} waiting for an owner decision.` : 'No pending requests.' }}</p>
-          <div v-if="paginatedAccessRequests.length" class="mt-3 grid gap-3">
-            <article v-for="request in paginatedAccessRequests" :key="request.id" class="rounded-md border border-dc-border bg-dc-paper-warm p-3">
-              <p class="break-words text-sm font-semibold text-dc-ink">{{ request.display_name }}</p>
-              <p class="mt-0.5 break-all text-xs text-dc-gray">{{ request.email }}</p>
-              <p v-if="request.reason" class="mt-2 break-words text-xs leading-5 text-dc-gray">{{ request.reason }}</p>
-              <div class="mt-3 flex gap-2">
-                <button type="button" class="motion-press min-h-11 flex-1 rounded-md border border-dc-border px-2.5 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink sm:flex-none" @click="approveAccessRequest(request)">Approve</button>
-                <button type="button" class="motion-press min-h-11 flex-1 rounded-md border border-red-300 px-2.5 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-red-700 sm:flex-none" :disabled="decideAccessRequestMutation.isPending.value" @click="declineAccessRequest(request)">Decline</button>
-              </div>
-            </article>
-          </div>
-          <AppPagination v-if="accessRequests.length > accessRequestsPerPage" v-model:page="accessRequestPage" class="mt-3" :page-count="accessRequestPageCount" :total="accessRequests.length" :range-start="(accessRequestPage - 1) * accessRequestsPerPage + 1" :range-end="Math.min(accessRequestPage * accessRequestsPerPage, accessRequests.length)" item-label="requests" aria-label="Access request pagination" />
-        </section>
-
-        <section class="flex min-w-0 flex-col overflow-hidden rounded-lg border border-dc-border bg-dc-paper xl:col-start-1 xl:row-span-2 xl:row-start-1">
+        <section class="flex min-w-0 flex-col overflow-hidden rounded-lg border border-dc-border bg-dc-paper xl:col-start-1 xl:row-span-2 xl:row-start-2">
           <div class="flex items-center justify-between gap-4 border-b border-dc-border px-4 py-3 sm:px-5">
             <div>
               <h2 class="text-lg font-semibold text-dc-ink">Team access</h2>
@@ -1012,6 +1077,28 @@ onUnmounted(() => {
       </div>
     </Transition>
   </Teleport>
+
+  <AccessRequestDrawer :open="Boolean(requestDetails) && currentUserRole === 'owner'" @close="requestDetails = null" @closed="finishRequestDrawerClose">
+    <div v-if="requestDetails" class="space-y-6">
+      <div>
+        <p class="text-xs font-semibold text-dc-pink">Awaiting review</p>
+        <h3 class="mt-2 break-words text-2xl font-bold text-dc-ink">{{ requestDetails.display_name }}</h3>
+        <p class="mt-1 break-all text-sm text-dc-gray">{{ requestDetails.email }}</p>
+      </div>
+      <dl class="border-y border-dc-border py-4">
+        <dt class="text-xs text-dc-gray">Requested</dt>
+        <dd class="mt-1 text-sm text-dc-ink"><time :datetime="requestDetails.created_at">{{ formatDateTime(requestDetails.created_at) }}</time></dd>
+      </dl>
+      <section>
+        <h3 class="text-sm font-semibold text-dc-ink">How they’d like to help</h3>
+        <p class="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-dc-gray">{{ requestDetails.reason || 'No note provided.' }}</p>
+      </section>
+      <div class="flex flex-wrap gap-3 border-t border-dc-border pt-5">
+        <button type="button" class="motion-press min-h-11 rounded-md border border-dc-pink bg-dc-pink px-4 text-sm font-semibold text-white" @click="queueRequestDecision(true)">Approve</button>
+        <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-4 text-sm font-semibold text-dc-ink" @click="queueRequestDecision(false)">Decline</button>
+      </div>
+    </div>
+  </AccessRequestDrawer>
 
   <ConfirmDialog
     :open="Boolean(declineAccessRequestCandidate)"

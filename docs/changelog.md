@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-25 — Improve access request review and submission feedback
+
+- Give owners a full-width searchable request table with ten-row pagination, submission dates, a right drawer for full notes and approval actions, and readable mobile rows. Preserve approval roles and decision confirmations.
+- Replace the large yellow pending message with a calmer request summary, clear next steps, and status refresh feedback. Preserve successful submissions and known status if a refresh fails.
+- No API, authorization, database, or email behavior changes.
+
 ## 2026-10-24 — Keep preview tickets outside venue inventory
 
 - Exclude test orders from organizer inventory and SQL venue-capacity checks while preserving their tickets, badge links and payment history.
