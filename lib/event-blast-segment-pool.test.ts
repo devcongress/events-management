@@ -22,6 +22,24 @@ afterEach(async () => {
 });
 
 describe('event blast segment pool', () => {
+  it('shares the three slots between event and volunteer broadcasts', async () => {
+    const {
+      claimEventBlastSegmentSlot,
+      claimVolunteerBlastSegmentSlot,
+    } = await import('./event-blast-segment-pool');
+    const eventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const campaignId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const eventSlot = await claimEventBlastSegmentSlot('11111111-1111-4111-8111-111111111111', eventId);
+    const volunteerSlot = await claimVolunteerBlastSegmentSlot('22222222-2222-4222-8222-222222222222', campaignId);
+    const third = await claimVolunteerBlastSegmentSlot('33333333-3333-4333-8333-333333333333', campaignId);
+    const fourth = await claimEventBlastSegmentSlot('44444444-4444-4444-8444-444444444444', eventId);
+
+    expect(eventSlot).toMatchObject({ active_scope: 'event', active_event_id: eventId });
+    expect(volunteerSlot).toMatchObject({ active_scope: 'volunteer', active_volunteer_campaign_id: campaignId });
+    expect(third?.slot_number).toBe(3);
+    expect(fourth).toBeNull();
+  });
+
   it('claims only three slots and requires terminal confirmation before release', async () => {
     const {
       claimEventBlastSegmentSlot,

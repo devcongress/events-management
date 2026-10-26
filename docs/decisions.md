@@ -1422,3 +1422,17 @@ the deployment, auth, scheduler, and storage environment.
 ADR-118 follow-up: shared rehearsal capacity is permitted only before live launch. A database trigger prevents the `public` lifecycle while any test order remains; cleanup must be separately reviewed and authorized. Test initialization requires preview-bound Turnstile and durable daily quotas, and emailed QR PNGs carry warning bands without obscuring their modules.
 
 ADR-118 delivery follow-up: preview dispatch must not lease historical registration/live-order mail. Add dedicated test-only claim functions rather than filtering after generic claims, because generic terminal sweeps also mutate queue rows. Exact-origin provenance and current tester permission scope every mutation. Enabled-but-invalid preview configuration fails closed. Production scheduler code and active versions remain unchanged.
+
+---
+
+## ADR-119: Selected volunteers use the shared Resend Broadcast pool
+
+**Date:** 2026-10-26
+
+**Decision:** Treat a volunteer follow-up announcement as a second audience kind in the existing durable blast record. The eligible source is the current accepted-volunteer pool, but the Owner must explicitly choose the recipient IDs. Freeze that exact subset, its decision versions, normalized addresses, and rendered message in an actor-bound preview before confirmation. Prepare the audience through the existing three reusable Resend segment slots, tagged with event or volunteer ownership, and create a provider Broadcast only after every frozen recipient is imported.
+
+**Why:** These announcements are one-to-many campaign communications, so Resend Broadcasts provide the intended provider model and unsubscribe handling. Reusing the bounded pool avoids exceeding the account's segment limit. Exact-subset snapshots let the Owner omit accepted volunteers deliberately without a stale preview silently adding or replacing recipients.
+
+**Trade-offs:** Volunteer and event Broadcasts now contend for the same three slots, and scheduled sends retain a slot until terminal reconciliation and contact cleanup. The full-access Broadcast key and monitored registration reply-to remain required. This path has separate history from transactional accepted/not-selected outcome deliveries, which keep their existing idempotency, pause, retry, and provider-event controls.
+
+**Revisit when:** Resend provides immutable inline audiences without reusable segments, the shared audience limit exceeds 100, or a generalized campaign dispatcher replaces both event and volunteer preparation routes.

@@ -16,6 +16,14 @@ After migration `20261018210000_volunteer_outcome_row_controls.sql`, confirmatio
 
 Outcome emails have separate pause/resume controls from the invitation campaign. The Owner workflow is explicit: save decisions in Reviews, choose Accepted applicants or Not-selected applicants, request a preview to establish authoritative eligibility, then confirm the frozen preview. Only the preview API supplies authoritative `eligible_count`; the delivery table never treats a missing provider ID as readiness to send. Confirmation is the only path that queues them; saving a decision or review does not. Enabling delivery only processes a confirmed queue. A decision cannot change after any outcome attempt, provider acceptance, or ambiguous send; same-decision note/status edits remain allowed and do not change the decision version. The collapsed Delivery health control is expressly provider-capacity and scheduler diagnostics, not a blanket delivery-health guarantee.
 
+## Selected-volunteer broadcasts after acceptance
+
+The Owner Campaign surface has a separate **Volunteer updates** composer for follow-up announcements such as orientation details. Its eligible pool is every recipient currently marked `accepted`, but nobody is selected automatically. The Owner may choose any subset, search or paginate without losing that selection, or explicitly choose all accepted volunteers.
+
+Preview stores an actor-bound ten-minute snapshot of exactly the selected recipient IDs, decision versions, normalized addresses, and the rendered DevCon26 HTML/text. Confirmation revalidates only that frozen subset. A changed decision, version, or email rejects the confirmation; the server never expands the audience to newly accepted volunteers. The resulting history entry records the frozen recipient count and preparation status.
+
+These updates use the programmatic Resend Segment and Broadcast workflow, not the transactional invitation/outcome batch sender. They share the same three reusable segment slots as event blasts: the queue clears prior contacts, imports the frozen audience in batches of ten, creates a Resend Broadcast draft from the frozen content, and then sends or schedules it. The segment remains reserved until reconciliation confirms a terminal provider state and cleanup verifies that no contacts remain. Immediate sends still respect the transactional capacity reserve. The existing accepted and not-selected outcome messages, controls, idempotency keys, and delivery rows are unchanged.
+
 ## Test an outcome email
 
 The Owner campaign shows a **Try this email** box under the saved outcome message. Choose Accepted or Not-selected applicants, enter one address or use the signed-in email, and send a sample independently of audience eligibility. The server loads the saved copy and production template with the sample name Applicant and a `[TEST]` subject. This sends only to the chosen address and never changes applicant decisions, confirms a cohort, or adds campaign deliveries.
@@ -47,10 +55,15 @@ The scheduled worker gives this queue four isolated processing opportunities in 
 - Migration: `supabase/migrations/20260923120000_volunteer_outcome_decisions.sql`
 - Outcome messages migration: `supabase/migrations/20261012120000_volunteer_follow_up_outcome_messages.sql`
 - Retry diagnostics migration: `supabase/migrations/20260928120000_volunteer_delivery_retry_diagnostics.sql`
+- Selected-volunteer broadcast migration: `supabase/migrations/20261026120000_selected_volunteer_broadcasts.sql`
 - API, drain, and provider events: `server/routes/volunteer-follow-up.ts`
+- Selected-volunteer Broadcast API and queue preparation: `server/routes/volunteer-broadcasts.ts`
 - Supabase RPC wrappers: `lib/supabase/volunteer-follow-up.ts`
+- Selected-volunteer preview RPC wrappers: `lib/supabase/volunteer-broadcasts.ts`
 - Production template: `lib/email/templates/volunteer-follow-up.ts`
+- Selected-volunteer Broadcast template: `lib/email/templates/volunteer-broadcast.ts`
 - Owner campaign UI: `src/components/VolunteerOutcomeCampaignPanel.vue`
+- Selected-volunteer Broadcast UI: `src/components/VolunteerBroadcastPanel.vue`
 - Reviewer decision UI: `src/components/VolunteerReviewsPanel.vue`
 - Disposable Postgres runtime checks: `scripts/test-volunteer-outcomes.mjs`
 

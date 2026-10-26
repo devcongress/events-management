@@ -16,6 +16,16 @@ export async function getRecentMockEventBlasts(limit: number): Promise<EventBlas
     .slice(0, limit);
 }
 
+export async function getMockVolunteerBroadcasts(campaignId: string): Promise<EventBlast[]> {
+  return (await readData<EventBlast>(BLASTS_FILE))
+    .filter((blast) => blast.audience_kind === 'accepted_volunteers' && blast.volunteer_campaign_id === campaignId)
+    .sort((first, second) => second.created_at.localeCompare(first.created_at));
+}
+
+export async function getMockEventBlastById(id: string): Promise<EventBlast | undefined> {
+  return (await readData<EventBlast>(BLASTS_FILE)).find((blast) => blast.id === id);
+}
+
 export async function createMockEventBlast(input: Omit<EventBlast, 'id' | 'created_at' | 'updated_at'>): Promise<EventBlast> {
   const timestamp = now();
   const blast: EventBlast = {

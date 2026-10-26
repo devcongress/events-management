@@ -5,6 +5,7 @@ import ConfirmDialog from "@/src/components/ui/ConfirmDialog.vue";
 import AppDropdown from "@/src/components/AppDropdown.vue";
 import AppDatePicker from "@/src/components/ui/AppDatePicker.vue";
 import VolunteerOutcomeCampaignPanel from "@/src/components/VolunteerOutcomeCampaignPanel.vue";
+import VolunteerBroadcastPanel from "@/src/components/VolunteerBroadcastPanel.vue";
 import BoneyardPageSkeleton from "@/src/components/ui/BoneyardPageSkeleton.vue";
 import { ensureAdminShortLink, fetchJson } from "@/src/lib/api";
 import { copyTextToClipboard } from "@/src/lib/clipboard";
@@ -1049,6 +1050,8 @@ onUnmounted(() => {
         @retry-delivery="pendingRetry = { kind: 'outcome', id: $event.outcome_delivery!.id!, name: $event.applicant_name }"
         @updated="query.refetch"
       />
+
+      <VolunteerBroadcastPanel v-if="isOwner" />
 
       <section v-if="isOwner" class="follow-up-health">
         <button

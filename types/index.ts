@@ -234,7 +234,9 @@ export interface EventRegistrationSummary {
 
 export interface EventBlast {
   id: string;
-  event_id: string;
+  event_id: string | null;
+  audience_kind: 'event_registrations' | 'accepted_volunteers';
+  volunteer_campaign_id: string | null;
   subject: string;
   body: string;
   status: EventBlastStatus;
@@ -243,9 +245,17 @@ export interface EventBlast {
   sent_at: string | null;
   provider_broadcast_id: string | null;
   provider_segment_id: string | null;
-  recipient_snapshot: Array<{ email: string; name: string }>;
+  recipient_snapshot: Array<{
+    email: string;
+    name: string;
+    recipient_id?: string;
+    decision_version?: number;
+  }>;
   prepared_recipient_count: number;
   preparation_error: string | null;
+  rendered_html: string | null;
+  rendered_text: string | null;
+  template_version: string | null;
   created_by_email: string | null;
   created_at: string;
   updated_at: string;

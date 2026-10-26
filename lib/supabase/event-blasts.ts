@@ -7,14 +7,23 @@ type BlastInsert = Database['public']['Tables']['event_blasts']['Insert'];
 type BlastUpdate = Database['public']['Tables']['event_blasts']['Update'];
 type BlastRow = Database['public']['Tables']['event_blasts']['Row'];
 
-function toEventBlast(row: BlastRow): EventBlast {
+export function toEventBlast(row: BlastRow): EventBlast {
   const recipient_snapshot = Array.isArray(row.recipient_snapshot)
     ? row.recipient_snapshot.flatMap((recipient) => {
       if (!recipient || typeof recipient !== 'object' || Array.isArray(recipient)) return [];
       const email = recipient.email;
       const name = recipient.name;
+      const recipientId = recipient.recipient_id;
+      const decisionVersion = recipient.decision_version;
 
-      return typeof email === 'string' && typeof name === 'string' ? [{ email, name }] : [];
+      if (typeof email !== 'string' || typeof name !== 'string') return [];
+
+      return [{
+        email,
+        name,
+        ...(typeof recipientId === 'string' ? { recipient_id: recipientId } : {}),
+        ...(typeof decisionVersion === 'number' ? { decision_version: decisionVersion } : {}),
+      }];
     })
     : [];
 
@@ -62,6 +71,39 @@ export async function getRecentSupabaseEventBlasts(
   if (error) throw new EventBlastStorageError(error.code ?? null);
 
   return data.map(toEventBlast);
+}
+
+export async function getSupabaseVolunteerBroadcasts(
+  campaignId: string,
+  c?: Context,
+): Promise<EventBlast[] | null> {
+  if (!canUseSupabaseEventBlasts(c)) return null;
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('event_blasts')
+    .select('*')
+    .eq('audience_kind', 'accepted_volunteers')
+    .eq('volunteer_campaign_id', campaignId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new EventBlastStorageError(error.code ?? null);
+
+  return data.map(toEventBlast);
+}
+
+export async function getSupabaseEventBlastById(
+  id: string,
+  c?: Context,
+): Promise<EventBlast | null | undefined> {
+  if (!canUseSupabaseEventBlasts(c)) return null;
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('event_blasts')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) throw new EventBlastStorageError(error.code ?? null);
+
+  return data ? toEventBlast(data) : undefined;
 }
 
 export async function createSupabaseEventBlast(

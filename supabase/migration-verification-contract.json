@@ -4114,6 +4114,120 @@
           "serviceExecute": true
         }
       ]
+    },
+    {
+      "file": "20261026120000_selected_volunteer_broadcasts.sql",
+      "sha256": "fa9414434a6d57002ca3b4859d82c062e82be2441a2b341a68fb24df212267e1",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "volunteer_follow_up_broadcast_previews",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "name": "audience_kind",
+          "table": "event_blasts",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": "'event_registrations'::text"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "name": "volunteer_campaign_id",
+          "table": "event_blasts",
+          "type": "uuid",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "name": "active_scope",
+          "table": "event_blast_segment_slots",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "name": "active_volunteer_campaign_id",
+          "table": "event_blast_segment_slots",
+          "type": "uuid",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "create_volunteer_follow_up_broadcast_preview",
+          "argumentTypes": "uuid, uuid[], text, text, timestamp with time zone, text, text, text, text",
+          "result": "SETOF volunteer_follow_up_broadcast_previews",
+          "language": "plpgsql",
+          "bodySha256": "67e97b990af900ce360636eb5371dfef12988de5daf067cc8af6e6343d6be443",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "confirm_volunteer_follow_up_broadcast_preview",
+          "argumentTypes": "uuid, text",
+          "result": "SETOF event_blasts",
+          "language": "plpgsql",
+          "bodySha256": "3585e43956add5199786c39aa97eecfea4736cdfe2e736840e690a321e3dd5de",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_event_blast_segment_slot",
+          "argumentTypes": "uuid, uuid",
+          "result": "SETOF event_blast_segment_slots",
+          "language": "plpgsql",
+          "bodySha256": "c36388e7e4df73754b85358bcb7cd1633bd085203533c3a15d4739c5ca97c670",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_volunteer_blast_segment_slot",
+          "argumentTypes": "uuid, uuid",
+          "result": "SETOF event_blast_segment_slots",
+          "language": "plpgsql",
+          "bodySha256": "4208c1b58e8ddf0b3f02920c5765be519c85de432b089de0f4a6045817cb23ff",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "release_event_blast_segment_slot",
+          "argumentTypes": "uuid, smallint",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "a376d772f8f3ba6f63486d446180d0694100d339020e834487064beeab5c839a",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
     }
   ]
 }

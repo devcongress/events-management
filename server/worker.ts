@@ -1,9 +1,9 @@
 import app from './app';
 import type { ExecutionContext } from 'hono';
 import { secureSharedSecret } from '@/lib/security/shared-secret';
-import type { EventBlastPreparationMessage } from '@/lib/event-blast-preparation';
+import type { BlastPreparationMessage } from '@/lib/event-blast-preparation';
 
-type QueueMessage = { body: EventBlastPreparationMessage };
+type QueueMessage = { body: BlastPreparationMessage };
 type QueueBatch = { messages: QueueMessage[] };
 type WorkerBindings = Record<string, unknown> & { SLACK_EVENTS_RETRY_SECRET?: string };
 type ScheduledController = { scheduledTime?: number };
@@ -65,7 +65,10 @@ export default {
     if (!secret) throw new Error('Missing scheduled-job secret for event blast preparation.');
 
     for (const message of batch.messages) {
-      const response = await app.fetch(new Request('https://events-management.internal/api/internal/event-blasts/prepare', {
+      const path = message.body.kind === 'volunteer'
+        ? '/api/internal/volunteer-broadcasts/prepare'
+        : '/api/internal/event-blasts/prepare';
+      const response = await app.fetch(new Request(`https://events-management.internal${path}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -75,7 +78,7 @@ export default {
       }), env, ctx);
 
       if (!response.ok) {
-        throw new Error(`Event blast preparation returned ${response.status}.`);
+        throw new Error(`Blast preparation returned ${response.status}.`);
       }
     }
   },

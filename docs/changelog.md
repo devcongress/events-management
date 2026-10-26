@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-26 — Selected-volunteer Resend broadcasts
+
+- Add an Owner-only volunteer update composer whose eligible pool is accepted volunteers, with no automatic selection and exact-subset selection that persists across search and pagination.
+- Freeze the selected recipient/version list and production-rendered email for ten minutes, then reject stale confirmation instead of silently expanding or replacing the audience.
+- Reuse the existing three Resend segment slots across event and volunteer Broadcasts. Queue bounded contact cleanup/import, create the Broadcast programmatically, preserve scheduling and retry visibility, and leave transactional accepted/not-selected outcome delivery unchanged.
+- Add a forward migration and reviewed catalog contract. The user applied it separately and the read-only live schema gate passed; no email was sent or application deployment performed.
+
 ## 2026-10-26 — Stabilize mobile Speakers filter verification
 
 - Wait for fonts and responsive layout frames before measuring mobile filter targets. Preserve the exact 44px minimum, viewport containment, overflow, role, and desktop/mobile checks; report measured geometry on failure.
