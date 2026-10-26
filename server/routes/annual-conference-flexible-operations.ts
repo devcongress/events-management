@@ -1,5 +1,6 @@
 import type { Context, Hono } from 'hono';
 import { z } from 'zod';
+import { communityPurchase, communityPurchaseRowsSchema } from '@/lib/annual-conference-community-purchases';
 import { getSupabaseAnnualConferenceTicketing } from '@/lib/supabase/annual-conference-ticketing';
 import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
@@ -11,6 +12,7 @@ const base = '/api/annual-conference/2026/ticketing/flexible/community-pool';
 const listQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
 }).strict();
+const purchaseQuerySchema = listQuerySchema.extend({ mode: z.enum(['live', 'test']).default('live') });
 const assignSchema = z.object({
   allocation_id: z.string().uuid(),
   attendee_name: z.string().trim().min(1).max(120),
@@ -40,6 +42,46 @@ async function requireOwnerTicketing(c: Context<AppBindings>) {
 }
 
 export function registerAnnualConferenceFlexibleOperationsRoutes(app: Hono<AppBindings>): void {
+  app.get(`${base}/purchases`, async (c) => {
+    const accessError = await requireOwnerTicketing(c);
+
+    if (accessError) return accessError;
+    const query = purchaseQuerySchema.safeParse(c.req.query());
+
+    if (!query.success) return c.json({ error: 'Invalid community-purchase page.' }, 400);
+    if (!isSupabaseRuntimeEnabled(c)) return c.json({ error: 'Ticketing storage is not configured.' }, 503);
+    c.header('Cache-Control', 'private, no-store');
+
+    try {
+      const ticketing = await getSupabaseAnnualConferenceTicketing(2026, c);
+
+      if (!ticketing) return c.json({ error: 'Conference ticketing is unavailable.' }, 503);
+      const result = await getSupabaseAdminClient(c)
+        .from('annual_conference_ticket_orders')
+        .select(`id, purchaser_name, purchaser_email, payment_mode, created_at,
+          allocations:annual_conference_flexible_ticket_allocations!annual_conference_flexible_ticket_allocations_order_edition_fkey!inner(id, seat_index),
+          tickets:annual_conference_tickets!annual_conference_tickets_order_edition_fkey(id, order_seat_number, status, attendee_name, attendee_email)`)
+        .eq('edition_id', ticketing.settings.edition_id)
+        .eq('status', 'paid')
+        .filter('checkout_flow', 'eq', 'flexible')
+        .filter('payment_mode', 'eq', query.data.mode)
+        .eq('allocations.allocation_kind', 'community_managed')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(query.data.offset, query.data.offset + 25);
+      const rows = communityPurchaseRowsSchema.safeParse(result.data);
+
+      if (result.error || !rows.success || rows.data.some((row) => row.payment_mode !== query.data.mode)) return c.json({ error: 'Unable to load community purchases.' }, 503);
+
+      return c.json({
+        purchases: rows.data.slice(0, 25).map(communityPurchase),
+        next_offset: rows.data.length > 25 ? query.data.offset + 25 : null,
+      });
+    } catch {
+      return c.json({ error: 'Unable to load community purchases.' }, 503);
+    }
+  });
+
   app.get(base, async (c) => {
     const accessError = await requireOwnerTicketing(c);
 

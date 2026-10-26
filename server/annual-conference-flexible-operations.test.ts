@@ -27,11 +27,18 @@ const orderId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const ticketId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const idempotencyKey = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const rpc = vi.fn();
+const range = vi.fn();
+const orderQuery = { select: vi.fn(), eq: vi.fn(), filter: vi.fn(), order: vi.fn(), range };
+const from = vi.fn(() => orderQuery);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  orderQuery.select.mockReturnValue(orderQuery);
+  orderQuery.eq.mockReturnValue(orderQuery);
+  orderQuery.filter.mockReturnValue(orderQuery);
+  orderQuery.order.mockReturnValue(orderQuery);
   vi.mocked(requireAdmin).mockResolvedValue(null);
-  vi.mocked(getSupabaseAdminClient).mockReturnValue({ rpc } as never);
+  vi.mocked(getSupabaseAdminClient).mockReturnValue({ rpc, from } as never);
   vi.mocked(getSupabaseAnnualConferenceTicketing).mockResolvedValue({
     settings: { edition_id: editionId },
   } as never);
@@ -85,5 +92,55 @@ describe('Owner community ticket assignment', () => {
     expect(response.status).toBe(403);
     expect(getSupabaseAnnualConferenceTicketing).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('Grouped community purchases', () => {
+  const purchase = {
+    id: orderId, purchaser_name: 'Supporter', purchaser_email: 'supporter@example.test',
+    payment_mode: 'test', created_at: '2026-10-25T12:00:00Z',
+    allocations: [{ id: allocationId, seat_index: 1 }],
+    tickets: [{ id: ticketId, order_seat_number: 1, status: 'issued', attendee_name: 'Recipient', attendee_email: 'recipient@example.test' }],
+  };
+
+  it('returns completed purchases and supporter details with parent-order pagination', async () => {
+    range.mockResolvedValue({ data: Array.from({ length: 26 }, () => purchase), error: null });
+    const response = await app.request(`https://ems.example${base}/purchases?mode=test&offset=25`);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(body.purchases).toHaveLength(25);
+    expect(body.next_offset).toBe(50);
+    expect(body.purchases[0]).toMatchObject({ supporter_name: 'Supporter', assigned: 1, available: 0, total: 1 });
+    expect(orderQuery.eq).toHaveBeenCalledWith('edition_id', editionId);
+    expect(orderQuery.eq).toHaveBeenCalledWith('status', 'paid');
+    expect(orderQuery.eq).toHaveBeenCalledWith('allocations.allocation_kind', 'community_managed');
+    expect(range).toHaveBeenCalledWith(25, 50);
+    expect(orderQuery.filter).toHaveBeenCalledWith('payment_mode', 'eq', 'test');
+    expect(orderQuery.filter).toHaveBeenCalledWith('checkout_flow', 'eq', 'flexible');
+    expect(orderQuery.select.mock.calls[0][0]).not.toMatch(/qr_token|payload|capability/);
+  });
+
+  it('does not read supporter or recipient details for unauthorized users', async () => {
+    vi.mocked(requireAdmin).mockResolvedValue(new Response('Forbidden', { status: 403 }));
+    const response = await app.request(`https://ems.example${base}/purchases`);
+
+    expect(response.status).toBe(403);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid pagination before reading storage', async () => {
+    const response = await app.request(`https://ems.example${base}/purchases?offset=-1`);
+
+    expect(response.status).toBe(400);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('reports incomplete storage data as unavailable instead of showing incorrect progress', async () => {
+    range.mockResolvedValue({ data: [{ ...purchase, payment_mode: 'live', tickets: [] }], error: null });
+    const response = await app.request(`https://ems.example${base}/purchases`);
+
+    expect(response.status).toBe(503);
   });
 });

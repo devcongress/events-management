@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-26 — Keep browser CI on a supported runner
+
+- Pin the browser verification job to Ubuntu 24.04 because Playwright 1.60 cannot install Chromium dependencies on the new Ubuntu 26.04 `ubuntu-latest` image. Keep every verification step enabled.
+
+## 2026-10-26 — Community drawer scroll containment
+
+- Keep the community purchase drawer header and Close control fixed while only its content scrolls. Lock and restore both document and body scrolling, clip the dialog shell, and contain overscroll within its content.
+
+## 2026-10-25 — Grouped community purchases
+
+- Group paid community seats by purchase with supporter details, assignment progress, and live/test filters; retain completed purchases and distinguish cancelled seats.
+- Open a responsive right drawer for per-seat recipient entry, review, and assignment using the existing owner-only, idempotent action. Refresh progress after assignment and keep keyboard focus inside the drawer.
+- Add parent-order pagination and validated community-only response mapping, with focused route and mapping tests. No migration or production changes.
+
 ## 2026-10-25 — Improve access request review and submission feedback
 
 - Give owners a full-width searchable request table with ten-row pagination, submission dates, a right drawer for full notes and approval actions, and readable mobile rows. Preserve approval roles and decision confirmations.
