@@ -59,7 +59,7 @@ export function registerAnnualConferenceFlexibleOperationsRoutes(app: Hono<AppBi
       const result = await getSupabaseAdminClient(c)
         .from('annual_conference_ticket_orders')
         .select(`id, purchaser_name, purchaser_email, payment_mode, created_at,
-          allocations:annual_conference_flexible_ticket_allocations!annual_conference_flexible_ticket_allocations_order_edition_fkey!inner(id, seat_index),
+          allocations:annual_conference_flexible_ticket_allocations!inner(id, seat_index),
           tickets:annual_conference_tickets!annual_conference_tickets_order_edition_fkey(id, order_seat_number, status, attendee_name, attendee_email)`)
         .eq('edition_id', ticketing.settings.edition_id)
         .eq('status', 'paid')

@@ -120,6 +120,9 @@ describe('Grouped community purchases', () => {
     expect(orderQuery.filter).toHaveBeenCalledWith('payment_mode', 'eq', 'test');
     expect(orderQuery.filter).toHaveBeenCalledWith('checkout_flow', 'eq', 'flexible');
     expect(orderQuery.select.mock.calls[0][0]).not.toMatch(/qr_token|payload|capability/);
+    // PostgreSQL truncates the declared 64-character FK name; infer the sole order relationship.
+    expect(orderQuery.select.mock.calls[0][0]).toContain('allocations:annual_conference_flexible_ticket_allocations!inner(');
+    expect(orderQuery.select.mock.calls[0][0]).not.toContain('allocations_order_edition_fkey');
   });
 
   it('does not read supporter or recipient details for unauthorized users', async () => {
