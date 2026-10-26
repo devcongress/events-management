@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-26 — Resolve hosted community purchase lookup
+
+- Infer the allocation/order relationship instead of supplying its declared 64-character constraint name, which PostgreSQL truncates. Verified the hosted read-only query against Supabase; no schema changes.
+
 ## 2026-10-26 — Keep browser CI on a supported runner
 
 - Pin the browser verification job to Ubuntu 24.04 because Playwright 1.60 cannot install Chromium dependencies on the new Ubuntu 26.04 `ubuntu-latest` image. Keep every verification step enabled.
