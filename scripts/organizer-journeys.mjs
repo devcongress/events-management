@@ -2344,8 +2344,13 @@ try {
       const cards = queue.locator(".speaker-proposal-card");
       const filters = queue.getByRole("group", { name: "Filter proposals by status" });
 
+      await page.evaluate(() => document.fonts.ready);
+
       for (const width of [320, 375, 390, 430, 768, 1440]) {
         await page.setViewportSize({ width, height: 844 });
+        await page.evaluate(() => new Promise((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        }));
         assert.equal(await page.locator(".speaker-proposal-table").isVisible(), width >= 768);
         assert.equal(await page.locator(".speaker-proposal-list").isVisible(), width < 768);
         if (width >= 768) continue;
@@ -2354,11 +2359,37 @@ try {
         assert.equal(await queue.evaluate((element) => element.scrollWidth <= element.clientWidth), true);
         for (const control of await filters.getByRole("button").all()) {
           const box = await control.boundingBox();
+          const geometry = await control.evaluate((element) => ({
+            label: element.textContent?.trim(),
+            height: element.offsetHeight,
+            minHeight: getComputedStyle(element).minHeight,
+            transform: getComputedStyle(element).transform,
+            fontStatus: document.fonts.status,
+            documentWidth: document.documentElement.scrollWidth,
+          }));
 
-          assert.ok(box && box.height >= 44 && box.x >= 0 && box.x + box.width <= width);
+          assert.ok(
+            box && box.height >= 44 && box.x >= 0 && box.x + box.width <= width,
+            `${capability} filter at ${width}px: ${JSON.stringify({ box, ...geometry })}`,
+          );
         }
       }
       await page.setViewportSize({ width: 390, height: 844 });
+      const approvedFilter = filters.getByRole("button", { name: "Approved", exact: true });
+
+      await approvedFilter.click();
+      assert.equal(await approvedFilter.getAttribute("aria-pressed"), "true");
+      await cards.first().getByText("Community proposal 8", { exact: true }).waitFor();
+      assert.equal(await cards.count(), 1);
+      const rejectedFilter = filters.getByRole("button", { name: "Rejected", exact: true });
+
+      await rejectedFilter.click();
+      assert.equal(await rejectedFilter.getAttribute("aria-pressed"), "true");
+      await queue.getByText("No not-selected proposals yet.", { exact: true }).waitFor();
+      assert.equal(await cards.count(), 0);
+      await filters.getByRole("button", { name: /Pending/ }).click();
+      await cards.first().waitFor();
+      assert.equal(await cards.count(), 6);
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: `${artifacts}/mobile-speaker-queue-${capability}.png`, fullPage: true });
       await cards.first().click();

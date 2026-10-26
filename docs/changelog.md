@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-26 — Stabilize mobile Speakers filter verification
+
+- Wait for fonts and responsive layout frames before measuring mobile filter targets. Preserve the exact 44px minimum, viewport containment, overflow, role, and desktop/mobile checks; report measured geometry on failure.
+- Exercise Approved, Rejected, and Pending filters for both speaker roles. No application, settings, schema, or production changes.
+
 ## 2026-10-26 — Resolve hosted community purchase lookup
 
 - Infer the allocation/order relationship instead of supplying its declared 64-character constraint name, which PostgreSQL truncates. Verified the hosted read-only query against Supabase; no schema changes.

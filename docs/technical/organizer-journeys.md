@@ -9,6 +9,7 @@ The suite loads the production Vue build in headless Chromium and interacts with
 - Assignee navigation shows that person's tasks across phases; direct work-plan entry uses the current phase.
 - Volunteer navigation hides edition creation and avoids organizer event/edition reads.
 - At 320px, each teleported volunteer-review filter menu waits for placement styles to settle across animation frames, then verifies it remains within the visual viewport used by the dropdown positioning logic and keeps an operable scroll region; failures report measured panel, scroll-region, and viewport bounds. A delayed route scroll reset must not override user interaction while the menu is open. Option coverage scrolls before selecting an off-screen option.
+- Speakers filters wait for fonts and two layout frames after viewport changes before enforcing the unchanged 44px target and viewport-containment checks at 320, 375, 390, and 430px. Both speaker roles exercise Approved, Rejected, and Pending filters, drawer permissions, and pagination; desktop table checks remain at 768 and 1440px. Failures include filter identity and measured geometry.
 - Project Night recurrence enables, skips with confirmation and pauses, with phone and desktop panel screenshots; its fixture also supplies the shared event-workspace checklist read.
 - Volunteer intake submits one request and shows confirmation.
 - An email-provider failure preserves form values and allows a successful retry.
