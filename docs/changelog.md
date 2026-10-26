@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-26 — Keep browser CI on a supported runner
+
+- Pin the browser verification job to Ubuntu 24.04 because Playwright 1.60 cannot install Chromium dependencies on the new Ubuntu 26.04 `ubuntu-latest` image. Keep every verification step enabled.
+
 ## 2026-10-26 — Community drawer scroll containment
 
 - Keep the community purchase drawer header and Close control fixed while only its content scrolls. Lock and restore both document and body scrolling, clip the dialog shell, and contain overscroll within its content.
