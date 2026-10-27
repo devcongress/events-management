@@ -448,10 +448,31 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(stylesSource).toContain("@media (max-width: 420px)");
   });
 
-  it("keeps campaign setup before delivery records and maintains a responsive owner drawer", () => {
-    expect(
-      followUpPanelSource.indexOf('class="follow-up-owner-setup"'),
-    ).toBeLessThan(followUpPanelSource.indexOf('class="follow-up-layout"'));
+  it("separates owner campaign tasks and retains drafts in visited tabs", () => {
+    expect(followUpPanelSource).toContain('ref<CampaignTab>("updates")');
+    expect(followUpPanelSource).toContain('aria-label="Campaign sections"');
+    expect(followUpPanelSource).toContain('label: "Volunteer updates"');
+    expect(followUpPanelSource).toContain('label: "Outcome emails"');
+    expect(followUpPanelSource).toContain('label: "Invitations"');
+    expect(followUpPanelSource).toContain('label: "Settings"');
+    expect(followUpPanelSource).toContain("visitedCampaignTabs.has('updates')");
+    expect(followUpPanelSource).toContain("visitedCampaignTabs.has('outcomes')");
+    expect(followUpPanelSource).toContain("v-show=\"activeCampaignTab === 'updates'\"");
+    expect(followUpPanelSource).toContain("v-show=\"activeCampaignTab === 'outcomes'\"");
+    expect(followUpPanelSource).toContain(':aria-controls="campaignPanelId(tab.id)"');
+    expect(followUpPanelSource).toContain(':tabindex="activeCampaignTab === tab.id ? 0 : -1"');
+    expect(followUpPanelSource).toContain("handleCampaignTabKeydown");
+    expect(followUpPanelSource).toContain('event.key === "Home"');
+    expect(followUpPanelSource).toContain('event.key === "End"');
+  });
+
+  it("keeps the shared delivery drawer outside the task panels", () => {
+    const panelsStart = followUpPanelSource.indexOf('class="follow-up-tabpanels"');
+    const settingsStart = followUpPanelSource.indexOf("campaignPanelId('settings')", panelsStart);
+    const drawerStart = followUpPanelSource.indexOf('Teleport to="body" :disabled="!selectedMobileDialog"', settingsStart);
+
+    expect(drawerStart).toBeGreaterThan(settingsStart);
+    expect(followUpPanelSource.slice(settingsStart, drawerStart)).toContain('</main>');
     expect(followUpPanelSource).toContain("follow-up-layout--selected");
     expect(followUpPanelSource).toContain(
       'Teleport to="body" :disabled="!selectedMobileDialog"',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from "vue";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import ConfirmDialog from "@/src/components/ui/ConfirmDialog.vue";
 import AppDropdown from "@/src/components/AppDropdown.vue";
@@ -104,6 +104,21 @@ type EmailPreview = {
 
 type ControlAction = "launch" | "pause" | "resume" | "close";
 type RecipientFilter = VolunteerFollowUpDirectoryFilter;
+
+const campaignTabs = [
+  { id: "updates", label: "Volunteer updates" },
+  { id: "outcomes", label: "Outcome emails" },
+  { id: "invitations", label: "Invitations" },
+  { id: "settings", label: "Settings" },
+] as const;
+
+type CampaignTab = (typeof campaignTabs)[number]["id"];
+
+const campaignId = useId();
+const campaignTablist = ref<HTMLElement | null>(null);
+const activeCampaignTab = ref<CampaignTab>("updates");
+const visitedCampaignTabs = ref(new Set<CampaignTab>(["updates"]));
+const campaignTabDirection = ref("forward");
 
 const pageSize = 10;
 const query = useQuery({
@@ -261,6 +276,43 @@ const previewFrameDocument = computed(() => {
     : `${policy}${html}`;
 });
 
+function campaignTabId(tab: CampaignTab): string {
+  return `${campaignId}-${tab}-tab`;
+}
+
+function campaignPanelId(tab: CampaignTab): string {
+  return `${campaignId}-${tab}-panel`;
+}
+
+async function selectCampaignTab(tab: CampaignTab): Promise<void> {
+  const currentIndex = campaignTabs.findIndex((item) => item.id === activeCampaignTab.value);
+  const nextIndex = campaignTabs.findIndex((item) => item.id === tab);
+
+  if (activeCampaignTab.value !== tab) {
+    selectedId.value = null;
+    campaignTabDirection.value = nextIndex > currentIndex ? "forward" : "backward";
+    visitedCampaignTabs.value = new Set([...visitedCampaignTabs.value, tab]);
+    activeCampaignTab.value = tab;
+  }
+
+  await nextTick();
+  campaignTablist.value?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus();
+}
+
+function handleCampaignTabKeydown(event: KeyboardEvent, tab: CampaignTab): void {
+  const index = campaignTabs.findIndex((item) => item.id === tab);
+  let nextIndex: number;
+
+  if (event.key === "Home") nextIndex = 0;
+  else if (event.key === "End") nextIndex = campaignTabs.length - 1;
+  else if (event.key === "ArrowRight") nextIndex = (index + 1) % campaignTabs.length;
+  else if (event.key === "ArrowLeft") nextIndex = (index - 1 + campaignTabs.length) % campaignTabs.length;
+  else return;
+
+  event.preventDefault();
+  void selectCampaignTab(campaignTabs[nextIndex]!.id);
+}
+
 async function copyTestFormLink() {
   if (testLinkBusy.value) return;
 
@@ -314,6 +366,8 @@ watch(
     selectedId.value = null;
     previewOpen.value = false;
     pendingAction.value = null;
+    activeCampaignTab.value = "updates";
+    visitedCampaignTabs.value = new Set(["updates"]);
     queryClient.removeQueries({
       queryKey: ["annual-conference", "2026", "volunteer-follow-up", "owner"],
     });
@@ -759,19 +813,10 @@ onUnmounted(() => {
   >
     <header class="follow-up-header">
       <div>
-        <span class="follow-up-eyebrow">Volunteer campaign · 2026</span>
-        <h2>Invitation campaign</h2>
-        <p>
-          Two final questions for volunteer applicants. Invitations are sent in
-          quota-aware daily batches.
-        </p>
+        <span class="follow-up-eyebrow">Owner workspace · 2026</span>
+        <h2>Volunteer campaigns</h2>
+        <p>Send updates, deliver decisions, and manage invitations.</p>
       </div>
-      <span
-        v-if="campaign"
-        class="follow-up-badge"
-        :class="`follow-up-badge--${campaign.status}`"
-        >{{ campaign.status }}</span
-      >
     </header>
 
     <BoneyardPageSkeleton v-if="query.isPending.value" name="volunteer-follow-up-campaign" label="volunteer follow-up campaign" layout="volunteer-follow-up" :show-header="false" />
@@ -790,352 +835,27 @@ onUnmounted(() => {
       >
         Refresh failed. Showing the last loaded campaign data.
       </p>
-      <section class="follow-up-progress" aria-label="Invitation progress">
-        <div class="follow-up-progress-copy">
-          <div>
-            <p class="follow-up-kicker">
-              {{
-                campaign.status === "draft"
-                  ? "Ready for invitations"
-                  : campaign.status === "closed"
-                    ? "Campaign closed"
-                    : "Invitation progress"
-              }}
-            </p>
-            <p class="follow-up-progress-count">
-              <strong>{{ counts.sent }}</strong
-              ><span>of {{ counts.total }} applicants invited</span>
-            </p>
-          </div>
-          <span v-if="counts.failed" class="follow-up-issue-count"
-            >{{ counts.failed }} delivery
-            {{ counts.failed === 1 ? "issue" : "issues" }}</span
-          >
-        </div>
-        <div
-          class="follow-up-progress-track"
-          role="progressbar"
-          :aria-valuenow="counts.sent"
-          :aria-valuemin="0"
-          :aria-valuemax="Math.max(counts.total, 1)"
-          :aria-label="`${counts.sent} of ${counts.total} applicants invited`"
-        >
-          <span :style="{ transform: `scaleX(${sentPercent / 100})` }" />
-        </div>
-        <dl class="follow-up-summary-stats">
-          <div>
-            <dd>{{ counts.notSent }}</dd>
-            <dt>Invitations pending</dt>
-            <small>Queued or sending</small>
-          </div>
-          <div>
-            <dd>{{ counts.responded }}</dd>
-            <dt>Responses received</dt>
-            <small>Follow-up form submitted</small>
-          </div>
-          <div>
-            <dd>{{ counts.failed }}</dd>
-            <dt>Delivery issues</dt>
-            <small>Failed, bounced, suppressed, or complained</small>
-          </div>
-        </dl>
-      </section>
-
-      <section
-        v-if="isOwner && campaignStatus"
-        class="follow-up-sender-status"
-        aria-live="polite"
-        aria-atomic="true"
+      <div
+        ref="campaignTablist"
+        class="follow-up-campaign-tabs"
+        role="tablist"
+        aria-label="Campaign sections"
       >
-        <p class="follow-up-kicker">Sending status</p>
-        <p class="follow-up-sender-status-message">
-          {{ campaignStatus.message }}
-        </p>
-        <p
-          v-if="campaign.last_drain_at"
-          class="follow-up-sender-status-timestamp"
-          :class="{ 'follow-up-sender-status-timestamp--historical': campaignStatus.lastRunIsHistorical }"
-        >
-          Last scheduler run: {{ formatDate(campaign.last_drain_at) }}.
-        </p>
-        <p v-if="campaignStatus.detail" class="follow-up-sender-status-detail">
-          {{ campaignStatus.detail }}
-        </p>
-      </section>
-
-      <section
-        v-if="isOwner"
-        class="follow-up-owner-setup"
-        aria-labelledby="follow-up-owner-setup-title"
-      >
-        <div class="follow-up-owner-setup-heading">
-          <div>
-            <p class="follow-up-kicker">Owner</p>
-            <h3 id="follow-up-owner-setup-title">Campaign setup</h3>
-          </div>
-          <span class="follow-up-setup-state">{{ campaign.status }}</span>
-        </div>
-        <div class="follow-up-owner-setup-grid">
-          <div class="follow-up-deadline-control">
-            <AppDatePicker
-              v-model="deadlineDate"
-              label="Application deadline"
-              density="field"
-              :disabled="busy || campaign.status !== 'draft'"
-            />
-            <p class="follow-up-deadline-hint">
-              Responses close
-              {{
-                deadlineDate === campaign.application_deadline_at.slice(0, 10)
-                  ? responseDeadline
-                  : proposedResponseDeadline
-              }}
-              · 14 days later<span
-                v-if="
-                  deadlineDate !== campaign.application_deadline_at.slice(0, 10)
-                "
-              >
-                · Unsaved change</span
-              >.
-            </p>
-            <button
-              type="button"
-              class="follow-up-button follow-up-button--secondary follow-up-save-deadline"
-              :disabled="
-                busy ||
-                campaign.status !== 'draft' ||
-                deadlineDate === campaign.application_deadline_at.slice(0, 10)
-              "
-              @click="saveDeadline"
-            >
-              Save deadline
-            </button>
-          </div>
-          <div class="follow-up-preview-actions">
-            <span class="editorial-label">Preview</span>
-            <div class="follow-up-preview-links">
-              <button
-                type="button"
-                class="follow-up-preview-link"
-                :disabled="previewLoading"
-                @click="openPreview"
-              >
-                Preview <span aria-hidden="true">↗</span>
-              </button>
-              <a
-                href="/volunteer/follow-up/test"
-                class="follow-up-preview-link"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Test volunteer form <span aria-hidden="true">↗</span>
-              </a>
-              <button
-                type="button"
-                class="follow-up-preview-link"
-                :disabled="testLinkBusy"
-                @click="copyTestFormLink"
-              >
-                {{ testLinkBusy ? "Preparing test link…" : "Copy test link" }}
-              </button>
-            </div>
-          </div>
-          <div class="follow-up-campaign-controls">
-            <span class="editorial-label">Campaign controls</span>
-            <button
-              v-if="campaign.status === 'draft'"
-              type="button"
-              class="follow-up-button"
-              :disabled="
-                busy ||
-                deadlineDate !== campaign.application_deadline_at.slice(0, 10)
-              "
-              @click="pendingAction = 'launch'"
-            >
-              Launch campaign
-            </button>
-            <button
-              v-if="campaign.status === 'paused'"
-              type="button"
-              class="follow-up-button"
-              :disabled="busy"
-              @click="pendingAction = 'resume'"
-            >
-              Resume sending
-            </button>
-            <button
-              v-if="campaign.status === 'running'"
-              type="button"
-              class="follow-up-button follow-up-button--secondary"
-              :disabled="busy"
-              @click="pendingAction = 'pause'"
-            >
-              Pause sending
-            </button>
-            <button
-              v-if="
-                campaign.status === 'running' || campaign.status === 'paused'
-              "
-              type="button"
-              class="follow-up-text-button"
-              :disabled="busy"
-              @click="pendingAction = 'close'"
-            >
-              Close campaign
-            </button>
-            <p
-              v-if="
-                campaign.status === 'draft' &&
-                deadlineDate !== campaign.application_deadline_at.slice(0, 10)
-              "
-            >
-              Save the updated date before launch. Up to 54 invitations are sent
-              per Accra day; applicants continue joining the queue until the
-              deadline.
-            </p>
-            <p v-else-if="campaign.status === 'draft'">
-              The saved date is ready for launch. Up to 54 invitations are sent
-              per Accra day; applicants continue joining the queue until the
-              deadline.
-            </p>
-            <p v-else>
-              The application deadline is fixed after launch. Up to 54
-              invitations are sent per Accra day.
-            </p>
-          </div>
-        </div>
-        <p class="follow-up-owner-timeline">
-          <span class="follow-up-timeline-date">
-            <span>Saved application deadline</span>
-            <strong>{{ formatDate(campaign.application_deadline_at) }}</strong>
-          </span>
-          <span class="follow-up-timeline-arrow" aria-hidden="true">→</span>
-          <span class="follow-up-timeline-date">
-            <span>Responses close</span>
-            <strong>{{ responseDeadline }}</strong>
-          </span>
-          <span
-            v-if="
-              deadlineDate !== campaign.application_deadline_at.slice(0, 10)
-            "
-            class="follow-up-timeline-draft"
-          >
-            Draft date selected:
-            {{ formatDate(`${deadlineDate}T23:59:59.999Z`) }} · unsaved
-          </span>
-        </p>
-      </section>
-      <section
-        v-else
-        class="follow-up-review-timeline"
-        aria-label="Volunteer response deadlines"
-      >
-        <span
-          >Applications close
-          <strong>{{
-            formatDate(campaign.application_deadline_at)
-          }}</strong></span
-        >
-        <span
-          >Responses close <strong>{{ responseDeadline }}</strong></span
-        >
-      </section>
-
-      <VolunteerOutcomeCampaignPanel
-        v-if="isOwner"
-        :recipients="recipients"
-        :outcome-paused="campaign.outcome_paused"
-        :outcome-messages="outcomeMessages"
-        @review-delivery="selectedId = $event"
-        @retry-delivery="pendingRetry = { kind: 'outcome', id: $event.outcome_delivery!.id!, name: $event.applicant_name }"
-        @updated="query.refetch"
-      />
-
-      <VolunteerBroadcastPanel v-if="isOwner" />
-
-      <section v-if="isOwner" class="follow-up-health">
         <button
-          class="follow-up-health-trigger"
+          v-for="tab in campaignTabs"
+          :id="campaignTabId(tab.id)"
+          :key="tab.id"
           type="button"
-          :aria-expanded="healthOpen"
-          @click="healthOpen = !healthOpen"
+          role="tab"
+          :aria-selected="activeCampaignTab === tab.id"
+          :aria-controls="campaignPanelId(tab.id)"
+          :tabindex="activeCampaignTab === tab.id ? 0 : -1"
+          @click="selectCampaignTab(tab.id)"
+          @keydown="handleCampaignTabKeydown($event, tab.id)"
         >
-          <span
-            ><small>Owner diagnostics</small
-            ><strong>Delivery health</strong
-            ><em>Provider capacity and scheduler diagnostics</em></span
-          >
-          <span
-            class="follow-up-health-state"
-            :class="`follow-up-health-state--${capacityState.toLowerCase()}`"
-            >Capacity {{ capacityState }}</span
-          >
-          <svg
-            viewBox="0 0 20 20"
-            aria-hidden="true"
-            :class="{ 'is-open': healthOpen }"
-          >
-            <path d="m5 7 5 5 5-5" />
-          </svg>
+          {{ tab.label }}
         </button>
-        <Transition name="follow-up-reveal">
-          <div v-if="healthOpen" class="follow-up-health-content">
-            <dl>
-              <div>
-                <dt>Resend today</dt>
-                <dd>
-                  {{ query.data.value?.email_health?.daily_quota_used ?? "—" }}
-                  /
-                  {{ query.data.value?.email_health?.daily_quota_limit ?? 100 }}
-                </dd>
-              </div>
-              <div>
-                <dt>Resend this month</dt>
-                <dd>
-                  {{
-                    query.data.value?.email_health?.monthly_quota_used ?? "—"
-                  }}
-                  /
-                  {{
-                    query.data.value?.email_health?.monthly_quota_limit ?? 3000
-                  }}
-                </dd>
-              </div>
-              <div>
-                <dt>Last quota check</dt>
-                <dd>
-                  {{
-                    formatDate(
-                      query.data.value?.email_health?.last_provider_response_at,
-                    )
-                  }}
-                </dd>
-              </div>
-              <div>
-                <dt>Last scheduler run</dt>
-                <dd>{{ formatDate(campaign.last_drain_at) }}</dd>
-              </div>
-              <div>
-                <dt>Scheduler result</dt>
-                <dd>
-                  {{
-                    campaign.last_drain_reason
-                      ? campaignStatus?.lastRunIsHistorical
-                        ? campaignStatus.detail ?? "Historical scheduler result."
-                        : campaignStatus?.message
-                      : "Not run yet"
-                  }}
-                </dd>
-              </div>
-            </dl>
-            <p>
-              The sender pauses when quota cannot be verified and reserves 35
-              messages for other mail. Temporary failures retry with backoff;
-              ambiguous sends wait for owner review.
-            </p>
-          </div>
-        </Transition>
-      </section>
+      </div>
 
       <div
         id="follow-up-layout"
@@ -1143,109 +863,486 @@ onUnmounted(() => {
         :class="{ 'follow-up-layout--selected': selected }"
       >
         <main class="follow-up-main">
-          <div class="follow-up-inbox-toolbar">
-            <h3 class="follow-up-kicker follow-up-inbox-title">
-              Applicant inbox
-            </h3>
-            <div class="follow-up-inbox-controls">
-              <AppDropdown
-                v-model="filter"
-                aria-label="Filter follow-up recipients"
-                :options="recipientFilterOptions"
-                density="compact"
-                :teleport="true"
-                trigger-class="follow-up-dropdown"
-              />
-              <label class="follow-up-search">
-                <span class="sr-only">Search applicants</span>
-                <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <circle cx="8.5" cy="8.5" r="5.5" />
-                  <path d="m13 13 4 4" />
-                </svg>
-                <input
-                  v-model="search"
-                  type="search"
-                  placeholder="Search name or email"
-                  autocomplete="off"
-                />
-              </label>
-            </div>
-            <p v-if="filteredRecipients.length" class="follow-up-range">
-              {{ firstVisible }}–{{ lastVisible }} of
-              {{ filteredRecipients.length }}
-            </p>
-          </div>
-
-          <div
-            v-if="visibleRecipients.length"
-            class="follow-up-recipient-list"
-            aria-label="Applicants"
-          >
-            <button
-              v-for="recipient in visibleRecipients"
-              :key="recipient.id"
-              type="button"
-              class="follow-up-recipient"
-              :aria-pressed="selectedId === recipient.id"
-              @click="
-                selectedId = selectedId === recipient.id ? null : recipient.id
-              "
-            >
-              <span class="follow-up-recipient-main">
-                <strong>{{ recipient.applicant_name }}</strong>
-                <small>{{ recipient.applicant_email }}</small>
-              </span>
-              <span class="follow-up-recipient-state">
-                <span
-                  class="follow-up-state"
-                  :class="deliveryClass(recipient.status)"
-                  >{{ deliveryLabel(recipient.status) }}</span
-                >
-              </span>
-              <svg
-                class="follow-up-recipient-chevron"
-                viewBox="0 0 20 20"
-                aria-hidden="true"
+          <div class="follow-up-tabpanels">
+            <Transition :name="`follow-up-tab-${campaignTabDirection}`">
+              <section
+                :id="campaignPanelId('updates')"
+                v-show="activeCampaignTab === 'updates'"
+                class="follow-up-tabpanel"
+                role="tabpanel"
+                :aria-labelledby="campaignTabId('updates')"
+                :inert="activeCampaignTab !== 'updates'"
+                tabindex="0"
               >
-                <path d="m7 4 6 6-6 6" />
-              </svg>
-            </button>
-          </div>
-          <div v-else class="follow-up-empty">
-            <span class="follow-up-empty-mark" aria-hidden="true">↳</span>
-            <h4>
-              {{
-                search.trim()
-                  ? "No matching applicants"
-                  : "Nothing in this view yet"
-              }}
-            </h4>
-            <p>
-              {{
-                search.trim()
-                  ? "Try another name, email, or delivery filter."
-                  : "Applicants and their invitation status will appear here as the campaign queue fills."
-              }}
-            </p>
-          </div>
+                <VolunteerBroadcastPanel v-if="isOwner && visitedCampaignTabs.has('updates')" />
+              </section>
+            </Transition>
+            <Transition :name="`follow-up-tab-${campaignTabDirection}`">
+              <section
+                :id="campaignPanelId('outcomes')"
+                v-show="activeCampaignTab === 'outcomes'"
+                class="follow-up-tabpanel"
+                role="tabpanel"
+                :aria-labelledby="campaignTabId('outcomes')"
+                :inert="activeCampaignTab !== 'outcomes'"
+                tabindex="0"
+              >
+                <VolunteerOutcomeCampaignPanel
+                  v-if="isOwner && visitedCampaignTabs.has('outcomes')"
+                  :recipients="recipients"
+                  :outcome-paused="campaign.outcome_paused"
+                  :outcome-messages="outcomeMessages"
+                  @review-delivery="selectedId = $event"
+                  @retry-delivery="pendingRetry = { kind: 'outcome', id: $event.outcome_delivery!.id!, name: $event.applicant_name }"
+                  @updated="query.refetch"
+                />
+              </section>
+            </Transition>
+            <Transition :name="`follow-up-tab-${campaignTabDirection}`">
+              <section
+                :id="campaignPanelId('invitations')"
+                v-show="activeCampaignTab === 'invitations'"
+                class="follow-up-tabpanel"
+                role="tabpanel"
+                :aria-labelledby="campaignTabId('invitations')"
+                :inert="activeCampaignTab !== 'invitations'"
+                tabindex="0"
+              >
+                <section class="follow-up-progress" aria-label="Invitation progress">
+                  <div class="follow-up-progress-copy">
+                    <div>
+                      <p class="follow-up-kicker">
+                        {{
+                          campaign.status === "draft"
+                            ? "Ready for invitations"
+                            : campaign.status === "closed"
+                              ? "Campaign closed"
+                              : "Invitation progress"
+                        }}
+                      </p>
+                      <p class="follow-up-progress-count">
+                        <strong>{{ counts.sent }}</strong
+                        ><span>of {{ counts.total }} applicants invited</span>
+                      </p>
+                    </div>
+                    <span class="follow-up-badge" :class="`follow-up-badge--${campaign.status}`">{{ campaign.status }}</span>
+                  </div>
+                  <div
+                    class="follow-up-progress-track"
+                    role="progressbar"
+                    :aria-valuenow="counts.sent"
+                    :aria-valuemin="0"
+                    :aria-valuemax="Math.max(counts.total, 1)"
+                    :aria-label="`${counts.sent} of ${counts.total} applicants invited`"
+                  >
+                    <span :style="{ transform: `scaleX(${sentPercent / 100})` }" />
+                  </div>
+                  <dl class="follow-up-summary-stats">
+                    <div>
+                      <dd>{{ counts.notSent }}</dd>
+                      <dt>Invitations pending</dt>
+                      <small>Queued or sending</small>
+                    </div>
+                    <div>
+                      <dd>{{ counts.responded }}</dd>
+                      <dt>Responses received</dt>
+                      <small>Follow-up form submitted</small>
+                    </div>
+                    <div>
+                      <dd>{{ counts.failed }}</dd>
+                      <dt>Delivery issues</dt>
+                      <small>Failed, bounced, suppressed, or complained</small>
+                    </div>
+                  </dl>
+                </section>
 
-          <nav
-            v-if="filteredRecipients.length > pageSize"
-            class="follow-up-pagination"
-            aria-label="Applicant pages"
-          >
-            <button type="button" :disabled="page <= 1" @click="page -= 1">
-              Previous
-            </button>
-            <span>Page {{ page }} of {{ pageCount }}</span>
-            <button
-              type="button"
-              :disabled="page >= pageCount"
-              @click="page += 1"
-            >
-              Next
-            </button>
-          </nav>
+                <div class="follow-up-invitations-inbox">
+                  <div class="follow-up-inbox-toolbar">
+                    <h3 class="follow-up-kicker follow-up-inbox-title">
+                      Applicant inbox
+                    </h3>
+                    <div class="follow-up-inbox-controls">
+                      <AppDropdown
+                        v-model="filter"
+                        aria-label="Filter follow-up recipients"
+                        :options="recipientFilterOptions"
+                        density="compact"
+                        :teleport="true"
+                        trigger-class="follow-up-dropdown"
+                      />
+                      <label class="follow-up-search">
+                        <span class="sr-only">Search applicants</span>
+                        <svg viewBox="0 0 20 20" aria-hidden="true">
+                          <circle cx="8.5" cy="8.5" r="5.5" />
+                          <path d="m13 13 4 4" />
+                        </svg>
+                        <input
+                          v-model="search"
+                          type="search"
+                          placeholder="Search name or email"
+                          autocomplete="off"
+                        />
+                      </label>
+                    </div>
+                    <p v-if="filteredRecipients.length" class="follow-up-range">
+                      {{ firstVisible }}–{{ lastVisible }} of
+                      {{ filteredRecipients.length }}
+                    </p>
+                  </div>
+
+                  <div
+                    v-if="visibleRecipients.length"
+                    class="follow-up-recipient-list"
+                    aria-label="Applicants"
+                  >
+                    <button
+                      v-for="recipient in visibleRecipients"
+                      :key="recipient.id"
+                      type="button"
+                      class="follow-up-recipient"
+                      :aria-pressed="selectedId === recipient.id"
+                      @click="
+                        selectedId = selectedId === recipient.id ? null : recipient.id
+                      "
+                    >
+                      <span class="follow-up-recipient-main">
+                        <strong>{{ recipient.applicant_name }}</strong>
+                        <small>{{ recipient.applicant_email }}</small>
+                      </span>
+                      <span class="follow-up-recipient-state">
+                        <span
+                          class="follow-up-state"
+                          :class="deliveryClass(recipient.status)"
+                          >{{ deliveryLabel(recipient.status) }}</span
+                        >
+                      </span>
+                      <svg
+                        class="follow-up-recipient-chevron"
+                        viewBox="0 0 20 20"
+                        aria-hidden="true"
+                      >
+                        <path d="m7 4 6 6-6 6" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div v-else class="follow-up-empty">
+                    <span class="follow-up-empty-mark" aria-hidden="true">↳</span>
+                    <h4>
+                      {{
+                        search.trim()
+                          ? "No matching applicants"
+                          : "Nothing in this view yet"
+                      }}
+                    </h4>
+                    <p>
+                      {{
+                        search.trim()
+                          ? "Try another name, email, or delivery filter."
+                          : "Applicants and their invitation status will appear here as the campaign queue fills."
+                      }}
+                    </p>
+                  </div>
+
+                  <nav
+                    v-if="filteredRecipients.length > pageSize"
+                    class="follow-up-pagination"
+                    aria-label="Applicant pages"
+                  >
+                    <button type="button" :disabled="page <= 1" @click="page -= 1">
+                      Previous
+                    </button>
+                    <span>Page {{ page }} of {{ pageCount }}</span>
+                    <button
+                      type="button"
+                      :disabled="page >= pageCount"
+                      @click="page += 1"
+                    >
+                      Next
+                    </button>
+                  </nav>
+                </div>
+              </section>
+            </Transition>
+            <Transition :name="`follow-up-tab-${campaignTabDirection}`">
+              <section
+                :id="campaignPanelId('settings')"
+                v-show="activeCampaignTab === 'settings'"
+                class="follow-up-tabpanel"
+                role="tabpanel"
+                :aria-labelledby="campaignTabId('settings')"
+                :inert="activeCampaignTab !== 'settings'"
+                tabindex="0"
+              >
+                <section
+                  v-if="isOwner && campaignStatus"
+                  class="follow-up-sender-status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  <p class="follow-up-kicker">Sending status</p>
+                  <p class="follow-up-sender-status-message">
+                    {{ campaignStatus.message }}
+                  </p>
+                  <p
+                    v-if="campaign.last_drain_at"
+                    class="follow-up-sender-status-timestamp"
+                    :class="{ 'follow-up-sender-status-timestamp--historical': campaignStatus.lastRunIsHistorical }"
+                  >
+                    Last scheduler run: {{ formatDate(campaign.last_drain_at) }}.
+                  </p>
+                  <p v-if="campaignStatus.detail" class="follow-up-sender-status-detail">
+                    {{ campaignStatus.detail }}
+                  </p>
+                </section>
+
+                <section
+                  v-if="isOwner"
+                  class="follow-up-owner-setup"
+                  aria-labelledby="follow-up-owner-setup-title"
+                >
+                  <div class="follow-up-owner-setup-heading">
+                    <div>
+                      <p class="follow-up-kicker">Owner</p>
+                      <h3 id="follow-up-owner-setup-title">Campaign setup</h3>
+                    </div>
+                    <span class="follow-up-setup-state">{{ campaign.status }}</span>
+                  </div>
+                  <div class="follow-up-owner-setup-grid">
+                    <div class="follow-up-deadline-control">
+                      <AppDatePicker
+                        v-model="deadlineDate"
+                        label="Application deadline"
+                        density="field"
+                        :disabled="busy || campaign.status !== 'draft'"
+                      />
+                      <p class="follow-up-deadline-hint">
+                        Responses close
+                        {{
+                          deadlineDate === campaign.application_deadline_at.slice(0, 10)
+                            ? responseDeadline
+                            : proposedResponseDeadline
+                        }}
+                        · 14 days later<span
+                          v-if="
+                            deadlineDate !== campaign.application_deadline_at.slice(0, 10)
+                          "
+                        >
+                          · Unsaved change</span
+                        >.
+                      </p>
+                      <button
+                        type="button"
+                        class="follow-up-button follow-up-button--secondary follow-up-save-deadline"
+                        :disabled="
+                          busy ||
+                          campaign.status !== 'draft' ||
+                          deadlineDate === campaign.application_deadline_at.slice(0, 10)
+                        "
+                        @click="saveDeadline"
+                      >
+                        Save deadline
+                      </button>
+                    </div>
+                    <div class="follow-up-preview-actions">
+                      <span class="editorial-label">Preview</span>
+                      <div class="follow-up-preview-links">
+                        <button
+                          type="button"
+                          class="follow-up-preview-link"
+                          :disabled="previewLoading"
+                          @click="openPreview"
+                        >
+                          Preview <span aria-hidden="true">↗</span>
+                        </button>
+                        <a
+                          href="/volunteer/follow-up/test"
+                          class="follow-up-preview-link"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Test volunteer form <span aria-hidden="true">↗</span>
+                        </a>
+                        <button
+                          type="button"
+                          class="follow-up-preview-link"
+                          :disabled="testLinkBusy"
+                          @click="copyTestFormLink"
+                        >
+                          {{ testLinkBusy ? "Preparing test link…" : "Copy test link" }}
+                        </button>
+                      </div>
+                    </div>
+                    <div class="follow-up-campaign-controls">
+                      <span class="editorial-label">Campaign controls</span>
+                      <button
+                        v-if="campaign.status === 'draft'"
+                        type="button"
+                        class="follow-up-button"
+                        :disabled="
+                          busy ||
+                          deadlineDate !== campaign.application_deadline_at.slice(0, 10)
+                        "
+                        @click="pendingAction = 'launch'"
+                      >
+                        Launch campaign
+                      </button>
+                      <button
+                        v-if="campaign.status === 'paused'"
+                        type="button"
+                        class="follow-up-button"
+                        :disabled="busy"
+                        @click="pendingAction = 'resume'"
+                      >
+                        Resume sending
+                      </button>
+                      <button
+                        v-if="campaign.status === 'running'"
+                        type="button"
+                        class="follow-up-button follow-up-button--secondary"
+                        :disabled="busy"
+                        @click="pendingAction = 'pause'"
+                      >
+                        Pause sending
+                      </button>
+                      <button
+                        v-if="
+                          campaign.status === 'running' || campaign.status === 'paused'
+                        "
+                        type="button"
+                        class="follow-up-text-button"
+                        :disabled="busy"
+                        @click="pendingAction = 'close'"
+                      >
+                        Close campaign
+                      </button>
+                      <p
+                        v-if="
+                          campaign.status === 'draft' &&
+                          deadlineDate !== campaign.application_deadline_at.slice(0, 10)
+                        "
+                      >
+                        Save the updated date before launch. Up to 54 invitations are sent
+                        per Accra day; applicants continue joining the queue until the
+                        deadline.
+                      </p>
+                      <p v-else-if="campaign.status === 'draft'">
+                        The saved date is ready for launch. Up to 54 invitations are sent
+                        per Accra day; applicants continue joining the queue until the
+                        deadline.
+                      </p>
+                      <p v-else>
+                        The application deadline is fixed after launch. Up to 54
+                        invitations are sent per Accra day.
+                      </p>
+                    </div>
+                  </div>
+                  <p class="follow-up-owner-timeline">
+                    <span class="follow-up-timeline-date">
+                      <span>Saved application deadline</span>
+                      <strong>{{ formatDate(campaign.application_deadline_at) }}</strong>
+                    </span>
+                    <span class="follow-up-timeline-arrow" aria-hidden="true">→</span>
+                    <span class="follow-up-timeline-date">
+                      <span>Responses close</span>
+                      <strong>{{ responseDeadline }}</strong>
+                    </span>
+                    <span
+                      v-if="
+                        deadlineDate !== campaign.application_deadline_at.slice(0, 10)
+                      "
+                      class="follow-up-timeline-draft"
+                    >
+                      Draft date selected:
+                      {{ formatDate(`${deadlineDate}T23:59:59.999Z`) }} · unsaved
+                    </span>
+                  </p>
+                </section>
+                <section v-if="isOwner" class="follow-up-health">
+                  <button
+                    class="follow-up-health-trigger"
+                    type="button"
+                    :aria-expanded="healthOpen"
+                    @click="healthOpen = !healthOpen"
+                  >
+                    <span
+                      ><small>Owner diagnostics</small
+                      ><strong>Delivery health</strong
+                      ><em>Provider capacity and scheduler diagnostics</em></span
+                    >
+                    <span
+                      class="follow-up-health-state"
+                      :class="`follow-up-health-state--${capacityState.toLowerCase()}`"
+                      >Capacity {{ capacityState }}</span
+                    >
+                    <svg
+                      viewBox="0 0 20 20"
+                      aria-hidden="true"
+                      :class="{ 'is-open': healthOpen }"
+                    >
+                      <path d="m5 7 5 5 5-5" />
+                    </svg>
+                  </button>
+                  <Transition name="follow-up-reveal">
+                    <div v-if="healthOpen" class="follow-up-health-content">
+                      <dl>
+                        <div>
+                          <dt>Resend today</dt>
+                          <dd>
+                            {{ query.data.value?.email_health?.daily_quota_used ?? "—" }}
+                            /
+                            {{ query.data.value?.email_health?.daily_quota_limit ?? 100 }}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Resend this month</dt>
+                          <dd>
+                            {{
+                              query.data.value?.email_health?.monthly_quota_used ?? "—"
+                            }}
+                            /
+                            {{
+                              query.data.value?.email_health?.monthly_quota_limit ?? 3000
+                            }}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Last quota check</dt>
+                          <dd>
+                            {{
+                              formatDate(
+                                query.data.value?.email_health?.last_provider_response_at,
+                              )
+                            }}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Last scheduler run</dt>
+                          <dd>{{ formatDate(campaign.last_drain_at) }}</dd>
+                        </div>
+                        <div>
+                          <dt>Scheduler result</dt>
+                          <dd>
+                            {{
+                              campaign.last_drain_reason
+                                ? campaignStatus?.lastRunIsHistorical
+                                  ? campaignStatus.detail ?? "Historical scheduler result."
+                                  : campaignStatus?.message
+                                : "Not run yet"
+                            }}
+                          </dd>
+                        </div>
+                      </dl>
+                      <p>
+                        The sender pauses when quota cannot be verified and reserves 35
+                        messages for other mail. Temporary failures retry with backoff;
+                        ambiguous sends wait for owner review.
+                      </p>
+                    </div>
+                  </Transition>
+                </section>
+              </section>
+            </Transition>
+          </div>
         </main>
         <Teleport to="body" :disabled="!selectedMobileDialog">
           <Transition name="follow-up-selection">
@@ -1645,8 +1742,84 @@ onUnmounted(() => {
 .follow-up-badge--closed {
   background: #f2f0eb;
 }
+.follow-up-campaign-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 1.1rem 0 1.25rem;
+  padding: 0.35rem;
+  border: 1px solid #e2ddd3;
+  border-radius: 8px;
+  background: #faf8f3;
+}
+
+.follow-up-campaign-tabs button {
+  min-height: 2.75rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #625e57;
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.follow-up-campaign-tabs button[aria-selected="true"] {
+  border-color: #d8c6ce;
+  background: #fff;
+  color: #a30c53;
+}
+
+.follow-up-campaign-tabs button:active {
+  transform: scale(0.97);
+}
+
+.follow-up-campaign-tabs button:focus-visible,
+.follow-up-tabpanel:focus-visible {
+  outline: 2px solid #c80d68;
+  outline-offset: 2px;
+}
+
+.follow-up-tabpanels {
+  display: grid;
+  align-items: start;
+}
+
+.follow-up-tabpanel {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.follow-up-tabpanel :deep(.volunteer-blasts),
+.follow-up-tabpanel :deep(.outcome-campaign) {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.follow-up-tab-forward-enter-active,
+.follow-up-tab-forward-leave-active,
+.follow-up-tab-backward-enter-active,
+.follow-up-tab-backward-leave-active {
+  transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.follow-up-tab-forward-enter-from,
+.follow-up-tab-backward-leave-to {
+  opacity: 0;
+  transform: translateX(0.5rem);
+}
+
+.follow-up-tab-backward-enter-from,
+.follow-up-tab-forward-leave-to {
+  opacity: 0;
+  transform: translateX(-0.5rem);
+}
+
 .follow-up-progress {
-  margin: 1.4rem 0 1.6rem;
+  margin: 0 0 1.1rem;
   padding: 1rem 1.1rem 0.85rem;
   border: 1px solid #ded9cf;
   border-radius: 8px;
@@ -1707,10 +1880,8 @@ onUnmounted(() => {
   min-width: 0;
   flex-direction: column;
   gap: 0.16rem;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid #e6e1d8;
-  border-radius: 6px;
-  background: #fffdfa;
+  padding: 0 0.75rem;
+  border-left: 1px solid #e1dcd2;
 }
 .follow-up-summary-stats dt {
   color: #666;
@@ -1729,7 +1900,7 @@ onUnmounted(() => {
   line-height: 1.35;
 }
 .follow-up-sender-status {
-  margin: -0.85rem 0 0.75rem;
+  margin: 0 0 0.75rem;
   padding: 0.75rem 0.9rem;
   border: 1px solid #ded9cf;
   border-left: 3px solid #c80d68;
@@ -2680,6 +2851,16 @@ onUnmounted(() => {
 }
 
 @media (max-width: 600px) {
+  .follow-up-campaign-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .follow-up-campaign-tabs button {
+    padding-inline: 0.45rem;
+    font-size: 0.75rem;
+  }
+
   .follow-up-header {
     align-items: flex-start;
   }
@@ -2761,6 +2942,22 @@ onUnmounted(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .follow-up-campaign-tabs button,
+  .follow-up-tab-forward-enter-active,
+  .follow-up-tab-forward-leave-active,
+  .follow-up-tab-backward-enter-active,
+  .follow-up-tab-backward-leave-active {
+    transition: none;
+  }
+
+  .follow-up-campaign-tabs button:active,
+  .follow-up-tab-forward-enter-from,
+  .follow-up-tab-forward-leave-to,
+  .follow-up-tab-backward-enter-from,
+  .follow-up-tab-backward-leave-to {
+    transform: none;
+  }
+
   .follow-up-progress-track > span,
   .follow-up-disclosure svg,
   .follow-up-button,

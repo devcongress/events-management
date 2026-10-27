@@ -18,6 +18,8 @@ Outcome emails have separate pause/resume controls from the invitation campaign.
 
 ## Selected-volunteer broadcasts after acceptance
 
+The Owner-only Campaign workspace opens on **Volunteer updates**, with separate **Outcome emails**, **Invitations**, and **Settings** tabs. Updates and outcomes load on their first visit and remain mounted, preserving draft copy, recipient selections, audience filters, and pagination when switching tabs. Wide screens place the update message beside recipient selection. Invitations keeps a compact progress summary above its applicant inbox; Settings contains the invitation deadline, preview/test links, queue controls, sending status, and delivery-health diagnostics. Delivery details remain shared across Invitations and Outcome emails. Desktop and mobile retain the existing Owner access checks and keyboard-operable tab navigation.
+
 The Owner Campaign surface has a separate **Volunteer updates** composer for follow-up announcements such as orientation details. Its eligible pool is every recipient currently marked `accepted`, but nobody is selected automatically. The Owner may choose any subset, search or paginate without losing that selection, or explicitly choose all accepted volunteers.
 
 Preview stores an actor-bound ten-minute snapshot of exactly the selected recipient IDs, decision versions, normalized addresses, and the rendered DevCon26 HTML/text. Confirmation revalidates only that frozen subset. A changed decision, version, or email rejects the confirmation; the server never expands the audience to newly accepted volunteers. The resulting history entry records the frozen recipient count and preparation status.

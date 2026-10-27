@@ -296,7 +296,7 @@ onBeforeUnmount(() => {
       <div>
         <p class="editorial-label">Owner · Selected volunteers</p>
         <h3 id="volunteer-blasts-title">Volunteer updates</h3>
-        <p>Choose any subset of accepted volunteers, review the exact audience, then create a Resend Broadcast.</p>
+        <p>Write an update, choose accepted volunteers, and review it before sending.</p>
       </div>
       <span class="volunteer-blasts__count">{{ selectedCount }} selected of {{ accepted.length }}</span>
     </header>
@@ -528,10 +528,43 @@ onBeforeUnmount(() => {
   flex: 1;
 }
 
+.volunteer-blasts__audience-toolbar input {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+}
+
 .volunteer-blasts__audience-toolbar > div {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+@container (min-width: 54rem) {
+  .volunteer-blasts__composer {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .volunteer-blasts__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .volunteer-blasts__audience {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .volunteer-blasts__composer > .volunteer-blasts__primary {
+    grid-column: 1;
+  }
+
+  .volunteer-blasts__audience-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .volunteer-blasts__audience-toolbar > label {
+    flex-basis: 100%;
+  }
 }
 
 .volunteer-blasts__safety,

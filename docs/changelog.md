@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-27 — Focused volunteer campaign tabs
+
+- Open the Owner-only Campaign workspace on Volunteer updates; separate Outcome emails, Invitations, and Settings so each task is reachable without scrolling past the others.
+- Preserve update drafts, selected volunteers, and outcome filters between tabs. Keep delivery details accessible from both invitation and outcome records.
+- Compact invitation progress, move setup and provider diagnostics to Settings, and support keyboard navigation and two-column tabs on phones. No database migration is needed.
+
 ## 2026-10-26 — Selected-volunteer Resend broadcasts
 
 - Add an Owner-only volunteer update composer whose eligible pool is accepted volunteers, with no automatic selection and exact-subset selection that persists across search and pagination.
