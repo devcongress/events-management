@@ -75,6 +75,7 @@ export const EMAIL_SCENARIOS: ReadonlyArray<{
   { id: 'registration_waitlisted', status: 'active', sender: 'events', recipient: 'waitlisted attendee', subjectPattern: 'You are on the waitlist for {event name}' },
   { id: 'registration_promoted', status: 'active', sender: 'events', recipient: 'promoted attendee', subjectPattern: 'A place opened up for {event name}' },
   { id: 'event_blast', status: 'active', sender: 'events', recipient: 'confirmed attendees', subjectPattern: 'Organizer-defined; normalized to one line and limited to 160 characters' },
+  { id: 'volunteer_broadcast', status: 'active', sender: 'events', recipient: 'selected accepted volunteers', subjectPattern: 'Organizer-defined; normalized to one line and limited to 160 characters' },
   { id: 'speaker_selected_confirmation', status: 'active', sender: 'speakers', recipient: 'selected speaker', subjectPattern: 'Your presentation was selected for {event name}' },
   { id: 'speaker_proposal_rejected', status: 'active', sender: 'speakers', recipient: 'speaker whose proposal was not selected', subjectPattern: 'Update on your presentation proposal for {event name}' },
   { id: 'speaker_archive_request', status: 'active', sender: 'speakers', recipient: 'past program presenter', subjectPattern: 'Share your talk resources: {event name}' },

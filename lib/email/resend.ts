@@ -423,16 +423,40 @@ export async function createResendBroadcastDraft(input: {
     calendarDownloadUrl: input.calendarDownloadUrl,
   });
 
+  return createResendBroadcastDraftFromContent({
+    apiKey: input.apiKey,
+    segmentId: input.segmentId,
+    name: `DevCongress · ${input.eventName}`,
+    from: input.from,
+    replyTo: input.replyTo,
+    subject,
+    html: content.html,
+    text: content.text,
+    fetcher: input.fetcher,
+  });
+}
+
+export async function createResendBroadcastDraftFromContent(input: {
+  apiKey: string;
+  segmentId: string;
+  name: string;
+  from: string;
+  replyTo?: string;
+  subject: string;
+  html: string;
+  text: string;
+  fetcher?: Fetcher;
+}): Promise<string> {
   return requireResendId(await resendRequest(input.apiKey, '/broadcasts', {
     method: 'POST',
     body: JSON.stringify({
-      name: `DevCongress · ${input.eventName}`.slice(0, 120),
+      name: input.name.slice(0, 120),
       segment_id: input.segmentId,
       from: input.from,
       reply_to: input.replyTo,
-      subject,
-      html: content.html,
-      text: content.text,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
       send: false,
     }),
   }, input.fetcher ?? fetch));

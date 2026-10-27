@@ -1265,6 +1265,21 @@ try {
           ],
         },
       }));
+      responses.set("/api/annual-conference/2026/volunteer-follow-up/blasts", {
+        body: {
+          accepted_volunteers: [{
+            id: recipient.id,
+            name: recipient.applicant_name,
+            email: recipient.applicant_email,
+            decision_version: recipient.decision_version,
+          }],
+          blasts: [],
+          capacity: {
+            known: true,
+            safe_recipients_today: 99,
+          },
+        },
+      });
       responses.set("/api/annual-conference/2026/volunteer-follow-up/outcomes/delivery-control", (request) => {
         const { delivery_id, action } = JSON.parse(request.postData());
         const row = campaignRecipients.find((item) => item.outcome_delivery.id === delivery_id);

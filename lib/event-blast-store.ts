@@ -2,14 +2,18 @@ import type { Context } from 'hono';
 import type { EventBlast } from '@/types';
 import {
   createMockEventBlast,
+  getMockEventBlastById,
   getMockEventBlasts,
   getRecentMockEventBlasts,
+  getMockVolunteerBroadcasts,
   updateMockEventBlast,
 } from '@/lib/mock-db/event-blasts';
 import {
   createSupabaseEventBlast,
+  getSupabaseEventBlastById,
   getSupabaseEventBlasts,
   getRecentSupabaseEventBlasts,
+  getSupabaseVolunteerBroadcasts,
   updateSupabaseEventBlast,
 } from '@/lib/supabase/event-blasts';
 
@@ -20,6 +24,16 @@ export type EventBlastAuditEntry = Pick<EventBlast,
 
 export async function getEventBlasts(eventId: string, c?: Context): Promise<EventBlast[]> {
   return await getSupabaseEventBlasts(eventId, c) ?? getMockEventBlasts(eventId);
+}
+
+export async function getVolunteerBroadcasts(campaignId: string, c?: Context): Promise<EventBlast[]> {
+  return await getSupabaseVolunteerBroadcasts(campaignId, c) ?? getMockVolunteerBroadcasts(campaignId);
+}
+
+export async function getEventBlastById(id: string, c?: Context): Promise<EventBlast | undefined> {
+  const result = await getSupabaseEventBlastById(id, c);
+
+  return result !== null ? result : getMockEventBlastById(id);
 }
 
 export async function getRecentEventBlasts(limit: number, c?: Context): Promise<EventBlastAuditEntry[]> {

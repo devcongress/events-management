@@ -5,9 +5,10 @@ import { eventRegistrationConfirmationEmail } from '@/lib/email/templates/event-
 import { monthlyArchiveRequestEmail, selectedSpeakerConfirmationEmail } from '@/lib/email/templates/monthly-archive-request';
 import { speakerProposalRejectionEmail } from '@/lib/email/templates/speaker-proposal-rejection';
 import { conferenceSpeakerAcceptanceEmail } from '@/lib/email/templates/conference-speaker-acceptance';
+import { volunteerBroadcastEmail } from '@/lib/email/templates/volunteer-broadcast';
 import type { EventSubmissionEmailKind } from '@/types';
 
-export type EmailPreviewCategory = 'Registration' | 'Event updates' | 'Community listings' | 'Speaker archive' | 'Conference speakers';
+export type EmailPreviewCategory = 'Registration' | 'Event updates' | 'Volunteer updates' | 'Community listings' | 'Speaker archive' | 'Conference speakers';
 
 export type RenderedEmailPreview = {
   id: string;
@@ -159,6 +160,11 @@ export function emailPreviewCatalog(): EmailPreviewCatalog {
     eventUrl: sampleEvent.eventUrl,
     calendarDownloadUrl: sampleEvent.calendarUrl,
   });
+  const volunteerContent = volunteerBroadcastEmail({
+    subject: 'DevCon26 volunteer orientation and next steps',
+    body: 'Hello volunteers,\n\nThank you for joining the DevCon26 team. Our orientation is this Sunday at 5:00 PM GMT. We will share the team allocations and walk through the event-day plan.',
+    unsubscribeUrl: 'https://example.com/unsubscribe/sample',
+  });
 
   const previews: RenderedEmailPreview[] = [
     registrationPreview({
@@ -195,6 +201,15 @@ export function emailPreviewCatalog(): EmailPreviewCatalog {
       to: 'Confirmed guests for this event',
       subject: blastSubject,
       ...blastContent,
+    },
+    {
+      id: 'volunteer_broadcast',
+      label: 'Selected-volunteer update',
+      category: 'Volunteer updates',
+      recipient: 'Manually selected accepted volunteers',
+      trigger: 'Sent or scheduled by an Owner only after reviewing the exact frozen subset.',
+      to: 'Ama Boateng <ama@example.com>',
+      ...volunteerContent,
     },
     communityPreview({
       id: 'community_submission_receipt',

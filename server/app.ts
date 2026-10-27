@@ -281,6 +281,7 @@ import {
   devCon26AnnualCfpRedirectResponse,
 } from '@/lib/devcon26-annual-cfp-redirect';
 import { registerVolunteerFollowUpRoutes } from '@/server/routes/volunteer-follow-up';
+import { reconcileVolunteerBroadcasts, registerVolunteerBroadcastRoutes } from '@/server/routes/volunteer-broadcasts';
 
 const app = new Hono<AppBindings>();
 
@@ -1264,6 +1265,7 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
       || path === '/api/internal/annual-conference-admission-emails/retry'
       || path === '/api/internal/event-blasts/prepare'
       || path === '/api/internal/event-blasts/reconcile'
+      || path === '/api/internal/volunteer-broadcasts/prepare'
       || path === '/api/internal/volunteer-follow-up/drain'
     ))
     || (method === 'GET' && path.startsWith('/api/internal/short-links/') && isSupportedShortLinkCode(path.slice('/api/internal/short-links/'.length)))
@@ -5361,6 +5363,7 @@ registerAnnualConferenceSocialCardRoutes(app);
 registerDevcon26FlexibleTicketAccessRoutes(app);
 registerDevcon26TestCheckoutRoutes(app);
 registerVolunteerFollowUpRoutes(app);
+registerVolunteerBroadcastRoutes(app);
 
 app.get('/api/annual-conference/:year/finance', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
@@ -8129,9 +8132,11 @@ app.post('/api/events/:eventId/blasts', async (c) => {
 
   if (!scheduledFor && !capacity.can_send_now) {
     const deferred = await createEventBlast({
-      event_id: event.id, subject: parsed.data.subject, body: parsed.data.body, status: 'needs_capacity', recipient_count: recipients.length,
+      event_id: event.id, audience_kind: 'event_registrations', volunteer_campaign_id: null,
+      subject: parsed.data.subject, body: parsed.data.body, status: 'needs_capacity', recipient_count: recipients.length,
       scheduled_for: null, sent_at: null, provider_broadcast_id: null, provider_segment_id: null,
       recipient_snapshot: recipients, prepared_recipient_count: 0, preparation_error: null,
+      rendered_html: null, rendered_text: null, template_version: null,
       created_by_email: session.authenticated ? session.email : null,
     }, c);
 
@@ -8150,6 +8155,8 @@ app.post('/api/events/:eventId/blasts', async (c) => {
   try {
     blast = await createEventBlast({
       event_id: event.id,
+      audience_kind: 'event_registrations',
+      volunteer_campaign_id: null,
       subject: parsed.data.subject,
       body: parsed.data.body,
       status: 'waiting',
@@ -8161,6 +8168,9 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       recipient_snapshot: recipients,
       prepared_recipient_count: 0,
       preparation_error: null,
+      rendered_html: null,
+      rendered_text: null,
+      template_version: null,
       created_by_email: session.authenticated ? session.email : null,
     }, c);
   } catch (error) {
@@ -8525,7 +8535,7 @@ app.post('/api/internal/event-blasts/reconcile', async (c) => {
   let reconciled = 0;
 
   for (const slot of slots) {
-    if (!slot.active_blast_id || !slot.active_event_id) continue;
+    if (slot.active_scope !== 'event' || !slot.active_blast_id || !slot.active_event_id) continue;
     const blast = (await getEventBlasts(slot.active_event_id, c)).find((item) => item.id === slot.active_blast_id);
 
     if (!blast) continue;
@@ -8559,6 +8569,8 @@ app.post('/api/internal/event-blasts/reconcile', async (c) => {
       console.warn(JSON.stringify({ event: 'event_blast_segment_reconciliation_failed', event_id: slot.active_event_id, blast_id: blast.id, slot_number: slot.slot_number, error: eventBlastPreparationError(error) }));
     }
   }
+
+  reconciled += await reconcileVolunteerBroadcasts(c, slots);
 
   return c.json({ ok: true, reconciled });
 });

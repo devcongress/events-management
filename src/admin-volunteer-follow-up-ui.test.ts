@@ -37,6 +37,10 @@ const outcomePanelSource = readFileSync(
   new URL("./components/VolunteerOutcomeCampaignPanel.vue", import.meta.url),
   "utf8",
 );
+const broadcastPanelSource = readFileSync(
+  new URL("./components/VolunteerBroadcastPanel.vue", import.meta.url),
+  "utf8",
+);
 const followUpViewSource = readFileSync(
   new URL("./views/VolunteerFollowUpView.vue", import.meta.url),
   "utf8",
@@ -112,6 +116,19 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(outcomePanelSource).toContain("previewCountMatches");
     expect(outcomePanelSource).toContain("sandbox=\"allow-same-origin\"");
     expect(outcomePanelSource).toContain("/outcomes/confirm");
+  });
+
+  it("keeps selected-volunteer broadcasts explicit and separate from outcome emails", () => {
+    expect(followUpPanelSource).toContain("VolunteerBroadcastPanel");
+    expect(broadcastPanelSource).toContain("No one is selected automatically");
+    expect(broadcastPanelSource).toContain("Select all accepted");
+    expect(broadcastPanelSource).toContain("selected of");
+    expect(broadcastPanelSource).toContain("selectedIds.value = new Set()");
+    expect(broadcastPanelSource).toContain("query.data.value?.accepted_volunteers");
+    expect(broadcastPanelSource).toContain("/volunteer-follow-up/blasts/preview");
+    expect(broadcastPanelSource).toContain("/volunteer-follow-up/blasts/confirm");
+    expect(broadcastPanelSource).toContain("Only these volunteers will be added to the reusable Resend segment");
+    expect(broadcastPanelSource).toContain("prefers-reduced-motion: reduce");
   });
 
   it("labels the collapsed diagnostics as capacity rather than overall delivery health", () => {

@@ -130,6 +130,9 @@ export type VolunteerFollowUpRecipientRow = {
   updated_at: string;
 };
 
+export type VolunteerFollowUpBroadcastPreviewRow =
+  Database['public']['Tables']['volunteer_follow_up_broadcast_previews']['Row'];
+
 export type VolunteerFollowUpOutcomeDeliveryRow = {
   id: string;
   campaign_id: string;
@@ -1688,7 +1691,9 @@ export interface Database {
       event_blasts: {
         Row: {
           id: string;
-          event_id: string;
+          event_id: string | null;
+          audience_kind: 'event_registrations' | 'accepted_volunteers';
+          volunteer_campaign_id: string | null;
           subject: string;
           body: string;
           status: EventBlastStatus;
@@ -1700,13 +1705,18 @@ export interface Database {
           recipient_snapshot: Json;
           prepared_recipient_count: number;
           preparation_error: string | null;
+          rendered_html: string | null;
+          rendered_text: string | null;
+          template_version: string | null;
           created_by_email: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
-          event_id: string;
+          event_id?: string | null;
+          audience_kind?: 'event_registrations' | 'accepted_volunteers';
+          volunteer_campaign_id?: string | null;
           subject: string;
           body: string;
           status: EventBlastStatus;
@@ -1718,13 +1728,18 @@ export interface Database {
           recipient_snapshot?: Json;
           prepared_recipient_count?: number;
           preparation_error?: string | null;
+          rendered_html?: string | null;
+          rendered_text?: string | null;
+          template_version?: string | null;
           created_by_email?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
-          event_id?: string;
+          event_id?: string | null;
+          audience_kind?: 'event_registrations' | 'accepted_volunteers';
+          volunteer_campaign_id?: string | null;
           subject?: string;
           body?: string;
           status?: EventBlastStatus;
@@ -1736,6 +1751,9 @@ export interface Database {
           recipient_snapshot?: Json;
           prepared_recipient_count?: number;
           preparation_error?: string | null;
+          rendered_html?: string | null;
+          rendered_text?: string | null;
+          template_version?: string | null;
           created_by_email?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -1757,6 +1775,8 @@ export interface Database {
           status: string;
           active_event_id: string | null;
           active_blast_id: string | null;
+          active_scope: 'event' | 'volunteer' | null;
+          active_volunteer_campaign_id: string | null;
           terminal_confirmed_at: string | null;
           last_error: string | null;
           updated_at: string;
@@ -1767,6 +1787,8 @@ export interface Database {
           status?: string;
           active_event_id?: string | null;
           active_blast_id?: string | null;
+          active_scope?: 'event' | 'volunteer' | null;
+          active_volunteer_campaign_id?: string | null;
           terminal_confirmed_at?: string | null;
           last_error?: string | null;
           updated_at?: string;
@@ -1777,9 +1799,65 @@ export interface Database {
           status?: string;
           active_event_id?: string | null;
           active_blast_id?: string | null;
+          active_scope?: 'event' | 'volunteer' | null;
+          active_volunteer_campaign_id?: string | null;
           terminal_confirmed_at?: string | null;
           last_error?: string | null;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      volunteer_follow_up_broadcast_previews: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          subject: string;
+          body: string;
+          scheduled_for: string | null;
+          recipients: Json;
+          recipient_count: number;
+          rendered_html: string;
+          rendered_text: string;
+          template_version: string;
+          created_by: string;
+          created_at: string;
+          expires_at: string;
+          confirmed_at: string | null;
+          confirmed_blast_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          subject: string;
+          body: string;
+          scheduled_for?: string | null;
+          recipients: Json;
+          recipient_count: number;
+          rendered_html: string;
+          rendered_text: string;
+          template_version: string;
+          created_by: string;
+          created_at?: string;
+          expires_at?: string;
+          confirmed_at?: string | null;
+          confirmed_blast_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          campaign_id?: string;
+          subject?: string;
+          body?: string;
+          scheduled_for?: string | null;
+          recipients?: Json;
+          recipient_count?: number;
+          rendered_html?: string;
+          rendered_text?: string;
+          template_version?: string;
+          created_by?: string;
+          created_at?: string;
+          expires_at?: string;
+          confirmed_at?: string | null;
+          confirmed_blast_id?: string | null;
         };
         Relationships: [];
       };
@@ -2590,6 +2668,23 @@ export interface Database {
           status: string;
           active_event_id: string | null;
           active_blast_id: string | null;
+          active_scope: 'event' | 'volunteer' | null;
+          active_volunteer_campaign_id: string | null;
+          terminal_confirmed_at: string | null;
+          last_error: string | null;
+          updated_at: string;
+        }>;
+      };
+      claim_volunteer_blast_segment_slot: {
+        Args: { p_blast_id: string; p_campaign_id: string };
+        Returns: Array<{
+          slot_number: number;
+          provider_segment_id: string | null;
+          status: string;
+          active_event_id: string | null;
+          active_blast_id: string | null;
+          active_scope: 'event' | 'volunteer' | null;
+          active_volunteer_campaign_id: string | null;
           terminal_confirmed_at: string | null;
           last_error: string | null;
           updated_at: string;
@@ -2621,10 +2716,30 @@ export interface Database {
           status: string;
           active_event_id: string | null;
           active_blast_id: string | null;
+          active_scope: 'event' | 'volunteer' | null;
+          active_volunteer_campaign_id: string | null;
           terminal_confirmed_at: string | null;
           last_error: string | null;
           updated_at: string;
         }>;
+      };
+      create_volunteer_follow_up_broadcast_preview: {
+        Args: {
+          p_campaign_id: string;
+          p_recipient_ids: string[];
+          p_subject: string;
+          p_body: string;
+          p_scheduled_for: string | null;
+          p_rendered_html: string;
+          p_rendered_text: string;
+          p_template_version: string;
+          p_actor: string;
+        };
+        Returns: Array<Database['public']['Tables']['volunteer_follow_up_broadcast_previews']['Row']>;
+      };
+      confirm_volunteer_follow_up_broadcast_preview: {
+        Args: { p_preview_id: string; p_actor: string };
+        Returns: Array<Database['public']['Tables']['event_blasts']['Row']>;
       };
       claim_volunteer_follow_up_outcome: {
         Args: { p_campaign_id: string; p_safe_slots: number; p_claim_token: string; p_lease_token: string;

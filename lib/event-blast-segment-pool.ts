@@ -14,6 +14,8 @@ const EMPTY_SLOT = (slot_number: number): EventBlastSegmentSlot => ({
   status: 'idle',
   active_event_id: null,
   active_blast_id: null,
+  active_scope: null,
+  active_volunteer_campaign_id: null,
   terminal_confirmed_at: null,
   last_error: null,
   updated_at: new Date(0).toISOString(),
@@ -39,7 +41,9 @@ export async function claimEventBlastSegmentSlot(blastId: string, eventId: strin
 
   return updateData<EventBlastSegmentSlot, EventBlastSegmentSlot | null>(SLOT_FILE, (stored) => {
     const slots = [1, 2, 3].map((number) => stored.find((slot) => slot.slot_number === number) ?? EMPTY_SLOT(number));
-    const existing = slots.find((slot) => slot.active_blast_id === blastId && slot.active_event_id === eventId);
+    const existing = slots.find((slot) => slot.active_scope === 'event'
+      && slot.active_blast_id === blastId
+      && slot.active_event_id === eventId);
 
     if (existing) return { data: slots, result: existing };
 
@@ -47,7 +51,52 @@ export async function claimEventBlastSegmentSlot(blastId: string, eventId: strin
 
     if (!free) return { data: slots, result: null };
 
-    const claimed = { ...free, status: 'reserved', active_event_id: eventId, active_blast_id: blastId, terminal_confirmed_at: null, last_error: null, updated_at: new Date().toISOString() };
+    const claimed = { ...free, status: 'reserved', active_scope: 'event' as const, active_event_id: eventId, active_blast_id: blastId, active_volunteer_campaign_id: null, terminal_confirmed_at: null, last_error: null, updated_at: new Date().toISOString() };
+
+    return {
+      data: slots.map((slot) => slot.slot_number === free.slot_number ? claimed : slot),
+      result: claimed,
+    };
+  });
+}
+
+export async function claimVolunteerBlastSegmentSlot(
+  blastId: string,
+  campaignId: string,
+  c?: Context,
+): Promise<EventBlastSegmentSlot | null> {
+  if (isSupabaseRuntimeEnabled(c)) {
+    const { data, error } = await getSupabaseAdminClient(c).rpc('claim_volunteer_blast_segment_slot', {
+      p_blast_id: blastId,
+      p_campaign_id: campaignId,
+    });
+
+    if (error) throw new Error('Unable to reserve a volunteer blast segment slot.');
+
+    return data[0] ?? null;
+  }
+
+  return updateData<EventBlastSegmentSlot, EventBlastSegmentSlot | null>(SLOT_FILE, (stored) => {
+    const slots = [1, 2, 3].map((number) => stored.find((slot) => slot.slot_number === number) ?? EMPTY_SLOT(number));
+    const existing = slots.find((slot) => slot.active_scope === 'volunteer'
+      && slot.active_blast_id === blastId
+      && slot.active_volunteer_campaign_id === campaignId);
+
+    if (existing) return { data: slots, result: existing };
+    const free = slots.find((slot) => slot.status === 'idle' && slot.active_blast_id === null);
+
+    if (!free) return { data: slots, result: null };
+    const claimed = {
+      ...free,
+      status: 'reserved',
+      active_scope: 'volunteer' as const,
+      active_event_id: null,
+      active_blast_id: blastId,
+      active_volunteer_campaign_id: campaignId,
+      terminal_confirmed_at: null,
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    };
 
     return {
       data: slots.map((slot) => slot.slot_number === free.slot_number ? claimed : slot),
@@ -128,7 +177,7 @@ export async function releaseEventBlastSegmentSlot(blastId: string, slotNumber: 
     const slot = slots.find((item) => item.slot_number === slotNumber && item.active_blast_id === blastId);
 
     if (!slot || slot.status !== 'clearing' || !slot.terminal_confirmed_at) return { data: slots, result: false };
-    const released = { ...slot, status: 'idle', active_event_id: null, active_blast_id: null, terminal_confirmed_at: null, last_error: null, updated_at: new Date().toISOString() };
+    const released = { ...slot, status: 'idle', active_scope: null, active_event_id: null, active_blast_id: null, active_volunteer_campaign_id: null, terminal_confirmed_at: null, last_error: null, updated_at: new Date().toISOString() };
 
     return {
       data: slots.map((item) => item.slot_number === slotNumber ? released : item),
@@ -146,8 +195,23 @@ export async function findOwnedEventBlastSegmentSlot(
   const slots = await listEventBlastSegmentSlots(c);
 
   return slots.find((slot) => slot.slot_number === slotNumber
+    && slot.active_scope === 'event'
     && slot.active_blast_id === blastId
     && slot.active_event_id === eventId) ?? null;
+}
+
+export async function findOwnedVolunteerBlastSegmentSlot(
+  blastId: string,
+  campaignId: string,
+  slotNumber: number,
+  c?: Context,
+): Promise<EventBlastSegmentSlot | null> {
+  const slots = await listEventBlastSegmentSlots(c);
+
+  return slots.find((slot) => slot.slot_number === slotNumber
+    && slot.active_scope === 'volunteer'
+    && slot.active_blast_id === blastId
+    && slot.active_volunteer_campaign_id === campaignId) ?? null;
 }
 
 export async function recordEventBlastSegmentSlotError(
