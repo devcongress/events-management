@@ -54,7 +54,7 @@ function failureMessage(error: unknown): string {
   return 'The social-card email provider did not accept the message.';
 }
 
-export async function retryAnnualConferenceSocialCardEmails(c: Context): Promise<{
+export async function retryAnnualConferenceSocialCardEmails(c: Context, options: Readonly<{ managed?: boolean }> = {}): Promise<{
   configured: boolean;
   accepted: number;
   failed: number;
@@ -65,11 +65,14 @@ export async function retryAnnualConferenceSocialCardEmails(c: Context): Promise
     return { configured: false, accepted: 0, failed: 0 };
   }
   const claimToken = crypto.randomUUID();
-  const deliveries = await claimSupabaseAnnualConferenceSocialCardEmailDeliveries(claimToken, 20, c);
+  const deliveries = await claimSupabaseAnnualConferenceSocialCardEmailDeliveries(claimToken, 20, c, options);
   let accepted = 0;
   let failed = 0;
 
   for (const delivery of deliveries) {
+    let result: Awaited<ReturnType<typeof sendResendEmailBatch>>;
+    let providerEmailId: string;
+
     try {
       if (!await allowConferenceEmail(c, 'social', delivery.id, delivery.recipient_email, claimToken)) continue;
       const testContext = await completeTestEmailContext(c, 'social', delivery.id);
@@ -78,22 +81,18 @@ export async function retryAnnualConferenceSocialCardEmails(c: Context): Promise
 
       const original = deliveryContent(delivery.recipient_name, delivery.capability, Boolean(delivery.collection_order_id), envValue('NODE_ENV', c) === 'development', testContext.is_test ? testContext.origin : undefined);
       const content = testContext.is_test ? markCompleteTestEmail(original) : original;
-      const result = await sendResendEmailBatch({
+
+      if (!await allowConferenceEmail(c, 'social', delivery.id, delivery.recipient_email, claimToken)
+        || !(await completeTestEmailContext(c, 'social', delivery.id)).allowed) continue;
+
+      result = await sendResendEmailBatch({
         apiKey: configured.apiKey,
         idempotencyKey: delivery.idempotency_key,
         emails: [{ from: configured.from, to: [delivery.recipient_email], reply_to: configured.replyTo, ...content }],
       });
-      const providerEmailId = result.ids[0]?.trim();
+      providerEmailId = result.ids[0]?.trim();
 
       if (!providerEmailId) throw new Error('The email provider did not return a message identifier.');
-      await finalizeSupabaseAnnualConferenceSocialCardEmailDelivery({
-        deliveryId: delivery.id,
-        claimToken,
-        status: 'accepted',
-        providerEmailId,
-      }, c);
-      await recordResendEmailHealth(c, result.quota);
-      accepted += 1;
     } catch (error) {
       await finalizeSupabaseAnnualConferenceSocialCardEmailDelivery({
         deliveryId: delivery.id,
@@ -103,7 +102,19 @@ export async function retryAnnualConferenceSocialCardEmails(c: Context): Promise
         nextAttemptAt: new Date(Date.now() + retryDelayMilliseconds).toISOString(),
       }, c);
       failed += 1;
+      continue;
     }
+
+    // Provider acceptance must not become a failed send if acknowledging its
+    // lease fails. Preserve provider idempotency for recovery, as admission does.
+    await finalizeSupabaseAnnualConferenceSocialCardEmailDelivery({
+      deliveryId: delivery.id,
+      claimToken,
+      status: 'accepted',
+      providerEmailId,
+    }, c);
+    await recordResendEmailHealth(c, result.quota);
+    accepted += 1;
   }
 
   return { configured: true, accepted, failed };

@@ -70,22 +70,33 @@ async function managedCollectionCard(c: Context<AppBindings>, seatNumber: number
 function buyerClaims(c: Context<AppBindings>) {
   const grant = c.req.header('x-social-card-buyer-grant')?.trim();
   const origin = c.req.header('origin');
-  const previewOrigin = completeTestDispatchOrigin(c);
-  const secretKey = (previewOrigin ? envValue('PAYSTACK_TEST_SECRET_KEY', c) || envValue('PAYSTACK_SECRET_KEY', c)
-    : envValue('PAYSTACK_SECRET_KEY', c))?.trim();
 
-  if (!grant || !origin || !secretKey?.startsWith(previewOrigin ? 'sk_test_' : 'sk_live_')
-    || (previewOrigin && origin !== previewOrigin)) return null;
+  if (!grant || !origin) return null;
 
-  const claims = verifyAnnualConferenceSocialCardBuyerGrant({ grant, origin, secretKey });
+  for (const mode of ['live', 'test'] as const) {
+    const configured = (mode === 'test' ? envValue('PAYSTACK_TEST_SECRET_KEY', c) : envValue('PAYSTACK_SECRET_KEY', c))?.trim();
+    const legacySecret = mode === 'test' && !configured && Boolean(completeTestDispatchOrigin(c));
+    const secretKey = configured || (legacySecret ? envValue('PAYSTACK_SECRET_KEY', c)?.trim() : undefined);
 
-  if (previewOrigin && !claims?.seat_numbers) return null;
+    if (!secretKey?.startsWith(mode === 'test' ? 'sk_test_' : 'sk_live_')) continue;
+    const claims = verifyAnnualConferenceSocialCardBuyerGrant({ grant, origin, secretKey });
 
-  return claims;
+    if (claims) return { ...claims, payment_mode: mode, legacy_secret: legacySecret };
+  }
+
+  return null;
 }
 
 function buyerOrderId(c: Context<AppBindings>): string | null {
   return buyerClaims(c)?.order_id ?? null;
+}
+
+async function buyerCard(c: Context<AppBindings>, orderId: string, seatNumber: number) {
+  const card = await getSupabaseAnnualConferenceSocialCardByOrderSeat(orderId, seatNumber, c);
+
+  if (card && Boolean(card.is_test) !== (buyerClaims(c)?.payment_mode === 'test')) return null;
+
+  return card;
 }
 
 function managementCardResponse(card: NonNullable<Awaited<ReturnType<typeof getSupabaseAnnualConferenceSocialCardByCapability>>>) {
@@ -124,17 +135,37 @@ export function registerAnnualConferenceSocialCardRoutes(app: Hono<AppBindings>)
       return c.json({ error: 'This ticket card is not part of your session.' }, 403);
     }
 
-    const previewOrigin = completeTestDispatchOrigin(c);
+    const client = getSupabaseAdminClient(c);
+    const order = await client.from('annual_conference_ticket_orders' as never)
+      .select('payment_mode,checkout_origin,edition_id,status,checkout_settings_version').eq('id', claims.order_id).single() as unknown as {
+        data: { payment_mode: string; checkout_origin: string | null; edition_id: string; status: string; checkout_settings_version: number | null } | null; error: unknown;
+      };
 
-    if (previewOrigin) {
-      const order = await getSupabaseAdminClient(c).from('annual_conference_ticket_orders' as never)
-        .select('payment_mode,checkout_origin,edition_id,status').eq('id', claims.order_id).single() as unknown as {
-          data: { payment_mode: string; checkout_origin: string; edition_id: string; status: string } | null; error: unknown;
+    if (order.error || !order.data || order.data.payment_mode !== claims.payment_mode || order.data.status !== 'paid') {
+      return c.json({ error: 'This ticket badge is unavailable.' }, 403);
+    }
+    const managed = order.data.checkout_settings_version != null;
+
+    if (managed && (!claims.seat_numbers || claims.legacy_secret)) return c.json({ error: 'This ticket badge is unavailable.' }, 403);
+    const previewOrigin = managed ? undefined : completeTestDispatchOrigin(c);
+
+    if (!managed && previewOrigin && claims.payment_mode !== 'test') return c.json({ error: 'This preview badge is unavailable.' }, 403);
+    if (claims.payment_mode === 'test') {
+      const testing = await registrationTesting(c, order.data.edition_id);
+
+      if (order.data.checkout_origin !== c.req.header('Origin')
+        || (!managed && (!testing.enabled || previewOrigin !== order.data.checkout_origin))) {
+        return c.json({ error: 'This test badge is unavailable.' }, 403);
+      }
+      const tickets = await client.from('annual_conference_tickets').select('attendee_email,status')
+        .eq('order_id', claims.order_id).in('order_seat_number', claims.seat_numbers ?? []) as unknown as {
+          data: Array<{ attendee_email: string | null; status: string }> | null; error: unknown;
         };
 
-      if (order.error || order.data?.payment_mode !== 'test' || order.data.checkout_origin !== previewOrigin
-        || order.data.status !== 'paid' || !(await registrationTesting(c, order.data.edition_id)).enabled) {
-        return c.json({ error: 'This preview badge is unavailable.' }, 403);
+      if (tickets.error || !tickets.data?.length || tickets.data.length !== claims.seat_numbers?.length
+        || tickets.data.some((ticket) => ticket.status !== 'issued' || !ticket.attendee_email
+          || !testing.tester_emails.includes(ticket.attendee_email.toLowerCase()))) {
+        return c.json({ error: 'This test badge is unavailable.' }, 403);
       }
     }
     const limited = await enforcePublicRateLimit(c, {
@@ -166,8 +197,9 @@ export function registerAnnualConferenceSocialCardRoutes(app: Hono<AppBindings>)
     if (collection === undefined) return unavailable(c);
     if (!collection?.length) return c.json({ error: 'Ticket cards are available after payment is confirmed.' }, 409);
 
-    const scope = buyerClaims(c)?.seat_numbers;
-    const visibleSeats = scope ? collection.filter((seat) => scope.includes(seat.seat_number ?? 0)) : collection;
+    const claims = buyerClaims(c);
+    const visibleSeats = collection.filter((seat) => (!claims?.seat_numbers || claims.seat_numbers.includes(seat.seat_number ?? 0))
+      && Boolean(seat.card.is_test) === (claims?.payment_mode === 'test'));
 
     return c.json({ seats: visibleSeats.map((seat) => ({ seat_number: seat.seat_number, card: managementCardResponse(seat.card) })) });
   });
@@ -178,7 +210,7 @@ export function registerAnnualConferenceSocialCardRoutes(app: Hono<AppBindings>)
     const seatNumber = Number(c.req.param('seatNumber'));
 
     if (!orderId) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
-    const card = await getSupabaseAnnualConferenceSocialCardByOrderSeat(orderId, seatNumber, c);
+    const card = await buyerCard(c, orderId, seatNumber);
 
     if (card === undefined) return unavailable(c);
     if (!card) return c.json({ error: 'This ticket card is no longer available.' }, 404);
@@ -192,7 +224,7 @@ export function registerAnnualConferenceSocialCardRoutes(app: Hono<AppBindings>)
     const seatNumber = Number(c.req.param('seatNumber'));
 
     if (!orderId) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
-    const card = await getSupabaseAnnualConferenceSocialCardByOrderSeat(orderId, seatNumber, c);
+    const card = await buyerCard(c, orderId, seatNumber);
 
     if (card === undefined) return unavailable(c);
     if (!card) return c.json({ error: 'This ticket card is no longer available.' }, 404);
@@ -217,7 +249,7 @@ export function registerAnnualConferenceSocialCardRoutes(app: Hono<AppBindings>)
     const seatNumber = Number(c.req.param('seatNumber'));
 
     if (!orderId) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
-    const card = await getSupabaseAnnualConferenceSocialCardByOrderSeat(orderId, seatNumber, c);
+    const card = await buyerCard(c, orderId, seatNumber);
 
     if (card === undefined) return unavailable(c);
     if (!card) return c.json({ error: 'This ticket card is no longer available.' }, 404);
@@ -247,7 +279,7 @@ export function registerAnnualConferenceSocialCardRoutes(app: Hono<AppBindings>)
     const seatNumber = Number(c.req.param('seatNumber'));
 
     if (!orderId) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
-    const card = await getSupabaseAnnualConferenceSocialCardByOrderSeat(orderId, seatNumber, c);
+    const card = await buyerCard(c, orderId, seatNumber);
 
     if (card === undefined) return unavailable(c);
     if (!card?.photo_path) return c.json({ error: 'Social-card image not found.' }, 404);

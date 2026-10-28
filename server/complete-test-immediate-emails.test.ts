@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({ origin: vi.fn(), drain: vi.fn() }));
 vi.mock('@/server/complete-test-dispatch', () => ({ completeTestDispatchOrigin: mocks.origin }));
 vi.mock('@/server/annual-conference-admission-email-delivery', () => ({ retryAnnualConferenceAdmissionEmails: mocks.drain }));
 
-import { dispatchCompleteTestEmails } from './complete-test-immediate-emails';
+import { dispatchCompleteTestEmails, dispatchManagedConferenceEmails } from './complete-test-immediate-emails';
 
 beforeEach(() => {
   mocks.origin.mockReset().mockReturnValue('https://preview.example');
@@ -35,4 +35,10 @@ it('never drains the live queue', async () => {
 it('leaves payment successful when dispatch fails, for scheduled retry', async () => {
   mocks.drain.mockRejectedValue(new Error('provider unavailable'));
   await expect(dispatchCompleteTestEmails({} as Context)).resolves.toBeUndefined();
+});
+
+it('dispatches managed test and live mail without consulting historical preview configuration', async () => {
+  await dispatchManagedConferenceEmails({} as Context);
+  expect(mocks.origin).not.toHaveBeenCalled();
+  expect(mocks.drain).toHaveBeenCalledWith(expect.anything(), { managed: true });
 });

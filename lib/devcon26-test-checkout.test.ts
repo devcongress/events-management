@@ -13,6 +13,16 @@ const previewOrigin = 'https://feature-devcon26-public-checkout-devcongress-webs
 const commitOrigin = 'https://63b14d94-devcongress-website.admins-a7d.workers.dev';
 
 describe('DevCon26 sandbox boundary', () => {
+  it('prefers the dedicated test key beside a live key and never falls back from an explicit invalid key', () => {
+    expect(devcon26TestCheckoutConfiguration({ ...environment,
+      PAYSTACK_SECRET_KEY: 'sk_live_fixture', PAYSTACK_TEST_SECRET_KEY: 'sk_test_dedicated',
+    })?.secretKey).toBe('sk_test_dedicated');
+
+    for (const configured of ['sk_live_invalid', '', 'sk_test_']) {
+      expect(devcon26TestCheckoutConfiguration({ ...environment, PAYSTACK_TEST_SECRET_KEY: configured })).toBeNull();
+    }
+  });
+
   it('requires an explicit independent gate, test key, inbox, and trusted HTTPS return origin', () => {
     expect(devcon26TestCheckoutConfiguration(environment)?.callbackUrl).toBe('https://devcongress.org/devcon26/payment-confirmation/?test_checkout=return');
 

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as access from '@/lib/supabase/annual-conference-flexible-ticket-access';
 import { consumePublicRateLimit } from '@/lib/public-rate-limit';
 import app, { isUnauthenticatedApiRequest } from '@/server/app';
+import { managedCheckoutSettings } from '@/server/managed-conference-checkout';
 import {
   DEVCON26_FLEXIBLE_TICKET_ACCESS_PATH,
   isDevcon26FlexibleTicketAccessRequest,
@@ -16,6 +17,9 @@ vi.mock('@/lib/supabase/annual-conference-flexible-ticket-access', () => ({
   reissueFlexibleGiftClaim: vi.fn(),
 }));
 vi.mock('@/lib/public-rate-limit', () => ({ consumePublicRateLimit: vi.fn() }));
+vi.mock('@/server/managed-conference-checkout', async (original) => ({
+  ...await original<Record<string, unknown>>(), managedCheckoutSettings: vi.fn(),
+}));
 
 const origin = 'https://preview.example.test';
 const claimCapability = 'a'.repeat(64);
@@ -52,6 +56,7 @@ beforeEach(() => {
   })) vi.stubEnv(key, value);
 
   vi.mocked(consumePublicRateLimit).mockResolvedValue({ allowed: true });
+  vi.mocked(managedCheckoutSettings).mockResolvedValue(null);
   vi.mocked(access.getFlexibleTicketOrder).mockResolvedValue([{
     order_id: orderId,
     order_status: 'paid',
@@ -85,6 +90,55 @@ afterEach(() => {
 });
 
 describe('DevCon26 flexible ticket public access', () => {
+  function managedInstallation(mode: 'test' | 'live' = 'test') {
+    vi.stubEnv('DEVCON26_FLEXIBLE_TICKET_ACCESS_ENABLED', undefined);
+    vi.stubEnv('DEVCON26_COMPLETE_TEST_ENABLED', undefined);
+    vi.stubEnv('DEVCON26_PUBLIC_CHECKOUT_ENABLED', 'false');
+    vi.stubEnv('DEVCON26_FLEXIBLE_CHECKOUT_ENABLED', 'false');
+    vi.stubEnv('DEVCON26_PAYMENTS_ENABLED', 'false');
+    vi.mocked(managedCheckoutSettings).mockResolvedValue({
+      edition_id: orderId, payment_mode: mode, settings_version: 4,
+      public_mode: 'paid', sales_status: 'closed', flexible_checkout_state: 'internal', regular_price_minor: 15000,
+      flexible_checkout_max_amount_minor: 10000000,
+    });
+  }
+
+  it.each(['test', 'live'] as const)('allows canonical paid order and claim access while %s sales are paused and old flags are absent', async (mode) => {
+    managedInstallation(mode);
+    const canonical = 'https://devcongress.org';
+    const order = await post('order', { capability: orderCapability }, canonical);
+    const claim = await post('claim', { capability: claimCapability, name: 'Ada', email: 'ada@example.com' }, canonical);
+
+    expect(order.status).toBe(200);
+    expect(claim.status).toBe(200);
+    expect(order.headers.get('access-control-allow-origin')).toBe(canonical);
+    const preflight = await app.request(`https://ems.example${DEVCON26_FLEXIBLE_TICKET_ACCESS_PATH}/claim`, {
+      method: 'OPTIONS', headers: { Origin: canonical, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'Content-Type' },
+    });
+
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-origin')).toBe(canonical);
+    expect(managedCheckoutSettings).toHaveBeenCalledWith(expect.anything(), 2026);
+  });
+
+  it('fails closed without managed schema while preserving the previous explicit legacy gate', async () => {
+    managedInstallation();
+    vi.mocked(managedCheckoutSettings).mockRejectedValue(new Error('function get_managed_conference_checkout_settings does not exist'));
+    expect((await post('order', { capability: orderCapability })).status).toBe(503);
+    vi.stubEnv('DEVCON26_FLEXIBLE_TICKET_ACCESS_ENABLED', 'true');
+    expect((await post('order', { capability: orderCapability })).status).toBe(200);
+  });
+
+  it('does not bypass exact origins, invalid capabilities or database tester restrictions', async () => {
+    managedInstallation();
+    expect((await post('order', { capability: orderCapability }, 'https://attacker.example')).status).toBe(503);
+    expect(managedCheckoutSettings).not.toHaveBeenCalled();
+    vi.mocked(access.getFlexibleTicketOrder).mockResolvedValueOnce([]);
+    expect((await post('order', { capability: orderCapability })).status).toBe(404);
+    vi.mocked(access.claimFlexibleTicket).mockRejectedValueOnce(new Error('complete_test_recipient_not_allowed'));
+    expect((await post('claim', { capability: claimCapability, name: 'Unapproved', email: 'unapproved@example.test' })).status).toBe(503);
+  });
+
   it('keeps existing paid-ticket claims available after sales are paused', async () => {
     vi.stubEnv('DEVCON26_PUBLIC_CHECKOUT_ENABLED', 'false');
     vi.stubEnv('DEVCON26_FLEXIBLE_CHECKOUT_ENABLED', 'false');

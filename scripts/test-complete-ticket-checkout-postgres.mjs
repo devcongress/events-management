@@ -8,6 +8,11 @@ const sql = (query) => execFileSync('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1'
 const migration = (file) => readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), 'utf8');
 
 sql(migration('20261016140000_annual_conference_registration_testing.sql'));
+// Match the private claim RPC ACL from the omitted 20261011110000 social-card
+// delivery migration. CREATE OR REPLACE in later migrations preserves its ACL.
+sql(`revoke all privileges on function public.claim_annual_conference_social_card_email_outbox(uuid, integer)
+  from public, anon, authenticated;
+grant execute on function public.claim_annual_conference_social_card_email_outbox(uuid, integer) to service_role;`);
 sql(migration('20261021150000_complete_test_ticket_checkout.sql'));
 const edition = sql('select id from public.annual_conference_editions where year = 2026');
 const origin = 'https://preview-site.account.workers.dev';

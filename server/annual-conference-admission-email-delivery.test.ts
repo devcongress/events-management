@@ -4,7 +4,7 @@ import jsQR from 'jsqr';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Context } from 'hono';
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), send: vi.fn(), enabled: true, preview: false }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), send: vi.fn(), enabled: true, preview: false, testSecret: 'sk_test_fixture' }));
 
 vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
 vi.mock('@/lib/email/resend', () => ({ sendResendAttachedEmail: mocks.send }));
@@ -12,7 +12,8 @@ vi.mock('@/server/env', () => ({ envValue: (key: string) => ({
   DEVCON26_ADMISSION_EMAILS_ENABLED: String(mocks.enabled), RESEND_API_KEY: 'fixture',
   DEVCON26_ADMISSION_EMAIL_FROM: 'events@example.test', DEVCON26_ADMISSION_EMAIL_REPLY_TO: 'help@example.test',
   PUBLIC_WEBSITE_ORIGIN: 'https://devcongress.org',
-  DEVCON26_COMPLETE_TEST_ENABLED: String(mocks.preview), DEVCON26_COMPLETE_TEST_ORIGIN: 'https://preview.account.workers.dev', PAYSTACK_TEST_SECRET_KEY: 'sk_test_fixture',
+  DEVCON26_COMPLETE_TEST_ENABLED: String(mocks.preview), DEVCON26_COMPLETE_TEST_ORIGIN: 'https://preview.account.workers.dev', PAYSTACK_TEST_SECRET_KEY: mocks.testSecret,
+  PAYSTACK_SECRET_KEY: 'sk_live_fixture',
 })[key] }));
 
 import { admissionEmailContent, admissionEmailReadiness, retryAnnualConferenceAdmissionEmails } from './annual-conference-admission-email-delivery';
@@ -26,6 +27,8 @@ const delivery = {
 beforeEach(() => {
   mocks.enabled = true;
   mocks.preview = false;
+  mocks.testSecret = 'sk_test_fixture';
+  mocks.from.mockReset();
   mocks.rpc.mockReset();
   mocks.send.mockReset().mockResolvedValue('provider-fixture');
   mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
@@ -34,6 +37,57 @@ beforeEach(() => {
       : name === 'freeze_annual_conference_admission_email' ? args.p_payload
         : name === 'complete_test_email_context' ? { is_test: false, allowed: true } : name === 'annual_conference_email_allowed' ? true : {},
   }));
+});
+
+describe('managed ticket email delivery', () => {
+  function managedDelivery(mode: 'test' | 'live') {
+    const origin = 'https://devcongress.org';
+    const managed = { ...delivery, kind: 'flexible_admission_delivery', payload: {
+      ...delivery.payload, email_version: 2, badge_included: true, seat_number: 2,
+      ticket_id: delivery.id, capability: 'b'.repeat(64),
+    } };
+
+    mocks.from.mockImplementation((table) => {
+      const data = table === 'annual_conference_social_cards' ? { id: 'card', is_test: mode === 'test', revoked_at: null }
+        : table === 'annual_conference_tickets' ? { order_id: delivery.id, order_seat_number: 2, attendee_email: delivery.recipient_email }
+          : { payment_mode: mode, checkout_origin: origin, status: 'paid', checkout_settings_version: 4 };
+      const query = { select: () => query, eq: () => query, single: async () => ({ error: null, data }) };
+
+      return query;
+    });
+    mocks.rpc.mockImplementation(async (name, args) => ({ error: null, data:
+      name === 'claim_annual_conference_ticket_email_outbox' ? [managed]
+        : name === 'complete_test_email_context' ? mode === 'test' ? { is_test: true, allowed: true, origin } : { is_test: false, allowed: true }
+          : name === 'annual_conference_email_allowed' ? true : name === 'freeze_annual_conference_admission_email' ? args.p_payload : {},
+    }));
+
+    return origin;
+  }
+
+  it.each(['live', 'test'] as const)('signs only the recipient seat with the immutable %s credential and sends a PDF', async (mode) => {
+    const origin = managedDelivery(mode);
+
+    mocks.preview = true;
+    expect(await retryAnnualConferenceAdmissionEmails({} as Context, { managed: true })).toMatchObject({ accepted: 1, failed: 0 });
+    const email = mocks.send.mock.calls[0][0].email;
+    const grant = decodeURIComponent(email.html.match(/buyer_grant=([^"]+)/)![1]);
+
+    expect(verifyAnnualConferenceSocialCardBuyerGrant({ grant, origin, secretKey: mode === 'test' ? 'sk_test_fixture' : 'sk_live_fixture' })).toMatchObject({ order_id: delivery.id, seat_numbers: [2] });
+    expect(verifyAnnualConferenceSocialCardBuyerGrant({ grant, origin, secretKey: mode === 'test' ? 'sk_live_fixture' : 'sk_test_fixture' })).toBeNull();
+    expect(email.attachments[0].content_type).toBe('application/pdf');
+    expect(email.subject.startsWith('[TEST]')).toBe(mode === 'test');
+    expect(email.text).toContain('/tickets/manage/#capability=');
+    expect(mocks.rpc).toHaveBeenCalledWith('finalize_annual_conference_ticket_email_outbox', expect.objectContaining({ p_status: 'accepted' }));
+    expect(mocks.rpc.mock.calls.some(([name]) => name === 'claim_complete_test_only_admission_emails')).toBe(false);
+  });
+
+  it('never falls back to the live credential for managed test mail', async () => {
+    managedDelivery('test');
+    mocks.testSecret = '';
+
+    expect(await retryAnnualConferenceAdmissionEmails({} as Context, { managed: true })).toMatchObject({ accepted: 0, failed: 1 });
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
 });
 
 describe('conference admission delivery', () => {
@@ -64,8 +118,8 @@ describe('conference admission delivery', () => {
         'events@example.test', 'help@example.test', 'https://devcongress.org');
 
       expect(email.attachments).toBeUndefined();
-      expect(email.text).toContain(`#key=${capability}`);
-      expect(email.text).not.toContain(`?key=${capability}`);
+      expect(email.text).toContain(`#capability=${capability}`);
+      expect(email.text).not.toContain(`?capability=${capability}`);
       expect(email.html).toContain('not an admission QR');
     }
   });
@@ -114,6 +168,37 @@ describe('conference admission delivery', () => {
     }));
     await expect(retryAnnualConferenceAdmissionEmails({} as Context)).rejects.toThrow('acknowledgement');
     expect(mocks.rpc.mock.calls.filter(([name]) => name === 'finalize_annual_conference_ticket_email_outbox')).toHaveLength(1);
+  });
+
+  it('uses the previously frozen provider message unchanged on retry', async () => {
+    const frozen = { from: 'original@example.test', to: [delivery.recipient_email], reply_to: 'reply@example.test',
+      subject: 'Original subject', html: '<p>Original immutable content</p>', text: 'Original immutable content' };
+
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data:
+      name === 'claim_annual_conference_ticket_email_outbox' ? [delivery]
+        : name === 'freeze_annual_conference_admission_email' ? frozen
+          : name === 'complete_test_email_context' ? { is_test: false, allowed: true }
+            : name === 'annual_conference_email_allowed' ? true : {},
+    }));
+
+    await retryAnnualConferenceAdmissionEmails({} as Context);
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ email: frozen, idempotencyKey: delivery.idempotency_key }));
+  });
+
+  it('holds a recipient removed after rendering without sending or recording a provider failure', async () => {
+    let checks = 0;
+
+    mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({ error: null, data:
+      name === 'claim_annual_conference_ticket_email_outbox' ? [delivery]
+        : name === 'freeze_annual_conference_admission_email' ? args.p_payload
+          : name === 'complete_test_email_context' ? { is_test: false, allowed: true }
+            : name === 'annual_conference_email_allowed' ? ++checks === 1 : {},
+    }));
+
+    expect(await retryAnnualConferenceAdmissionEmails({} as Context)).toMatchObject({ accepted: 0, failed: 0 });
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith('hold_annual_conference_testing_email', expect.objectContaining({ p_id: delivery.id }));
+    expect(mocks.rpc.mock.calls.some(([name]) => name === 'finalize_annual_conference_ticket_email_outbox')).toBe(false);
   });
 });
 
@@ -165,10 +250,11 @@ it('includes the private badge editor and event details alongside the preview QR
 it('sends ticket QR and independent badge access after the separate badge email was accepted and scrubbed', async () => {
   mocks.preview = true;
   mocks.from.mockImplementation((table) => {
-    expect(['annual_conference_social_cards', 'annual_conference_tickets']).toContain(table);
+    expect(['annual_conference_social_cards', 'annual_conference_tickets', 'annual_conference_ticket_orders']).toContain(table);
     const query = { select: () => query, eq: () => query, single: async () => ({ error: null, data:
       table === 'annual_conference_social_cards' ? { id: 'card', is_test: true, revoked_at: null }
-        : { order_id: delivery.id, order_seat_number: 3, attendee_email: delivery.recipient_email },
+        : table === 'annual_conference_tickets' ? { order_id: delivery.id, order_seat_number: 3, attendee_email: delivery.recipient_email }
+          : { payment_mode: 'test', checkout_origin: 'https://preview.account.workers.dev', status: 'paid', checkout_settings_version: null },
     }) };
 
     return query;

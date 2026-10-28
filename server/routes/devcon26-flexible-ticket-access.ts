@@ -9,6 +9,8 @@ import {
   DEVCON26_FLEXIBLE_CHECKOUT_PATH, devcon26PublicTicketAccessOriginAllowed,
 } from '@/lib/devcon26-public-checkout';
 import { envValue } from '@/server/env';
+import { managedCheckoutOrigin } from '@/lib/managed-conference-checkout';
+import { managedCheckoutSettings } from '@/server/managed-conference-checkout';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { enforcePublicRateLimit, publicClientKey } from '@/server/http/public-intake-protection';
 
@@ -74,13 +76,30 @@ function unavailable(c: Context<AppBindings>) {
   return c.json({ error: 'Ticket access is temporarily unavailable.' }, 503);
 }
 
+async function ticketAccessEnabled(c: Context<AppBindings>, configuration: Record<string, string | undefined>): Promise<boolean> {
+  const origin = c.req.header('Origin');
+
+  if (!devcon26PublicTicketAccessOriginAllowed(configuration, origin)) return false;
+  if (configuration.DEVCON26_FLEXIBLE_TICKET_ACCESS_ENABLED?.trim().toLowerCase() === 'true'
+    || (configuration.DEVCON26_COMPLETE_TEST_ENABLED === 'true' && origin === configuration.DEVCON26_COMPLETE_TEST_ORIGIN)) return true;
+  if (!managedCheckoutOrigin(configuration, origin)) return false;
+
+  try {
+    // Installing the managed schema replaces deployment flags as the access
+    // authority. Existing paid capabilities remain usable while sales pause or
+    // an Owner changes the mode for new orders.
+    return Boolean(await managedCheckoutSettings(c, 2026));
+  } catch {
+    // Older installations retain their explicit legacy activation requirement.
+    return false;
+  }
+}
+
 export function registerDevcon26FlexibleTicketAccessRoutes(app: Hono<AppBindings>): void {
   app.use(`${DEVCON26_FLEXIBLE_TICKET_ACCESS_PATH}/*`, async (c, next) => {
     const configuration = environment(c);
 
-    if ((configuration.DEVCON26_FLEXIBLE_TICKET_ACCESS_ENABLED?.trim().toLowerCase() !== 'true'
-      && !(configuration.DEVCON26_COMPLETE_TEST_ENABLED === 'true' && c.req.header('Origin') === configuration.DEVCON26_COMPLETE_TEST_ORIGIN))
-      || !devcon26PublicTicketAccessOriginAllowed(configuration, c.req.header('Origin'))) {
+    if (!await ticketAccessEnabled(c, configuration)) {
       return c.json({ error: 'Ticket access is not available.' }, 503);
     }
     if (c.req.header('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {

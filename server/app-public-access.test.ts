@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as ticketingStorage from '@/lib/supabase/annual-conference-ticketing';
+import * as paymentProvider from '@/lib/annual-conference-ticket-payments';
 import app, { isUnauthenticatedApiRequest } from './app';
 
 const liveSecret = 'sk_live_fixture';
@@ -199,5 +200,98 @@ describe('live Paystack webhook boundary', () => {
     expect(confirmation).toHaveBeenCalledWith(expect.objectContaining({
       orderId, amountMinor: 19_999, currency: 'GHS', paymentFacts: expect.objectContaining({ domain: 'live' }),
     }), expect.anything());
+  });
+});
+
+describe('EMS-managed checkout application boundary', () => {
+  const managedPath = '/api/public/annual-conference/2026/checkout/managed';
+  const managedWebhook = '/api/webhooks/paystack/devcon26-managed';
+
+  it('opens only the exact managed catalog, initialize, verify and signed webhook methods', () => {
+    for (const [path, method] of [
+      [managedPath, 'GET'], [`${managedPath}/initialize`, 'POST'],
+      [`${managedPath}/verify`, 'POST'], [managedWebhook, 'POST'],
+    ]) {
+      expect(isUnauthenticatedApiRequest(path, method)).toBe(true);
+    }
+    for (const [path, method] of [
+      [managedPath, 'POST'], [managedPath, 'HEAD'], [`${managedPath}/initialize`, 'GET'],
+      [`${managedPath}/verify`, 'PATCH'], [`${managedPath}/neighbor`, 'POST'],
+      [`${managedPath}/initialize/neighbor`, 'POST'], [managedWebhook, 'GET'],
+      [`${managedWebhook}/neighbor`, 'POST'], ['/api/annual-conference/2026/registrations/payment-mode', 'GET'],
+      ['/api/annual-conference/2026/registrations/payment-mode', 'PATCH'],
+    ]) {
+      expect(isUnauthenticatedApiRequest(path, method)).toBe(false);
+    }
+  });
+
+  it('serves narrow managed preflights independently of legacy activation flags', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('PUBLIC_WEBSITE_ORIGIN', 'https://devcongress.org');
+    vi.stubEnv('DEVCON26_PUBLIC_CHECKOUT_ORIGINS', 'https://devcongress.org,https://www.devcongress.org');
+    vi.stubEnv('DEVCON26_PUBLIC_CHECKOUT_ENABLED', 'false');
+    vi.stubEnv('DEVCON26_PAYMENTS_ENABLED', 'false');
+    vi.stubEnv('DEVCON26_COMPLETE_TEST_ENABLED', 'false');
+
+    for (const path of [managedPath, `${managedPath}/initialize`, `${managedPath}/verify`]) {
+      for (const origin of ['https://devcongress.org', 'https://www.devcongress.org']) {
+        const response = await app.request(`https://ems.example${path}`, {
+          method: 'OPTIONS',
+          headers: { Origin: origin, 'Access-Control-Request-Method': path === managedPath ? 'GET' : 'POST', 'Access-Control-Request-Headers': 'content-type' },
+        });
+
+        expect(response.status).toBe(204);
+        expect(response.headers.get('access-control-allow-origin')).toBe(origin);
+        expect(response.headers.get('access-control-allow-credentials')).toBeNull();
+        expect(response.headers.get('access-control-allow-headers')).toContain('Content-Type');
+      }
+    }
+    for (const origin of ['https://devcongress.org.attacker.test', 'https://attacker.test']) {
+      const response = await app.request(`https://ems.example${managedPath}/initialize`, {
+        method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' },
+      });
+
+      expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    }
+    const unrelated = await app.request(`https://ems.example${managedPath}/neighbor`, {
+      method: 'OPTIONS', headers: { Origin: 'https://devcongress.org', 'Access-Control-Request-Method': 'POST' },
+    });
+
+    expect(unrelated.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  it('retains the flexible cart ceiling and a separate small webhook ceiling', async () => {
+    vi.stubEnv('PUBLIC_WEBSITE_ORIGIN', 'https://devcongress.org');
+    const request = (path: string, bytes: number) => app.request(`https://ems.example${path}`, {
+      method: 'POST', headers: { Origin: 'https://devcongress.org', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ padding: 'x'.repeat(bytes) }),
+    });
+
+    expect((await request(`${managedPath}/initialize`, 70 * 1024)).status).toBe(400);
+    expect((await request(`${managedPath}/initialize`, 513 * 1024)).status).toBe(413);
+    expect((await request(`${managedPath}/verify`, 65 * 1024)).status).toBe(413);
+    expect((await request(managedWebhook, 65 * 1024)).status).toBe(413);
+  });
+
+  it('retires new legacy paid initialization before storage or provider calls even with old flags enabled', async () => {
+    configureLiveWebhook();
+    vi.stubEnv('DEVCON26_PUBLIC_CHECKOUT_ENABLED', 'true');
+    vi.stubEnv('PUBLIC_WEBSITE_ORIGIN', 'https://devcongress.org');
+    vi.stubEnv('DEVCON26_PUBLIC_CHECKOUT_ORIGINS', 'https://devcongress.org');
+    const standardHold = vi.spyOn(ticketingStorage, 'createSupabaseAnnualConferenceCheckoutHold');
+    const flexibleHold = vi.spyOn(ticketingStorage, 'createSupabaseAnnualConferenceFlexibleCheckoutHold');
+    const provider = vi.spyOn(paymentProvider, 'createPaystackHostedCheckout');
+
+    for (const path of ['/api/public/annual-conference/2026/checkout/initialize', '/api/public/annual-conference/2026/checkout/flexible/initialize']) {
+      const response = await app.request(`https://ems.example${path}`, {
+        method: 'POST', headers: { Origin: 'https://devcongress.org', 'Content-Type': 'application/json' }, body: '{}',
+      });
+
+      expect(response.status).toBe(410);
+      expect(await response.json()).toMatchObject({ code: 'checkout_moved' });
+    }
+    expect(standardHold).not.toHaveBeenCalled();
+    expect(flexibleHold).not.toHaveBeenCalled();
+    expect(provider).not.toHaveBeenCalled();
   });
 });

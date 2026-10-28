@@ -12,6 +12,25 @@ const origin = 'https://preview.account.workers.dev';
 const badge = `${origin}/devcon26/social-card/#buyer_grant=fixture`;
 
 describe('combined preview ticket email', () => {
+  it.each([false, true])('uses the same combined ticket, badge and management flow with isTest=%s', async (isTest) => {
+    const site = 'https://devcongress.org';
+    const badgeUrl = `${site}/devcon26/social-card/#buyer_grant=fixture`;
+    const email = await admissionEmailContent(delivery, 'events@example.test', 'help@example.test', site, isTest, badgeUrl);
+    const attachment = email.attachments![0];
+    const managementUrl = new URL(email.text.match(/Manage your tickets: (https:\/\/\S+)/)![1]);
+
+    expect(managementUrl.pathname).toBe('/devcon26/tickets/manage/');
+    expect(new URLSearchParams(managementUrl.hash.slice(1)).get('capability')).toBe(delivery.payload.capability);
+    expect(attachment.content_type).toBe('application/pdf');
+    expect((await PDFDocument.load(Buffer.from(attachment.content, 'base64'))).getPages()).toHaveLength(1);
+    expect(email.text).toContain(badgeUrl);
+    expect(email.subject.startsWith('[TEST]')).toBe(isTest);
+    expect(email.text.includes('TEST ONLY')).toBe(isTest);
+    expect(email.html.includes('No money was charged')).toBe(isTest);
+    expect(attachment.filename.includes('TEST')).toBe(isTest);
+    expect(email.html).not.toContain(delivery.payload.qr_token);
+  });
+
   it('attaches a readable PDF and keeps QR codes out of HTML', async () => {
     const email = await admissionEmailContent(delivery, 'events@example.test', 'help@example.test', origin, true, badge);
     const attachment = email.attachments![0];
@@ -26,7 +45,7 @@ describe('combined preview ticket email', () => {
     expect(email.html).not.toContain(delivery.payload.qr_token);
     expect(email.html).toContain('Ama &lt;Mensah&gt;');
     expect(email.text).toContain(badge);
-    expect(email.text).toContain(`/tickets/manage/#key=${delivery.payload.capability}`);
+    expect(email.text).toContain(`/tickets/manage/#capability=${delivery.payload.capability}`);
     expect(email.html).toContain('/brand/dev-con-logo.png');
     expect(email.html).toContain('prefers-color-scheme: dark');
     expect(email.html).toContain('[data-ogsc]');

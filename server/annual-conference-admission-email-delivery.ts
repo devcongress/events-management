@@ -34,16 +34,20 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
 }
 
-function privateCapabilityLink(websiteOrigin: string, path: string, capability: string): string {
+function conferenceWebsiteUrl(websiteOrigin: string): URL {
   const origin = new URL(websiteOrigin);
 
   if (origin.protocol !== 'https:' || origin.origin !== websiteOrigin || origin.pathname !== '/' || origin.search || origin.hash) {
     throw new Error('Conference website origin is invalid.');
   }
 
-  const url = new URL(path, origin);
+  return origin;
+}
 
-  url.hash = new URLSearchParams({ key: capability }).toString();
+function privateCapabilityLink(websiteOrigin: string, path: string, capability: string): string {
+  const url = new URL(path, conferenceWebsiteUrl(websiteOrigin));
+
+  url.hash = new URLSearchParams({ capability }).toString();
 
   return url.href;
 }
@@ -56,7 +60,7 @@ export async function admissionEmailContent(
   isTest = false,
   badgeUrl?: string,
 ): Promise<ResendAttachedEmail> {
-  if (isTest && delivery.payload.email_version === 2) {
+  if (delivery.payload.email_version === 2) {
     const hasTicket = delivery.kind === 'flexible_admission_delivery';
     const capability = delivery.payload.capability === undefined ? undefined : tokenSchema.parse(delivery.payload.capability);
     const claim = delivery.kind === 'flexible_gift_claim';
@@ -67,14 +71,14 @@ export async function admissionEmailContent(
       throw new Error('Combined ticket badge unavailable.');
     }
     const attachments = hasTicket ? [{
-      filename: `devcon26-TEST-ticket-${z.number().int().positive().parse(delivery.payload.seat_number)}.pdf`,
+      filename: `devcon26-${isTest ? 'TEST-' : ''}ticket-${z.number().int().positive().parse(delivery.payload.seat_number)}.pdf`,
       content: Buffer.from(await conferenceTicketPdf({ token: tokenSchema.parse(delivery.payload.qr_token),
-        name: delivery.recipient_name, seat: z.number().int().positive().parse(delivery.payload.seat_number), isTest: true })).toString('base64'),
+        name: delivery.recipient_name, seat: z.number().int().positive().parse(delivery.payload.seat_number), isTest })).toString('base64'),
       content_type: 'application/pdf',
     }] : undefined;
 
     return { from, to: [delivery.recipient_email], reply_to: replyTo,
-      ...conferenceTicketEmail({ name: delivery.recipient_name, hasTicket,
+      ...conferenceTicketEmail({ name: delivery.recipient_name, hasTicket, isTest,
         badgeUrl: hasTicket ? badgeUrl : undefined, managementUrl: claim ? undefined : link, claimUrl: claim ? link : undefined }),
       ...(attachments ? { attachments } : {}),
     };
@@ -182,7 +186,7 @@ export async function admissionEmailContent(
   };
 }
 
-async function previewAdmissionBadgeUrl(c: Context, delivery: z.infer<typeof deliverySchema>, origin: string): Promise<string> {
+async function admissionBadgeUrl(c: Context, delivery: z.infer<typeof deliverySchema>, origin: string, isTest: boolean): Promise<string> {
   const ticketId = z.string().uuid().parse(delivery.payload.ticket_id);
   const client = getSupabaseAdminClient(c);
   const card = await client.from('annual_conference_social_cards' as never)
@@ -190,15 +194,25 @@ async function previewAdmissionBadgeUrl(c: Context, delivery: z.infer<typeof del
       data: { id: string; is_test: boolean; revoked_at: string | null } | null; error: unknown;
     };
 
-  if (card.error || !card.data?.is_test || card.data.revoked_at) throw new Error('Preview badge unavailable.');
+  if (card.error || !card.data || card.data.is_test !== isTest || card.data.revoked_at) throw new Error('Ticket badge unavailable.');
   const ticket = await client.from('annual_conference_tickets' as never)
     .select('order_id,order_seat_number,attendee_email').eq('id', ticketId).single() as unknown as {
       data: { order_id: string; order_seat_number: number; attendee_email: string } | null; error: unknown;
     };
-  const secretKey = (envValue('PAYSTACK_TEST_SECRET_KEY', c) || envValue('PAYSTACK_SECRET_KEY', c))?.trim();
+  const order = ticket.data ? await client.from('annual_conference_ticket_orders' as never)
+    .select('payment_mode,checkout_origin,status,checkout_settings_version').eq('id', ticket.data.order_id).single() as unknown as {
+      data: { payment_mode: string; checkout_origin: string | null; status: string; checkout_settings_version: number | null } | null; error: unknown;
+    } : null;
+  const secretKey = (isTest ? envValue('PAYSTACK_TEST_SECRET_KEY', c)
+    || (order?.data?.checkout_settings_version == null ? envValue('PAYSTACK_SECRET_KEY', c) : undefined)
+    : envValue('PAYSTACK_SECRET_KEY', c))?.trim();
 
   if (ticket.error || !ticket.data || ticket.data.attendee_email !== delivery.recipient_email
-    || !secretKey?.startsWith('sk_test_')) throw new Error('Preview badge link unavailable.');
+    || order?.error || order?.data?.status !== 'paid' || order.data.payment_mode !== (isTest ? 'test' : 'live')
+    || (isTest && order.data.checkout_origin !== origin)
+    || !secretKey?.startsWith(isTest ? 'sk_test_' : 'sk_live_')) throw new Error('Ticket badge link unavailable.');
+  // Validate the destination before signing it into the grant.
+  conferenceWebsiteUrl(origin);
   // Independent signed access survives scrubbing of the separately sent badge email.
   // It neither rotates nor invalidates that existing personal link.
   const grant = createAnnualConferenceSocialCardBuyerGrant({
@@ -218,7 +232,7 @@ export function admissionEmailReadiness(c: Context) {
   return { enabled, configured, ready: enabled && configured };
 }
 
-export async function retryAnnualConferenceAdmissionEmails(c: Context) {
+export async function retryAnnualConferenceAdmissionEmails(c: Context, options: Readonly<{ managed?: boolean }> = {}) {
   const apiKey = envValue('RESEND_API_KEY', c)?.trim();
   const from = envValue('DEVCON26_ADMISSION_EMAIL_FROM', c)?.trim();
   const replyTo = envValue('DEVCON26_ADMISSION_EMAIL_REPLY_TO', c)?.trim();
@@ -229,7 +243,7 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context) {
   }
   const client = getSupabaseAdminClient(c);
   const claim = crypto.randomUUID();
-  const previewOrigin = completeTestDispatchOrigin(c);
+  const previewOrigin = completeTestDispatchOrigin(c, options);
   const result = await client.rpc((previewOrigin ? 'claim_complete_test_only_admission_emails' : 'claim_annual_conference_ticket_email_outbox') as never, {
     p_claim_token: claim, p_limit: 10,
     ...(previewOrigin ? { p_origin: previewOrigin } : {}),
@@ -260,11 +274,13 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context) {
       if (!testContext.allowed) continue;
 
       stage = 'badge_link';
-      const badgeUrl = testContext.is_test && delivery.kind === 'flexible_admission_delivery'
-        ? await previewAdmissionBadgeUrl(c, delivery, testContext.origin) : undefined;
+      const messageOrigin = testContext.is_test ? testContext.origin : websiteOrigin;
+      const badgeUrl = delivery.kind === 'flexible_admission_delivery'
+        && (testContext.is_test || delivery.payload.email_version === 2)
+        ? await admissionBadgeUrl(c, delivery, messageOrigin ?? '', testContext.is_test) : undefined;
 
       stage = 'content';
-      const original = await admissionEmailContent(delivery, from, replyTo, testContext.is_test ? testContext.origin : websiteOrigin, testContext.is_test, badgeUrl);
+      const original = await admissionEmailContent(delivery, from, replyTo, messageOrigin, testContext.is_test, badgeUrl);
       const content = testContext.is_test && delivery.payload.email_version !== 2 ? markCompleteTestEmail(original) : original;
 
       stage = 'freeze';

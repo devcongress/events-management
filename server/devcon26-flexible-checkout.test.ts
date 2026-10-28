@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as storage from '@/lib/supabase/annual-conference-ticketing';
 import { consumePublicRateLimit } from '@/lib/public-rate-limit';
 import { inspectPaystackLiveTransaction } from '@/lib/annual-conference-ticket-payments';
+import { createDevcon26FlexibleCheckoutGrant } from '@/lib/devcon26-flexible-checkout-grant';
 import app, { isUnauthenticatedApiRequest } from '@/server/app';
 
 vi.mock('@/lib/supabase/annual-conference-ticketing', async (importOriginal) => ({
@@ -95,91 +96,41 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('DevCon26 flexible public checkout', () => {
-  it('keeps the route closed unless the separate feature and database gates are public', async () => {
-    const input = { ...buyer, cart, checkout_request_key: requestKey };
+describe('historical DevCon26 flexible checkout', () => {
+  it.each([
+    '/api/public/annual-conference/2026/checkout/initialize',
+    '/api/public/annual-conference/2026/checkout/flexible/initialize',
+  ])('retires new initialization at %s before storage or provider work', async (route) => {
+    const response = await post({ ...buyer, cart, checkout_request_key: requestKey }, origin, route);
 
-    vi.stubEnv('DEVCON26_FLEXIBLE_CHECKOUT_ENABLED', 'false');
-    expect((await post(input)).status).toBe(503);
+    expect(response.status).toBe(410);
+    expect(await response.json()).toMatchObject({ code: 'checkout_moved' });
     expect(storage.createSupabaseAnnualConferenceFlexibleCheckoutHold).not.toHaveBeenCalled();
-
-    vi.stubEnv('DEVCON26_FLEXIBLE_CHECKOUT_ENABLED', 'true');
-    vi.mocked(storage.getSupabaseAnnualConferenceFlexibleCheckoutState).mockResolvedValue({
-      flexible_checkout_state: 'foundation', flexible_checkout_max_amount_minor: 10_000_000,
-      regular_price_minor: 15_000,
-    });
-    expect((await post(input)).status).toBe(503);
-    expect(storage.createSupabaseAnnualConferenceFlexibleCheckoutHold).not.toHaveBeenCalled();
+    expect(storage.prepareSupabaseAnnualConferenceTicketPaymentAttempt).not.toHaveBeenCalled();
     expect(provider).not.toHaveBeenCalled();
+    expect(isUnauthenticatedApiRequest(route, 'POST')).toBe(true);
   });
 
-  it('holds an allocated GH₵150 cart and sends only the verified total to Paystack', async () => {
-    const response = await post({ ...buyer, cart, checkout_request_key: requestKey });
-    const payload = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(payload).toMatchObject({ mode: 'live', quantity: 2, amount_minor: 30_000,
-      authorization_url: checkoutUrl, reference });
-    expect(payload.checkout_grant).toEqual(expect.any(String));
-    expect(payload.checkout_verifier).toEqual(expect.any(String));
-    expect(payload.buyer_grant).toBeUndefined();
-    expect(storage.createSupabaseAnnualConferenceFlexibleCheckoutHold).toHaveBeenCalledWith(
-      expect.objectContaining({ cart, purchaserEmail: buyer.purchaser_email }), expect.anything(),
-    );
-    expect(JSON.parse(provider.mock.calls[0][1].body)).toMatchObject({
-      amount: 30_000, currency: 'GHS', email: buyer.purchaser_email,
+  it('keeps historical initialized grants verifiable without exposing ticket capabilities', async () => {
+    const verifier = 'v'.repeat(43);
+    const checkoutGrant = createDevcon26FlexibleCheckoutGrant({
+      orderId, verifier, origin, secretKey: 'sk_live_fixture',
     });
-    expect(isUnauthenticatedApiRequest(path, 'POST')).toBe(true);
-    expect(JSON.stringify(payload)).not.toContain('community_managed');
-  });
-
-  it('rejects unallocated seats and unapproved origins before payment work', async () => {
-    expect((await post({ ...buyer, cart: { ...cart, allocations: [{ kind: 'self' }] },
-      checkout_request_key: requestKey })).status).toBe(400);
-    expect((await post({ ...buyer, cart, checkout_request_key: requestKey }, 'https://attacker.example')).status).toBe(503);
-    expect(storage.createSupabaseAnnualConferenceFlexibleCheckoutHold).not.toHaveBeenCalled();
-    expect(provider).not.toHaveBeenCalled();
-  });
-
-  it('accepts a large fully allocated cart under the provider ceiling without the standard 64 KiB body limit', async () => {
-    const largeCart = {
-      quantity: 666,
-      allocations: Array.from({ length: 666 }, (_, index) => ({
-        kind: 'gift', recipient_email: `person-${index}@${'a'.repeat(50)}.${'b'.repeat(50)}.${'c'.repeat(50)}.example`,
-      })),
-      payment_provider: 'paystack',
-    };
-
-    vi.mocked(storage.createSupabaseAnnualConferenceFlexibleCheckoutHold).mockResolvedValue({
-      id: orderId, amount_minor: 9_990_000, currency: 'GHS', quantity: 666,
-    } as never);
-
-    const response = await post({ ...buyer, cart: largeCart, checkout_request_key: requestKey });
-
-    expect(response.status).toBe(200);
-    expect((await response.json()).amount_minor).toBe(9_990_000);
-    expect(JSON.parse(provider.mock.calls[0][1].body).amount).toBe(9_990_000);
-  });
-
-  it('verifies payment through a separate checkout grant without exposing seat claims or QR codes', async () => {
-    const initialized = await (await post({ ...buyer, cart, checkout_request_key: requestKey })).json();
+    const verifyPath = '/api/public/annual-conference/2026/checkout/flexible/verify';
     const verification = await post({
-      reference,
-      checkout_grant: initialized.checkout_grant,
-      checkout_verifier: initialized.checkout_verifier,
-    }, origin, '/api/public/annual-conference/2026/checkout/flexible/verify');
+      reference, checkout_grant: checkoutGrant, checkout_verifier: verifier,
+    }, origin, verifyPath);
     const result = await verification.json();
 
     expect(verification.status).toBe(200);
     expect(result).toMatchObject({ mode: 'live', status: 'verified', quantity: 2, ticket_amount_minor: 30_000 });
     expect(JSON.stringify(result)).not.toMatch(/qr_token|capability|claim|buyer_grant|checkout_grant/);
     expect(storage.confirmSupabaseAnnualConferenceTicketPayment).toHaveBeenCalledTimes(1);
+    expect(provider).not.toHaveBeenCalled();
 
     const denied = await post({
-      reference,
-      checkout_grant: initialized.checkout_grant,
-      checkout_verifier: 'x'.repeat(43),
-    }, origin, '/api/public/annual-conference/2026/checkout/flexible/verify');
+      reference, checkout_grant: checkoutGrant, checkout_verifier: 'x'.repeat(43),
+    }, origin, verifyPath);
 
     expect(denied.status).toBe(404);
   });

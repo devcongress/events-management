@@ -78,9 +78,9 @@ export async function issueSupabaseAnnualConferenceSocialCardDelivery(input: { e
   return result.data?.[0] ?? null;
 }
 
-export async function claimSupabaseAnnualConferenceSocialCardEmailDeliveries(claimToken: string, limit: number, c?: Context): Promise<AnnualConferenceSocialCardEmailDelivery[]> {
+export async function claimSupabaseAnnualConferenceSocialCardEmailDeliveries(claimToken: string, limit: number, c?: Context, options: Readonly<{ managed?: boolean }> = {}): Promise<AnnualConferenceSocialCardEmailDelivery[]> {
   if (!isSupabaseRuntimeEnabled(c)) throw new Error('Social-card delivery storage is not configured.');
-  const previewOrigin = completeTestDispatchOrigin(c);
+  const previewOrigin = completeTestDispatchOrigin(c, options);
   const result = await getSupabaseAdminClient(c).rpc((previewOrigin ? 'claim_complete_test_only_social_emails' : 'claim_annual_conference_social_card_email_outbox') as never, {
     ...(previewOrigin ? { p_origin: previewOrigin } : {}),
     p_claim_token: claimToken,

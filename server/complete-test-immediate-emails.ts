@@ -21,3 +21,17 @@ export async function dispatchCompleteTestEmails(c: Context): Promise<void> {
     await task;
   }
 }
+
+export async function dispatchManagedConferenceEmails(c: Context): Promise<void> {
+  const task = retryAnnualConferenceAdmissionEmails(c, { managed: true }).then((result) => {
+    console.info(JSON.stringify({ event: 'managed_payment_email_dispatch', ...result }));
+  }).catch(() => {
+    console.warn(JSON.stringify({ event: 'managed_payment_email_dispatch_failed' }));
+  });
+
+  try {
+    c.executionCtx.waitUntil(task);
+  } catch {
+    await task;
+  }
+}

@@ -255,6 +255,10 @@ import {
 } from '@/server/annual-conference-request';
 import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
 import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
+import { registerManagedConferenceCheckout } from '@/server/routes/managed-conference-checkout';
+import { registerManagedConferencePaymentSettings } from '@/server/routes/managed-conference-payment-settings';
+import { managedPaymentEnvironment } from '@/server/managed-conference-checkout';
+import { isManagedCheckoutRequest, MANAGED_CHECKOUT_PATH, MANAGED_PAYMENT_WEBHOOK_PATH, managedCheckoutOrigin } from '@/lib/managed-conference-checkout';
 import { registerDevcon26CompleteTestCheckout } from '@/server/routes/devcon26-complete-test-checkout';
 import { COMPLETE_TEST_CHECKOUT_PATH, completeTestConfiguration } from '@/lib/devcon26-complete-test-checkout';
 import { registerAnnualConferenceTicketingRoutes } from '@/server/routes/annual-conference-ticketing';
@@ -415,6 +419,7 @@ for (const publicWritePath of [
   // Verify the webhook signature only after buffering the raw body; keep this
   // unauthenticated path on the same narrow ceiling as public form posts.
   '/api/webhooks/paystack',
+  MANAGED_PAYMENT_WEBHOOK_PATH,
   '/api/webhooks/resend/inbound',
   '/api/webhooks/resend',
 ]) {
@@ -425,7 +430,10 @@ const standardCheckoutBodyLimit = bodyLimitForPayloadMethods(PUBLIC_JSON_BODY_MA
 const flexibleCheckoutBodyLimit = bodyLimitForPayloadMethods(FLEXIBLE_CHECKOUT_BODY_MAX_BYTES);
 
 app.use(`${DEVCON26_PUBLIC_CHECKOUT_PATH}/*`, (c, next) => {
-  const limit = c.req.path === `${DEVCON26_PUBLIC_CHECKOUT_PATH}/flexible/initialize`
+  const limit = [
+    `${DEVCON26_PUBLIC_CHECKOUT_PATH}/flexible/initialize`,
+    `${MANAGED_CHECKOUT_PATH}/initialize`,
+  ].includes(c.req.path)
     ? flexibleCheckoutBodyLimit
     : standardCheckoutBodyLimit;
 
@@ -1217,6 +1225,7 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
     || (method === 'GET' && path === COMPLETE_TEST_CHECKOUT_PATH)
     || (method === 'POST' && [COMPLETE_TEST_CHECKOUT_PATH + '/initialize', COMPLETE_TEST_CHECKOUT_PATH + '/verify'].includes(path))
     || isDevcon26PublicCheckoutRequest(path, method)
+    || isManagedCheckoutRequest(path, method)
     || isDevcon26FlexibleTicketAccessRequest(path, method)
     || isBuyerSocialCardRequest(path, method)
     || ((method === 'GET' || method === 'HEAD') && (
@@ -1507,6 +1516,15 @@ const publicTestCheckoutCors = cors({
 
 const publicDevcon26CheckoutCors = cors({
   origin: (origin, c) => {
+    if (isManagedCheckoutRequest(c.req.path, 'GET') || isManagedCheckoutRequest(c.req.path, 'POST')) {
+      return managedCheckoutOrigin(managedPaymentEnvironment(c), origin) ?? undefined;
+    }
+    if (isDevcon26FlexibleTicketAccessRequest(c.req.path, 'POST')) {
+      const managedOrigin = managedCheckoutOrigin(managedPaymentEnvironment(c), origin);
+
+      if (managedOrigin) return managedOrigin;
+    }
+
     const completeTest = completeTestConfiguration(Object.fromEntries([
       'DEVCON26_COMPLETE_TEST_ENABLED', 'DEVCON26_COMPLETE_TEST_ORIGIN', 'PAYSTACK_TEST_SECRET_KEY', 'PAYSTACK_SECRET_KEY',
     ].map((key) => [key, envValue(key, c)])));
@@ -5353,6 +5371,8 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 
 registerAnnualConferenceSpeakerRoutes(app);
 registerAnnualConferenceTaskResourceRoutes(app);
+registerManagedConferenceCheckout(app);
+registerManagedConferencePaymentSettings(app);
 registerDevcon26CompleteTestCheckout(app);
 registerAnnualConferenceTicketingRoutes(app);
 registerAnnualConferenceFlexibleOperationsRoutes(app);

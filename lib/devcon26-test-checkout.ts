@@ -39,7 +39,7 @@ function validatedTestOrigin(value: string, development: boolean): string | null
 }
 
 export function devcon26TestCheckoutConfiguration(env: Record<string, string | undefined>) {
-  const secretKey = env.PAYSTACK_SECRET_KEY?.trim();
+  const secretKey = (env.PAYSTACK_TEST_SECRET_KEY ?? env.PAYSTACK_SECRET_KEY)?.trim();
   const buyerEmail = z.string().email().max(254).safeParse(env.DEVCON26_TEST_BUYER_EMAIL?.trim());
 
   if (env.DEVCON26_TEST_CHECKOUT_ENABLED?.trim().toLowerCase() !== 'true'
