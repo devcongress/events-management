@@ -41,6 +41,7 @@ function post(path: string, body: unknown, headers: Record<string, string> = {})
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv('PAYSTACK_TEST_SECRET_KEY', undefined);
 
   for (const [key, value] of Object.entries({
     NODE_ENV: 'production', APP_DATA_SOURCE: 'local-json',
@@ -454,6 +455,23 @@ describe('public DevCon26 test checkout integration', () => {
     expect(await (await app.request(`https://ems.example${base}`)).json()).toEqual({ mode: 'unavailable' });
     expect(provider).not.toHaveBeenCalled();
     expect(storage.prepareDevcon26TestSession).not.toHaveBeenCalled();
+  });
+
+  it('verifies legacy test payments using the dedicated key when the canonical key is live', async () => {
+    vi.stubEnv('PAYSTACK_SECRET_KEY', 'sk_live_fixture');
+    vi.stubEnv('PAYSTACK_TEST_SECRET_KEY', 'sk_test_dedicated');
+    const response = await post(`${base}/verify`, { reference });
+
+    expect(response.status).toBe(200);
+    expect(provider).toHaveBeenCalledWith(expect.stringContaining(`/transaction/verify/${reference}`), expect.objectContaining({
+      headers: { Authorization: 'Bearer sk_test_dedicated' },
+    }));
+  });
+
+  it('does not fall back to an older test key when an explicit dedicated key is invalid', async () => {
+    vi.stubEnv('PAYSTACK_TEST_SECRET_KEY', 'sk_live_invalid');
+    expect((await post(`${base}/verify`, { reference })).status).toBe(503);
+    expect(provider).not.toHaveBeenCalled();
   });
 
   it('does not reuse a provider response with a different initialization reference', async () => {

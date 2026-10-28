@@ -263,3 +263,19 @@ describe('cancelled registration recovery', () => {
     expect(await response.json()).toMatchObject({ error: expect.stringContaining('approved-tester') });
   });
 });
+
+describe('paid registration testing settings boundary', () => {
+  it('requires the versioned payment-mode form instead of the legacy testing mutation', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => ({
+      data: name === 'get_annual_conference_registration_overview' ? { ...overview, mode: 'paid' } : [], error: null,
+    }));
+    const response = await app.request(`${privatePath}/testing`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: false, tester_emails: ['tester@example.test'] }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('Payment mode form') });
+    expect(mocks.rpc.mock.calls.some(([name]) => name === 'configure_annual_conference_registration_testing')).toBe(false);
+  });
+});

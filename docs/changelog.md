@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-28 — EMS-managed Testing and Live checkout
+
+- Add an Owner Payment mode form that reviews Testing/Live and exact approved emails as one versioned change; preserve free registration testing and separate free/paid and sales availability controls.
+- Use one runtime website checkout with settings-version rejection before provider work, strict mode-specific keys, durable initialization URL recovery, immutable order provenance and historical callback/webhook compatibility. Retire new legacy paid initialization with HTTP 410.
+- Preserve provider transaction facts and distinguish expired test failure from live refund review. Keep test inventory/admission isolated and recheck test recipients through claims, community assignment and email delivery after mode changes.
+- Apply combined PDF-ticket, badge and private-management fulfillment to new managed orders in either mode while preserving historical/frozen payloads and ordinary outbox/scheduler retries. Accept existing unambiguous emailed key fragments alongside canonical capability links.
+- Add focused database, route, access/CORS, callback, UI and website checks, plus an isolated desktop/mobile Owner settings journey. Application and migration source do not prove production payment, inbox delivery or camera acceptance. The forward migrations require separate approved application; no sales opening or history cleanup is automatic.
+- Add a permission-only follow-up after the read-only target audit found residual client `TRUNCATE`, `REFERENCES`, and `TRIGGER` grants on four private ticketing tables. Preserve service access and existing data, reject inherited access, and correct the local fixture's erroneous public-execution expectation for social-card email leasing. Already-applied migration files remain unchanged.
+
 ## 2026-10-27 — Focused volunteer campaign tabs
 
 - Open the Owner-only Campaign workspace on Volunteer updates; separate Outcome emails, Invitations, and Settings so each task is reachable without scrolling past the others.

@@ -93,4 +93,20 @@ describe('annual conference social-card sender', () => {
       })],
     }));
   });
+
+  it('does not mark an accepted send failed when acknowledging its lease is ambiguous', async () => {
+    mocks.finalize.mockRejectedValueOnce(new Error('acknowledgement unavailable'));
+
+    await expect(retryAnnualConferenceSocialCardEmails({} as Context)).rejects.toThrow('acknowledgement');
+    expect(mocks.finalize).toHaveBeenCalledOnce();
+    expect(mocks.finalize).toHaveBeenCalledWith(expect.objectContaining({ status: 'accepted' }), expect.anything());
+  });
+
+  it('rechecks test recipients after rendering and before contacting the provider', async () => {
+    mocks.allow.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    await expect(retryAnnualConferenceSocialCardEmails({} as Context)).resolves.toMatchObject({ accepted: 0, failed: 0 });
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.finalize).not.toHaveBeenCalled();
+  });
 });

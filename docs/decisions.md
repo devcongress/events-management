@@ -1436,3 +1436,19 @@ ADR-118 delivery follow-up: preview dispatch must not lease historical registrat
 **Trade-offs:** Volunteer and event Broadcasts now contend for the same three slots, and scheduled sends retain a slot until terminal reconciliation and contact cleanup. The full-access Broadcast key and monitored registration reply-to remain required. This path has separate history from transactional accepted/not-selected outcome deliveries, which keep their existing idempotency, pause, retry, and provider-event controls.
 
 **Revisit when:** Resend provides immutable inline audiences without reusable segments, the shared audience limit exceeds 100, or a generalized campaign dispatcher replaces both event and volunteer preparation routes.
+
+---
+
+## ADR-120: EMS owns versioned paid checkout mode and preserves order provenance
+
+**Date:** 2026-10-28
+
+**Decision:** For the paid 2026 edition, reuse the registration-testing settings as the sole payment-mode authority: enabled means Testing, disabled means Live. An Owner reviews mode and exact tester emails together and saves them atomically against a settings version. Free/paid and sales availability stay independent. One website flow reads this mode at runtime; the server locks settings and rejects stale initialization before provider work. Managed test and live references are distinct, and each order permanently owns its mode, origin and reviewed version.
+
+**Payment and recovery boundary:** Resolve credentials from immutable order mode: `PAYSTACK_TEST_SECRET_KEY` for Testing, `PAYSTACK_SECRET_KEY` for Live, with strict prefixes and no cross-mode fallback. Keep historical callbacks and signed webhook entry points, forwarding managed references to stored-order reconciliation. Persist initialization claims and validated authorization URLs so unchanged retries resume rather than initialize twice; uncertain provider creation stays held. Preserve verified transaction facts. Expired test payments fail without live-refund evidence, while unfulfillable live payments require reconciliation.
+
+**Fulfillment and admission boundary:** Test orders consume no venue inventory and never pass admission. The current saved tester list restricts test purchasers, gifts, claims, community assignment and email delivery even after switching to Live. Retain test history. Use the combined PDF/badge/private-management email contract for new managed orders in either mode, preserve historical/frozen messages, and retry through ordinary shared scheduler/outbox leases. The preview relay and website build-time test backend are not required for managed orders.
+
+**Why:** Changing an environment variable or website build cannot safely express an Owner's reviewed mode and recipient policy. A versioned settings lock prevents a browser opened in Testing from silently charging Live after an organizer changes settings, while immutable order provenance allows already-started payments to complete after later changes.
+
+**Trade-offs and rollout:** Both provider keys and required historical configuration must remain available for outstanding payments. Readiness reports static configuration, not verified provider or inbox health. Apply `20261028100000_ems_managed_checkout.sql` and then `20261028110000_managed_ticket_email_fulfillment.sql` only through a separately approved rollout and migration gates. Neither migration opens sales, sends mail or deletes history. This supersedes ADR-118's preview-only mode selection and test-history cleanup requirement for the managed path; its immutable test/admission boundary remains.

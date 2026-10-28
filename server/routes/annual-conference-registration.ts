@@ -209,6 +209,9 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
     const session = await getAdminSession(c);
 
     if (!overview || !session.authenticated) return c.json({ error: 'Conference not found.' }, 404);
+    if (overview.mode === 'paid') {
+      return c.json({ error: 'Use the Payment mode form to update paid checkout and tester restrictions together.' }, 409);
+    }
     const result = await getSupabaseAdminClient(c).rpc('configure_annual_conference_registration_testing' as never, {
       p_edition_id: overview.edition_id, p_enabled: input.data.enabled,
       p_emails: input.data.tester_emails, p_actor: session.email,

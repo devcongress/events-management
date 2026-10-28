@@ -6,6 +6,7 @@ import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceRegistrationNav from '@/src/components/AnnualConferenceRegistrationNav.vue';
 import AnnualConferenceRegistrationEmails from '@/src/components/AnnualConferenceRegistrationEmails.vue';
 import AnnualConferenceCommunityTickets from '@/src/components/AnnualConferenceCommunityTickets.vue';
+import AnnualConferencePaymentModeSettings from '@/src/components/AnnualConferencePaymentModeSettings.vue';
 import AnnualConferenceGuests from '@/src/components/AnnualConferenceGuests.vue';
 import type { ConferenceRegistrationGuest as Registration } from '@/src/lib/conference-guests';
 import AppPagination from '@/src/components/AppPagination.vue';
@@ -311,7 +312,11 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
         </ConfirmDialog>
       </section>
-      <section v-if="owner && activeSection === 'form'" class="ops-panel registration-panel">
+      <AnnualConferencePaymentModeSettings
+        v-if="owner && canManageRegistration && year === '2026' && overview?.mode === 'paid' && activeSection === 'form'"
+        :year="year"
+      />
+      <section v-if="owner && overview?.mode === 'free' && activeSection === 'form'" class="ops-panel registration-panel">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2>Testing settings</h2>
           <span v-if="testingQuery.data.value" class="registration-badge">{{ testingQuery.data.value.enabled ? 'Restricted to testers' : 'Off' }}</span>

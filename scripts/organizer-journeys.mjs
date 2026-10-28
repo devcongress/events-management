@@ -2825,6 +2825,85 @@ try {
       .waitFor();
   });
 
+  await journey("annual-paid-payment-mode", async ({ page, responses, requests }) => {
+    const paymentPath = "/api/annual-conference/2026/registrations/payment-mode";
+    let paymentSettings;
+
+    responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+    responses.set("/api/annual-conference/2026/work-plan", {
+      body: { ...workspace, edition, permissions: { ...workspace.permissions, capabilities: ["ticketing.manage"] } },
+    });
+    responses.set("/api/annual-conference/2026/ticketing", {
+      body: { settings: { public_capacity: 150 }, inventory: { reduction_floor: 0 } },
+    });
+    responses.set("/api/annual-conference/2026/registrations", {
+      body: { overview: { mode: "paid", status: "open", capacity: 150, reserved: 0, confirmed: 0, waitlisted: 0 }, registrations: [] },
+    });
+    responses.set("/api/annual-conference/2026/registrations/blasts", { body: { blasts: [] } });
+    responses.set("/api/annual-conference/2026/registrations/testing", () => ({
+      body: { enabled: paymentSettings.payment_mode === "test", tester_emails: paymentSettings.tester_emails, local_delivery: false },
+    }));
+    responses.set(paymentPath, (request) => {
+      if (request.method() === "PATCH") {
+        const input = JSON.parse(request.postData() ?? "{}");
+
+        assert.deepEqual(input, {
+          payment_mode: "live", settings_version: 1,
+          tester_emails: ["fixture@example.test", "second@example.test"], confirmed: true,
+        });
+        paymentSettings = { ...paymentSettings, ...input, settings_version: 2 };
+      }
+
+      return { body: paymentSettings };
+    });
+
+    for (const [width, label] of [[1440, "desktop"], [390, "390"]]) {
+      paymentSettings = {
+        payment_mode: "test", settings_version: 1, tester_emails: ["fixture@example.test"],
+        readiness: { test: { ready: true, reasons: [] }, live: { ready: true, reasons: [] } },
+      };
+      await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+      await page.goto(`${origin}/organizer-console/annual-conference/2026/registrations?section=form`);
+      const panel = page.locator(".payment-mode-settings");
+
+      await panel.getByText("Current: Testing", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("heading", { name: "Testing settings", exact: true }).count(), 0);
+      await panel.getByRole("radio", { name: /^Live/ }).check();
+      await panel.getByLabel("Approved tester emails", { exact: true }).fill(" FIXTURE@EXAMPLE.TEST\nfixture@example.test\nsecond@example.test");
+      const patchesBefore = requests.filter((request) => request.path === paymentPath && request.method === "PATCH").length;
+
+      await panel.getByRole("button", { name: "Review payment settings", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Enable real payments?" });
+
+      await dialog.getByText(/will charge real money/).waitFor();
+      assert.equal(paymentSettings.payment_mode, "test");
+      assert.equal(requests.filter((request) => request.path === paymentPath && request.method === "PATCH").length, patchesBefore);
+      await page.waitForFunction(() => !document.querySelector(".confirm-dialog-enter-active"));
+      await page.screenshot({ path: `${artifacts}/annual-payment-live-confirmation-${label}.png` });
+      await dialog.getByRole("button", { name: "Save payment settings", exact: true }).click();
+      await panel.getByText("Current: Live", { exact: true }).waitFor();
+      await dialog.waitFor({ state: "detached" });
+      await page.locator(".confirm-dialog-shell").waitFor({ state: "detached" });
+      assert.deepEqual(paymentSettings.tester_emails, ["fixture@example.test", "second@example.test"]);
+      assert.equal(requests.filter((request) => request.path === paymentPath && request.method === "PATCH").length, patchesBefore + 1);
+      const bounds = await panel.boundingBox();
+
+      assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width, "Payment controls stay within the viewport");
+      await panel.screenshot({ path: `${artifacts}/annual-payment-mode-${label}.png` });
+    }
+
+    const modeRequestsBefore = requests.filter((request) => request.path === paymentPath).length;
+
+    responses.set("/api/auth/session", { body: {
+      authenticated: true, auth_configured: true,
+      user: { email: "organizer@example.test", display_name: "Fixture Organizer", role: "organizer" },
+    } });
+    await page.reload();
+    await page.getByRole("heading", { name: "Form & capacity", exact: true }).waitFor();
+    assert.equal(await page.locator(".payment-mode-settings").count(), 0, "Organizers cannot see Owner payment-mode controls");
+    assert.equal(requests.filter((request) => request.path === paymentPath).length, modeRequestsBefore);
+  }, { role: "owner" });
+
   await journey("annual-registration-workspace", async ({ page, responses, requests }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const overview = { mode: "free", status: "open", capacity: 150, reserved: 101, confirmed: 101, waitlisted: 0 };

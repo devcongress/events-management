@@ -67,6 +67,16 @@ SELECT json_build_object(
           JOIN public.annual_conference_ticketing_settings s ON s.edition_id = e.id
           WHERE e.year = 2026
         ))
+      UNION ALL
+      SELECT json_build_object('kind', 'data', 'schema', 'public', 'name', 'managed_checkout_launch_guard_absent',
+        'value', CASE WHEN to_regprocedure('public.guard_complete_test_live_launch()') IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM pg_trigger t
+            JOIN pg_class c ON c.oid = t.tgrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND c.relname = 'annual_conference_ticketing_settings'
+              AND t.tgname = 'guard_complete_test_live_launch' AND NOT t.tgisinternal
+          ) THEN 'true' ELSE 'false' END)
     ) catalog
   ), '[]'::json)
 );

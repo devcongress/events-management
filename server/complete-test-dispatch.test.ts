@@ -17,4 +17,8 @@ describe('preview dispatcher selection', () => {
       DEVCON26_COMPLETE_TEST_ORIGIN: 'https://devcongress.org', PAYSTACK_TEST_SECRET_KEY: 'sk_live_fixture',
     }))).toThrow('Preview email configuration unavailable');
   });
+
+  it('uses shared queues for an explicit managed dispatch even with historical preview flags', () => {
+    expect(completeTestDispatchOrigin(context({ DEVCON26_COMPLETE_TEST_ENABLED: 'true' }), { managed: true })).toBeUndefined();
+  });
 });

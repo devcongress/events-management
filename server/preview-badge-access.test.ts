@@ -12,12 +12,12 @@ vi.mock('@/server/env', () => ({ envValue: (key: string) => ({
   DEVCON26_COMPLETE_TEST_ENABLED: String(mocks.test), DEVCON26_COMPLETE_TEST_ORIGIN: 'https://preview.account.workers.dev',
   PAYSTACK_TEST_SECRET_KEY: 'sk_test_fixture', PAYSTACK_SECRET_KEY: 'sk_live_fixture',
 })[key] }));
-vi.mock('@/server/annual-conference-registration-testing', () => ({ registrationTesting: async () => ({ enabled: mocks.enabled }) }));
+vi.mock('@/server/annual-conference-registration-testing', () => ({ registrationTesting: async () => ({ enabled: mocks.enabled, tester_emails: ['fixture@example.test'] }) }));
 vi.mock('@/server/http/public-intake-protection', () => ({ enforcePublicRateLimit: async () => null, publicClientKey: () => 'fixture' }));
 vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ from: () => {
   const query = { select: () => query, eq: () => query, single: async () => ({ data: {
     payment_mode: mocks.mode, checkout_origin: 'https://preview.account.workers.dev', edition_id: 'edition', status: 'paid',
-  }, error: null }) };
+  }, error: null }), in: async () => ({ error: null, data: [{ attendee_email: 'fixture@example.test', status: 'issued' }] }) };
 
   return query;
 } }) }));
@@ -65,8 +65,8 @@ describe('preview buyer badge access', () => {
   });
 
   it('rejects unscoped test and wrong-key grants', async () => {
-    expect((await app.request(path, { headers: headers() })).status).toBe(401);
-    expect((await app.request(path, { headers: headers([3], 'sk_live_fixture') })).status).toBe(401);
+    expect((await app.request(path, { headers: headers() })).status).toBe(403);
+    expect((await app.request(path, { headers: headers([3], 'sk_live_fixture') })).status).toBe(403);
   });
 
   it('rejects live orders and disabled testing in the preview', async () => {
@@ -79,7 +79,8 @@ describe('preview buyer badge access', () => {
 
   it('preserves legacy live buyer grants outside preview mode', async () => {
     mocks.test = false;
+    mocks.mode = 'live';
     expect((await app.request(path, { headers: headers(undefined, 'sk_live_fixture') })).status).toBe(200);
-    expect((await app.request(path, { headers: headers([3]) })).status).toBe(401);
+    expect((await app.request(path, { headers: headers([3]) })).status).toBe(403);
   });
 });

@@ -29,7 +29,7 @@ import { devcon26AvailablePaymentProviders } from '@/lib/devcon26-ticket-cart';
 import { sandboxEmailConfiguration, sandboxPreviewEmailConfiguration } from '@/lib/devcon26-test-checkout-email-delivery';
 
 export function devcon26TestConfigurationForRequest(c: Context) {
-  const keys = ['DEVCON26_TEST_CHECKOUT_ENABLED', 'DEVCON26_PAYMENT_PROVIDER', 'PAYSTACK_SECRET_KEY',
+  const keys = ['DEVCON26_TEST_CHECKOUT_ENABLED', 'DEVCON26_PAYMENT_PROVIDER', 'PAYSTACK_SECRET_KEY', 'PAYSTACK_TEST_SECRET_KEY',
     'DEVCON26_TEST_BUYER_EMAIL', 'PUBLIC_WEBSITE_ORIGIN', 'DEVCON26_TEST_CHECKOUT_ORIGINS', 'NODE_ENV'];
 
   return devcon26TestCheckoutConfiguration(Object.fromEntries(keys.map((key) => [key, envValue(key, c)])));
@@ -106,7 +106,7 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
       'DEVCON26_TEST_CHECKOUT_EMAILS_ENABLED', 'DEVCON26_TEST_CHECKOUT_EMAIL_RECIPIENTS',
       'DEVCON26_TEST_CHECKOUT_EMAIL_FROM', 'DEVCON26_TEST_CHECKOUT_EMAIL_REPLY_TO',
       'DEVCON26_TEST_CHECKOUT_ENABLED', 'DEVCON26_TEST_CHECKOUT_ORIGINS',
-      'DEVCON26_TEST_BUYER_EMAIL', 'DEVCON26_PAYMENT_PROVIDER', 'PAYSTACK_SECRET_KEY',
+      'DEVCON26_TEST_BUYER_EMAIL', 'DEVCON26_PAYMENT_PROVIDER', 'PAYSTACK_SECRET_KEY', 'PAYSTACK_TEST_SECRET_KEY',
       'RESEND_API_KEY', 'PUBLIC_WEBSITE_ORIGIN', 'NODE_ENV',
     ].map((key) => [key, envValue(key, c)]));
     const previewEmailAvailable = Boolean(requestedOrigin
