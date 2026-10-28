@@ -1267,17 +1267,16 @@ try {
       }));
       responses.set("/api/annual-conference/2026/volunteer-follow-up/blasts", {
         body: {
-          accepted_volunteers: [{
-            id: recipient.id,
-            name: recipient.applicant_name,
-            email: recipient.applicant_email,
-            decision_version: recipient.decision_version,
-          }],
+          accepted_volunteers: campaignRecipients
+            .filter((item) => item.decision === "accepted")
+            .map((item) => ({
+              id: item.id,
+              name: item.applicant_name,
+              email: item.applicant_email,
+              decision_version: item.decision_version,
+            })),
           blasts: [],
-          capacity: {
-            known: true,
-            safe_recipients_today: 99,
-          },
+          capacity: { known: true, safe_recipients_today: 99 },
         },
       });
       responses.set("/api/annual-conference/2026/volunteer-follow-up/outcomes/delivery-control", (request) => {
@@ -1368,11 +1367,54 @@ try {
         name: "Volunteer follow-up",
       });
 
+      const campaignSections = followUp.getByRole("tablist", { name: "Campaign sections" });
+      const updates = followUp.locator(".volunteer-blasts");
+
+      async function waitForCampaignTabs() {
+        await page.clock.runFor(250);
+        await page.waitForFunction(() =>
+          [...document.querySelectorAll(".follow-up-tabpanel")].every((panel) =>
+            getComputedStyle(panel).display === "none" ||
+            getComputedStyle(panel).opacity === "1",
+          ),
+        );
+      }
+
+      async function selectCampaignSection(scope, name) {
+        await scope.getByRole("tab", { name, exact: true }).click();
+        await waitForCampaignTabs();
+        assert.equal(await scope.getByRole("tab", { name, exact: true }).getAttribute("aria-selected"), "true");
+      }
+
+      await updates.getByRole("heading", { name: "Volunteer updates", exact: true }).waitFor();
+      assert.equal(await campaignSections.getByRole("tab", { name: "Volunteer updates", exact: true }).getAttribute("aria-selected"), "true");
+      assert.equal(await followUp.getByRole("heading", { name: "Campaign setup", exact: true }).isVisible(), false);
+      assert.equal(await followUp.getByRole("region", { name: "Invitation progress", exact: true }).isVisible(), false);
+      await updates.getByLabel("Subject", { exact: true }).fill("Volunteer orientation");
+      await updates.getByLabel("Message", { exact: true }).fill("Join the volunteer orientation this Sunday.");
+      await updates.getByRole("checkbox", { name: "Ama Mensah ama@example.com", exact: true }).check();
+      await campaignSections.getByRole("tab", { name: "Volunteer updates", exact: true }).press("End");
+      await page.clock.runFor(250);
+      assert.equal(await campaignSections.getByRole("tab", { name: "Settings", exact: true }).getAttribute("aria-selected"), "true");
+      await campaignSections.getByRole("tab", { name: "Settings", exact: true }).press("Home");
+      await page.clock.runFor(250);
+      await campaignSections.getByRole("tab", { name: "Volunteer updates", exact: true }).press("ArrowRight");
+      await page.clock.runFor(250);
+      assert.equal(await campaignSections.getByRole("tab", { name: "Outcome emails", exact: true }).getAttribute("aria-selected"), "true");
+      await campaignSections.getByRole("tab", { name: "Outcome emails", exact: true }).press("ArrowLeft");
+      await waitForCampaignTabs();
+      assert.equal(await updates.getByLabel("Subject", { exact: true }).inputValue(), "Volunteer orientation");
+      assert.equal(await updates.getByLabel("Message", { exact: true }).inputValue(), "Join the volunteer orientation this Sunday.");
+      assert.equal(await updates.getByRole("checkbox", { name: "Ama Mensah ama@example.com", exact: true }).isChecked(), true);
+      assert.equal(await followUp.getByRole("tabpanel").count(), 1);
+      await followUp.screenshot({ path: `${artifacts}/volunteer-campaign-updates-desktop.png`, style: ".annual-conference-nav-shell { position: static !important; }" });
+      await selectCampaignSection(campaignSections, "Settings");
       await followUp.getByText(
         "Sending is waiting for a verified quota check.",
         { exact: true },
       ).waitFor();
       await followUp.getByText(/Last scheduler run:/).waitFor();
+      await selectCampaignSection(campaignSections, "Invitations");
       await followUp.getByText("Invitations pending", { exact: true }).waitFor();
       await followUp.getByText("Queued or sending", { exact: true }).waitFor();
       await followUp.getByText("Responses received", { exact: true }).waitFor();
@@ -1391,6 +1433,7 @@ try {
 
       await mobileConference.waitFor({ state: "visible" });
       await mobileConference.getByRole("tab", { name: "Campaign", exact: true }).click();
+      await selectCampaignSection(mobileConference, "Settings");
       await mobileConference.getByText(
         "Sending is waiting for a verified quota check.",
         { exact: true },
@@ -1404,6 +1447,7 @@ try {
       await waitForRouteTransition(page);
       await mobileConference.waitFor({ state: "detached" });
       await page.getByRole("tab", { name: "Campaign", exact: true }).click();
+      await selectCampaignSection(campaignSections, "Settings");
       await followUp.getByText(
         "Sending is waiting for a verified quota check.",
         { exact: true },
@@ -1413,6 +1457,7 @@ try {
         "#admin-volunteers-campaign-panel .outcome-campaign:visible",
       );
 
+      await selectCampaignSection(campaignSections, "Outcome emails");
       await outcomes.getByText("Preview checks who can receive this email", { exact: false }).waitFor();
       await outcomes.getByRole("heading", { name: "Acceptance emails", exact: true }).waitFor();
       await outcomes.getByText("Queue delivery", { exact: true }).waitFor();
@@ -1473,6 +1518,7 @@ try {
       await deliveries.getByRole("button", { name: "All 13", exact: true }).click();
       await deliveries.getByRole("button", { name: "Review delivery for Ama Mensah", exact: true }).click();
       await page.locator(".follow-up-selected-drawer").getByText("The sender could not confirm whether Resend accepted the email.", { exact: true }).waitFor();
+      assert.equal(await campaignSections.getByRole("tab", { name: "Outcome emails", exact: true }).getAttribute("aria-selected"), "true");
       await page.getByRole("button", { name: "Close applicant details", exact: true }).click();
       await page.locator(".follow-up-selected-drawer").waitFor({ state: "hidden" });
       await deliveries.screenshot({ style: ".annual-conference-nav-shell { position: static !important; }", path: `${artifacts}/outcome-delivery-accepted-desktop.png` });
@@ -1493,6 +1539,12 @@ try {
       await page.waitForURL("**/organizer-console/mobile/annual-conference/2026*");
       await waitForRouteTransition(page);
       await mobileConference.getByRole("tab", { name: "Campaign", exact: true }).click();
+      const mobileCampaignSections = mobileConference.getByRole("tablist", { name: "Campaign sections" });
+
+      await mobileCampaignSections.getByRole("tab", { name: "Volunteer updates", exact: true }).waitFor();
+      await waitForCampaignTabs();
+      await mobileConference.getByRole("region", { name: "Volunteer follow-up", exact: true }).screenshot({ path: `${artifacts}/volunteer-campaign-updates-320.png`, style: "[data-sonner-toaster] { display: none !important; }" });
+      await selectCampaignSection(mobileCampaignSections, "Outcome emails");
       const mobileOutcomes = mobileConference.locator(
         "#mobile-volunteers-campaign-panel .outcome-campaign:visible",
       );
@@ -1513,6 +1565,12 @@ try {
       const mobileDeliveries = mobileOutcomes.locator(".outcome-deliveries");
 
       await mobileDeliveries.getByRole("searchbox").fill("Ama Mensah");
+      await mobileDeliveries.getByRole("button", { name: "Review delivery for Ama Mensah", exact: true }).click();
+      await page.getByRole("dialog", { name: "Ama Mensah", exact: true }).waitFor();
+      await page.keyboard.press("Escape");
+      await page.getByRole("dialog", { name: "Ama Mensah", exact: true }).waitFor({ state: "hidden" });
+      assert.equal(await mobileCampaignSections.getByRole("tab", { name: "Outcome emails", exact: true }).getAttribute("aria-selected"), "true");
+      assert.equal(await page.locator("#app").getAttribute("inert"), null);
       await mobileDeliveries.screenshot({ style: ".conference-mobile__header { position: static !important; }", path: `${artifacts}/outcome-delivery-accepted-mobile.png` });
       await mobileOutcomes.getByRole("button", { name: "Choose outcome audience" }).click();
       await page.getByRole("option", { name: "Not-selected applicants", exact: true }).click();
@@ -1524,6 +1582,7 @@ try {
       await page.waitForURL("**/organizer-console/annual-conference/2026/volunteers");
       await waitForRouteTransition(page);
       await page.locator("#admin-volunteers-campaign-tab").click();
+      await selectCampaignSection(campaignSections, "Outcome emails");
       outcomes = page.locator(
         "#admin-volunteers-campaign-panel .outcome-campaign:visible",
       );
@@ -1579,6 +1638,7 @@ try {
       await outcomes.getByRole("button", { name: "Enable queue delivery", exact: true }).click();
       await outcomes.getByRole("button", { name: "Pause queue delivery", exact: true }).waitFor();
 
+      await selectCampaignSection(campaignSections, "Settings");
       await followUp
         .getByRole("button", { name: "Preview", exact: true })
         .click();
@@ -1612,6 +1672,7 @@ try {
       );
       await testFormPage.close();
 
+      await selectCampaignSection(campaignSections, "Invitations");
       await followUp.locator(".follow-up-recipient").filter({ hasText: "Ama Mensah" }).click();
       const selectedDrawer = followUp.locator(".follow-up-selected-drawer");
 
@@ -1632,6 +1693,7 @@ try {
       await selectedDrawer.waitFor({ state: "detached" });
       await page.clock.setSystemTime(new Date("2026-09-26T12:31:00.000Z"));
       await page.clock.runFor(30_001);
+      await selectCampaignSection(campaignSections, "Settings");
       await followUp.getByText(
         "Sending follows the scheduled queue.",
         { exact: true },
