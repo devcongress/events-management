@@ -15,6 +15,8 @@ import OrganizerRoleBadge from "./components/OrganizerRoleBadge.vue";
 import PublicFormRouteFrame from "./components/PublicFormRouteFrame.vue";
 import AppToaster from "./components/ui/AppToaster.vue";
 import AppBootScreen from "./components/ui/AppBootScreen.vue";
+import OrganizerBreadcrumbs from './components/OrganizerBreadcrumbs.vue';
+import { isOrganizerBreadcrumbRoute } from './organizer-breadcrumbs';
 import {
   ADMIN_OAUTH_REDIRECT_STORAGE_KEY,
   adminPath,
@@ -81,6 +83,17 @@ const organizerPhoneMedia =
     : window.matchMedia(ORGANIZER_PHONE_MEDIA_QUERY);
 const routeTransitionName = ref("page");
 const mobileMenuOpen = ref(false);
+const appHeader = ref<HTMLElement | null>(null);
+const mobileMenuToggle = ref<HTMLButtonElement | null>(null);
+const primaryNavigation = ref<HTMLElement | null>(null);
+const headerActions = ref<HTMLElement | null>(null);
+const navigationMedia =
+  typeof window === "undefined"
+    ? null
+    : window.matchMedia("(max-width: 960px)");
+const navigationNarrowViewport = ref(navigationMedia?.matches ?? false);
+const navigationOverflows = ref(false);
+const navigationCollapsed = computed(() => navigationNarrowViewport.value || navigationOverflows.value);
 const phoneViewport = ref(organizerPhoneMedia?.matches ?? false);
 const keyboardDismissVisible = ref(false);
 const keyboardInset = ref(0);
@@ -98,6 +111,8 @@ const organizerStayBusy = ref(false);
 const organizerStayError = ref<string | null>(null);
 let keyboardFocusTimer: number | undefined;
 let adminEventTabsResizeObserver: ResizeObserver | undefined;
+let navigationResizeObserver: ResizeObserver | undefined;
+let navigationMeasureFrame: number | undefined;
 let organizerIdleWarningTimer: number | undefined;
 let organizerIdleExpiryTimer: number | undefined;
 let organizerAbsoluteExpiryTimer: number | undefined;
@@ -182,6 +197,14 @@ const isConferenceVolunteer = computed(
 const currentOrganizerRole = computed(
   () => adminSessionQuery.data.value?.user?.role ?? null,
 );
+const showOrganizerBreadcrumbs = computed(() => (
+  isOrganizerAuthenticated.value
+  && isAdminRoute.value
+  && !isStandaloneRoute.value
+  && !isLoginRoute.value
+  && !showOrganizerAccessSurface.value
+  && isOrganizerBreadcrumbRoute(route.name)
+));
 const showAppHeader = computed(() =>
   shouldShowAuthenticatedAppHeader({
     authenticated: isOrganizerAuthenticated.value,
@@ -423,7 +446,11 @@ function isActive(href: string) {
 }
 
 function routeViewKey(routeForKey: typeof route) {
-  if (routeForKey.name === "admin-annual-conference-registrations") {
+  if (
+    routeForKey.name === "admin-annual-conference-registrations"
+    || routeForKey.name === 'admin-annual-conference-ticketing'
+    || routeForKey.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
+  ) {
     return routeForKey.path;
   }
 
@@ -448,22 +475,100 @@ function routeViewKey(routeForKey: typeof route) {
   return routeForKey.fullPath;
 }
 
-function linkClass(link: NavLink) {
-  if (isActive(link.href)) {
-    return link.accent
-      ? "border-dc-ink bg-dc-pink text-white shadow-[2px_2px_0_#111111]"
-      : "border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]";
-  }
+function closeMobileMenu(restoreFocus = false) {
+  mobileMenuOpen.value = false;
 
-  if (link.accent) {
-    return "border-dc-ink bg-dc-yellow text-dc-ink hover:bg-dc-yellow-glow";
-  }
-
-  return "border-transparent text-dc-gray hover:border-dc-border hover:bg-dc-paper-warm hover:text-dc-ink";
+  if (restoreFocus) mobileMenuToggle.value?.focus({ preventScroll: true });
 }
 
-function closeMobileMenu() {
-  mobileMenuOpen.value = false;
+function handleNavigationKeydown(event: KeyboardEvent) {
+  if (event.key !== "Escape" || !mobileMenuOpen.value) return;
+
+  event.preventDefault();
+  closeMobileMenu(true);
+}
+
+function handleNavigationPointerDown(event: PointerEvent) {
+  if (
+    mobileMenuOpen.value &&
+    event.target instanceof Node &&
+    !appHeader.value?.contains(event.target)
+  ) {
+    closeMobileMenu();
+  }
+}
+
+function handleNavigationFocusOut(event: FocusEvent) {
+  if (
+    event.relatedTarget instanceof Node &&
+    !appHeader.value?.contains(event.relatedTarget)
+  ) {
+    closeMobileMenu();
+  }
+}
+
+function measureNavigationFit() {
+  const header = appHeader.value?.querySelector<HTMLElement>(".app-header-inner");
+  const navigation = primaryNavigation.value;
+  const brand = appHeader.value?.querySelector<HTMLElement>(".app-brand-link");
+
+  if (!header || !navigation || !brand) {
+    navigationOverflows.value = false;
+
+    return;
+  }
+
+  const headerStyle = getComputedStyle(header);
+  const navigationStyle = getComputedStyle(navigation);
+  const links = [...navigation.children];
+  const linksWidth = links.reduce((total, link) => total + link.getBoundingClientRect().width, 0);
+  const navigationGap = Number.parseFloat(navigationStyle.columnGap) || 0;
+  const navigationWidth = linksWidth + Math.max(0, links.length - 1) * navigationGap;
+  const actionsWidth = headerActions.value?.getBoundingClientRect().width ?? 0;
+  const headerGap = Number.parseFloat(headerStyle.columnGap) || 0;
+  const horizontalPadding = Number.parseFloat(headerStyle.paddingLeft) + Number.parseFloat(headerStyle.paddingRight);
+  const navigationMargin = Number.parseFloat(navigationStyle.marginLeft) || 0;
+  const headerGaps = headerGap * (headerActions.value ? 2 : 1);
+  const availableWidth = header.clientWidth - horizontalPadding - brand.getBoundingClientRect().width - actionsWidth - headerGaps - navigationMargin;
+
+  navigationOverflows.value = navigationWidth > availableWidth + 1;
+}
+
+function scheduleNavigationMeasurement() {
+  window.cancelAnimationFrame(navigationMeasureFrame ?? 0);
+  navigationMeasureFrame = window.requestAnimationFrame(() => {
+    navigationMeasureFrame = undefined;
+    measureNavigationFit();
+  });
+}
+
+function observeNavigationFit() {
+  navigationResizeObserver?.disconnect();
+
+  for (const element of [appHeader.value, primaryNavigation.value, headerActions.value]) {
+    if (element) navigationResizeObserver?.observe(element);
+  }
+
+  scheduleNavigationMeasurement();
+}
+
+function focusVisibleNavigation() {
+  const target = navigationCollapsed.value
+    ? mobileMenuToggle.value
+    : primaryNavigation.value?.querySelector<HTMLElement>("a") ??
+      appHeader.value?.querySelector<HTMLElement>("a");
+
+  target?.focus({ preventScroll: true });
+}
+
+function syncNavigationViewport() {
+  const hadFocus = appHeader.value?.contains(document.activeElement);
+
+  navigationNarrowViewport.value = navigationMedia?.matches ?? false;
+  closeMobileMenu();
+  scheduleNavigationMeasurement();
+
+  if (hadFocus) void nextTick(focusVisibleNavigation);
 }
 
 function retryOrganizerAccess() {
@@ -667,7 +772,7 @@ function returnToOrganizerSignIn() {
 }
 
 function toggleMobileMenu() {
-  mobileMenuOpen.value = !mobileMenuOpen.value;
+  mobileMenuOpen.value = navigationCollapsed.value && !mobileMenuOpen.value;
 }
 
 function clearMainScrollResetTimer() {
@@ -891,11 +996,17 @@ onMounted(() => {
     adminEventTabsResizeObserver = new ResizeObserver(
       updateAdminEventTabsHeight,
     );
+    navigationResizeObserver = new ResizeObserver(scheduleNavigationMeasurement);
   }
 
   document.addEventListener("pointerdown", handleDocumentPointerDown, {
     capture: true,
   });
+  document.addEventListener("pointerdown", handleNavigationPointerDown);
+  document.addEventListener("keydown", handleNavigationKeydown);
+  navigationMedia?.addEventListener("change", syncNavigationViewport);
+  window.addEventListener("resize", scheduleNavigationMeasurement);
+  void document.fonts.ready.then(scheduleNavigationMeasurement);
   document.addEventListener("focusin", syncKeyboardDismissVisibility);
   document.addEventListener("focusout", syncKeyboardDismissVisibility);
   window.addEventListener("resize", syncKeyboardDismissVisibility);
@@ -922,6 +1033,17 @@ onMounted(() => {
   );
   syncPhoneViewport();
   void nextTick(syncAdminEventTabsObserver);
+  observeNavigationFit();
+});
+
+watch([appHeader, primaryNavigation, headerActions, navGroups], observeNavigationFit, { flush: "post" });
+
+watch(navigationCollapsed, () => {
+  const hadFocus = appHeader.value?.contains(document.activeElement);
+
+  closeMobileMenu();
+
+  if (hadFocus) void nextTick(focusVisibleNavigation);
 });
 
 watch(
@@ -995,9 +1117,15 @@ onUnmounted(() => {
   window.clearTimeout(keyboardFocusTimer);
   clearOrganizerSessionTimers();
   adminEventTabsResizeObserver?.disconnect();
+  navigationResizeObserver?.disconnect();
+  window.cancelAnimationFrame(navigationMeasureFrame ?? 0);
+  window.removeEventListener("resize", scheduleNavigationMeasurement);
   document.removeEventListener("pointerdown", handleDocumentPointerDown, {
     capture: true,
   });
+  document.removeEventListener("pointerdown", handleNavigationPointerDown);
+  document.removeEventListener("keydown", handleNavigationKeydown);
+  navigationMedia?.removeEventListener("change", syncNavigationViewport);
   document.removeEventListener("focusin", syncKeyboardDismissVisibility);
   document.removeEventListener("focusout", syncKeyboardDismissVisibility);
   window.removeEventListener("resize", syncKeyboardDismissVisibility);
@@ -1034,142 +1162,109 @@ onUnmounted(() => {
   >
     <header
       v-if="showAppHeader"
-      class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md"
+      ref="appHeader"
+      class="app-header"
+      :class="{ 'app-header--collapsed': navigationCollapsed }"
+      @focusout="handleNavigationFocusOut"
     >
-      <div
-        class="app-header-inner grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8"
-      >
+      <div class="app-header-inner">
         <RouterLink
           :to="brandHomeLink"
-          class="group flex min-h-11 items-center"
+          class="app-brand-link"
+          aria-label="DevCongress organizer home"
         >
-          <img
-            :src="logoSrc"
-            alt="DevCongress"
-            class="app-brand-logo h-8 w-auto max-w-[13rem] object-contain sm:h-9 sm:max-w-[15rem]"
-          />
+          <img :src="logoSrc" alt="DevCongress" class="app-brand-logo" />
         </RouterLink>
+
+        <nav
+          v-if="showPrimaryNavigation"
+          ref="primaryNavigation"
+          class="app-primary-nav"
+          aria-label="Primary"
+          :aria-hidden="navigationCollapsed"
+          :inert="navigationCollapsed"
+        >
+          <template v-for="(group, groupIndex) in navGroups" :key="groupIndex">
+            <RouterLink
+              v-for="link in group"
+              :key="link.href"
+              :to="link.href"
+              class="app-nav-link"
+              :aria-current="isActive(link.href) ? 'page' : undefined"
+            >
+              <span class="app-nav-link-label">{{ link.label }}</span>
+            </RouterLink>
+          </template>
+        </nav>
 
         <div
           v-if="showHeaderActions"
-          class="app-header-actions flex items-center justify-end gap-3 lg:order-3"
+          ref="headerActions"
+          class="app-header-actions"
+          :aria-hidden="navigationCollapsed"
+          :inert="navigationCollapsed"
         >
-          <OrganizerRoleBadge
-            v-if="currentOrganizerRole"
-            :role="currentOrganizerRole"
-            class="hidden sm:inline-flex"
-          />
-          <span class="hidden h-8 w-px rounded-full bg-dc-ink/30 sm:block" />
-          <button
-            v-if="showSignOut"
-            class="motion-press flex min-h-11 items-center rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
-            @click="logout"
-          >
+          <OrganizerRoleBadge v-if="currentOrganizerRole" :role="currentOrganizerRole" />
+          <button v-if="showSignOut" class="app-nav-button" type="button" @click="logout">
             Sign Out
           </button>
         </div>
 
         <button
-          v-if="showPrimaryNavigation"
-          class="app-mobile-menu-toggle motion-press hidden min-h-11 items-center justify-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-dc-ink shadow-[2px_2px_0_#111111]"
+          v-if="showPrimaryNavigation || showHeaderActions"
+          ref="mobileMenuToggle"
+          class="app-mobile-menu-toggle"
           type="button"
           :aria-expanded="mobileMenuOpen"
           aria-controls="mobile-menu-panel"
-          aria-label="Open navigation menu"
+          :aria-label="mobileMenuOpen ? 'Close menu' : 'Open menu'"
           @click="toggleMobileMenu"
         >
-          <span class="app-mobile-menu-icon" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
-          <span>Menu</span>
+          <span aria-hidden="true" />
+          <span aria-hidden="true" />
+          <span aria-hidden="true" />
         </button>
+      </div>
 
-        <nav
-          v-if="showPrimaryNavigation"
-          class="app-primary-nav col-span-2 flex min-w-0 items-center gap-2 overflow-x-auto font-mono text-xs font-semibold uppercase tracking-wide sm:gap-3 lg:order-2 lg:col-span-1"
-          aria-label="Primary"
+      <Transition name="mobile-menu">
+        <div
+          v-show="mobileMenuOpen"
+          id="mobile-menu-panel"
+          class="app-mobile-menu"
+          :aria-hidden="!mobileMenuOpen"
+          :inert="!mobileMenuOpen"
         >
-          <template v-for="(group, groupIndex) in navGroups" :key="groupIndex">
-            <RouterLink
-              v-for="link in group"
-              :key="link.href"
-              :to="link.href"
-              class="app-nav-link motion-press relative flex min-h-11 shrink-0 items-center rounded-md border-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-ink/25"
-              :class="[link.accent ? 'sm:px-3' : '', linkClass(link)]"
-              :aria-current="isActive(link.href) ? 'page' : undefined"
-            >
-              <span class="relative z-10">{{ link.label }}</span>
-            </RouterLink>
-          </template>
-        </nav>
-      </div>
+          <nav v-if="showPrimaryNavigation" class="app-mobile-menu-nav" aria-label="Mobile primary">
+            <template v-for="(group, groupIndex) in navGroups" :key="groupIndex">
+              <RouterLink
+                v-for="link in group"
+                :key="link.href"
+                :to="link.href"
+                class="app-mobile-menu-link"
+                :aria-current="isActive(link.href) ? 'page' : undefined"
+                @click="closeMobileMenu(true)"
+              >
+                <span class="app-nav-link-label">{{ link.label }}</span>
+                <span aria-hidden="true">↗</span>
+              </RouterLink>
+            </template>
+          </nav>
+          <div v-if="showHeaderActions" class="app-mobile-menu-actions">
+            <OrganizerRoleBadge v-if="currentOrganizerRole" :role="currentOrganizerRole" />
+            <button v-if="showSignOut" class="app-nav-button" type="button" @click="logout">
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </Transition>
     </header>
-
-    <Transition name="mobile-menu">
-      <div
-        v-if="mobileMenuOpen && showPrimaryNavigation"
-        id="mobile-menu-panel"
-        class="app-mobile-menu"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Navigation menu"
-        @keydown.esc="closeMobileMenu"
-      >
-        <div class="app-mobile-menu-bar">
-          <img :src="logoSrc" alt="DevCongress" class="app-mobile-menu-logo" />
-          <button
-            class="app-mobile-menu-close motion-press"
-            type="button"
-            aria-label="Close navigation menu"
-            @click="closeMobileMenu"
-          >
-            <span aria-hidden="true">x</span>
-          </button>
-        </div>
-
-        <div class="app-mobile-menu-actions">
-          <button
-            v-if="showSignOut"
-            class="app-mobile-menu-action"
-            type="button"
-            @click="logout"
-          >
-            Sign Out
-          </button>
-        </div>
-
-        <nav class="app-mobile-menu-nav" aria-label="Mobile primary">
-          <template v-for="(group, groupIndex) in navGroups" :key="groupIndex">
-            <RouterLink
-              v-for="link in group"
-              :key="link.href"
-              :to="link.href"
-              class="app-mobile-menu-link motion-press"
-              :class="{
-                'app-mobile-menu-link--active': isActive(link.href),
-                'app-mobile-menu-link--accent': link.accent,
-              }"
-              :aria-current="isActive(link.href) ? 'page' : undefined"
-              @click="closeMobileMenu"
-            >
-              <span>{{ link.label }}</span>
-            </RouterLink>
-          </template>
-        </nav>
-
-        <div class="app-mobile-menu-footer">
-          <p>DevCongress Organizer Console</p>
-        </div>
-      </div>
-    </Transition>
 
     <main
       class="app-main page-transition-host min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
       :class="{
         'app-main--with-event-tabs': showAdminEventTabs,
         'app-main--login': isLoginRoute || showOrganizerAccessSurface,
+        'app-main--with-breadcrumbs': showOrganizerBreadcrumbs,
       }"
       :style="appMainStyle"
     >
@@ -1179,16 +1274,12 @@ onUnmounted(() => {
         class="admin-event-tabs-shell bg-dc-cream text-dc-ink"
       >
         <div class="editorial-wrap event-tabs-wrap pb-0">
-          <RouterLink
-            v-if="adminReturnLink"
-            :to="adminReturnLink.href"
-            class="mb-3 inline-flex min-h-11 items-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
-          >
-            Back to {{ adminReturnLink.label }}
-          </RouterLink>
+          <OrganizerBreadcrumbs v-if="showOrganizerBreadcrumbs" :role="currentOrganizerRole" :phone="phoneViewport" embedded />
           <AdminEventTabs :event-id="adminEventId" />
         </div>
       </div>
+
+      <OrganizerBreadcrumbs v-if="showOrganizerBreadcrumbs && !showAdminEventTabs" :role="currentOrganizerRole" :phone="phoneViewport" />
 
       <div class="page-route-stack">
         <AdminLoginView
@@ -1265,3 +1356,19 @@ onUnmounted(() => {
     <AppToaster />
   </div>
 </template>
+
+<style scoped>
+.app-main--with-breadcrumbs {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main--with-breadcrumbs > .page-route-stack {
+  flex: 1 0 auto;
+  min-height: 0;
+}
+
+.app-main--with-breadcrumbs > .page-route-stack > :deep(.page-view) {
+  min-height: 0;
+}
+</style>

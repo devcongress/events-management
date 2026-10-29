@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import AppDropdown from '@/src/components/AppDropdown.vue';
 import { fetchJson } from '@/src/lib/api';
 import type { CommunityPurchase, CommunitySeat } from '@/lib/annual-conference-community-purchases';
 
@@ -8,6 +10,10 @@ const props = defineProps<{ year: string }>();
 const queryClient = useQueryClient();
 const offset = ref(0);
 const mode = ref<'live' | 'test'>('live');
+const paymentModeOptions: Array<{ value: 'live' | 'test'; label: string }> = [
+  { value: 'live', label: 'Live purchases' },
+  { value: 'test', label: 'Test purchases' },
+];
 const orderId = ref<string | null>(null);
 const seatId = ref<string | null>(null);
 const recipient = reactive({ name: '', email: '' });
@@ -34,6 +40,14 @@ const pool = useQuery({
 const purchase = computed(() => pool.data.value?.purchases.find((item) => item.order_id === orderId.value));
 const selected = computed(() => purchase.value?.seats.find((seat) => seat.allocation_id === seatId.value));
 const unavailable = computed(() => busy.value || pool.isFetching.value || pool.isError.value);
+
+function updatePaymentMode(value: string | number) {
+  if (busy.value) return;
+
+  const option = paymentModeOptions.find(item => item.value === value);
+
+  if (option) mode.value = option.value;
+}
 
 function resetAssignment() {
   seatId.value = null;
@@ -146,11 +160,23 @@ onBeforeUnmount(unlock);
       </div>
       <button type="button" class="editorial-action" :disabled="pool.isFetching.value || busy" @click="pool.refetch()">Refresh</button>
     </div>
-    <label class="community-mode">Payment mode
-      <select v-model="mode" class="app-form-control" :disabled="busy"><option value="live">Live purchases</option><option value="test">Test purchases</option></select>
-    </label>
+    <AppDropdown
+      class="community-mode"
+      label="Payment mode"
+      :model-value="mode"
+      :options="paymentModeOptions"
+      :disabled="busy"
+      teleport
+      @update:model-value="updatePaymentMode"
+    />
     <p v-if="year !== '2026'" role="status">Community tickets are available for DevCon26 only.</p>
-    <p v-else-if="pool.isPending.value" role="status">Loading community purchases…</p>
+    <BoneyardPageSkeleton
+      v-else-if="pool.isPending.value && !pool.data.value"
+      name="annual-conference-community-purchases"
+      label="community purchases"
+      layout="table"
+      :show-header="false"
+    />
     <div v-else-if="pool.isError.value" role="alert">
       <p>Unable to load community purchases.</p>
       <button type="button" class="editorial-action" @click="pool.refetch()">Try again</button>
@@ -222,8 +248,6 @@ onBeforeUnmount(unlock);
 
 <style scoped>
 .community-mode {
-  display: grid;
-  gap: .4rem;
   width: min(100%, 240px);
 }
 

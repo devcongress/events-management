@@ -1,73 +1,87 @@
-import { createApp, h } from "vue";
-import BoneyardPageSkeleton from "@/src/components/ui/BoneyardPageSkeleton.vue";
-import "@/src/styles.css";
-import "@/src/styles/forms.css";
+import { createApp, h } from 'vue';
+import { registerBones } from 'boneyard-js/vue';
+import '@fontsource-variable/bricolage-grotesque/standard.css';
+import '@fontsource-variable/source-sans-3/wght.css';
+import '@fontsource-variable/source-sans-3/wght-italic.css';
+import '@fontsource/ibm-plex-mono/latin-400.css';
+import '@fontsource/ibm-plex-mono/latin-500.css';
+import '@fontsource/ibm-plex-mono/latin-600.css';
+import '@fontsource/ibm-plex-mono/latin-700.css';
 
-export const BONEYARD_CAPTURE_SECTIONS = [
-  ["public-events-list", "community events", "cards", false],
-  ["public-dashboard", "community dashboard", "dashboard", false],
-  ["speaker-talk-intake", "talk details form", "form", true],
-  ["event-registration", "event registration", "form", true],
-  ["archive-event-detail", "archive event", "detail", true],
-  ["public-archive", "event archive", "cards", true],
-  ["call-for-proposals", "proposal form", "form", true],
-  ["public-feedback", "feedback form", "form", true],
-  ["public-event-detail", "community event", "detail", true],
-  ["system-design-participant", "learning room", "learning-room", false],
-  ["admin-feedback-overview", "feedback overview", "workspace", true],
-  ["admin-talks", "talk management", "table", true],
-  ["admin-speakers", "speaker management", "table", true],
-  ["admin-organizers", "people and access", "table", true],
-  ["admin-event-detail", "event overview", "detail", true],
-  ["admin-feedback", "feedback campaign", "workspace", true],
-  ["admin-attendance", "attendance readout", "table", true],
-  ["admin-audit-log", "audit log", "table", true],
-  ["admin-attendance-overview", "attendance overview", "workspace", true],
-  ["admin-events-list", "event management", "table", true],
-  ["admin-event-submissions", "event submissions", "submissions", false],
-  ["admin-present-forms-board-1", "present forms board", "form-board", false, 1],
-  ["admin-present-forms-board-2", "present forms board", "form-board", false, 2],
-  ["admin-present-forms-board-3", "present forms board", "form-board", false, 3],
-  ["admin-system-design", "System Design workspace", "workspace", false],
-  ["event-amendment", "event amendment", "form", false],
-  ["admin-community-event-detail", "community event", "detail", false],
-  ["volunteer-follow-up-campaign", "volunteer follow-up campaign", "volunteer-follow-up", false],
-  ["admin-registration-workspace", "registration workspace", "registration", false],
-  ["annual-conference-finance", "conference finance", "workspace", true],
-  ["annual-conference-speakers", "conference speakers", "table", true],
-  ["annual-conference-overview", "annual conference", "workspace", true],
-  ["annual-conference-registrations", "conference registrations", "workspace", true],
-  ["annual-conference-volunteers", "conference volunteers", "table", true],
-  ["annual-conference-work-plan", "conference work plan", "workspace", true],
-  ["annual-conference-ticketing", "conference ticketing", "workspace", true],
-  ["organizer-mobile-next-actions", "your work", "mobile-actions", false],
-  ["mobile-events-list", "organizer events", "mobile-events", false],
-  ["mobile-event-detail", "event details", "mobile-event", false],
-  ["mobile-conference-workspace", "conference workspace", "mobile-conference", false],
-  ["mobile-check-in-guests", "guest list", "mobile-check-in", false],
-  ["mobile-blasts-audience", "event audience", "mobile-blasts", false],
-] as const;
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
+import PublicFormRouteFrame from '@/src/components/PublicFormRouteFrame.vue';
+import { skeletonSections } from './sections';
+import '@/src/styles.css';
+import '@/src/styles/forms.css';
 
-const requestedSections = new Set(new URLSearchParams(window.location.search).getAll("section"));
-const captureSections = requestedSections.size
-  ? BONEYARD_CAPTURE_SECTIONS.filter(([name]) => requestedSections.has(name))
-  : BONEYARD_CAPTURE_SECTIONS;
+const requestedSections = new URLSearchParams(window.location.search).getAll('section');
+
+if (requestedSections.length !== 1) {
+  throw new Error('The isolated capture page requires exactly one section ID.');
+}
+
+const section = skeletonSections.find(({ id }) => id === requestedSections[0]);
+
+if (!section) {
+  throw new Error(`Unknown Boneyard section: ${requestedSections[0]}`);
+}
+
+// Read-only tooling can preview validated candidates before live promotion.
+const preview = (window as Window & { __BONEYARD_PREVIEW_BONES?: Parameters<typeof registerBones>[0] }).__BONEYARD_PREVIEW_BONES;
+
+if (preview?.[section.id]) {
+  registerBones({ [section.id]: preview[section.id] });
+}
+
+const { capture } = section;
+const viewportWidth = window.innerWidth;
+const padding = Math.min(capture.padding ?? 0, viewportWidth < 640 ? 16 : viewportWidth < 1024 ? 24 : 32);
+const innerPadding = capture.innerPadding ?? 0;
+const pageWidth = Math.min(viewportWidth, capture.maxWidth);
+const fraction = viewportWidth >= (capture.collapseAt ?? 1024) ? (capture.fraction ?? 1) : 1;
+const contentWidth = Math.max(1, (pageWidth - padding * 2 - (fraction < 1 ? (capture.gap ?? 24) : 0)) * fraction - innerPadding * 2);
+const alignRight = capture.context === 'drawer';
+const centered = capture.align === 'center';
 
 createApp({
   render() {
-    return h(
-      "main",
-      { class: "boneyard-capture-fixtures" },
-      captureSections.map(([name, label, layout, showHeader, fixtureCount]) =>
+    const fixture = h('main', {
+      'data-capture-context': capture.context ?? 'page',
+      style: {
+        boxSizing: 'border-box',
+        width: '100%',
+        minHeight: '100dvh',
+        height: centered ? '100dvh' : undefined,
+        display: centered ? 'flex' : undefined,
+        alignItems: centered ? 'center' : undefined,
+        justifyContent: centered ? 'center' : undefined,
+        paddingTop: `${capture.topOffset ?? 0}px`,
+        paddingInline: `${padding}px`,
+        maxWidth: `${pageWidth}px`,
+        marginInline: alignRight ? 'auto 0' : 'auto',
+      },
+    }, [
+      h('div', {
+        style: {
+          width: `${contentWidth}px`,
+          boxSizing: 'content-box',
+          maxWidth: `calc(100% - ${innerPadding * 2}px)`,
+          paddingInline: `${innerPadding}px`,
+          marginLeft: alignRight ? 'auto' : undefined,
+        },
+      }, [
         h(BoneyardPageSkeleton, {
-          key: name,
-          label,
-          layout,
-          name,
-          showHeader,
-          fixtureCount,
+          label: section.label,
+          name: section.id,
+          showHeader: capture.showHeader,
         }),
-      ),
-    );
+      ]),
+    ]);
+
+    if (capture.publicFormFrame) {
+      return h(PublicFormRouteFrame, { centerContent: capture.publicFormFrame === 'center' }, { default: () => fixture });
+    }
+
+    return fixture;
   },
-}).mount("#app");
+}).mount('#app');

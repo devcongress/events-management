@@ -212,7 +212,9 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <BoneyardPageSkeleton v-else-if="joining || !state" name="system-design-participant" label="learning room" layout="learning-room" :show-header="false" />
+    <section v-else-if="joining || !state" class="flex h-svh items-center justify-center overflow-hidden p-6">
+      <BoneyardPageSkeleton class="max-w-md" name="system-design-participant" label="learning room" layout="learning-room" :show-header="false" />
+    </section>
 
     <section v-else-if="state.session.status === 'waiting' || state.session.status === 'draft'" class="flex min-h-screen items-center justify-center p-6">
       <div class="w-full max-w-md text-center">

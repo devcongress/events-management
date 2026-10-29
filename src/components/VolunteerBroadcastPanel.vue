@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 
@@ -301,7 +302,13 @@ onBeforeUnmount(() => {
       <span class="volunteer-blasts__count">{{ selectedCount }} selected of {{ accepted.length }}</span>
     </header>
 
-    <p v-if="query.isPending.value" class="volunteer-blasts__empty" role="status">Loading accepted volunteers and Broadcast activity…</p>
+    <BoneyardPageSkeleton
+      v-if="query.isPending.value && !query.data.value"
+      name="volunteer-broadcast"
+      label="volunteer updates"
+      layout="workspace"
+      :show-header="false"
+    />
     <p v-else-if="query.isError.value && !query.data.value" class="volunteer-blasts__error" role="alert">Unable to load volunteer Broadcasts. Refresh and try again.</p>
     <div v-else-if="accepted.length" class="volunteer-blasts__composer">
       <div class="volunteer-blasts__fields">

@@ -116,7 +116,7 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
   ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
   ...(registrationTarget.value ? [{ href: registrationTarget.value, label: 'Registration', icon: 'tickets' as const }] : []),
   ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const, disabled: true }] : []),
-  ...(hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage'])
+  ...(!isVolunteer.value && hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage'])
     ? [{ href: annualConferencePath('ticketing', year.value), label: 'Ticketing', icon: 'tickets' as const }]
     : []),
 ]);
@@ -211,6 +211,7 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
             :model-value="year"
             :options="editionOptions"
             density="compact"
+            trigger-class="min-h-11"
             menu-class="min-w-48"
             @update:model-value="changeEdition"
           />

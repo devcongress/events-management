@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
@@ -489,7 +490,13 @@ onBeforeUnmount(() => {
           <p>{{ rosterError }}</p>
           <button type="button" class="check-in-manual-submit" :disabled="rosterLoading" @click="loadRoster">Try again</button>
         </div>
-        <p v-if="rosterLoading && !rosterLoaded && !canManageRegistration" class="check-in-empty" role="status">Loading the complete attendee list…</p>
+        <BoneyardPageSkeleton
+          v-if="rosterLoading && !rosterLoaded && !canManageRegistration"
+          name="annual-conference-check-in-roster"
+          label="conference attendee list"
+          layout="list"
+          :show-header="false"
+        />
         <p v-else-if="rosterError && !canManageRegistration" class="check-in-empty">Admissions are unavailable.</p>
         <p v-else-if="emailLookupError" class="check-in-empty" role="status">{{ emailLookupError }}</p>
         <p v-else-if="!filteredAttendees.length" class="check-in-empty" role="status">

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import QRCode from 'qrcode';
 import AppDropdown from '@/src/components/AppDropdown.vue';
@@ -131,7 +132,7 @@ onBeforeUnmount(() => {
           </div>
           <p class="selection-help">Choose what your audience can scan. Changing the month restores the defaults.</p>
           <a :href="`${adminPath('present-forms/display')}?demo=1`" target="_blank" rel="noopener noreferrer" class="mb-4 inline-flex font-mono text-xs font-semibold uppercase text-dc-pink underline underline-offset-4">Preview three sample codes ↗</a>
-          <p v-if="loading" role="status">Loading available forms…</p>
+          <BoneyardPageSkeleton v-if="loading && !forms.length" name="admin-present-forms-choices" label="admin present forms choices" :show-header="false" />
           <fieldset v-else>
             <legend class="sr-only">Forms to present</legend>
             <label v-for="form in available" :key="form.key" class="form-choice" :class="{ 'form-choice--selected': selected.includes(form.key) }">

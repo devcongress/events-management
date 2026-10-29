@@ -621,7 +621,7 @@ onMounted(async () => {
 .cfp-brace {
   position: absolute;
   color: rgb(17 17 17 / 7%);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: var(--font-sans), sans-serif;
   font-size: clamp(180px, 23vw, 360px);
   font-weight: 400;
   line-height: 1;

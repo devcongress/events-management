@@ -1294,7 +1294,7 @@ onUnmounted(() => {
 
       <div v-if="error" class="mb-4 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ error }}</div>
 
-      <BoneyardPageSkeleton v-if="loading" name="admin-talks" label="talk management" layout="table" />
+      <BoneyardPageSkeleton v-if="loading" :name="activeTalkSection === 'cfp' ? 'admin-talks' : `admin-talks-${activeTalkSection}`" label="talk management" layout="table" />
       <template v-else>
         <section v-if="activeTalkSection === 'cfp'" class="cfp-control-panel mb-8">
           <div class="cfp-control-visual" aria-hidden="true">

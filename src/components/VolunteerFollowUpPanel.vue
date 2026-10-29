@@ -819,7 +819,7 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <BoneyardPageSkeleton v-if="query.isPending.value" name="volunteer-follow-up-campaign" label="volunteer follow-up campaign" layout="volunteer-follow-up" :show-header="false" />
+    <BoneyardPageSkeleton v-if="query.isPending.value && !query.data.value" name="volunteer-follow-up-campaign" label="volunteer follow-up campaign" layout="volunteer-follow-up" :show-header="false" />
     <p
       v-else-if="query.isError.value && !query.data.value"
       class="follow-up-error"
@@ -1709,7 +1709,7 @@ onUnmounted(() => {
 .follow-up-eyebrow,
 .follow-up-kicker {
   color: #bb145e;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-sans), sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1724,7 +1724,7 @@ onUnmounted(() => {
   border: 1px solid #a9a39a;
   border-radius: 6px;
   color: #555;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-sans), sans-serif;
   font-size: 0.66rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -2018,7 +2018,7 @@ onUnmounted(() => {
 .follow-up-range {
   margin: 0;
   color: #777;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-sans), sans-serif;
   font-size: 0.67rem;
   white-space: nowrap;
 }
@@ -2161,7 +2161,7 @@ onUnmounted(() => {
 }
 .follow-up-pagination span {
   color: #666;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-sans), sans-serif;
   font-size: 0.68rem;
 }
 .follow-up-pagination button {
@@ -2262,7 +2262,7 @@ onUnmounted(() => {
   border: 1px solid #d0cbc1;
   border-radius: 4px;
   color: #5f5b54;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-sans), sans-serif;
   font-size: 0.62rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -2447,7 +2447,7 @@ onUnmounted(() => {
 }
 .follow-up-health-trigger small {
   color: #777;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-sans), sans-serif;
   font-size: 0.61rem;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -2541,7 +2541,7 @@ onUnmounted(() => {
   border: 1px solid #d2cec5;
   border-radius: 4px;
   color: #625e57;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-sans), sans-serif;
   font-size: 0.61rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -2735,7 +2735,7 @@ onUnmounted(() => {
   border-radius: 6px;
   background: #fff;
   color: #222;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-sans), sans-serif;
   font-size: 0.75rem;
   line-height: 1.6;
   white-space: pre-wrap;

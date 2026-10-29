@@ -592,7 +592,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <BoneyardPageSkeleton v-if="loading" name="admin-feedback" label="feedback campaign" layout="workspace" />
+      <BoneyardPageSkeleton v-if="loading && !event" :name="responsesMode ? 'admin-feedback-responses' : 'admin-feedback'" label="feedback campaign" layout="workspace" />
 
       <template v-else>
         <header class="editorial-header flex flex-col gap-5 md:flex-row md:items-end md:justify-between">

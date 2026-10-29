@@ -6,6 +6,25 @@ import { describe, expect, it } from 'vitest';
 type TemplateChildNode = NonNullable<NonNullable<ReturnType<typeof parse>['descriptor']['template']>['ast']>['children'][number];
 
 describe('shared form control coverage', () => {
+  it('uses the shared dropdown component for every active Vue selection control', () => {
+    const nativeSelects: string[] = [];
+
+    for (const file of fs.readdirSync('src', { recursive: true }).filter(name => String(name).endsWith('.vue'))) {
+      const filename = String(file);
+      const ast = parse(fs.readFileSync(path.join('src', filename), 'utf8')).descriptor.template?.ast;
+
+      function visit(node: TemplateChildNode): void {
+        if (node.type !== 1) return;
+        if (node.tag.toLowerCase() === 'select') nativeSelects.push(`${filename}:${node.loc.start.line}`);
+        node.children.forEach(visit);
+      }
+
+      ast?.children.forEach(visit);
+    }
+
+    expect(nativeSelects).toEqual([]);
+  });
+
   it('gives standard native fields a shared style while preserving specialized controls', () => {
     const uncovered: string[] = [];
 

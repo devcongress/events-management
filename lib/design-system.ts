@@ -40,7 +40,7 @@ export const designSystem = {
   fonts: {
     sans: 'var(--font-sans)',
     mono: 'var(--font-mono)',
-    display: 'var(--font-sans)',
+    display: 'var(--font-display)',
   },
   fontWeights: {
     body: 400,

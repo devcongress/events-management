@@ -293,7 +293,7 @@ async function confirmProposalDecision() {
         </RouterLink>
       </div>
 
-      <BoneyardPageSkeleton v-if="eventQuery.isPending.value" name="mobile-event-detail" label="event details" layout="mobile-event" :show-header="false" />
+      <BoneyardPageSkeleton v-if="eventQuery.isPending.value" :name="activeSection === 'overview' ? 'mobile-event-detail' : `mobile-event-detail-${activeSection}`" label="event details" layout="mobile-event" :show-header="false" />
 
       <section v-else-if="eventQuery.isError.value || !event" class="mobile-event-error">
         <span>Event unavailable</span>
@@ -379,7 +379,7 @@ async function confirmProposalDecision() {
                   <RouterLink v-if="managedInternally" :to="organizerPhoneCheckInPath(event.id)">Check-in mode</RouterLink>
                 </header>
 
-                <p v-if="registrationsQuery.isPending.value" class="mobile-event-state" role="status">Loading registered guests…</p>
+                <BoneyardPageSkeleton v-if="registrationsQuery.isPending.value" name="mobile-event-guests" label="mobile event guests" :show-header="false" />
                 <div v-else-if="registrationsQuery.isError.value" class="mobile-event-state mobile-event-state--error">
                   <p>The guest list could not be loaded.</p>
                   <button type="button" @click="registrationsQuery.refetch()">Try again</button>
@@ -421,7 +421,7 @@ async function confirmProposalDecision() {
                   <h2>Presentation proposals</h2>
                 </header>
 
-                <p v-if="submissionsQuery.isPending.value" class="mobile-event-state" role="status">Loading submissions…</p>
+                <BoneyardPageSkeleton v-if="submissionsQuery.isPending.value" name="mobile-event-submissions" label="mobile event submissions" :show-header="false" />
                 <div v-else-if="submissionsQuery.isError.value" class="mobile-event-state mobile-event-state--error">
                   <p>Speaker and demo submissions could not be loaded.</p>
                   <button type="button" @click="submissionsQuery.refetch()">Try again</button>

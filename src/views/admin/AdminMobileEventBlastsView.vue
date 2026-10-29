@@ -435,7 +435,7 @@ onBeforeRouteLeave(() => {
 
         <section class="mobile-blasts-history">
           <header><span>Delivery history</span><h2>Recent blasts</h2></header>
-          <p v-if="blastsQuery.isPending.value" class="mobile-blasts-history-state" role="status">Loading blast history…</p>
+          <BoneyardPageSkeleton v-if="blastsQuery.isPending.value" name="mobile-blast-history" label="mobile blast history" :show-header="false" />
           <div v-else-if="blastsQuery.isError.value" class="mobile-blasts-history-state mobile-blasts-history-state--error">
             <p>Blast history could not load.</p>
             <button type="button" @click="blastsQuery.refetch()">Try again</button>

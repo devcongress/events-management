@@ -44,7 +44,8 @@ const dropdownId = `app-dropdown-${useId()}`;
 let placementFrame: number | null = null;
 
 const estimatedMenuHeight = computed(() => {
-  const optionHeight = 42;
+  // Reserve at least the touch target height before the menu is measured.
+  const optionHeight = 44;
   const menuPadding = 12;
 
   return Math.min(288, props.options.length * optionHeight + menuPadding);
@@ -259,7 +260,7 @@ watch(open, async (isOpen) => {
     <span v-if="label" :id="`${dropdownId}-label`" class="editorial-label">{{ label }}</span>
     <button
       type="button"
-      class="motion-press flex w-full items-center justify-between gap-3 rounded-md border bg-dc-paper text-left font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
+      class="app-dropdown-trigger motion-press flex w-full items-center justify-between gap-3 rounded-md border bg-dc-paper text-left font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
       :class="[
         'app-form-control',
         triggerClasses,
@@ -318,7 +319,7 @@ watch(open, async (isOpen) => {
               v-for="option in options"
               :key="`${option.value}`"
               type="button"
-              class="motion-colors flex w-full items-center gap-2.5 rounded text-left disabled:cursor-not-allowed disabled:opacity-45"
+              class="app-dropdown-option motion-colors flex w-full items-center gap-2.5 rounded text-left disabled:cursor-not-allowed disabled:opacity-45"
               :class="[
                 optionClasses,
                 modelValue === option.value ? 'bg-dc-yellow text-dc-ink' : 'text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink',
@@ -343,3 +344,12 @@ watch(open, async (isOpen) => {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+@media (pointer: coarse) {
+  .app-dropdown-trigger,
+  .app-dropdown-option {
+    min-height: 44px;
+  }
+}
+</style>

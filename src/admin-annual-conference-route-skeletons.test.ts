@@ -43,10 +43,16 @@ describe("Annual Conference route skeletons", () => {
 
   it("uses the skeleton only while each primary route query has no initial result", () => {
     expect(overviewSource).toContain(
-      'v-else-if="workPlanQuery.isLoading.value" name="annual-conference-overview"',
+      'v-else-if="workPlanQuery.isLoading.value"',
+    );
+    expect(overviewSource).toContain(
+      ':name="loadingAssignedAccess ? \'annual-conference-overview-assigned\' : \'annual-conference-overview\'"',
     );
     expect(workPlanSource).toContain(
-      'v-if="workPlanQuery.isLoading.value" name="annual-conference-work-plan"',
+      'v-if="workPlanQuery.isLoading.value"',
+    );
+    expect(workPlanSource).toContain(
+      ':name="usesKanbanBoard ? \'annual-conference-work-plan-board\' : \'annual-conference-work-plan\'"',
     );
     expect(volunteersSource).toMatch(
       /const volunteerRouteLoading = computed\(\s*\(\)\s*=>\s*workPlanQuery\.isLoading\.value \|\| volunteerDirectoryLoading\.value\s*,?\s*\);/u,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { useQuery } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import {
@@ -68,10 +69,7 @@ function selectPreview(previewId: string) {
       </div>
     </header>
 
-    <section v-if="previewQuery.isPending.value" class="email-preview-state" aria-live="polite">
-      <div class="email-preview-state__pulse" aria-hidden="true" />
-      <p>Rendering the live email catalog…</p>
-    </section>
+    <BoneyardPageSkeleton v-if="previewQuery.isPending.value" name="admin-email-previews" label="admin email previews" :show-header="false" />
 
     <section v-else-if="previewQuery.isError.value" class="email-preview-state email-preview-state--error" role="alert">
       <div>

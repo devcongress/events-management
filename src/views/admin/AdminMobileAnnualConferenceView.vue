@@ -12,6 +12,7 @@ import VolunteerWorkspaceTabs from "@/src/components/VolunteerWorkspaceTabs.vue"
 import AppCopyButton from "@/src/components/ui/AppCopyButton.vue";
 import AppDatePicker from "@/src/components/ui/AppDatePicker.vue";
 import BoneyardPageSkeleton from "@/src/components/ui/BoneyardPageSkeleton.vue";
+import OrganizerBreadcrumbs from '@/src/components/OrganizerBreadcrumbs.vue';
 import { copyTextToClipboard } from "@/src/lib/clipboard";
 import { adminPath } from "@/src/admin-routes";
 import { useAnnualConferenceWorkspace } from "@/src/composables/useAnnualConferenceWorkspace";
@@ -166,6 +167,19 @@ const editionsQuery = useQuery({
 });
 const capabilities = computed(() => permissions.value?.capabilities ?? []);
 const registrationTarget = computed(() => annualConferenceRegistrationTarget(capabilities.value, year.value));
+const canManageTicketing = computed(() => !isVolunteer.value && hasAnnualConferenceCapability(capabilities.value, 'ticketing.manage'));
+const mobileLoadingSection = computed(() => {
+  if (activeTab.value === "volunteers") return "mobile-conference-workspace-volunteers";
+  if (activeTab.value === "tasks") {
+    return isVolunteer.value
+      ? "mobile-conference-workspace-my-tasks"
+      : "mobile-conference-workspace-tasks";
+  }
+
+  return isVolunteer.value
+    ? "mobile-conference-workspace-assigned"
+    : "mobile-conference-workspace";
+});
 const canViewSpeakers = computed(() => hasAnyAnnualConferenceCapability(
   capabilities.value,
   ["speakers.view", "speakers.manage"],
@@ -962,7 +976,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
       </RouterLink>
       <div class="conference-mobile__title">
         <span>Annual Conference</span>
-        <strong>{{ edition?.label ?? `December ${year}` }}</strong>
+        <OrganizerBreadcrumbs :role="sessionQuery.data.value?.user?.role ?? null" phone embedded />
       </div>
       <span class="conference-mobile__role">{{
         isVolunteer ? "Volunteer" : "Organizer"
@@ -974,6 +988,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
         :model-value="year"
         :options="editionOptions"
         density="compact"
+        trigger-class="min-h-11"
         menu-class="min-w-48"
         @update:model-value="changeEdition"
       />
@@ -989,7 +1004,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
     </div>
 
     <main class="conference-mobile__content">
-      <BoneyardPageSkeleton v-if="workPlanQuery.isPending.value" name="mobile-conference-workspace" label="conference workspace" layout="mobile-conference" :show-header="false" />
+      <BoneyardPageSkeleton v-if="workPlanQuery.isPending.value" :name="mobileLoadingSection" label="conference workspace" layout="mobile-conference" :show-header="false" />
 
       <section
         v-else-if="workPlanQuery.isError.value"
@@ -1012,7 +1027,10 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
           key="overview"
           class="conference-view"
         >
-          <RouterLink v-if="registrationTarget" :to="registrationTarget" class="primary-button">Open Registration →</RouterLink>
+          <div v-if="registrationTarget || canManageTicketing" class="conference-workspace-links">
+            <RouterLink v-if="registrationTarget" :to="registrationTarget" class="primary-button">Open Registration →</RouterLink>
+            <RouterLink v-if="canManageTicketing" :to="annualConferencePath('ticketing', year)" class="secondary-button">Ticketing →</RouterLink>
+          </div>
           <header v-if="assignedAccess" class="volunteer-intro">
             <span>Your conference work</span>
             <div
@@ -1577,12 +1595,13 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
                     </h2>
                   </div>
                 </header>
-                <p
-                  v-if="volunteerTeamQuery.isPending.value"
-                  class="empty-state empty-state--plain"
-                >
-                  Loading volunteer team…
-                </p>
+                <BoneyardPageSkeleton
+                  v-if="volunteerTeamQuery.isPending.value && !volunteerTeamQuery.data.value"
+                  name="mobile-conference-volunteer-team"
+                  label="volunteer team"
+                  layout="list"
+                  :show-header="false"
+                />
                 <p
                   v-else-if="volunteerTeamQuery.isError.value"
                   class="empty-state"
@@ -1637,12 +1656,13 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
                     </h2>
                   </div>
                 </header>
-                <p
-                  v-if="volunteerQuery.isPending.value"
-                  class="empty-state empty-state--plain"
-                >
-                  Loading applications…
-                </p>
+                <BoneyardPageSkeleton
+                  v-if="volunteerQuery.isPending.value && !volunteerQuery.data.value"
+                  name="mobile-conference-volunteer-applications"
+                  label="volunteer applications"
+                  layout="list"
+                  :show-header="false"
+                />
                 <p v-else-if="volunteerQuery.isError.value" class="empty-state">
                   Unable to load applications.
                 </p>
@@ -1843,6 +1863,12 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
 </template>
 
 <style scoped>
+.conference-workspace-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .conference-mobile {
   --conference-bg: #f5f2e8;
   --conference-surface: #ffffff;

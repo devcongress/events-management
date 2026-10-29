@@ -261,7 +261,7 @@ function formatDeadline(value: string | null): string {
 <template>
   <div class="min-h-full bg-dc-cream text-dc-ink">
     <div v-if="loading" class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-      <BoneyardPageSkeleton name="speaker-talk-intake" label="talk details form" layout="form" />
+      <BoneyardPageSkeleton :name="isConferenceIntake ? 'speaker-talk-intake-conference' : 'speaker-talk-intake'" label="talk details form" layout="form" />
     </div>
 
     <div v-else-if="unavailableMessage" class="flex min-h-full items-center justify-center p-4">

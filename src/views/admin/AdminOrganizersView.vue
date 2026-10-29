@@ -746,7 +746,7 @@ onUnmounted(() => {
         {{ pageError }}
       </div>
 
-      <BoneyardPageSkeleton v-if="loading" name="admin-organizers" label="people and access" layout="table" />
+      <BoneyardPageSkeleton v-if="loading" :name="currentUserRole === 'owner' ? 'admin-organizers-owner' : 'admin-organizers'" label="people and access" layout="table" />
 
       <div v-else class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <section v-if="currentUserRole === 'owner'" class="min-w-0 overflow-hidden rounded-lg border border-dc-border bg-dc-paper xl:col-span-2" aria-labelledby="access-requests-title">
@@ -761,7 +761,7 @@ onUnmounted(() => {
               <input v-model="accessRequestSearch" type="search" class="editorial-input !min-h-11 !rounded-md !px-3 !py-2 !text-sm" placeholder="Search name, email or reason">
             </label>
           </div>
-          <p v-if="accessRequestsQuery.isPending.value" class="p-5 text-sm text-dc-gray" role="status">Loading requests…</p>
+          <BoneyardPageSkeleton v-if="accessRequestsQuery.isPending.value" name="admin-access-requests" label="admin access requests" :show-header="false" />
           <div v-else-if="accessRequestsQuery.isError.value" class="p-5" role="alert">
             <p class="text-sm text-red-700">Unable to load access requests.</p>
             <button type="button" class="mt-2 min-h-11 text-sm font-semibold text-dc-pink" @click="accessRequestsQuery.refetch()">Try again</button>
@@ -1040,7 +1040,7 @@ onUnmounted(() => {
           </div>
 
           <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-            <div v-if="accessQuery.isPending.value" class="text-sm text-dc-gray" aria-live="polite">Loading responsibilities…</div>
+            <BoneyardPageSkeleton v-if="accessQuery.isPending.value" name="admin-conference-responsibilities" label="admin conference responsibilities" :show-header="false" />
             <div v-else-if="accessQuery.isError.value" class="rounded-md border border-red-700 bg-red-50 p-4 text-sm text-red-800" role="alert">
               Unable to load conference responsibilities.
             </div>

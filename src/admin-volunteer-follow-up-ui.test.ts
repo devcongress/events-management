@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { conferenceSections } from "./boneyard/sections/conference";
 
 const panelSource = readFileSync(
   new URL("./components/VolunteerFollowUpPanel.vue", import.meta.url),
@@ -25,10 +26,8 @@ const followUpPanelSource = readFileSync(
   new URL("./components/VolunteerFollowUpPanel.vue", import.meta.url),
   "utf8",
 );
-const followUpFixtureSource = readFileSync(
-  new URL("./components/ui/BoneyardPageSkeletonFixture.vue", import.meta.url),
-  "utf8",
-);
+const followUpSection = conferenceSections.find(section => section.id === "volunteer-follow-up-campaign");
+const followUpFixtureBlocks = JSON.stringify(followUpSection?.blocks);
 const reviewsPanelSource = readFileSync(
   new URL("./components/VolunteerReviewsPanel.vue", import.meta.url),
   "utf8",
@@ -524,7 +523,7 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(followUpPanelSource).toContain(
       ".follow-up-owner-setup-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));",
     );
-    expect(followUpFixtureSource).toContain("layout === 'volunteer-follow-up'");
+    expect(followUpSection?.sourcePaths).toContain("src/components/VolunteerFollowUpPanel.vue");
   });
 
   it("groups the recipient filter beside search without a duplicate people count", () => {
@@ -548,7 +547,7 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(toolbar).toContain('aria-label="Filter follow-up recipients"');
     expect(toolbar).toContain('class="follow-up-search"');
     expect(toolbar).toContain('class="follow-up-range"');
-    expect(followUpFixtureSource).toContain('class="boneyard-page-skeleton__fixture-follow-up-inbox"');
+    expect(followUpFixtureBlocks).not.toContain('"title":"Applicant inbox"');
     expect(followUpPanelSource).toContain("@container (max-width: 43rem)");
     expect(followUpPanelSource).toContain("@container (max-width: 27rem)");
   });
@@ -628,9 +627,12 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(followUpPanelSource).toContain(':aria-busy="query.isPending.value"');
     expect(followUpPanelSource).toContain('name="volunteer-follow-up-campaign"');
     expect(followUpPanelSource).toContain('layout="volunteer-follow-up"');
-    expect(followUpFixtureSource).toContain('class="boneyard-page-skeleton__fixture-follow-up-progress"');
-    expect(followUpFixtureSource).toContain('class="boneyard-page-skeleton__fixture-follow-up-setup"');
-    expect(followUpFixtureSource).toContain('class="boneyard-page-skeleton__fixture-follow-up-inbox"');
+    expect(followUpSection?.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "tabs", labels: ["Volunteer updates", "Outcome emails", "Invitations", "Settings"] }),
+      expect.objectContaining({ kind: "split", ratio: "equal" }),
+    ]));
+    expect(followUpFixtureBlocks).toContain('"title":"Volunteer updates"');
+    expect(followUpFixtureBlocks).toContain('"title":"Broadcast activity"');
     expect(followUpPanelSource).toContain(
       "query.isError.value && !query.data.value",
     );
