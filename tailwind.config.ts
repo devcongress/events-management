@@ -18,7 +18,9 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-mono)', 'Courier New', 'monospace'],
+        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'system-ui', 'sans-serif'],
+        code: ['var(--font-code)', 'Courier New', 'monospace'],
       },
       fontWeight: {
         normal: 'var(--font-weight-body)',

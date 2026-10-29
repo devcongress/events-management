@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import '@fontsource/ibm-plex-mono/latin-600-italic.css';
-
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import QRCode from 'qrcode';

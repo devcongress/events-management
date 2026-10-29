@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-29 — Patch the development request adapter
+
+- Pin the Vite development adapter's `@hono/node-server` dependency to 2.1.3 to address GHSA-rmxm-3fg6-px4f. Preserve the existing Hono/Vite versions and Bun production entry, then refresh loading-capture fingerprints against the updated lockfile.
+- Keep full-history secret scanning enabled while excluding only SHA-256 skeleton inventory rows in the exact manifest path. Independently verify completed artifact hashes and all matching raw rows before scanning, including duplicate or unused rows that parsed JSON could hide. Add integrity regressions and verify credential-like values outside the exception remain detected.
+
+## 2026-10-28 — Faithful app loading and website typography/navigation
+
+- Group Ticketing into Overview, Orders, Delivery, Sponsors, and Testing using the shared section row also used by Registration. Preserve filters and drafts across URL-backed section changes and browser Back; close hidden drawers and menus.
+- Add cached-label organizer breadcrumbs, with same-year conference parents and compact phone trails. Enable responsive Ticketing on phones, add its permission-gated mobile entry, use Orders cards, and improve touch targets, safe-area drawer spacing, and section overflow cues.
+- Record shared visual and responsive rules in `DESIGN.md` and link them from agent guidance and the codebase index.
+- Keep below-fold Orders loading visible through a capped inline preview; add a held-response phone regression that scrolls to and verifies actual skeleton bones instead of accepting an empty loading region.
+- Preserve internal list-card fields during capture instead of treating entire list items as atomic blocks. Verify promoted files through a fresh capture-server module graph and require the rendered leaf-bone count to match the saved artifact, catching stale JSON registrations with unchanged outer dimensions.
+- Replace broad generic loading layouts with a section catalogue for public forms, organizer operations, annual-conference workspaces, mobile routes, and independently fetched panels. Give structurally different tabs and roles their own fixtures; preserve existing content during refresh, and keep error, empty, submission, and authentication states meaningful.
+- Match tables, forms, summaries, QR boards, directories, task boards and ledgers to their loaded structure. Reuse actual presentational components and styles for complex layouts, respect reduced motion, keep fixtures inert, and bound page previews to the viewport including ancestor padding.
+- Load local Source Sans 3 and Bricolage Grotesque variable fonts matching the website main branch. Match its cream navbar, logo sizing, text links, pink underline, dropdown behavior and focus treatment while preserving EMS destinations, role access, and the separate phone routing policy.
+- Replace the remaining native delivery-status and community-purchase mode menus with the shared app dropdown, including its keyboard behavior and portal positioning. Enforce the same control in loading fixtures and add repository guidance plus a regression check against new native selects.
+- Capture one named section at a time in its container context at six responsive widths after fonts settle. Track source dependencies and artifact hashes, verify runtime geometry, preserve unselected captures, and use staged promotion with recovery instead of partial artifact replacement.
+
 ## 2026-10-28 — EMS-managed Testing and Live checkout
 
 - Add an Owner Payment mode form that reviews Testing/Live and exact approved emails as one versioned change; preserve free registration testing and separate free/paid and sales availability controls.

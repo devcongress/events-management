@@ -1095,7 +1095,7 @@ onUnmounted(() => {
             </div>
 
             <div class="audit-log-delivery-history audit-log-archived-events__history">
-              <div v-if="archivedEventsQuery.isPending.value" class="audit-log-delivery-history__empty">Loading archived events…</div>
+              <BoneyardPageSkeleton v-if="archivedEventsQuery.isPending.value" name="admin-archived-events" label="admin archived events" :show-header="false" />
               <div v-else-if="archivedEvents.length === 0" class="audit-log-delivery-history__empty">
                 No archived events. Soft-deleted events will appear here during their restore window.
               </div>

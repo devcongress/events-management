@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import AppDropdown from "@/src/components/AppDropdown.vue";
@@ -372,14 +373,13 @@ onBeforeUnmount(() => {
       <span class="reviews-count">{{ recipients.length }} applicants</span>
     </header>
 
-    <div
-      v-if="query.isPending.value"
-      class="reviews-skeleton"
-      role="status"
-      aria-label="Loading volunteer reviews"
-    >
-      <i /><i /><i /><i />
-    </div>
+    <BoneyardPageSkeleton
+      v-if="query.isPending.value && !query.data.value"
+      name="volunteer-reviews"
+      label="volunteer reviews"
+      layout="workspace"
+      :show-header="false"
+    />
     <div
       v-else-if="query.isError.value"
       class="reviews-state reviews-state--error"

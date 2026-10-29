@@ -12,7 +12,7 @@ import {
   type AnnualConferenceTask,
 } from '@/lib/annual-conference-work-plan';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath } from '@/src/annual-conference';
-import { fetchAdminOrganizers, fetchAnnualConferenceWorkPlan, queryKeys } from '@/src/lib/api';
+import { fetchAdminOrganizers, fetchAdminSession, fetchAnnualConferenceWorkPlan, queryKeys } from '@/src/lib/api';
 
 const route = useRoute();
 const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
@@ -29,6 +29,13 @@ const edition = computed(() => workPlanQuery.data.value?.edition);
 const summary = computed(() => summarizeAnnualConferenceWorkPlan(tasks.value));
 const dependencySummary = computed(() => summarizeAnnualConferenceDependencies(tasks.value));
 const assignedAccess = computed(() => workPlanQuery.data.value?.permissions.access_scope === 'assigned');
+const sessionQuery = useQuery({
+  queryKey: queryKeys.adminSession,
+  queryFn: fetchAdminSession,
+});
+const loadingAssignedAccess = computed(() => assignedAccess.value || (
+  !workPlanQuery.data.value && sessionQuery.data.value?.user?.role === 'volunteer'
+));
 const organizersQuery = useQuery({
   queryKey: queryKeys.adminOrganizers,
   queryFn: fetchAdminOrganizers,
@@ -112,7 +119,7 @@ onUnmounted(() => {
         </button>
       </section>
 
-      <BoneyardPageSkeleton v-else-if="workPlanQuery.isLoading.value" name="annual-conference-overview" label="annual conference" layout="workspace" />
+      <BoneyardPageSkeleton v-else-if="workPlanQuery.isLoading.value" :name="loadingAssignedAccess ? 'annual-conference-overview-assigned' : 'annual-conference-overview'" label="annual conference" layout="workspace" />
 
       <section v-else :class="['conference-brief', { 'conference-brief--volunteer': assignedAccess }]" aria-labelledby="conference-brief-date">
         <header class="conference-brief__masthead">

@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   appType: "mpa",
+  server: { hmr: false },
   plugins: [vue()],
   resolve: {
     alias: {

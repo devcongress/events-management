@@ -20,6 +20,26 @@ import {
 } from "./organizer-viewport";
 
 describe("organizer viewport policy", () => {
+  it('keeps Ticketing deep links intact on phones and across breakpoint changes', () => {
+    for (const conferenceYear of ['2026', '2027']) {
+      for (const section of ['overview', 'orders', 'delivery', 'sponsors', 'testing']) {
+        const query = { section, status: 'failed', page: '2' };
+
+        for (const isPhone of [true, false, true]) {
+          expect(organizerViewportRedirect({
+            authenticated: true,
+            isAdminRoute: true,
+            isPhone,
+            routeName: 'admin-annual-conference-ticketing',
+            conferenceYear,
+            query,
+          })).toBeNull();
+          expect(query).toEqual({ section, status: 'failed', page: '2' });
+        }
+      }
+    }
+  });
+
   it("keeps the form presentation board desktop-only", () => {
     expect(
       organizerViewportRedirect({

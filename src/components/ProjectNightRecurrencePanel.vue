@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { ref, watch } from 'vue';
 import { isProjectNightEvent } from '@/lib/project-night-contact';
 import type { ProjectNightRecurrence } from '@/lib/supabase/project-night-recurrence';
@@ -18,7 +19,6 @@ async function load() {
 
   if (!isProjectNightEvent(props.eventName)) return;
   loading.value = true;
-  ready.value = false;
   error.value = '';
   confirmSkip.value = false;
   try {
@@ -58,7 +58,11 @@ function dateLabel(value: string) {
   return new Intl.DateTimeFormat('en-GH', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Accra' }).format(new Date(`${value}T12:00:00Z`));
 }
 
-watch(() => [props.eventId, props.eventName], load, { immediate: true });
+watch(() => [props.eventId, props.eventName], () => {
+  ready.value = false;
+  recurrence.value = null;
+  void load();
+}, { immediate: true });
 </script>
 
 <template>
@@ -68,7 +72,7 @@ watch(() => [props.eventId, props.eventName], load, { immediate: true });
       <span v-if="ready" class="font-mono text-xs font-bold text-dc-gray">{{ recurrence?.enabled ? 'ENABLED' : recurrence ? 'PAUSED' : 'OFF' }}</span>
     </div>
     <p class="mt-3 text-sm leading-6 text-dc-gray">Every Thursday, at the source event’s configured time. Publish one event each Monday at 9:00 am, Accra time. Slack follows once its website page is ready.</p>
-    <p v-if="loading" class="mt-4 text-sm" role="status">Checking recurrence…</p>
+    <BoneyardPageSkeleton v-if="loading && !ready" name="project-night-recurrence" label="project night recurrence" :show-header="false" />
     <template v-else-if="ready">
       <div v-if="recurrence" class="mt-4 border-t border-dc-line pt-4">
         <p class="text-sm text-dc-gray">{{ recurrence.enabled ? 'Next occurrence' : 'Saved next occurrence · recalculated when resumed' }}</p>

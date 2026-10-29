@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, reactive, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
@@ -149,7 +150,13 @@ async function saveSettings() {
       <span v-if="settingsQuery.data.value" class="rounded-md border border-dc-ink/15 bg-dc-cream px-2 py-1 text-xs text-dc-gray">Current: {{ settingsQuery.data.value.payment_mode === 'test' ? 'Testing' : 'Live' }}</span>
     </div>
     <p class="text-sm text-dc-gray">The website uses this saved mode for new checkouts. Existing payments keep their original mode.</p>
-    <p v-if="settingsQuery.isPending.value" role="status">Loading payment settings…</p>
+    <BoneyardPageSkeleton
+      v-if="settingsQuery.isPending.value && !settingsQuery.data.value"
+      name="annual-conference-payment-settings"
+      label="payment settings"
+      layout="form"
+      :show-header="false"
+    />
     <div v-else-if="settingsQuery.isError.value" role="alert">
       <p class="text-dc-pink">Payment settings could not be refreshed. Your draft has been kept.</p>
       <button type="button" class="motion-press" :disabled="busy" @click="settingsQuery.refetch()">Refresh payment settings</button>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import TurnstileWidget from "@/src/components/TurnstileWidget.vue";
@@ -310,9 +311,13 @@ async function submit() {
           class="volunteer-follow-up-form-stage"
           aria-label="Volunteer follow-up form"
         >
-          <div v-if="loading" class="volunteer-follow-up-state" role="status">
-            Loading your form…
-          </div>
+          <BoneyardPageSkeleton
+            v-if="loading && !state"
+            name="volunteer-follow-up-form"
+            label="your volunteer form"
+            layout="form"
+            :show-header="false"
+          />
           <div
             v-else-if="error && !state"
             class="volunteer-follow-up-state"

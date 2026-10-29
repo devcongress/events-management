@@ -1,15 +1,14 @@
 import { VueQueryPlugin } from '@tanstack/vue-query';
 import { createApp } from 'vue';
 import './api-base';
-import '@fontsource/inter/latin-400.css';
-import '@fontsource/inter/latin-500.css';
-import '@fontsource/inter/latin-600.css';
-import '@fontsource/inter/latin-700.css';
-import '@fontsource/inter/latin-800.css';
+import '@fontsource-variable/bricolage-grotesque/standard.css';
+import '@fontsource-variable/source-sans-3/wght.css';
+import '@fontsource-variable/source-sans-3/wght-italic.css';
 import '@fontsource/ibm-plex-mono/latin-400.css';
 import '@fontsource/ibm-plex-mono/latin-500.css';
 import '@fontsource/ibm-plex-mono/latin-600.css';
 import '@fontsource/ibm-plex-mono/latin-700.css';
+
 import { installButtonPressFeedback } from './button-press-feedback';
 import { isAdminPath } from './admin-routes';
 import { queryClient } from './lib/query';

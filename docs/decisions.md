@@ -1452,3 +1452,35 @@ ADR-118 delivery follow-up: preview dispatch must not lease historical registrat
 **Why:** Changing an environment variable or website build cannot safely express an Owner's reviewed mode and recipient policy. A versioned settings lock prevents a browser opened in Testing from silently charging Live after an organizer changes settings, while immutable order provenance allows already-started payments to complete after later changes.
 
 **Trade-offs and rollout:** Both provider keys and required historical configuration must remain available for outstanding payments. Readiness reports static configuration, not verified provider or inbox health. Apply `20261028100000_ems_managed_checkout.sql` and then `20261028110000_managed_ticket_email_fulfillment.sql` only through a separately approved rollout and migration gates. Neither migration opens sales, sends mail or deletes history. This supersedes ADR-118's preview-only mode selection and test-history cleanup requirement for the managed path; its immutable test/admission boundary remains.
+
+---
+
+## ADR-121: Section-specific loading geometry and shared website typography
+
+**Date:** 2026-10-28
+
+**Decision:** Resolve skeletons by stable section ID with explicit tab/role variants, source paths, blocks, and container context. Use the same synthetic fixture for capture and runtime measurement; reuse loaded presentational components/styles for complex layouts. Capture each ID alone after local fonts settle at the application's responsive widths, validate runtime dimensions, and promote artifacts through a recoverable transaction with the manifest last. Refresh completed IDs only on an explicit refresh request.
+
+**Why:** A broad layout label such as workspace or table cannot describe every destination. Capturing panels at page width and measuring with fallback fonts produces misleading placeholders even when an artifact is nonempty. Source-specific fixtures and verified container geometry make loading changes reviewable without private records or backend mutations.
+
+**Typography and navigation:** Self-host Source Sans 3 normal/italic and Bricolage Grotesque with optical sizing to follow website `main` at `675dfeb58888efca41f6d386c8ddf867a672ae94`. Preserve EMS navigation destinations and access rules. Keep visual navigation collapse separate from organizer phone route selection, and use one header-height token for fixed offsets. Legacy ordinary UI font tokens follow Source Sans 3; semantic code uses the separate IBM Plex Mono code token. Email/PDF assets remain independently owned.
+
+**Trade-offs:** Fixtures must be reviewed when loaded layouts change; additions-only capture deliberately reports stale completed inputs instead of silently rebuilding them. Page skeletons preview the available viewport rather than inventing scrollable records. The protected pre-JavaScript boot/access state remains separate from content-query loading.
+
+**Inline preview follow-up:** A nested record loader may begin below a tall page/card header. Keep its panel context and allow an explicit maximum preview height rather than subtracting its page position until no skeleton remains. Orders caps the preview at the smaller of 25rem and 60svh; browser verification must prove a positive region and visible bones after scrolling to it.
+
+**Capture fidelity follow-up:** The installed extractor treats `li`, `td`, and `th` as atomic leaves. The capture adapter excludes those structural nodes and measures their children and bare text ranges without changing layout. Runtime verification uses a cold module graph after artifact promotion and compares exact rendered non-container bone counts as well as dimensions, so stale transformed JSON cannot pass through an unchanged outer footprint.
+
+---
+
+## ADR-122: Shared workspace sections and hierarchical organizer breadcrumbs
+
+**Date:** 2026-10-28
+
+**Decision:** Use one shared horizontal section row for sibling destinations within a workspace, starting with Ticketing and Registration. Store selection in validated URL query state and keep workspace instances stable across query changes. Retain visited form state while closing inactive drawers and portalled menus. Use a separate shared breadcrumb trail for parent hierarchy, deriving labels from existing cached records without additional reads.
+
+**Phone behavior:** Keep the existing responsive Ticketing route available on phones and expose it from Mobile Conference Overview under the existing role/capability policy. Use card-based Orders, a horizontally scrollable section row with an overflow cue, and compact breadcrumbs returning to the same year's mobile conference. Do not add a fifth bottom-navigation item or a competing Ticketing route.
+
+**Why:** Long stacked sections make operational tasks difficult to find. Sibling navigation lets organizers focus on one task while breadcrumbs retain context and a reliable way back. A shared implementation and documented visual contract prevent each new workspace or agent session from inventing incompatible controls.
+
+**Trade-offs:** Query-selected workspaces intentionally retain visited form state in memory. Inactive child components must close overlays and pause section-only reads without clearing drafts. Breadcrumb names may initially use neutral fallbacks until their existing query data is cached.

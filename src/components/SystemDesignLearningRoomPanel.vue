@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
@@ -388,7 +389,16 @@ onMounted(fetchSession);
         </p>
       </div>
 
-      <div v-if="!loading" class="mt-5 flex flex-wrap gap-3">
+      <BoneyardPageSkeleton
+        v-if="loading && !session"
+        name="system-design-learning-room-questions"
+        label="learning-room questions"
+        layout="list"
+        :show-header="false"
+        class="mt-5"
+      />
+
+      <div v-if="!loading || session" class="mt-5 flex flex-wrap gap-3">
         <button v-if="!systemDesignArchived && generatedCount < 10" type="button" class="editorial-secondary-action" :disabled="generating" @click="generateQuestions">
           {{ generateLabel }}
         </button>
@@ -405,11 +415,7 @@ onMounted(fetchSession);
       </div>
     </div>
 
-    <p v-if="loading" class="border-t-2 border-dc-border px-6 py-5 text-sm text-dc-gray sm:px-8" role="status">
-      Loading learning-room questions…
-    </p>
-
-    <p v-else-if="error" class="mx-6 mb-6 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 sm:mx-8">
+    <p v-if="error" class="mx-6 mb-6 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 sm:mx-8">
       {{ error }}
     </p>
 

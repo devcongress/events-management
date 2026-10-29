@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
@@ -23,7 +24,14 @@ const canCheckIn = computed(() => hasAnyAnnualConferenceCapability(capabilities.
     <div class="editorial-wrap registration-content">
       <AnnualConferenceNav :show-page-heading="false" />
       <AnnualConferenceRegistrationNav active="guests" :can-manage-registration="false" :can-check-in="canCheckIn" />
-      <AnnualConferenceGuests v-if="canCheckIn" />
+      <BoneyardPageSkeleton
+        v-if="workPlan.isPending.value && !workPlan.data.value"
+        name="annual-conference-check-in"
+        label="conference check-in"
+        layout="workspace"
+        :show-header="false"
+      />
+      <AnnualConferenceGuests v-else-if="canCheckIn" />
     </div>
   </main>
 </template>

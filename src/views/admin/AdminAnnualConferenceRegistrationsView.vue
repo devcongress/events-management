@@ -258,7 +258,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
     <AnnualConferenceNav :show-page-heading="false" />
     <AnnualConferenceRegistrationNav :active="activeSection" :can-manage-registration="canManageRegistration" :can-check-in="canCheckIn" :can-manage-community="owner && canManageRegistration && year === '2026'" />
     <p v-if="message" role="status" aria-live="polite">{{ message }}</p>
-    <BoneyardPageSkeleton v-if="registrations.isPending.value" name="annual-conference-registrations" label="conference registrations" layout="workspace" />
+    <BoneyardPageSkeleton v-if="registrations.isPending.value && !registrations.data.value" :name="activeSection === 'summary' ? 'annual-conference-registrations' : `annual-conference-registrations-${activeSection}`" label="conference registrations" layout="workspace" />
     <section v-else-if="registrations.isError.value" class="editorial-panel registration-panel"><h2>Registration unavailable</h2><p>Check your access and connection.</p><button @click="registrations.refetch()">Try again</button></section>
     <template v-else-if="registrations.data.value">
       <section v-if="activeSection === 'summary'" class="registration-overview">
@@ -288,7 +288,13 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
         <h2>Form &amp; capacity</h2>
         <p>Increasing capacity promotes the oldest waitlisted registrations automatically.</p>
         <div v-if="canManageRegistration" class="registration-capacity-control">
-          <p v-if="ticketing.isPending.value" role="status">Loading capacity controls…</p>
+          <BoneyardPageSkeleton
+            v-if="ticketing.isPending.value && !ticketing.data.value"
+            name="annual-conference-capacity-controls"
+            label="capacity controls"
+            layout="form"
+            :show-header="false"
+          />
           <div v-else-if="ticketing.isError.value" role="alert">
             <p class="text-dc-pink">Capacity controls could not be loaded.</p>
             <button type="button" :disabled="capacityBusy" @click="ticketing.refetch()">Try again</button>
@@ -322,7 +328,13 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
           <span v-if="testingQuery.data.value" class="registration-badge">{{ testingQuery.data.value.enabled ? 'Restricted to testers' : 'Off' }}</span>
         </div>
         <p class="text-sm text-dc-gray">Use real registration with approved emails. Testing uses actual places and admission codes; it is not an isolated sandbox.</p>
-        <p v-if="testingQuery.isPending.value" role="status">Loading testing settings…</p>
+        <BoneyardPageSkeleton
+          v-if="testingQuery.isPending.value && !testingQuery.data.value"
+          name="annual-conference-registration-testing"
+          label="testing settings"
+          layout="form"
+          :show-header="false"
+        />
         <div v-else-if="testingQuery.isError.value">
           <p class="text-dc-pink">Apply the registration testing migration to enable these controls.</p>
           <button @click="testingQuery.refetch()">Try again</button>
@@ -377,7 +389,13 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
           <button type="submit" :disabled="busy">Review draft</button>
         </form>
         <p v-if="blasts.isError.value">Update history could not be loaded.</p>
-        <p v-if="blasts.isPending.value" role="status">Loading blast history…</p>
+        <BoneyardPageSkeleton
+          v-if="blasts.isPending.value && !blasts.data.value"
+          name="annual-conference-registration-blasts"
+          label="conference blast history"
+          layout="list"
+          :show-header="false"
+        />
         <p v-else-if="!blasts.isError.value && !blastHistory.length" class="py-8 text-center text-sm text-dc-gray">No blasts yet. Create an update for your confirmed guests.</p>
         <ul class="attendees"><li v-for="blast in displayedBlasts" :key="blast.id"><div><strong>{{ blast.subject }}</strong><p>{{ blast.status }} · {{ blast.recipients }} recipients · {{ blast.accepted }} accepted by email provider · {{ blast.needs_attention }} failed or suppressed</p></div><button @click="review = blast">Review</button></li></ul>
         <AppPagination v-if="blastHistory.length > 10" v-model:page="blastPage" :page-count="blastPageCount" :total="blastHistory.length" :range-start="(blastPage - 1) * 10 + 1" :range-end="Math.min(blastPage * 10, blastHistory.length)" item-label="blasts" />

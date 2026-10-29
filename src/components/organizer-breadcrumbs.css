@@ -1,0 +1,146 @@
+.organizer-breadcrumbs {
+  width: 100%;
+  max-width: 1280px;
+  min-width: 0;
+  margin-inline: auto;
+  padding: 8px 16px 0;
+  color: #555555;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.organizer-breadcrumbs--embedded {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+a,
+span {
+  display: inline-flex;
+  min-height: 36px;
+  min-width: 0;
+  align-items: center;
+  padding-block: 8px;
+}
+
+a {
+  display: block;
+  overflow: hidden;
+  max-width: min(32rem, 48vw);
+  border-radius: 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: transform 100ms var(--motion-fast);
+}
+
+a:focus-visible {
+  outline: 2px solid #e8117f;
+  outline-offset: 3px;
+}
+
+a:active {
+  transform: scale(0.97);
+}
+
+span {
+  overflow-wrap: anywhere;
+}
+
+[aria-current='page'] {
+  color: #111111;
+  font-weight: 600;
+}
+
+.organizer-breadcrumbs__separator {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  fill: none;
+  stroke: #a1a1a1;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  a:hover {
+    color: #111111;
+    text-decoration: underline;
+    text-decoration-color: #e8117f;
+    text-underline-offset: 3px;
+  }
+}
+
+@media (min-width: 640px) {
+  .organizer-breadcrumbs:not(.organizer-breadcrumbs--embedded) {
+    padding-inline: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .organizer-breadcrumbs:not(.organizer-breadcrumbs--embedded) {
+    padding-inline: 32px;
+  }
+}
+
+@media (pointer: coarse) {
+  a,
+  span {
+    min-height: 44px;
+  }
+
+  a {
+    min-width: 44px;
+  }
+}
+
+@media (max-width: 767px) {
+  .organizer-breadcrumbs__earlier {
+    display: none;
+  }
+
+  li:nth-last-child(2) .organizer-breadcrumbs__separator {
+    display: none;
+  }
+
+  a,
+  span {
+    min-height: 44px;
+  }
+
+  a {
+    min-width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a {
+    transition: none;
+  }
+
+  a:active {
+    transform: none;
+  }
+}

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
@@ -190,12 +191,7 @@ onUnmounted(() => {
 
 <template>
   <main class="presenter-screen">
-    <div v-if="loading" class="presenter-centred-state">
-      <div class="text-center">
-        <div class="motion-spinner mx-auto size-16 rounded-full border-4 border-dc-pink border-t-transparent" />
-        <p class="presenter-eyebrow mt-5">Preparing presentation</p>
-      </div>
-    </div>
+    <BoneyardPageSkeleton v-if="loading && !session" name="system-design-presenter" label="system design presenter" :show-header="false" />
 
     <div v-else-if="!session" class="presenter-centred-state">
       <section class="presenter-state-card">

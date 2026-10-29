@@ -668,7 +668,7 @@ onBeforeUnmount(() => {
         </template>
       </AnnualConferenceNav>
 
-      <BoneyardPageSkeleton v-if="workPlanQuery.isLoading.value" name="annual-conference-work-plan" label="conference work plan" layout="workspace" />
+      <BoneyardPageSkeleton v-if="workPlanQuery.isLoading.value" :name="usesKanbanBoard ? 'annual-conference-work-plan-board' : 'annual-conference-work-plan'" label="conference work plan" layout="workspace" />
 
       <section v-else-if="workPlanQuery.isError.value" class="editorial-panel border-dc-pink p-8">
         <p class="text-lg font-semibold text-dc-ink">The work plan could not be loaded.</p>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import QRCode from 'qrcode';
@@ -89,10 +90,7 @@ onMounted(() => {
 <template>
   <div class="feedback-display-page">
     <div class="feedback-display-shell">
-      <div v-if="loading" class="feedback-display-state">
-        <p class="editorial-eyebrow mb-3">feedback display</p>
-        <h1>Preparing QR display…</h1>
-      </div>
+      <BoneyardPageSkeleton v-if="loading" name="admin-feedback-display" label="admin feedback display" :show-header="false" />
 
       <div v-else-if="error" class="feedback-display-state">
         <p class="editorial-eyebrow mb-3">feedback display</p>

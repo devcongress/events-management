@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import RegistrationEmailDrawer from '@/src/components/RegistrationEmailDrawer.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
+import AppDropdown from '@/src/components/AppDropdown.vue';
 import {
   fetchAnnualConferenceTicketEmailDeliveries,
   retryAnnualConferenceTicketEmailDelivery,
@@ -11,9 +13,20 @@ import {
 } from '@/src/lib/api';
 
 const props = defineProps<{ year: string; registrationId?: string }>();
+
+type DeliveryStatusFilter = AnnualConferenceTicketEmailDeliveryStatus | 'all';
+
 const client = useQueryClient();
 const page = ref(1);
-const status = ref<AnnualConferenceTicketEmailDeliveryStatus | 'all'>('all');
+const status = ref<DeliveryStatusFilter>('all');
+const deliveryStatusOptions: Array<{ value: DeliveryStatusFilter; label: string }> = [
+  { value: 'all', label: 'All emails' },
+  { value: 'queued', label: 'Queued' },
+  { value: 'sending', label: 'Sending' },
+  { value: 'accepted', label: 'Accepted by provider' },
+  { value: 'delivered', label: 'Delivered' },
+  { value: 'failed', label: 'Failed' },
+];
 const selected = ref<AnnualConferenceTicketEmailDelivery | null>(null);
 const busy = ref(false);
 const error = ref('');
@@ -44,6 +57,12 @@ const summaries = computed(() => {
     { label: 'Failed', value: summary?.failed ?? 0 },
   ];
 });
+
+function updateDeliveryStatus(value: string | number) {
+  const option = deliveryStatusOptions.find(item => item.value === value);
+
+  if (option) status.value = option.value;
+}
 
 function canRetry(delivery: AnnualConferenceTicketEmailDelivery) {
   return delivery.status === 'failed' && delivery.attempt_count < 5
@@ -110,7 +129,13 @@ watch(pages, (count) => { page.value = Math.min(page.value, count); });
       </div>
     </div>
     <p v-if="message" class="px-5 py-3 text-sm" role="status">{{ message }}</p>
-    <p v-if="deliveries.isPending.value" class="p-5" role="status">Loading delivery records…</p>
+    <BoneyardPageSkeleton
+      v-if="deliveries.isPending.value && !deliveries.data.value"
+      :name="registrationId ? 'annual-conference-guest-emails' : 'annual-conference-registration-emails'"
+      label="email delivery records"
+      layout="list"
+      :show-header="false"
+    />
     <div v-else-if="deliveries.isError.value" class="p-5" role="alert">
       <p>Delivery records could not be loaded.</p>
       <button class="editorial-action mt-3" @click="deliveries.refetch()">Try again</button>
@@ -129,13 +154,14 @@ watch(pages, (count) => { page.value = Math.min(page.value, count); });
           <button type="submit" class="editorial-action">Search</button>
           <button v-if="recipientFilter" type="button" class="editorial-action" @click="recipient = ''; recipientFilter = ''">Clear</button>
         </form>
-        <label for="conference-email-status" class="editorial-label">Delivery status</label>
-        <select id="conference-email-status" v-model="status" class="editorial-input max-w-xs">
-          <option value="all">All emails</option>
-          <option value="queued">Queued</option><option value="sending">Sending</option>
-          <option value="accepted">Accepted by provider</option><option value="delivered">Delivered</option>
-          <option value="failed">Failed</option>
-        </select>
+        <AppDropdown
+          class="max-w-xs"
+          label="Delivery status"
+          :model-value="status"
+          :options="deliveryStatusOptions"
+          teleport
+          @update:model-value="updateDeliveryStatus"
+        />
       </div>
       <p v-if="!total" class="px-5 py-12 text-center text-sm text-dc-gray">No delivery records match this status.</p>
       <div v-else class="divide-y divide-dc-border" role="list" aria-label="Registration email delivery records">

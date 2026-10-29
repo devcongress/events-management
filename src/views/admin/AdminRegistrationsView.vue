@@ -1125,7 +1125,7 @@ async function retryEmails() {
 
       <BoneyardPageSkeleton
         v-if="registrationQuery.isPending.value"
-        name="admin-registration-workspace"
+        :name="activeWorkspaceTab === 'summary' ? 'admin-registration-workspace' : `admin-registration-workspace-${activeWorkspaceTab}`"
         label="registration workspace"
         layout="registration"
         :show-header="false"
@@ -1845,7 +1845,7 @@ async function retryEmails() {
               </div>
             </form>
 
-            <div v-if="blastsQuery.isPending.value" class="px-5 py-6 text-sm text-dc-gray">Loading blast history…</div>
+            <BoneyardPageSkeleton v-if="blastsQuery.isPending.value" name="event-blast-history" label="event blast history" :show-header="false" />
             <div v-else-if="blastsQuery.isError.value" class="flex flex-wrap items-center justify-between gap-3 border-t border-dc-border bg-red-50 px-5 py-5">
               <div>
                 <p class="text-sm font-semibold text-red-800">Blast history could not load.</p>

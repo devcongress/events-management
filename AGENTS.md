@@ -35,6 +35,15 @@ When the user says **"feature this"** or **"feature-this"**, treat it as an expl
 
 Do not merge the PR unless the user explicitly asks.
 
+## Shared UI Controls
+
+- Read `DESIGN.md` before changing application visuals. It records implemented typography, controls, navigation, loading, and phone behavior; `PRODUCT.md` supplies product context.
+- Use `src/components/AppDropdown.vue` for single-choice dropdowns and `AppMultiSelectDropdown.vue` for multiple-choice dropdowns in the active Vue app, including loading fixtures. Do not introduce native `<select>` menus.
+- Use the shared component's labels, density, disabled state, keyboard/focus behavior, and positioning. Use `teleport` inside clipped panels or drawers so the menu remains visible.
+- Design tokens style a control; they do not replace the shared component's interaction behavior. Keep form-control coverage checks in `src/form-design-system.test.ts` passing when adding or changing forms.
+- Use `WorkspaceSectionNav.vue` for sibling workspace sections and `OrganizerBreadcrumbs.vue` for parent navigation. Keep section state in the URL, preserve drafts across query changes, and close inactive section overlays. Verify same-year links, visible active sections, keyboard focus, and phone touch targets.
+- Review table/list skeletons for their internal fields, not just overall size or a nonempty overlay. Capture structural list items and table cells through their children; a whole-card block does not verify fidelity. Below-fold loading must retain a positive preview and visible field bones when scrolled to.
+
 ## Animation Standard
 
 Use `$ui-animations` (`/Users/TT/.codex/skills/ui-animations/SKILL.md`) for all animation decisions in this app.

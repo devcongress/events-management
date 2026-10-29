@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { RouterLink, useRoute } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { annualConferencePath } from '@/src/annual-conference';
+import WorkspaceSectionNav from '@/src/components/WorkspaceSectionNav.vue';
 
 const props = defineProps<{
   active: 'summary' | 'guests' | 'form' | 'emails' | 'blasts' | 'community';
@@ -22,6 +23,12 @@ const tabs = computed(() => [
   ] : []),
   ...(!props.canManageRegistration && props.canCheckIn ? [{ key: 'guests', label: 'Guests', icon: 'guests' }] : []),
 ]);
+const sectionItems = computed(() => tabs.value.map(tab => ({
+  ...tab,
+  to: !props.canManageRegistration
+    ? annualConferencePath('check-in', year.value)
+    : { path: annualConferencePath('registrations', year.value), query: { section: tab.key } },
+})));
 </script>
 
 <template>
@@ -29,16 +36,8 @@ const tabs = computed(() => [
     <h1>Registration</h1>
     <p>Manage capacity, guests, and confirmations for DevCon{{ year.slice(-2) }}.</p>
   </header>
-  <nav class="registration-workspace-tabs" aria-label="Registration sections">
-    <RouterLink
-      v-for="tab in tabs"
-      :key="tab.key"
-      :to="!canManageRegistration
-        ? annualConferencePath('check-in', year)
-        : { path: annualConferencePath('registrations', year), query: { section: tab.key } }"
-      class="registration-workspace-tab"
-      :aria-current="active === tab.key ? 'page' : 'false'"
-    >
+  <WorkspaceSectionNav :active="active" label="Registration sections" :items="sectionItems">
+    <template #icon="{ item: tab }">
       <svg class="registration-workspace-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <template v-if="tab.icon === 'summary'">
           <rect x="3" y="3" width="5.5" height="5.5" rx="1" /><rect x="11.5" y="3" width="5.5" height="5.5" rx="1" />
@@ -58,9 +57,8 @@ const tabs = computed(() => [
         </template>
         <template v-else><path d="m3 10.75 10.25-5v8.5L3 10.75Z" /><path d="M13.25 8.25h1.25a2.5 2.5 0 0 1 0 5h-1.25M6.25 12.25l.75 4" /></template>
       </svg>
-      <span>{{ tab.label }}</span>
-    </RouterLink>
-  </nav>
+    </template>
+  </WorkspaceSectionNav>
 </template>
 
 <style scoped src="@/src/styles/registration-workspace.css"></style>

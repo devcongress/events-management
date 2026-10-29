@@ -860,7 +860,7 @@ async function openEventNextStep(event: CommunityEvent) {
 
     <Teleport to="body">
       <Transition name="event-delete-dialog">
-        <div v-if="eventPendingDelete" class="fixed inset-0 z-50 flex items-center justify-center bg-dc-ink/40 px-4 py-6" role="presentation">
+        <div v-if="eventPendingDelete" class="fixed inset-0 z-[var(--layer-app-modal)] flex items-center justify-center bg-dc-ink/40 px-4 py-6" role="presentation">
           <button type="button" class="absolute inset-0 cursor-default" aria-label="Keep event" @click="cancelDeleteEvent" />
           <section
             class="relative w-full max-w-xl rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[8px_8px_0_#111]"

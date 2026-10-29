@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { formatTicketMoney, parseGhsAmountToMinor, ticketTierForKey, type AnnualConferenceTicketTierKey } from '@/lib/annual-conference-ticketing';
@@ -9,7 +10,7 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 
-const props = defineProps<{ year: string }>();
+const props = withDefaults(defineProps<{ year: string; active?: boolean }>(), { active: true });
 const queryClient = useQueryClient();
 const isBrowser = typeof document !== 'undefined';
 const page = ref(1);
@@ -49,7 +50,7 @@ function tierLabel(key: AnnualConferenceTicketTierKey): string {
 const query = useQuery({
   queryKey: computed(() => ['devcon26-test-coupons', props.year, page.value, checkoutPage.value, DEVCON26_TEST_CHECKOUT_PAGE_SIZE]),
   queryFn: () => fetchDevcon26TestCoupons(props.year, page.value, checkoutPage.value),
-  enabled: computed(() => props.year === '2026'),
+  enabled: computed(() => props.year === '2026' && props.active),
 });
 const pageCount = computed(() => Math.max(1, Math.ceil((query.data.value?.total ?? 0) / 8)));
 const checkoutRows = computed(() => query.data.value?.checkouts.slice(0, DEVCON26_TEST_CHECKOUT_PAGE_SIZE) ?? []);
@@ -97,6 +98,10 @@ watch(() => props.year, () => {
   createdCoupon.value = null;
   resetCopyStates();
 });
+
+watch(() => props.active, (active) => {
+  if (!active) closeCheckoutDetails(false);
+}, { flush: 'sync' });
 
 watch(() => form.expires_at, () => { expiryError.value = ''; });
 onBeforeUnmount(() => {
@@ -206,11 +211,13 @@ function unlockCheckoutDrawerPage() {
 }
 
 async function openCheckoutDetails(checkout: Devcon26TestCheckoutLedgerRow, event: Event) {
+  if (!props.active) return;
+
   checkoutDrawerTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
   selectedCheckout.value = checkout;
   lockCheckoutDrawerPage();
   await nextTick();
-  checkoutDrawerCloseButton.value?.focus();
+  if (props.active && selectedCheckout.value?.id === checkout.id) checkoutDrawerCloseButton.value?.focus();
 }
 
 function closeCheckoutDetails(restoreFocus = true) {
@@ -219,7 +226,9 @@ function closeCheckoutDetails(restoreFocus = true) {
   selectedCheckout.value = null;
   unlockCheckoutDrawerPage();
 
-  if (restoreFocus) checkoutDrawerTrigger?.focus();
+  if (restoreFocus && props.active && checkoutDrawerTrigger?.isConnected && checkoutDrawerTrigger.getClientRects().length) {
+    checkoutDrawerTrigger?.focus();
+  }
 
   checkoutDrawerTrigger = null;
 }
@@ -265,13 +274,14 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
     <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Create discounts for test payments. Coupon uses are reserved for 15 minutes and counted when a payment is verified. These checkouts do not issue admission tickets.</p>
 
     <details class="mt-5 rounded-md border border-dc-border p-4">
-      <summary class="cursor-pointer text-sm font-semibold text-dc-ink">Create a test coupon</summary>
+      <summary class="min-h-11 cursor-pointer py-3 text-sm font-semibold text-dc-ink">Create a test coupon</summary>
       <p class="mt-3 text-xs leading-5 text-dc-gray">Terms cannot be edited after creation. You can enable or disable the code.</p>
       <p class="mt-1 text-xs leading-5 text-dc-gray">A unique code is generated automatically when you create the coupon.</p>
       <form ref="formElement" class="mt-4" :aria-busy="createMutation.isPending.value" @submit.prevent="submitCoupon">
         <fieldset class="grid min-w-0 items-start gap-x-4 gap-y-5 md:grid-cols-2" :disabled="createMutation.isPending.value">
           <legend class="sr-only">Coupon terms</legend>
           <AppDropdown
+            :key="`discount-type-${active}`"
             :model-value="form.discount_type"
             :options="discountTypes"
             class="coupon-term-field"
@@ -294,6 +304,7 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
             <input id="test-coupon-max" v-model.number="form.max_completed" name="max_completed" type="number" min="1" max="1000000" required class="editorial-input block">
           </label>
           <AppDatePicker
+            :key="`expiry-${active}`"
             v-model="form.expires_at"
             class="coupon-term-field"
             label="Expiry (local time)"
@@ -350,7 +361,13 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
         @click="copyCoupon(createdCoupon.code)"
       />
     </div>
-    <p v-if="query.isLoading.value" class="py-5 text-sm text-dc-gray">Loading test coupons…</p>
+    <BoneyardPageSkeleton
+      v-if="query.isLoading.value && !query.data.value"
+      name="annual-conference-test-coupon-activity"
+      label="test coupons and checkout activity"
+      layout="workspace"
+      :show-header="false"
+    />
     <div v-else-if="query.isError.value" class="flex flex-wrap items-center justify-between gap-3 py-5">
       <p class="text-sm text-dc-pink" role="alert">Test coupons could not be loaded.</p>
       <button type="button" class="motion-press min-h-11 rounded-md border border-dc-ink px-3 text-sm" @click="query.refetch()">Try again</button>
@@ -459,7 +476,7 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
               <h2 id="test-checkout-drawer-title" class="mt-1 text-2xl font-semibold tracking-tight text-dc-ink">Private checkout details</h2>
               <p id="test-checkout-drawer-description" class="mt-2 text-sm leading-6 text-dc-gray">This sandbox payment is not an admission ticket and cannot be used for event entry.</p>
             </div>
-            <button ref="checkoutDrawerCloseButton" type="button" class="motion-press inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-dc-border text-dc-gray hover:border-dc-ink hover:text-dc-ink" aria-label="Close test checkout details" @click="closeCheckoutDetails()"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" /></svg></button>
+            <button ref="checkoutDrawerCloseButton" type="button" class="motion-press inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-dc-border text-dc-gray hover:border-dc-ink hover:text-dc-ink" aria-label="Close test checkout details" @click="closeCheckoutDetails()"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" /></svg></button>
           </header>
 
           <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
@@ -478,6 +495,11 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
 </template>
 
 <style scoped>
+.checkout-drawer {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 .coupon-term-field {
   display: grid;
   min-width: 0;

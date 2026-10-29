@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, nextTick, ref } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { normalizeTaskResourceUrl, type AnnualConferenceTaskResourcesResponse, type AnnualConferenceTaskResourceView } from '@/lib/annual-conference-task-resources';
@@ -90,7 +91,14 @@ async function remove(resourceId: string) {
       <button v-if="query.data.value?.permissions.can_add" ref="addButton" type="button" class="resource-button text-dc-pink" :disabled="!canAdd || pending || adding || Boolean(editing)" @click="openEditor()">+ Add resource</button>
     </div>
     <p class="mt-1 text-xs leading-5 text-dc-gray">Keep documents, designs and useful references together. Links only—no file uploads.</p>
-    <p v-if="query.isPending.value" role="status" class="mt-3 text-sm text-dc-gray">Loading resources…</p>
+    <BoneyardPageSkeleton
+      v-if="query.isPending.value && !query.data.value"
+      name="annual-conference-task-resources"
+      label="task resources"
+      layout="list"
+      :show-header="false"
+      class="mt-3"
+    />
     <p v-else-if="query.isError.value" role="alert" class="mt-3 text-sm text-red-700">Unable to load task resources.</p>
     <p v-else-if="!resources.length && !adding" class="mt-4 rounded-lg border border-dashed border-dc-border p-4 text-sm text-dc-gray">No resources yet. Add a link when you have something useful to share.</p>
     <ul v-if="resources.length" class="mt-3 divide-y divide-dc-border">

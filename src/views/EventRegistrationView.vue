@@ -314,29 +314,29 @@ async function submitRegistration() {
     max(clamp(1rem, 3svh, 2rem), env(safe-area-inset-bottom))
     max(clamp(1rem, 3vw, 2rem), env(safe-area-inset-left));
   color: #111111;
-  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
 }
 
 .registration-page h1,
 .registration-page h2 {
-  font-family: 'Bricolage Grotesque', var(--font-sans), sans-serif;
+  font-family: var(--font-display), system-ui, sans-serif;
   font-weight: 600;
 }
 
 .registration-page .editorial-eyebrow,
 .registration-page .editorial-label,
 .registration-page .editorial-action {
-  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-weight: 600;
 }
 
 .registration-page .editorial-secondary-action {
-  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-weight: 600;
 }
 
 :global(.registration-page input.editorial-input) {
-  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-weight: 400;
 }
 
@@ -368,7 +368,7 @@ async function submitRegistration() {
 .registration-brand-name,
 .registration-event-meta dt {
   color: #e8117f;
-  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 0.68rem;
   font-weight: var(--font-weight-label);
   letter-spacing: 0.08em;
@@ -649,7 +649,7 @@ async function submitRegistration() {
   border-left: 1px solid #c9c2b3;
   padding-left: 0.75rem;
   color: #6b675f;
-  font-family: 'Source Sans 3', var(--font-sans), sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 0.62rem;
   font-weight: var(--font-weight-label);
   letter-spacing: 0.12em;

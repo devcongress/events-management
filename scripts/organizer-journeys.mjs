@@ -325,6 +325,44 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   browser = await chromium.launch();
+  for (const role of ["owner", "organizer"]) {
+    await journey(`navigation-fit-${role}`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(`${origin}/organizer-console/events`);
+      await page.evaluate(() => document.fonts.ready);
+      const primary = page.getByRole("navigation", { name: "Primary", exact: true, includeHidden: true });
+      const toggle = page.getByRole("button", { name: "Open menu", exact: true });
+
+      if (role === "owner") {
+        await toggle.waitFor();
+        assert.equal(await primary.getAttribute("aria-hidden"), "true");
+        assert.equal(await primary.evaluate((element) => element.inert), true);
+        await toggle.click();
+        await page.getByRole("navigation", { name: "Mobile primary" }).waitFor();
+        assert.equal(await page.locator(".app-mobile-menu").getByRole("button", { name: "Sign Out", exact: true }).isVisible(), true);
+        await page.keyboard.press("Escape");
+      } else {
+        await primary.waitFor();
+        assert.equal(await primary.getAttribute("aria-hidden"), "false");
+        assert.equal(await primary.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), true);
+      }
+
+      await page.setViewportSize({ width: 960, height: 900 });
+      await toggle.waitFor();
+      await toggle.click();
+      const mobile = page.getByRole("navigation", { name: "Mobile primary" });
+
+      await mobile.waitFor();
+      assert.deepEqual(await mobile.getByRole("link").allTextContents().then((labels) => labels.map((label) => label.replace("↗", "").trim())), await primary.locator("a").allTextContents().then((labels) => labels.map((label) => label.trim())));
+      await page.keyboard.press("Escape");
+      assert.equal(await toggle.getAttribute("aria-expanded"), "false");
+      assert.equal(await toggle.evaluate((element) => element === document.activeElement), true);
+      await toggle.click();
+      await page.getByRole("link", { name: "CREATE EVENT", exact: true }).focus();
+      await page.waitForFunction(() => document.querySelector(".app-mobile-menu-toggle")?.getAttribute("aria-expanded") === "false");
+    }, { role });
+  }
+
   await journey(
     "presentation-board",
     async ({ page, responses, requests }) => {
@@ -380,6 +418,16 @@ try {
       });
       responses.set("/api/admin/organizers", { body: { organizers: [] } });
       await page.goto(`${origin}/organizer-console/annual-conference/2026`);
+      await page.locator('.app-header').waitFor();
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+      });
+      const navigationToggle = page.getByRole('button', { name: 'Open menu', exact: true });
+
+      if (await navigationToggle.isVisible()) await navigationToggle.click();
+
       await page
         .getByRole("link", { name: "Present forms", exact: true })
         .click();
@@ -460,7 +508,7 @@ try {
         await two.evaluate(() => document.fonts.ready);
         assert.ok(await two.locator("[data-boneyard-bone]").count() > 0);
         assert.equal(await two.locator(".audience-card a").count(), 0);
-        skeletonBox = await two.locator(".boneyard-page-skeleton").boundingBox();
+        skeletonBox = await two.locator(".ems-loading-region").boundingBox();
         await two.screenshot({
           path: `${artifacts}/presentation-loading.png`,
           fullPage: true,
@@ -2824,6 +2872,194 @@ try {
       .getByRole("heading", { name: "Thanks, Fixture Volunteer." })
       .waitFor();
   });
+
+  await journey("annual-ticketing-sections", async ({ page, responses, requests }) => {
+    const base = "/organizer-console/annual-conference/2026/ticketing";
+    const inventory = { public_capacity: 150, paid_seats: 1, sponsor_seats_held: 0, checkout_seats_held: 0, remaining_public_seats: 149, reduction_floor: 1 };
+    const tiers = [
+      { key: "regular", label: "Regular pass", quantity: 1, price_minor: 15000, public: true },
+      { key: "team_3", label: "Team of 3", quantity: 3, price_minor: 45000, public: true },
+      { key: "team_5", label: "Team of 5", quantity: 5, price_minor: 75000, public: true },
+    ];
+    const order = {
+      id: "ticketing-order", purchaser_name: "Ticketing Fixture", purchaser_email: "ticketing@example.test",
+      tier_key: "regular", quantity: 1, amount_minor: 15000, currency: "GHS", status: "paid", payment_mode: "live",
+      payment_reference: "fixture-reference", paid_at: "2026-10-16T10:00:00Z", created_at: "2026-10-16T10:00:00Z",
+      delivery_status: "delivered", seats: [],
+    };
+
+    responses.set("/api/annual-conference/editions", { body: { editions: [edition, { ...edition, year: 2027, label: "December 2027" }] } });
+    for (const year of [2026, 2027]) {
+      responses.set(`/api/annual-conference/${year}/work-plan`, {
+        body: { ...workspace, edition: { ...edition, year }, permissions: { ...workspace.permissions, capabilities: ["ticketing.manage"] } },
+      });
+      responses.set(`/api/annual-conference/${year}/ticketing`, {
+        body: { settings: { public_capacity: 150, ticket_sales_status: "draft", public_mode: "free", currency: "GHS", ticket_tiers: tiers }, inventory },
+      });
+      responses.set(`/api/annual-conference/${year}/ticketing/orders`, { body: { orders: year === 2026 ? [order] : [], total: year === 2026 ? 1 : 0, page: 1, page_size: 5 } });
+      responses.set(`/api/annual-conference/${year}/ticketing/sponsor-allocations`, { body: { allocations: [] } });
+      responses.set(`/api/annual-conference/${year}/ticketing/email-deliveries`, { body: {
+        deliveries: [], total: 0, page: 1, page_size: 8,
+        summary: { queued: 0, sending: 0, accepted: 0, delivered: 0, failed: 0 },
+      } });
+    }
+    responses.set("/api/annual-conference/2026/ticketing/test-coupons", { body: {
+      coupons: [], total: 0, page: 1, page_size: 8, checkouts: [{
+        id: "sandbox-checkout", payment_reference: "sandbox-reference", purchaser_name: "Sandbox purchaser", purchaser_email: "sandbox@example.test",
+        tier_key: "regular", quantity: 1, coupon_code: null, base_amount_minor: 15000, discount_amount_minor: 0,
+        amount_minor: 15000, currency: "GHS", status: "verified", resolution_reason: null,
+        expires_at: "2026-10-16T10:15:00Z", verified_at: "2026-10-16T10:00:00Z", created_at: "2026-10-16T10:00:00Z",
+      }], checkout_total: 1, checkout_page: 1, checkout_page_size: 5,
+    } });
+    const ordersPath = "/api/annual-conference/2026/ticketing/orders";
+    const ordersResponse = responses.get(ordersPath);
+    let releaseOrders;
+    const ordersHeld = new Promise(resolve => { releaseOrders = resolve; });
+
+    responses.set(ordersPath, async () => {
+      await ordersHeld;
+
+      return ordersResponse;
+    });
+    await page.setViewportSize({ width: 320, height: 667 });
+
+    try {
+      await page.goto(`${origin}${base}?section=orders&retained=yes`);
+      const loading = page.locator('[data-loading-section="annual-conference-ticket-orders"]');
+
+      await loading.waitFor();
+      await page.waitForFunction(() => {
+        const loading = document.querySelector('[data-loading-section="annual-conference-ticket-orders"]');
+        const height = loading?.getBoundingClientRect().height ?? 0;
+
+        return height >= 200 && height <= 401;
+      });
+      await loading.scrollIntoViewIfNeeded();
+      await page.waitForFunction(() => {
+        const loading = document.querySelector('[data-loading-section="annual-conference-ticket-orders"]');
+        const region = loading?.getBoundingClientRect();
+
+        if (!loading || !region) return false;
+
+        return [...loading.querySelectorAll('[data-boneyard-bone]')].filter(bone => {
+          const bounds = bone.getBoundingClientRect();
+
+          return bounds.height > 0 && bounds.height < 50 && bounds.width < region.width * 0.9
+            && bounds.top >= region.top && bounds.bottom <= Math.min(region.bottom, innerHeight)
+            && bounds.left >= 0 && bounds.right <= innerWidth;
+        }).length >= 6;
+      });
+      await page.screenshot({ path: `${artifacts}/annual-ticketing-orders-loading-mobile.png` });
+    } finally {
+      responses.set(ordersPath, ordersResponse);
+      releaseOrders();
+    }
+
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${origin}${base}?section=orders&retained=yes`);
+    const nav = page.getByRole("navigation", { name: "Ticketing sections", exact: true });
+
+    await page.getByRole("rowheader").getByText("Ticketing Fixture", { exact: true }).waitFor();
+    assert.deepEqual(await nav.getByRole("link").allTextContents().then(items => items.map(item => item.trim())), ["Overview", "Orders", "Delivery", "Sponsors", "Testing"]);
+    assert.equal(await nav.locator('[aria-current="page"]').innerText(), "Orders");
+    assert.equal(requests.some(request => /\/ticketing\/(sponsor-allocations|email-deliveries|test-coupons)$/.test(request.path)), false, "Unvisited section queries stay idle");
+    await nav.getByRole("link", { name: "Sponsors", exact: true }).click();
+    await page.getByLabel("Sponsor", { exact: true }).fill("Unsubmitted partner draft");
+    assert.equal(new URL(page.url()).searchParams.get("retained"), "yes");
+    await nav.getByRole("link", { name: "Orders", exact: true }).click();
+    await page.getByRole("button", { name: "Details", exact: true }).click();
+    await page.getByRole("dialog", { name: "Ticketing Fixture", exact: true }).waitFor();
+    assert.equal(await page.locator("#app").getAttribute("inert"), "");
+    await page.goBack();
+    await page.getByLabel("Sponsor", { exact: true }).waitFor();
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    assert.equal(await page.getByLabel("Sponsor", { exact: true }).inputValue(), "Unsubmitted partner draft");
+    assert.equal(await page.locator("#app").getAttribute("inert"), null);
+    assert.equal(await page.evaluate(() => document.body.style.overflow), "");
+    assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('[aria-labelledby="ticket-orders-title"]'))), false, "Back never focuses the hidden order panel");
+    await nav.getByRole("link", { name: "Testing", exact: true }).click();
+    await page.locator("summary").filter({ hasText: "Create a test coupon" }).click();
+    await page.locator("#test-coupon-discount").fill("12.50");
+    await nav.getByRole("link", { name: "Overview", exact: true }).click();
+    await page.getByRole("heading", { name: "Every reserved seat accounted for", exact: true }).waitFor();
+    await nav.getByRole("link", { name: "Testing", exact: true }).click();
+    assert.equal(await page.locator("#test-coupon-discount").inputValue(), "12.50", "Visited Testing controls keep their unsaved draft");
+    await page.getByRole("button", { name: /^Open private sandbox checkout details/ }).click();
+    const sandboxDrawer = page.getByRole("dialog", { name: "Private checkout details", exact: true });
+
+    await sandboxDrawer.waitFor();
+    await page.goBack();
+    await page.getByRole("heading", { name: "Every reserved seat accounted for", exact: true }).waitFor();
+    await sandboxDrawer.waitFor({ state: "detached" });
+    assert.equal(await page.locator("#app").getAttribute("inert"), null);
+    assert.equal(await page.evaluate(() => document.body.style.overflow), "");
+    assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('[aria-labelledby="test-coupons-title"]'))), false, "Leaving Testing never focuses its hidden controls");
+    await nav.getByRole("link", { name: "Testing", exact: true }).click();
+    assert.equal(await page.locator("#test-coupon-discount").inputValue(), "12.50");
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.waitForFunction(() => {
+      const nav = document.querySelector('[aria-label="Ticketing sections"] .workspace-section-nav__viewport');
+      const active = nav?.querySelector('[aria-current="page"]');
+
+      if (!nav || !active) return false;
+      const bounds = nav.getBoundingClientRect();
+      const selected = active.getBoundingClientRect();
+
+      return selected.left >= bounds.left - 1 && selected.right <= bounds.right + 1;
+    });
+    await nav.locator('.workspace-section-nav__viewport').evaluate(element => { element.scrollLeft = 0; });
+    await nav.locator('.workspace-section-nav__more').waitFor();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await nav.getByRole("link", { name: "Orders", exact: true }).click();
+    const phoneOrders = page.getByRole("list", { name: "Ticket orders", exact: true });
+    const viewOrder = phoneOrders.getByRole("button", { name: "View order from Ticketing Fixture", exact: true });
+
+    await phoneOrders.waitFor();
+    assert.equal(await page.locator('[aria-labelledby="ticket-orders-title"] table').isVisible(), false);
+    for (const label of ["Pass", "Amount", "Delivery", "Check-in"]) await phoneOrders.getByText(label, { exact: true }).waitFor();
+    const orderButton = await viewOrder.boundingBox();
+
+    assert.ok(orderButton && orderButton.height >= 44 && orderButton.x >= 0 && orderButton.x + orderButton.width <= 390);
+    await page.screenshot({ path: `${artifacts}/annual-ticketing-orders-mobile.png` });
+    await viewOrder.click();
+    const phoneDrawer = page.getByRole("dialog", { name: "Ticketing Fixture", exact: true });
+
+    await phoneDrawer.waitFor();
+    const closeOrder = phoneDrawer.getByRole("button", { name: "Close ticket order details", exact: true });
+    const closeBounds = await closeOrder.boundingBox();
+
+    assert.ok(closeBounds && closeBounds.width >= 44 && closeBounds.height >= 44);
+    await closeOrder.click();
+    await phoneDrawer.waitFor({ state: "detached" });
+    assert.equal(await viewOrder.evaluate(element => element === document.activeElement), true);
+    await nav.getByRole("link", { name: "Delivery", exact: true }).click();
+    await page.getByRole("heading", { name: "Delivery health", exact: true }).waitFor();
+    assert.equal(await nav.locator('[aria-current="page"]').innerText(), "Delivery");
+    assert.equal(await page.locator("body").evaluate(element => element.scrollWidth <= window.innerWidth), true);
+    await page.screenshot({ path: `${artifacts}/annual-ticketing-delivery-mobile.png` });
+    await page.goto(`${origin}${base}?section=orders&section=delivery&retained=yes`);
+    await page.waitForURL(url => url.searchParams.getAll("section").length === 1 && url.searchParams.get("section") === "overview");
+    assert.equal(new URL(page.url()).searchParams.get("retained"), "yes");
+
+    const nextYear = "/organizer-console/annual-conference/2027/ticketing";
+
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${origin}${nextYear}?section=testing&retained=yes`);
+    await page.waitForURL(url => url.searchParams.get("section") === "overview");
+    assert.equal(await nav.getByRole("link", { name: "Testing", exact: true }).count(), 0);
+    await page.getByRole("button", { name: "Edit prices", exact: true }).waitFor();
+    assert.equal(requests.some(request => request.path === "/api/annual-conference/2027/ticketing/orders"), true, "Overview retains the non-2026 pricing eligibility read");
+    await nav.getByRole("link", { name: "Orders", exact: true }).click();
+    await nav.getByRole("link", { name: "Overview", exact: true }).click();
+    await page.getByRole("button", { name: "Edit prices", exact: true }).click();
+    await page.getByRole("dialog", { name: "Set ticket prices", exact: true }).waitFor();
+    await page.goBack();
+    await page.getByRole("heading", { name: "Ticket orders", exact: true }).waitFor();
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    assert.equal(await page.locator("#app").getAttribute("inert"), null);
+    assert.equal(await page.evaluate(() => document.documentElement.style.overflow), "");
+    assert.equal(requests.filter(request => request.method !== "GET").length, 0, "Section browsing and retained drafts send no mutations");
+  }, { role: "owner" });
 
   await journey("annual-paid-payment-mode", async ({ page, responses, requests }) => {
     const paymentPath = "/api/annual-conference/2026/registrations/payment-mode";
