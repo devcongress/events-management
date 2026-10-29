@@ -1484,3 +1484,15 @@ ADR-118 delivery follow-up: preview dispatch must not lease historical registrat
 **Why:** Long stacked sections make operational tasks difficult to find. Sibling navigation lets organizers focus on one task while breadcrumbs retain context and a reliable way back. A shared implementation and documented visual contract prevent each new workspace or agent session from inventing incompatible controls.
 
 **Trade-offs:** Query-selected workspaces intentionally retain visited form state in memory. Inactive child components must close overlays and pause section-only reads without clearing drafts. Breadcrumb names may initially use neutral fallbacks until their existing query data is cached.
+
+---
+
+## ADR-123: Preserve desktop navigation when destinations exceed the header
+
+**Date:** 2026-10-29
+
+**Decision:** Above 960px, keep a horizontal primary navbar and place the trailing destinations that do not fit in an anchored More disclosure. Measure the full permission-filtered set independently of the rendered prefix, reserve More space only when necessary, and remeasure after fonts and resize. Preserve order, current-section indication, Escape dismissal, and keyboard focus when links move. Use the full-width menu only at or below 960px.
+
+**Why:** The fixed maximum header width leaves insufficient space for all Owner links even on a wide desktop. Treating that overflow as a mobile viewport replaced the entire desktop navigation with the mobile panel.
+
+**Trade-offs:** Some destinations require opening More on desktop. The visual breakpoint remains independent of the existing 767px organizer route policy. Comparable underline rows share one geometry stylesheet so label and indicator spacing cannot drift between workspaces.

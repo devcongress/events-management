@@ -307,6 +307,7 @@ describe("admin API role policy", () => {
   });
 
   it("keeps rendered email previews owner-only", () => {
+    expect(adminRolesForApiRequest("/api/admin/email-previews/registration_confirmed/send-test", "POST")).toEqual(["owner"]);
     expect(adminRolesForApiRequest("/api/admin/email-previews", "GET")).toEqual(
       ["owner"],
     );

@@ -115,10 +115,10 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
   ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers', icon: 'volunteers' as const }] : []),
   ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
   ...(registrationTarget.value ? [{ href: registrationTarget.value, label: 'Registration', icon: 'tickets' as const }] : []),
-  ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const, disabled: true }] : []),
   ...(!isVolunteer.value && hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage'])
     ? [{ href: annualConferencePath('ticketing', year.value), label: 'Ticketing', icon: 'tickets' as const }]
     : []),
+  ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const, disabled: true }] : []),
 ]);
 const navViewport = ref<HTMLElement | null>(null);
 const editionOptions = computed(() => editions.value.map((edition) => ({
@@ -233,47 +233,49 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
       </div>
 
       <div ref="navViewport" class="annual-conference-nav-viewport mt-1 w-full">
-        <nav class="annual-conference-nav" aria-label="Annual Conference workspace">
+        <nav class="annual-conference-nav underline-section-nav" aria-label="Annual Conference workspace">
           <component
             :is="link.disabled ? 'span' : RouterLink"
             v-for="link in links"
             :key="link.href"
             :to="link.disabled ? undefined : link.href"
-            class="annual-conference-nav-link"
-            :class="{ 'annual-conference-nav-link--active': isActive(link.href), 'annual-conference-nav-link--disabled': link.disabled }"
+            class="annual-conference-nav-link underline-section-tab"
+            :class="{ 'annual-conference-nav-link--disabled': link.disabled }"
             :aria-disabled="link.disabled ? 'true' : undefined"
             :aria-current="isActive(link.href) ? 'page' : undefined"
           >
-          <svg class="annual-conference-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <template v-if="link.icon === 'overview'">
-              <rect x="3" y="3" width="5.5" height="5.5" rx="1" />
-              <rect x="11.5" y="3" width="5.5" height="5.5" rx="1" />
-              <rect x="3" y="11.5" width="5.5" height="5.5" rx="1" />
-              <rect x="11.5" y="11.5" width="5.5" height="5.5" rx="1" />
-            </template>
-            <template v-else-if="link.icon === 'work-plan'">
-              <rect x="4" y="2.75" width="12" height="14.5" rx="1.5" />
-              <path d="m7 7.25 1.25 1.25L10.5 6.25M11.75 7.5h1.5M7 11.25l1.25 1.25 2.25-2.25M11.75 11.5h1.5M7 15.25l1.25 1.25 2.25-2.25M11.75 15.5h1.5" />
-            </template>
-            <template v-else-if="link.icon === 'volunteers'">
-              <circle cx="7.25" cy="7" r="2.5" />
-              <path d="M2.75 16.25c.45-2.35 2.15-3.75 4.5-3.75s4.05 1.4 4.5 3.75M13.25 4.75a2.25 2.25 0 0 1 0 4.5M14.25 12.75c1.6.3 2.65 1.4 3 3.5" />
-            </template>
-            <template v-else-if="link.icon === 'speakers'">
-              <path d="M4 16.25c.45-2.35 2.15-3.75 4.5-3.75s4.05 1.4 4.5 3.75" />
-              <circle cx="8.5" cy="7" r="2.75" />
-              <path d="M13 8.5h3.75M14.9 6.6v3.8" />
-            </template>
-            <template v-else-if="link.icon === 'finance'">
-              <path d="M3.5 6.25h13v8.5h-13z" />
-              <path d="M3.5 8.25h13M6.5 12.5h3.25" />
-            </template>
-            <template v-else>
-              <path d="M4 5.25h12v9.5H4z" />
-              <path d="M7 8h6M7 11h4" />
-            </template>
-          </svg>
-            {{ link.label }}
+            <span class="underline-section-tab__content">
+              <svg class="annual-conference-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <template v-if="link.icon === 'overview'">
+                  <rect x="3" y="3" width="5.5" height="5.5" rx="1" />
+                  <rect x="11.5" y="3" width="5.5" height="5.5" rx="1" />
+                  <rect x="3" y="11.5" width="5.5" height="5.5" rx="1" />
+                  <rect x="11.5" y="11.5" width="5.5" height="5.5" rx="1" />
+                </template>
+                <template v-else-if="link.icon === 'work-plan'">
+                  <rect x="4" y="2.75" width="12" height="14.5" rx="1.5" />
+                  <path d="m7 7.25 1.25 1.25L10.5 6.25M11.75 7.5h1.5M7 11.25l1.25 1.25 2.25-2.25M11.75 11.5h1.5M7 15.25l1.25 1.25 2.25-2.25M11.75 15.5h1.5" />
+                </template>
+                <template v-else-if="link.icon === 'volunteers'">
+                  <circle cx="7.25" cy="7" r="2.5" />
+                  <path d="M2.75 16.25c.45-2.35 2.15-3.75 4.5-3.75s4.05 1.4 4.5 3.75M13.25 4.75a2.25 2.25 0 0 1 0 4.5M14.25 12.75c1.6.3 2.65 1.4 3 3.5" />
+                </template>
+                <template v-else-if="link.icon === 'speakers'">
+                  <path d="M4 16.25c.45-2.35 2.15-3.75 4.5-3.75s4.05 1.4 4.5 3.75" />
+                  <circle cx="8.5" cy="7" r="2.75" />
+                  <path d="M13 8.5h3.75M14.9 6.6v3.8" />
+                </template>
+                <template v-else-if="link.icon === 'finance'">
+                  <path d="M3.5 6.25h13v8.5h-13z" />
+                  <path d="M3.5 8.25h13M6.5 12.5h3.25" />
+                </template>
+                <template v-else>
+                  <path d="M4 5.25h12v9.5H4z" />
+                  <path d="M7 8h6M7 11h4" />
+                </template>
+              </svg>
+              <span>{{ link.label }}</span>
+            </span>
           </component>
         </nav>
       </div>
@@ -321,13 +323,14 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
   </section>
 </template>
 
+<style scoped src="@/src/styles/underline-section-nav.css"></style>
+
 <style scoped>
 .annual-conference-nav {
   display: flex;
   gap: 1.5rem;
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  border-bottom: 1px solid #d6d2c8;
   padding: 0 0.125rem;
   scroll-padding-inline: 0.125rem;
   scrollbar-width: none;
@@ -338,42 +341,7 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
 }
 
 .annual-conference-nav-link {
-  position: relative;
-  display: inline-flex;
-  min-height: 2.875rem;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.125rem 0;
-  color: #6f6c65;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: 0;
   scroll-margin-inline: 0.75rem;
-  transition:
-    color 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.annual-conference-nav-link::after {
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 2px;
-  border-radius: 999px;
-  background: #e8117f;
-  content: '';
-  opacity: 0;
-  transform: scaleX(0.5);
-  transform-origin: center;
-  transition:
-    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.annual-conference-nav-link--active {
-  color: #111111;
 }
 
 .annual-conference-nav-link--disabled {
@@ -384,21 +352,6 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
 
 .annual-conference-nav-link--disabled::after {
   display: none;
-}
-
-.annual-conference-nav-link--active::after {
-  opacity: 1;
-  transform: scaleX(1);
-}
-
-.annual-conference-nav-link:focus-visible {
-  border-radius: 6px;
-  outline: 2px solid rgba(232, 17, 127, 0.35);
-  outline-offset: 3px;
-}
-
-.annual-conference-nav-link:active {
-  transform: scale(0.97);
 }
 
 .annual-conference-nav-icon {
@@ -446,17 +399,6 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
     gap: 1.125rem;
     padding-right: 2rem;
     scroll-padding-right: 2rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .annual-conference-nav-link,
-  .annual-conference-nav-link::after {
-    transition: none;
-  }
-
-  .annual-conference-nav-link:active {
-    transform: none;
   }
 }
 </style>

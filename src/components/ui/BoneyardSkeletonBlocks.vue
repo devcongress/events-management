@@ -42,8 +42,20 @@ function cellValue(column: SkeletonColumn, row: number) {
         <button v-if="block.action" disabled>{{ block.action }}</button>
       </header>
 
-      <div v-else-if="block.kind === 'tabs'" class="ems-loading-tabs">
-        <span v-for="(label, tab) in block.labels" :key="label" :class="{ 'ems-loading-active': tab === (block.active ?? 0) }">{{ label }}</span>
+      <div
+        v-else-if="block.kind === 'tabs'"
+        class="ems-loading-tabs"
+        :class="{ 'ems-loading-tabs--underline underline-section-nav': block.appearance === 'underline' }"
+      >
+        <span
+          v-for="(label, tab) in block.labels"
+          :key="label"
+          :class="{ 'ems-loading-active': tab === (block.active ?? 0), 'underline-section-tab': block.appearance === 'underline' }"
+          :aria-current="block.appearance === 'underline' && tab === (block.active ?? 0) ? 'page' : undefined"
+        >
+          <span v-if="block.appearance === 'underline'" class="underline-section-tab__content"><span>{{ label }}</span></span>
+          <template v-else>{{ label }}</template>
+        </span>
       </div>
 
       <div v-else-if="block.kind === 'toolbar'" class="ems-loading-toolbar">
@@ -179,3 +191,4 @@ function cellValue(column: SkeletonColumn, row: number) {
 </template>
 
 <style scoped src="./boneyard-skeleton-blocks.css" />
+<style scoped src="@/src/styles/underline-section-nav.css" />

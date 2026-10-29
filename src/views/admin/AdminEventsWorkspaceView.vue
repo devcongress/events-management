@@ -17,7 +17,7 @@ watch(() => route.path, (toPath) => {
 
 <template>
   <div class="editorial-page">
-    <div class="editorial-wrap">
+    <div class="editorial-wrap events-workspace-wrap">
       <EventsWorkspaceNav />
       <RouterView v-slot="{ Component, route: childRoute }">
         <Transition :name="transitionName" mode="out-in">
@@ -27,3 +27,9 @@ watch(() => route.path, (toPath) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.events-workspace-wrap {
+  padding-top: 1rem;
+}
+</style>

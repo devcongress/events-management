@@ -42,6 +42,7 @@ Do not merge the PR unless the user explicitly asks.
 - Use the shared component's labels, density, disabled state, keyboard/focus behavior, and positioning. Use `teleport` inside clipped panels or drawers so the menu remains visible.
 - Design tokens style a control; they do not replace the shared component's interaction behavior. Keep form-control coverage checks in `src/form-design-system.test.ts` passing when adding or changing forms.
 - Use `WorkspaceSectionNav.vue` for sibling workspace sections and `OrganizerBreadcrumbs.vue` for parent navigation. Keep section state in the URL, preserve drafts across query changes, and close inactive section overlays. Verify same-year links, visible active sections, keyboard focus, and phone touch targets.
+- Reuse `src/styles/underline-section-nav.css` for underline rows: labels sit close to the divider, with one active indicator and a 46px target. Keep desktop navbar overflow in the anchored More disclosure; only the <=960px layout uses the full-width menu.
 - Review table/list skeletons for their internal fields, not just overall size or a nonempty overlay. Capture structural list items and table cells through their children; a whole-card block does not verify fidelity. Below-fold loading must retain a positive preview and visible field bones when scrolled to.
 
 ## Animation Standard

@@ -6620,6 +6620,56 @@ app.get('/api/admin/email-previews/:previewId/html', async (c) => {
   });
 });
 
+app.post('/api/admin/email-previews/:previewId/send-test', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+
+  if (adminError) return adminError;
+
+  const originError = assertAdminOrigin(c);
+
+  if (originError) return originError;
+
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+
+  if (!session.authenticated || session.role !== 'owner' || !session.email || !z.string().email().safeParse(session.email).success) {
+    return c.json({ error: 'Owner session email is unavailable.' }, 403);
+  }
+
+  const previewId = z.string().regex(/^[a-z0-9_]+$/).safeParse(c.req.param('previewId'));
+  const preview = previewId.success ? emailPreviewCatalog().previews.find(candidate => candidate.id === previewId.data) : null;
+
+  if (!preview) return c.json({ error: 'Email preview not found.' }, 404);
+
+  const apiKey = envValue('RESEND_API_KEY', c)?.trim();
+
+  if (!apiKey) return c.json({ error: 'Email delivery is not configured.' }, 503);
+
+  const rateLimit = await consumePublicRateLimit(c, {
+    action: 'email_preview_test_send',
+    clientKey: session.membership_id ?? session.user_id ?? session.email,
+    maxAttempts: 10,
+    windowSeconds: 10 * 60,
+  });
+
+  if (!rateLimit.allowed) {
+    c.header('Retry-After', String(rateLimit.retryAfterSeconds));
+
+    return c.json({ error: rateLimit.unavailable ? 'Test sending is temporarily unavailable.' : 'Please wait before sending another test email.' }, rateLimit.unavailable ? 503 : 429);
+  }
+
+  try {
+    await sendResendEmailBatch({
+      apiKey,
+      idempotencyKey: `email-preview:${crypto.randomUUID()}`,
+      emails: [{ from: preview.from, to: [session.email], subject: `[Test] ${preview.subject}`, html: preview.html, text: preview.text }],
+    });
+
+    return c.json({ status: 'accepted', recipient: session.email });
+  } catch {
+    return c.json({ error: 'The email provider could not accept the test message.' }, 502);
+  }
+});
+
 app.get('/api/admin/archived-events', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
 

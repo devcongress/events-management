@@ -29,6 +29,7 @@ const ARCHIVED_EVENTS_PATH = "/api/admin/archived-events";
 const EMAIL_PREVIEWS_PATH = "/api/admin/email-previews";
 const EMAIL_PREVIEW_DOCUMENT_PATH =
   /^\/api\/admin\/email-previews\/[^/]+\/html$/;
+const EMAIL_PREVIEW_SEND_PATH = /^\/api\/admin\/email-previews\/[^/]+\/send-test$/;
 const EVENT_REGISTRATION_PERMANENT_REMOVE_PATH =
   /^\/api\/events\/[^/]+\/registrations\/[^/]+$/;
 const MONTHLY_MEETUP_FINANCE_READ_PATH = /^\/api\/events\/[^/]+\/finance$/;
@@ -90,6 +91,10 @@ export function adminRolesForApiRequest(
     method === "GET" &&
     (path === EMAIL_PREVIEWS_PATH || EMAIL_PREVIEW_DOCUMENT_PATH.test(path))
   ) {
+    return OWNER_ROLES;
+  }
+
+  if (method === "POST" && EMAIL_PREVIEW_SEND_PATH.test(path)) {
     return OWNER_ROLES;
   }
 

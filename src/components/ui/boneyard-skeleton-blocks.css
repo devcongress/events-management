@@ -74,12 +74,22 @@ button:disabled {
   border-bottom: 1px solid #bcb7aa;
 }
 
-.ems-loading-tabs span {
+.ems-loading-tabs:not(.ems-loading-tabs--underline) span {
   padding: 10px 0;
 }
 
-.ems-loading-active {
+.ems-loading-tabs:not(.ems-loading-tabs--underline) .ems-loading-active {
   border-bottom: 2px solid currentColor;
+}
+
+.ems-loading-tabs--underline {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ems-loading-tabs--underline::-webkit-scrollbar {
+  display: none;
 }
 
 .ems-loading-toolbar {

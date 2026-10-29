@@ -28,20 +28,20 @@ const CONTENT_SECURITY_POLICY = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' https:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com",
-  "frame-src https://challenges.cloudflare.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com",
+  "frame-src 'self' https://challenges.cloudflare.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com",
   "worker-src 'self' blob:",
 ].join('; ');
 
-function withSecurityHeaders(response) {
+function withSecurityHeaders(response, isEmailPreviewDocument = false) {
   const headers = new Headers(response.headers);
 
-  headers.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+  if (!isEmailPreviewDocument) headers.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
   headers.set('Cross-Origin-Opener-Policy', 'same-origin');
   headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
   headers.set('X-Content-Type-Options', 'nosniff');
-  headers.set('X-Frame-Options', 'DENY');
+  headers.set('X-Frame-Options', isEmailPreviewDocument ? 'SAMEORIGIN' : 'DENY');
   headers.set('X-Permitted-Cross-Domain-Policies', 'none');
 
   return new Response(response.body, {
@@ -204,7 +204,14 @@ export default {
     }
 
     if (url.pathname.startsWith('/api/')) {
-      return withSecurityHeaders(await proxyApiRequest(request));
+      const response = await proxyApiRequest(request);
+      const isEmailPreviewDocument = request.method === 'GET'
+        && /^\/api\/admin\/email-previews\/[a-z0-9_]+\/html$/.test(url.pathname)
+        && response.status === 200
+        && (response.headers.get('content-type') ?? '').startsWith('text/html')
+        && response.headers.has('content-security-policy');
+
+      return withSecurityHeaders(response, isEmailPreviewDocument);
     }
 
     const response = await env.ASSETS.fetch(request);

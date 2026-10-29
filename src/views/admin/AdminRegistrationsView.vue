@@ -1166,7 +1166,7 @@ async function retryEmails() {
 
       <template v-else>
         <div
-          class="registration-workspace-tabs"
+          class="registration-workspace-tabs underline-section-nav"
           role="tablist"
           aria-label="Registration workspace"
         >
@@ -1176,37 +1176,39 @@ async function retryEmails() {
             :key="tab.id"
             type="button"
             role="tab"
-            class="registration-workspace-tab"
+            class="registration-workspace-tab underline-section-tab"
             :aria-selected="activeWorkspaceTab === tab.id"
             :aria-controls="`registration-panel-${tab.id}`"
             :tabindex="activeWorkspaceTab === tab.id ? 0 : -1"
             @click="selectWorkspaceTab(tab.id)"
           >
-            <svg class="registration-workspace-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <template v-if="tab.icon === 'summary'">
-                <rect x="3" y="3" width="5.5" height="5.5" rx="1" />
-                <rect x="11.5" y="3" width="5.5" height="5.5" rx="1" />
-                <rect x="3" y="11.5" width="5.5" height="5.5" rx="1" />
-                <rect x="11.5" y="11.5" width="5.5" height="5.5" rx="1" />
-              </template>
-              <template v-else-if="tab.icon === 'guests'">
-                <circle cx="7.25" cy="7" r="2.5" />
-                <path d="M2.75 16.25c.45-2.35 2.15-3.75 4.5-3.75s4.05 1.4 4.5 3.75M13.25 4.75a2.25 2.25 0 0 1 0 4.5M14.25 12.75c1.6.3 2.65 1.4 3 3.5" />
-              </template>
-              <template v-else-if="tab.icon === 'form'">
-                <rect x="4" y="2.75" width="12" height="14.5" rx="1.5" />
-                <path d="M7 7h6M7 10.25h6M7 13.5h3.5" />
-              </template>
-              <template v-else-if="tab.icon === 'emails'">
-                <rect x="2.75" y="4.25" width="14.5" height="11.5" rx="1.5" />
-                <path d="m3.75 5.5 6.25 5 6.25-5" />
-              </template>
-              <template v-else>
-                <path d="m3 10.75 10.25-5v8.5L3 10.75Z" />
-                <path d="M13.25 8.25h1.25a2.5 2.5 0 0 1 0 5h-1.25M6.25 12.25l.75 4" />
-              </template>
-            </svg>
-            <span>{{ tab.label }}</span>
+            <span class="underline-section-tab__content">
+              <svg class="registration-workspace-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <template v-if="tab.icon === 'summary'">
+                  <rect x="3" y="3" width="5.5" height="5.5" rx="1" />
+                  <rect x="11.5" y="3" width="5.5" height="5.5" rx="1" />
+                  <rect x="3" y="11.5" width="5.5" height="5.5" rx="1" />
+                  <rect x="11.5" y="11.5" width="5.5" height="5.5" rx="1" />
+                </template>
+                <template v-else-if="tab.icon === 'guests'">
+                  <circle cx="7.25" cy="7" r="2.5" />
+                  <path d="M2.75 16.25c.45-2.35 2.15-3.75 4.5-3.75s4.05 1.4 4.5 3.75M13.25 4.75a2.25 2.25 0 0 1 0 4.5M14.25 12.75c1.6.3 2.65 1.4 3 3.5" />
+                </template>
+                <template v-else-if="tab.icon === 'form'">
+                  <rect x="4" y="2.75" width="12" height="14.5" rx="1.5" />
+                  <path d="M7 7h6M7 10.25h6M7 13.5h3.5" />
+                </template>
+                <template v-else-if="tab.icon === 'emails'">
+                  <rect x="2.75" y="4.25" width="14.5" height="11.5" rx="1.5" />
+                  <path d="m3.75 5.5 6.25 5 6.25-5" />
+                </template>
+                <template v-else>
+                  <path d="m3 10.75 10.25-5v8.5L3 10.75Z" />
+                  <path d="M13.25 8.25h1.25a2.5 2.5 0 0 1 0 5h-1.25M6.25 12.25l.75 4" />
+                </template>
+              </svg>
+              <span>{{ tab.label }}</span>
+            </span>
           </button>
         </div>
 
@@ -1973,6 +1975,7 @@ async function retryEmails() {
 </template>
 
 <style scoped src="@/src/styles/registration-workspace.css"></style>
+<style scoped src="@/src/styles/underline-section-nav.css"></style>
 
 <style scoped>
 .registration-page-wrap {
@@ -2198,8 +2201,6 @@ async function retryEmails() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .registration-workspace-tab,
-  .registration-workspace-tab::after,
   .registration-overview-progress-fill,
   .registration-value-enter-active,
   .registration-value-leave-active,
@@ -2216,7 +2217,6 @@ async function retryEmails() {
     transition: none;
   }
 
-  .registration-workspace-tab:active,
   .registration-value-enter-from,
   .registration-value-leave-to,
   .registration-panel-forward-enter-from,

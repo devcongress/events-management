@@ -98,7 +98,7 @@ function handleKeydown(event: KeyboardEvent, current: VolunteerView) {
   gap: 0.25rem;
   padding: 0.5rem 0.75rem 0;
   border: 1px solid #d6d2c9;
-  border-bottom: 0;
+  border-bottom: 1px solid #d6d2c9;
   border-radius: 8px 8px 0 0;
   background: #faf8f3;
 }
@@ -112,7 +112,7 @@ function handleKeydown(event: KeyboardEvent, current: VolunteerView) {
   padding: 0.65rem 1rem;
   border: 1px solid transparent;
   border-bottom: 0;
-  border-radius: 6px 6px 0 0;
+  border-radius: 0;
   color: #666;
   font-size: 0.82rem;
   font-weight: 700;
@@ -124,6 +124,8 @@ function handleKeydown(event: KeyboardEvent, current: VolunteerView) {
 }
 
 .volunteer-workspace-tabs button[aria-selected="true"] {
+  position: relative;
+  margin-bottom: -1px;
   border-color: #d6d2c9;
   background: #fff;
   color: #111;
