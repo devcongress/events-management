@@ -1171,7 +1171,8 @@ export const generalSections: SkeletonSection[] = [
           "Email previews",
           "Short links",
           "Archived events"
-        ]
+        ],
+        "appearance": "underline"
       },
       {
         "kind": "toolbar",
@@ -2226,47 +2227,9 @@ export const generalSections: SkeletonSection[] = [
       "topOffset": 100
     },
     "blocks": [
-      {
-        "kind": "split",
-        "ratio": "sidebar",
-        "blocks": [
-          [
-            {
-              "kind": "list",
-              "title": "Email scenarios",
-              "rows": 6
-            }
-          ],
-          [
-            {
-              "kind": "heading",
-              "title": "Email preview",
-              "description": "Recipient \u00b7 subject"
-            },
-            {
-              "kind": "toolbar",
-              "filters": [
-                "Scenario",
-                "Viewport"
-              ]
-            },
-            {
-              "kind": "cards",
-              "title": "Email message preview",
-              "count": 1,
-              "columns": 1,
-              "media": "none",
-              "meta": [
-                "Event details",
-                "Your registration"
-              ],
-              "actions": [
-                "View event"
-              ]
-            }
-          ]
-        ]
-      }
+      { "kind": "heading", "title": "Email previews", "description": "Choose a template and send a test" },
+      { "kind": "toolbar", "filters": ["Email template", "Visual", "Desktop"] },
+      { "kind": "cards", "title": "Email message preview", "count": 1, "columns": 1, "media": "none", "meta": ["From", "Subject", "Message"] }
     ]
   },
   {

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-29 — Simplify email previews and polish navigation
+
+- Simplify email previews into a template picker and visual/plain-text preview, with an Owner-only test send to the signed-in address. Restore same-origin preview framing through Pages while retaining the preview document's restrictive policy.
+- Align volunteer tab dividers, place disabled Finance last, bring Events tabs closer to their breadcrumb, align the email delivery legend and controls, and correct upward-opening dropdown placement.
+
+## 2026-10-29 — Preserve desktop navigation and tighten underline tabs
+
+- Keep the desktop navbar horizontal when Owner destinations exceed the available header width. Move excess links into an anchored More disclosure, retain role filtering and order, and preserve focus across resizing. The full-width menu is limited to viewports at or below 960px.
+- Align labels close to a single pink divider indicator across Ticketing/Registration section rows, Annual Conference navigation, event Registration, and Audit Log. Preserve 46px targets, horizontal scrolling, focus outlines, and reduced-motion behavior; update the matching Audit Log loading fixture.
+- Add navigation fitting tests and isolated browser checks for desktop overflow, keyboard dismissal, resize focus, and shared underline geometry. Refresh affected responsive loading captures.
+
 ## 2026-10-29 — Patch the development request adapter
 
 - Pin the Vite development adapter's `@hono/node-server` dependency to 2.1.3 to address GHSA-rmxm-3fg6-px4f. Preserve the existing Hono/Vite versions and Bun production entry, then refresh loading-capture fingerprints against the updated lockfile.

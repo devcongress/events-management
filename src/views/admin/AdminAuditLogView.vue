@@ -600,87 +600,97 @@ onUnmounted(() => {
       <BoneyardPageSkeleton v-if="loading" name="admin-audit-log" label="audit log" layout="table" />
 
       <div v-else class="flex w-full flex-1 min-h-0 flex-col" :style="auditStickyStyle">
-        <nav class="audit-log-tabs mb-5" role="tablist" aria-label="Audit Log sections">
+        <nav class="audit-log-tabs underline-section-nav mb-5" role="tablist" aria-label="Audit Log sections">
           <button
             id="audit-log-tab-activity"
             type="button"
             role="tab"
-            class="audit-log-tab motion-press"
+            class="audit-log-tab underline-section-tab"
             :aria-selected="activeSection === 'activity'"
             aria-controls="audit-log-panel-activity"
             @click="selectSection('activity')"
           >
-            <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <rect x="3" y="3" width="5.5" height="5.5" rx="1" />
-              <rect x="11.5" y="3" width="5.5" height="5.5" rx="1" />
-              <rect x="3" y="11.5" width="5.5" height="5.5" rx="1" />
-              <rect x="11.5" y="11.5" width="5.5" height="5.5" rx="1" />
-            </svg>
-            <span>Activity</span>
+            <span class="underline-section-tab__content">
+              <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <rect x="3" y="3" width="5.5" height="5.5" rx="1" />
+                <rect x="11.5" y="3" width="5.5" height="5.5" rx="1" />
+                <rect x="3" y="11.5" width="5.5" height="5.5" rx="1" />
+                <rect x="11.5" y="11.5" width="5.5" height="5.5" rx="1" />
+              </svg>
+              <span>Activity</span>
+            </span>
           </button>
           <button
             id="audit-log-tab-email-delivery"
             type="button"
             role="tab"
-            class="audit-log-tab motion-press"
+            class="audit-log-tab underline-section-tab"
             :aria-selected="activeSection === 'email-delivery'"
             aria-controls="audit-log-panel-email-delivery"
             @click="selectSection('email-delivery')"
           >
-            <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <rect x="2.75" y="4.25" width="14.5" height="11.5" rx="1.5" />
-              <path d="m3.75 5.5 6.25 5 6.25-5" />
-            </svg>
-            <span>Email delivery</span>
+            <span class="underline-section-tab__content">
+              <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <rect x="2.75" y="4.25" width="14.5" height="11.5" rx="1.5" />
+                <path d="m3.75 5.5 6.25 5 6.25-5" />
+              </svg>
+              <span>Email delivery</span>
+            </span>
           </button>
           <button
             id="audit-log-tab-email-previews"
             type="button"
             role="tab"
-            class="audit-log-tab motion-press"
+            class="audit-log-tab underline-section-tab"
             :aria-selected="activeSection === 'email-previews'"
             aria-controls="audit-log-panel-email-previews"
             @click="selectSection('email-previews')"
           >
-            <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <rect x="2.75" y="3.25" width="14.5" height="10.5" rx="1.5" />
-              <path d="m3.75 4.75 6.25 4.75 6.25-4.75" />
-              <path d="M7 16.5h6" />
-            </svg>
-            <span>Email previews</span>
+            <span class="underline-section-tab__content">
+              <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <rect x="2.75" y="3.25" width="14.5" height="10.5" rx="1.5" />
+                <path d="m3.75 4.75 6.25 4.75 6.25-4.75" />
+                <path d="M7 16.5h6" />
+              </svg>
+              <span>Email previews</span>
+            </span>
           </button>
           <button
             id="audit-log-tab-short-links"
             type="button"
             role="tab"
-            class="audit-log-tab motion-press"
+            class="audit-log-tab underline-section-tab"
             :aria-selected="activeSection === 'short-links'"
             aria-controls="audit-log-panel-short-links"
             @click="selectSection('short-links')"
           >
-            <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M7.25 12.75 5.5 14.5a3 3 0 0 1-4.25-4.25L4 7.5" />
-              <path d="m12.75 7.25 1.75-1.75a3 3 0 0 1 4.25 4.25L16 12.5" />
-              <path d="m6.75 13.25 6.5-6.5" />
-            </svg>
-            <span>Short links</span>
+            <span class="underline-section-tab__content">
+              <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M7.25 12.75 5.5 14.5a3 3 0 0 1-4.25-4.25L4 7.5" />
+                <path d="m12.75 7.25 1.75-1.75a3 3 0 0 1 4.25 4.25L16 12.5" />
+                <path d="m6.75 13.25 6.5-6.5" />
+              </svg>
+              <span>Short links</span>
+            </span>
           </button>
           <button
             id="audit-log-tab-archived-events"
             type="button"
             role="tab"
-            class="audit-log-tab motion-press"
+            class="audit-log-tab underline-section-tab"
             :aria-selected="activeSection === 'archived-events'"
             aria-controls="audit-log-panel-archived-events"
             @click="selectSection('archived-events')"
           >
-            <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M3.5 6.5h13" />
-              <path d="M6.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 13.5 5v1.5" />
-              <path d="m5 6.5.75 9.5h8.5L15 6.5" />
-              <path d="M8 10h4" />
-            </svg>
-            <span>Archived events</span>
+            <span class="underline-section-tab__content">
+              <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M3.5 6.5h13" />
+                <path d="M6.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 13.5 5v1.5" />
+                <path d="m5 6.5.75 9.5h8.5L15 6.5" />
+                <path d="M8 10h4" />
+              </svg>
+              <span>Archived events</span>
+            </span>
           </button>
         </nav>
 
@@ -912,6 +922,23 @@ onUnmounted(() => {
                   <p class="editorial-eyebrow mb-1">delivery activity</p>
                   <h3>Recent email activity</h3>
                 </div>
+                <div class="audit-log-delivery-history__context" aria-live="polite">
+                  <div v-if="deliveryActivityView === 'messages'" class="audit-log-delivery-history__legend" aria-label="Delivery status legend">
+                    <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--accepted">
+                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m6.75 10 2.1 2.1 4.35-4.35" /></svg>
+                      Accepted
+                    </span>
+                    <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--queued">
+                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6.25v4.1l2.75 1.6" /></svg>
+                      Queued
+                    </span>
+                    <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--failed">
+                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m7.75 7.75 4.5 4.5m0-4.5-4.5 4.5" /></svg>
+                      Failed
+                    </span>
+                  </div>
+                  <p v-else class="audit-log-delivery-history__caption">Provider acceptance is not inbox delivery.</p>
+                </div>
                 <div class="audit-log-delivery-history__controls">
                   <div class="audit-log-delivery-history__switch" role="tablist" aria-label="Delivery activity type">
                     <button
@@ -938,24 +965,6 @@ onUnmounted(() => {
                     </button>
                   </div>
                 </div>
-              </div>
-
-              <div class="audit-log-delivery-history__context" aria-live="polite">
-                <div v-if="deliveryActivityView === 'messages'" class="audit-log-delivery-history__legend" aria-label="Delivery status legend">
-                  <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--accepted">
-                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m6.75 10 2.1 2.1 4.35-4.35" /></svg>
-                    Accepted
-                  </span>
-                  <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--queued">
-                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6.25v4.1l2.75 1.6" /></svg>
-                    Queued
-                  </span>
-                  <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--failed">
-                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m7.75 7.75 4.5 4.5m0-4.5-4.5 4.5" /></svg>
-                    Failed
-                  </span>
-                </div>
-                <p v-else class="audit-log-delivery-history__caption">Provider acceptance is not inbox delivery.</p>
               </div>
 
               <div v-if="deliveryActivityView === 'messages'" id="delivery-activity-panel-messages" role="tabpanel" aria-labelledby="delivery-activity-tab-messages">
@@ -1250,6 +1259,8 @@ onUnmounted(() => {
   </div>
 </template>
 
+<style scoped src="@/src/styles/underline-section-nav.css"></style>
+
 <style scoped>
 .audit-log-header {
   margin-bottom: 1.75rem;
@@ -1271,7 +1282,6 @@ onUnmounted(() => {
   display: flex;
   gap: 1.5rem;
   overflow-x: auto;
-  border-bottom: 1px solid #d6d2c8;
   padding: 0 0.125rem;
   scrollbar-width: none;
 }
@@ -1343,22 +1353,6 @@ onUnmounted(() => {
   color: #197343;
 }
 
-.audit-log-tab {
-  position: relative;
-  display: inline-flex;
-  min-height: 2.875rem;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.125rem 0;
-  color: #6f6c65;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  transition:
-    color 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
 .audit-log-tab-icon,
 .audit-log-delivery-row__icon {
   flex: 0 0 auto;
@@ -1371,38 +1365,6 @@ onUnmounted(() => {
 .audit-log-tab-icon {
   width: 0.9rem;
   height: 0.9rem;
-}
-
-.audit-log-tab::after {
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 2px;
-  border-radius: 999px;
-  background: #e8117f;
-  content: '';
-  opacity: 0;
-  transform: scaleX(0.5);
-  transform-origin: center;
-  transition:
-    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.audit-log-tab[aria-selected='true'] {
-  color: #111111;
-}
-
-.audit-log-tab[aria-selected='true']::after {
-  opacity: 1;
-  transform: scaleX(1);
-}
-
-.audit-log-tab:focus-visible {
-  border-radius: 6px;
-  outline: 2px solid rgba(232, 17, 127, 0.35);
-  outline-offset: 3px;
 }
 
 .audit-log-email-delivery {
@@ -1663,6 +1625,7 @@ onUnmounted(() => {
 
 .audit-log-delivery-history__heading {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   align-items: center;
   justify-content: space-between;
@@ -1691,30 +1654,20 @@ onUnmounted(() => {
 
 .audit-log-delivery-history__switch {
   display: inline-flex;
-  overflow: hidden;
-  border: 1px solid #cfc9be;
-  border-radius: 7px;
-  background: #f6f3eb;
+  gap: 1.25rem;
+  border-bottom: 1px solid #d6d2c8;
 }
 
 .audit-log-delivery-history__switch button {
-  width: 8.75rem;
-  min-height: 2.125rem;
+  min-height: 44px;
   border: 0;
-  border-left: 1px solid #e2ded6;
   background: transparent;
-  padding: 0 0.625rem;
+  padding: 0 0.125rem;
   color: #716d65;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  transition:
-    background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    color 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .audit-log-delivery-history__switch button:first-child {
@@ -1722,8 +1675,7 @@ onUnmounted(() => {
 }
 
 .audit-log-delivery-history__switch button.is-active {
-  background: #111111;
-  color: #ffffff;
+  color: #111111;
   box-shadow: inset 0 -2px 0 #ed1685;
 }
 
@@ -1743,9 +1695,7 @@ onUnmounted(() => {
   display: flex;
   min-height: 2.75rem;
   align-items: center;
-  border-top: 1px solid #e4e0d8;
-  background: #fcfbf7;
-  padding: 0.5rem 1.5rem;
+  padding: 0;
 }
 
 .audit-log-broadcast-history__table {
@@ -2535,12 +2485,11 @@ onUnmounted(() => {
   }
 
   .audit-log-delivery-history__switch button {
-    width: 8rem;
+    width: auto;
   }
 
   .audit-log-delivery-history__context {
-    padding-right: 1rem;
-    padding-left: 1rem;
+    padding: 0;
   }
 
   .audit-log-delivery-history__legend {
@@ -2570,8 +2519,6 @@ onUnmounted(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .audit-log-tab,
-  .audit-log-tab::after,
   .audit-log-delivery-history__switch button,
   .audit-log-delivery-history__page-button,
   .audit-log-activity-row,
@@ -2588,7 +2535,6 @@ onUnmounted(() => {
     transition: none;
   }
 
-  .audit-log-tab:active,
   .audit-log-delivery-history__switch button:active,
   .audit-log-panel-forward-enter-from,
   .audit-log-panel-forward-leave-to,

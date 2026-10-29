@@ -6,7 +6,7 @@
   "sections": {
     "public-events-list": {
       "status": "completed",
-      "inputFingerprint": "371ed904a8c5919141462d41461895b172d0a3e8743d71a47f0135d46f580de0",
+      "inputFingerprint": "760fddadac1671b2cb4618cdabe3eb586be86ab72edf2d598cc5bcd8dfbd95ac",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -44,6 +44,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/EventsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -89,7 +90,7 @@
     },
     "public-dashboard": {
       "status": "completed",
-      "inputFingerprint": "dfd9f0ece489858cbbb4ad3b3c4b52326e698d53e03e8cd962b00cdbe63e8b7e",
+      "inputFingerprint": "be366d0764f5bf6049d07a5fce34af5950a1ecb3ead1fbd50edc951c9904ac52",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -127,6 +128,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/DashboardView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -172,7 +174,7 @@
     },
     "speaker-talk-intake": {
       "status": "completed",
-      "inputFingerprint": "1a54bca8666b52f0653afe4bd6347c65829b2ecd53842bd6eb47b45ac4497f17",
+      "inputFingerprint": "f886519bb1f6e99fc8a9c0baccb2abec219f657e57764705a80a515be1113211",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -210,6 +212,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/SpeakerTalkIntakeView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -249,7 +252,7 @@
     },
     "event-registration": {
       "status": "completed",
-      "inputFingerprint": "60c18446a136516bdb8fa582cbd6fe2b743fe9750374fb3752140daaba65395a",
+      "inputFingerprint": "fbab13e6680827dfab2c8f3ed1dda71ee48f787d71cbfd153313a8e76eedbb93",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -287,6 +290,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/EventRegistrationView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -326,7 +330,7 @@
     },
     "archive-event-detail": {
       "status": "completed",
-      "inputFingerprint": "5742f240bfd4db406ebbd9533326ed9cd14e99aa7be076372aaa75b0d8a4616e",
+      "inputFingerprint": "5eeeda098b7340da28a0fe3229c1800f04b305a228c44c789eabcb6777ed30bf",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -364,6 +368,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/ArchiveEventView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -402,7 +407,7 @@
     },
     "public-archive": {
       "status": "completed",
-      "inputFingerprint": "3f1a44ce9f25774fab0d47307cffe6388b5f3b9c9d4edc8340fbe70d4853de19",
+      "inputFingerprint": "3a9a89443e079ff7a76d17028bda99246836a1e0d54914ed2bbe2b044b1c57d5",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -440,6 +445,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/ArchiveView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -478,7 +484,7 @@
     },
     "call-for-proposals": {
       "status": "completed",
-      "inputFingerprint": "657687ef0ddb8cda454598b00c6a1529ad68bc3074e3877066ca0fee0c59b435",
+      "inputFingerprint": "5682dc349be443ed4f94ab7b0054f368149c6760dd1d683da7cc1bdd24546ab7",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -516,6 +522,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/CfpView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -555,7 +562,7 @@
     },
     "public-feedback": {
       "status": "completed",
-      "inputFingerprint": "fd6af89031a8a057dfe5afb691c0930c0c78c0ff74736c524506c7a76590a145",
+      "inputFingerprint": "53c1d92294c136a4a313dd20f9730026a73783152745e308966faa083601156c",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -593,6 +600,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/FeedbackView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -632,7 +640,7 @@
     },
     "public-event-detail": {
       "status": "completed",
-      "inputFingerprint": "95df6f97a5a33b3d611cfc00c632b7e6ba982318b08fddc28fc61525544043e6",
+      "inputFingerprint": "28eacdb84d8cb58fba92d90fe876c2f20b30440e943d0145252d2c42df80940d",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -670,6 +678,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/EventView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -708,7 +717,7 @@
     },
     "system-design-participant": {
       "status": "completed",
-      "inputFingerprint": "fd7e434760f920ae09ae83e31e717233fbc68046202efbf6dbf085abf6666c0e",
+      "inputFingerprint": "8dccbff172ca5f5de5a234983403e800ec1575c1d565be836e7292a30bab17e1",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -746,6 +755,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/SystemDesignParticipantView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -786,7 +796,7 @@
     },
     "admin-feedback-overview": {
       "status": "completed",
-      "inputFingerprint": "70a259c4ed52b599de5b0ebc3c3b4c3f002686b5ff81448511c1ac431a3d1af7",
+      "inputFingerprint": "340f785922c70f1d5b95d35c10b1be824cfde0d8fcbc7f1aee1be6f41cbaa115",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -824,6 +834,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminFeedbackOverviewView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -862,7 +873,7 @@
     },
     "admin-talks": {
       "status": "completed",
-      "inputFingerprint": "055f0d9da9661aa3853fe2243b3ea9eeba4836c0f65ffb98f6ed4296fe9a1bec",
+      "inputFingerprint": "0b4630bacaaa9ec3a3f0caf46b8d05778ddec9301f323183e976d7b89e50f3d6",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -900,6 +911,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminTalksView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -938,7 +950,7 @@
     },
     "admin-speakers": {
       "status": "completed",
-      "inputFingerprint": "ba14c61921c3cf1939210f728be620205b4c21b4628359bdc0df68b83a860324",
+      "inputFingerprint": "9fa67e9c2be6a1fe854ac91f4bfecb56d07af379a006fb76320f04b3c15818ad",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -976,6 +988,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminSpeakersView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1014,7 +1027,7 @@
     },
     "admin-organizers": {
       "status": "completed",
-      "inputFingerprint": "e2618dec3fbae9be59754de60def5194701999d0bf4408474a405ad7b376f2be",
+      "inputFingerprint": "7e8a33de6377c4d6bbc082708916632343ffc414c60b1c3634252b7cf36dca97",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1052,6 +1065,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminOrganizersView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1090,7 +1104,7 @@
     },
     "admin-event-detail": {
       "status": "completed",
-      "inputFingerprint": "408307675ded5369ae535a31ba8d7302c5490dd4ec62a69df04f72eee511c562",
+      "inputFingerprint": "398746051900091c9e5664481e0c8b3fda8ff4b2ac5ce2e1d85de82c96731df0",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1128,6 +1142,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminEventView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1166,7 +1181,7 @@
     },
     "admin-feedback": {
       "status": "completed",
-      "inputFingerprint": "5b44910d1a7ad534efba7a3b88449f53031c4d56d77ec7d9ff2fdd7fc16cdf94",
+      "inputFingerprint": "c80691822f0775cf93191649e039c4994a83882c2256eed1912f8a2719a40591",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1204,6 +1219,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminFeedbackView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1242,7 +1258,7 @@
     },
     "admin-attendance": {
       "status": "completed",
-      "inputFingerprint": "757e10899869e03c065206ebe8eea92b7706f1046c2424f140de95e752dc9db1",
+      "inputFingerprint": "aa9c0e541993d963ef3361214f9c514e0818b2cbcebf67a0b7b467a93116d669",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1280,6 +1296,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAttendanceView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1318,7 +1335,7 @@
     },
     "admin-audit-log": {
       "status": "completed",
-      "inputFingerprint": "1a99267da5e7089ec5c7f8253f51d2a4122d5e380eeaadd7c17659726b7d1eb5",
+      "inputFingerprint": "4963b56803f7ab86d5cd03d791036e794456316dcb85627b3bd347453af78019",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1356,6 +1373,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAuditLogView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1368,7 +1386,7 @@
         "src/bones/admin-audit-log.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/admin-audit-log.bones.json": "7978f9019767eb9efce16443adb1ce482113247d147cbb839ed1adc898f46542"
+        "src/bones/admin-audit-log.bones.json": "cd2cc9d3f2f76430c133ee16ff4fa4edbdc83476097021b90eea15d6d87537ed"
       },
       "captureConfig": {
         "breakpoints": [
@@ -1394,7 +1412,7 @@
     },
     "admin-attendance-overview": {
       "status": "completed",
-      "inputFingerprint": "96052d79769d486411bc8c761ddcdc9cdc67e3d7159f17f69aede8ecdb64c272",
+      "inputFingerprint": "b93209b9d9a65dde668e08e5d5bc5de660d4972ab36f60c731a02237c2f185f5",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1432,6 +1450,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAttendanceOverviewView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1470,7 +1489,7 @@
     },
     "admin-events-list": {
       "status": "completed",
-      "inputFingerprint": "4ad6f1742c6da2f51f156ddf8a31ea4ac67f461b8f7406f5aecadbf73db53599",
+      "inputFingerprint": "6e9eff5ef488a79ac435f567ba6eb784c7926a9e88b095f7b21fe924310f3aa0",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1508,6 +1527,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminEventsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1546,7 +1566,7 @@
     },
     "admin-registration-workspace": {
       "status": "completed",
-      "inputFingerprint": "2cef17998bf4f0dced73f5a6a8908ebfbc73e136739791ee35612b4a6e6f2a9d",
+      "inputFingerprint": "67556ec1775835c93ebb4a4b4d6cb086b0530780a8bc48a2c83067051190df46",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1584,6 +1604,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1622,7 +1643,7 @@
     },
     "annual-conference-finance": {
       "status": "completed",
-      "inputFingerprint": "28ecf11f04c1f9e37b7b173c358a44488a1761ecbc4dcbd364a82c08b3c74748",
+      "inputFingerprint": "ab162bc9473079abb33359d8a3080c68f8988496bc4807690541dd6eb55e6421",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1660,6 +1681,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceFinanceView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1699,7 +1721,7 @@
     },
     "annual-conference-speakers": {
       "status": "completed",
-      "inputFingerprint": "819ffb53edce8839089df82c1a81ef2ac59f007682ddac1b9596e54c8a932d74",
+      "inputFingerprint": "a20ca646a05e2c50a79fe3979cab960ea381049ec64f794c5755d9493da1f730",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1737,6 +1759,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceSpeakersView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1776,7 +1799,7 @@
     },
     "annual-conference-overview": {
       "status": "completed",
-      "inputFingerprint": "0b06e5527b1f048e4fa7bb8ae1faa3099d72e5588f2ab5d5b12e1a53200e3f0f",
+      "inputFingerprint": "ced38c17247d36c7b85381c2465c14ed1df52a140c33a6cd3b8e4cd01a4912ba",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1814,6 +1837,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1853,7 +1877,7 @@
     },
     "annual-conference-registrations": {
       "status": "completed",
-      "inputFingerprint": "7d1cd3df03403808ae04e4f5e5e9af56274d31a74670b53e595b4e82feeb9737",
+      "inputFingerprint": "93c22204fbb0b5b2bc3f3485463cfd9bcb2f4e8fc21904ee3ed6e7de712b985c",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1891,6 +1915,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -1930,7 +1955,7 @@
     },
     "annual-conference-volunteers": {
       "status": "completed",
-      "inputFingerprint": "825d3b4ba9badcf91a69b2c2d9b66fc83b378b335287e844cf54348fab7edea5",
+      "inputFingerprint": "79e068a7407c84bae68218c1c3f0992d92866477853ca6b8dbac46c7249aa169",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1968,6 +1993,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminVolunteerView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2007,7 +2033,7 @@
     },
     "annual-conference-work-plan": {
       "status": "completed",
-      "inputFingerprint": "39aba64237f76ebc81e9ad34c7b041434680e2ac242fd9c379975a59b673770e",
+      "inputFingerprint": "cc824c6388270735ba1de6b2eedfb5b8e1035d745ddf134d5963d3a600cd4cdd",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2045,6 +2071,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceWorkPlanView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2084,7 +2111,7 @@
     },
     "annual-conference-ticketing": {
       "status": "completed",
-      "inputFingerprint": "77f13c7600711799668463bd0a092bfd25e9531ffa0e3ff6ee961a1fa4c1c3dc",
+      "inputFingerprint": "66691ef1267e9d3d0033e6bc384f253f8897a411ab5372aa691a27f5bf841a18",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2122,6 +2149,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceTicketingView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2161,7 +2189,7 @@
     },
     "organizer-mobile-next-actions": {
       "status": "completed",
-      "inputFingerprint": "9f4bcd78bfc44a2595feb19e02bec702f4d7db829ea0befcb5a6e7498cb055d9",
+      "inputFingerprint": "bc8f943ef1cd7f4166a0d68700534be02d13458263afe9da61d9d2263d263b93",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2199,6 +2227,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileOrganizerView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2244,7 +2273,7 @@
     },
     "admin-event-submissions": {
       "status": "completed",
-      "inputFingerprint": "e517065eeb781fe748514bfd18068f0a3b56e5046dadceea11cbe159a9d2043d",
+      "inputFingerprint": "9eeacf9a5f545cadeb04934f53af0712741474416391487a14bb9eccb310204d",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2282,6 +2311,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminEventSubmissionsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2320,7 +2350,7 @@
     },
     "admin-system-design": {
       "status": "completed",
-      "inputFingerprint": "cacd9dc50a8e6bb568e3c59bc781d852df69513bae662031cd6f0bcc32f18ac1",
+      "inputFingerprint": "7f77d864e66ad49ad92fa93157b58cf9f54ed4c60a8fa797113f96f8b3e74c5a",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2358,6 +2388,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminSystemDesignView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2396,7 +2427,7 @@
     },
     "event-amendment": {
       "status": "completed",
-      "inputFingerprint": "f203bf5996d8f93d81408faeec19c592b9d85f6583312f8a7de556b4f0104876",
+      "inputFingerprint": "5ef9fb9f9275b44a0820ed002b9652b9f9808996a41c177d89d2809eab49d629",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2434,6 +2465,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/EventAmendmentView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2473,7 +2505,7 @@
     },
     "admin-community-event-detail": {
       "status": "completed",
-      "inputFingerprint": "c79fbcfec9f86998c05e6d06538e7346d4e0b2c916ddfd3ffdbb9cafb62495c9",
+      "inputFingerprint": "b69c5345ef86d36bf32dd92ab750921bae31ac25b5004fec083a951213c434cf",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2511,6 +2543,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminCommunityEventView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2549,7 +2582,7 @@
     },
     "volunteer-follow-up-campaign": {
       "status": "completed",
-      "inputFingerprint": "52023d60f6916d7de78f77380345d5755bb6ba16660b1146491a7110c664984a",
+      "inputFingerprint": "d663901f86c2a34b03168231f1e330d82e03f71f5f2cc71e7e396f9ab847cfab",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2589,6 +2622,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -2627,7 +2661,7 @@
     },
     "admin-present-forms-board-1": {
       "status": "completed",
-      "inputFingerprint": "959f87b5221dfd99abedce4d076ded817333c6aab0205d2240a6d5edc9a10f0a",
+      "inputFingerprint": "121e0f1cef5cf8dcc244d08688cac2bc1a5e6c59d5a75f5cb1ef6ea5526bd625",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2665,6 +2699,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminFormBoardDisplayView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2703,7 +2738,7 @@
     },
     "admin-present-forms-board-2": {
       "status": "completed",
-      "inputFingerprint": "e74d45fb924c6474c581f5dc6c0deab60a0a7524a35b6efbeec5f4f6d9f407f7",
+      "inputFingerprint": "597d1840844d56e78f20988ee852582df074fa4d9b59b9ba8e8a74747017cded",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2741,6 +2776,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminFormBoardDisplayView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2779,7 +2815,7 @@
     },
     "admin-present-forms-board-3": {
       "status": "completed",
-      "inputFingerprint": "ab913b598509fdc4f59edb16fb40fb7c80f7c6f3127ee09892f0820f58be9f0e",
+      "inputFingerprint": "6ea3d82424590f00b4efd8ade1c361e48efd6fc1127b88dc8c9abd453f255982",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2817,6 +2853,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminFormBoardDisplayView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2855,7 +2892,7 @@
     },
     "mobile-events-list": {
       "status": "completed",
-      "inputFingerprint": "531c53f8abb2698f5eeac9862702079bf8187029e326fc839a31afc66693db36",
+      "inputFingerprint": "18aa35c528d5245259031840b68d46a9039523def8e5d79b3624ff8da1a4db11",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2893,6 +2930,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileEventsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -2938,7 +2976,7 @@
     },
     "mobile-event-detail": {
       "status": "completed",
-      "inputFingerprint": "906a0d882463779aacf2240aa6828f2790b0040a3e9d0fc726b09f236acde60c",
+      "inputFingerprint": "d8e1fcdb7fa1333c0defd743f3784fadd36ec35fb50a7917a800ce9c55a74e5e",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2976,6 +3014,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileEventView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3021,7 +3060,7 @@
     },
     "mobile-conference-workspace": {
       "status": "completed",
-      "inputFingerprint": "1ff348262ba102b58e37610c711020a14f3c6c5e3aca15aae8a7615c2fceec4a",
+      "inputFingerprint": "87c59d27a24f752d917ec11533c01fad4f748b1a46a3981d39c61c61f9a827da",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3059,6 +3098,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileAnnualConferenceView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3098,7 +3138,7 @@
     },
     "mobile-check-in-guests": {
       "status": "completed",
-      "inputFingerprint": "b8d94f0e357ec667449f03603060cb87ca5f812013acfa414cb96ae5dd26f256",
+      "inputFingerprint": "6d60318921a8a23a694a86a522a8cca46ac1a29288ebcc1dded47861dfd17011",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3136,6 +3176,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileCheckInView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3174,7 +3215,7 @@
     },
     "mobile-blasts-audience": {
       "status": "completed",
-      "inputFingerprint": "d2e58362d2ced439abe8ac60fc05caafe1e44c832b578a71732fde947a793e17",
+      "inputFingerprint": "3a92b70f0384bc4404be28a6911e711779de10cb5ee93dc0643474afa2fb2647",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3212,6 +3253,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileEventBlastsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3250,7 +3292,7 @@
     },
     "speaker-talk-intake-conference": {
       "status": "completed",
-      "inputFingerprint": "cdbd63cc0868a7bf0ad98c8755b5507fa575f9303d0f0e9ed99da2074d94251c",
+      "inputFingerprint": "b42d71fe2c84e14233e09be5a2abdadadbbf59c7a75a7b14fbf90f173efe6fdd",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3288,6 +3330,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/SpeakerTalkIntakeView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3327,7 +3370,7 @@
     },
     "admin-talks-proposals": {
       "status": "completed",
-      "inputFingerprint": "a4e328facf7afdfb5b7356cf7c5657902f79b6dd7066f796f548f533973852d5",
+      "inputFingerprint": "d3040d0d2e08e007532e0a94804692e6908de80ae36caeb49d0110742394a03c",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3365,6 +3408,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminTalksView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3403,7 +3447,7 @@
     },
     "admin-talks-program": {
       "status": "completed",
-      "inputFingerprint": "fe04f2e7a07937bf1241b0e817a0826b0f3de03951ce8fad21ab2a022e99a787",
+      "inputFingerprint": "3e9f856c73ac4fc30e51691c907f0e38fd10ac1abecb85222576617dc4c96df8",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3441,6 +3485,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminTalksView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3479,7 +3524,7 @@
     },
     "admin-talks-backfill": {
       "status": "completed",
-      "inputFingerprint": "f50775bdfad06d6bcf9832077e3b5de23d9dbd7362c8e29ef8532806282b39a6",
+      "inputFingerprint": "c2bd8c0a0b5cf5046fb0ffb8f78f828835b9be56e39d08f8c667d7b14f951a7d",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3517,6 +3562,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminTalksView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3555,7 +3601,7 @@
     },
     "admin-organizers-owner": {
       "status": "completed",
-      "inputFingerprint": "2385303454f6613612d34fbba8b317fd165ea27f30cbb24b0b7b0db249a772f5",
+      "inputFingerprint": "212df2e232d9028f1cf2f1394d0243275e049bf6d11e7c5f07cd9184eec5b770",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3593,6 +3639,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminOrganizersView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3631,7 +3678,7 @@
     },
     "admin-feedback-responses": {
       "status": "completed",
-      "inputFingerprint": "7ab9eae50518c3b814a162d3de38aba4740cf131d9df311d282d912ddac33dcf",
+      "inputFingerprint": "5f55dcc3418f31a2838339f4fb5a330d01249ba5520032c1c988003abf9b6c7a",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3669,6 +3716,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminFeedbackView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3707,7 +3755,7 @@
     },
     "admin-registration-workspace-guests": {
       "status": "completed",
-      "inputFingerprint": "8318ae56f8aa60a9327f78cdb8c94b91a1f4ac1df582464bdfebd66e3aad8d92",
+      "inputFingerprint": "f8f0b0c5665e62491541b1799594cdc4ab93c4e415efc05e0dc3f4c2af1b69f5",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3745,6 +3793,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3783,7 +3832,7 @@
     },
     "admin-registration-workspace-form": {
       "status": "completed",
-      "inputFingerprint": "e29538be5f428bd72319074a658aeeeb68c3c3635be24860d279afb1ad70fd77",
+      "inputFingerprint": "e1cbbf1f020a9a9b7d5dfdebce35aea0994f35da5a38888c8254677451f362fe",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3821,6 +3870,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3859,7 +3909,7 @@
     },
     "admin-registration-workspace-emails": {
       "status": "completed",
-      "inputFingerprint": "65b2e745bf35fc488582b75dd05ddbab659c2f3bab3558e1756363ab44e33a0c",
+      "inputFingerprint": "3644980a8ca7a3c6f36ecf5088b6e6f9f0668ad61051c0fb8b0a0b2c17821845",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3897,6 +3947,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -3935,7 +3986,7 @@
     },
     "admin-registration-workspace-blasts": {
       "status": "completed",
-      "inputFingerprint": "02adfccd56da22f85b14b3d4c7cd2c0f67882768470c034f11b547bc3b0580ae",
+      "inputFingerprint": "777e896b86b27d23768d37f26143f2f370acb7041222914470f5ea5b05fa9eb4",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3973,6 +4024,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4011,7 +4063,7 @@
     },
     "mobile-event-detail-guests": {
       "status": "completed",
-      "inputFingerprint": "4843a235b260272769bdb48a0f0ffe847e18a292dba080ef7a72b2a84ac3f063",
+      "inputFingerprint": "73ca5cd21dce942aead66ba1f7d44f624b4ec525197788bbf5b1e389919ba033",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4049,6 +4101,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileEventView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4087,7 +4140,7 @@
     },
     "mobile-event-detail-submissions": {
       "status": "completed",
-      "inputFingerprint": "f4ef585b1c7df537253069e66926d3f7beb148c2998eccaaf227748312ea8865",
+      "inputFingerprint": "cf543e0945ce48a83ea51cf91f2c49116ea667f120beda556b91818187e3b333",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4125,6 +4178,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileEventView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4163,7 +4217,7 @@
     },
     "system-design-presenter": {
       "status": "completed",
-      "inputFingerprint": "d24f53e622e5244ecdd1001977dfd22555bd7f49cbf10f92ef1a8f59948553af",
+      "inputFingerprint": "06a3753e460fb877a01a97eafe5a25e47ad9397c1d833d877f051e396da15787",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4201,6 +4255,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/SystemDesignPresenterView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4239,7 +4294,7 @@
     },
     "system-design-recap": {
       "status": "completed",
-      "inputFingerprint": "97008e8ce9f5c7ff7ee5e78b8627f3a255472fa1ff2671e7d7df26883195d440",
+      "inputFingerprint": "2c4899583c51522d046bc7907a1e5967e280c537cb13707e6c57ecea22ab5a47",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4277,6 +4332,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/SystemDesignRecapView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4315,7 +4371,7 @@
     },
     "admin-email-previews": {
       "status": "completed",
-      "inputFingerprint": "9985f90394c3112fff00014482cf91d5de2f362e908b5929c904980c2d2e1628",
+      "inputFingerprint": "aaf361e1846c52abdc8627a88221d4108cb6006cc84d2a97c139532711e0e28c",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4353,6 +4409,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminEmailPreviewsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4365,7 +4422,7 @@
         "src/bones/admin-email-previews.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/admin-email-previews.bones.json": "5dbe1dd262a621038fb8f8ae1337c118477f9b3051be54bad71195c920b7b3c5"
+        "src/bones/admin-email-previews.bones.json": "e662777dd4118452583531c4ba53f76e2f79f3086d9b5f540dca6e213c2e3933"
       },
       "captureConfig": {
         "breakpoints": [
@@ -4391,7 +4448,7 @@
     },
     "admin-present-forms-choices": {
       "status": "completed",
-      "inputFingerprint": "09b9d7cba511481d804706019ccd99cad3f489636e7e18037c47cc7291b9df09",
+      "inputFingerprint": "ce5902a13ecec1e8ecf8a32c2d9c7815136b3c4bb1c89268015c5eea5798af35",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4429,6 +4486,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminPresentFormsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4467,7 +4525,7 @@
     },
     "admin-feedback-display": {
       "status": "completed",
-      "inputFingerprint": "6f939a482639bd7438256d0e52164e69a85fbe724b690c2d18ce25e2665c7944",
+      "inputFingerprint": "8cc42fa266107bb55a86fb432b8a805e8e5a22f30c677afb5414b22295c10b38",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4505,6 +4563,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminFeedbackDisplayView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4543,7 +4602,7 @@
     },
     "admin-registration-display": {
       "status": "completed",
-      "inputFingerprint": "817518eb15e6cef60b89acbaa75230f626ad5f0464bc92087659ba775a6a38aa",
+      "inputFingerprint": "79e6bcb3b5777f908bad642037d0cd664003d5383a1f2ce1cba21670d45e3fa3",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4581,6 +4640,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminRegistrationDisplayView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4619,7 +4679,7 @@
     },
     "project-night-recurrence": {
       "status": "completed",
-      "inputFingerprint": "89b9336b942b0303a853dcc6e242504cefc8d6c445e4be36d57c84ecde3205ea",
+      "inputFingerprint": "a663de1ac7654554fa268a39d2208e24172aa34034c7b09598489e1728c85d09",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4658,6 +4718,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -4695,7 +4756,7 @@
     },
     "admin-access-requests": {
       "status": "completed",
-      "inputFingerprint": "8c34447014c281c8903c0c572ae8c13bf8dd4c98da69527d260b33779512c64c",
+      "inputFingerprint": "b199ca681f2ea51e37d9eaa2eb10e22eb9eb23e686c4b3b3ec87d6656366829e",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4733,6 +4794,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminOrganizersView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4771,7 +4833,7 @@
     },
     "admin-conference-responsibilities": {
       "status": "completed",
-      "inputFingerprint": "1f11f7f630baed766bab0acf14cccc8c6e7493c504659558604889e2cddcdc01",
+      "inputFingerprint": "71151660b7ddfa08d1c4f30034e904ad9ecc8ece5d10d46d1604b7b2896fce16",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4809,6 +4871,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminOrganizersView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4847,7 +4910,7 @@
     },
     "admin-short-links": {
       "status": "completed",
-      "inputFingerprint": "df8e5723d5118f354d3f396474985065f8b12c75630c7ba04adaef7d0a0f03b9",
+      "inputFingerprint": "389dbde01f0372bd0f6efc12055f03ccf9209711a8b0ba14cf0c3d41feb4871c",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4886,6 +4949,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -4923,7 +4987,7 @@
     },
     "admin-archived-events": {
       "status": "completed",
-      "inputFingerprint": "cb5fb946f9f0523cf153a4caa85b68fe162c1cb00697e562c185e5a95dcf2819",
+      "inputFingerprint": "eb546ef553671118d39e14fb132dde119b26c298357942a3dd6df89ba0a026c9",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -4961,6 +5025,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAuditLogView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -4999,7 +5064,7 @@
     },
     "mobile-event-guests": {
       "status": "completed",
-      "inputFingerprint": "658f3360e277733a2060cc0bf4b7e3035da11990b50568afd1116dcc79892e7d",
+      "inputFingerprint": "011800ceaca00d838b67a52288786b7285f41581297f53ab88007141aa845b7d",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5037,6 +5102,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileEventView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5075,7 +5141,7 @@
     },
     "mobile-event-submissions": {
       "status": "completed",
-      "inputFingerprint": "77d711b19253934a38a6f8eeb8fcfec52f88bae3912cbee615d233ba9836ba42",
+      "inputFingerprint": "6403b9d406bcb96820d7fe4c029e6c7d557c6e490fd6dad0c753aaa68a3097b7",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5113,6 +5179,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileEventView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5151,7 +5218,7 @@
     },
     "mobile-blast-history": {
       "status": "completed",
-      "inputFingerprint": "df2b11172b776f71dc6891615c1fbcb8eff6f80a476a590595e41f1b83fa1902",
+      "inputFingerprint": "e588c9913d4f755245e023a3a69ba0b9b9bde04cc851af711f7923a3252f2b45",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5189,6 +5256,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileEventBlastsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5227,7 +5295,7 @@
     },
     "event-blast-history": {
       "status": "completed",
-      "inputFingerprint": "2ae6afef9e629416b35d13c877ce27ad176c258d2e820962fe1b8ccd3aa105a3",
+      "inputFingerprint": "7ee1a6a73a1caf5b23caa144e550395c30124f6d69699ccbc1328a9918859dfc",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5265,6 +5333,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5303,7 +5372,7 @@
     },
     "annual-conference-overview-assigned": {
       "status": "completed",
-      "inputFingerprint": "e7e031a69499b24d0f4a5f46fe2b26233a179009d49cbbfc74c32ffbce3e946b",
+      "inputFingerprint": "3b6e3a7d50940c62b3ec45b85bf86d6cd59447ff51060c665a3c29915bf70119",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5341,6 +5410,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5380,7 +5450,7 @@
     },
     "annual-conference-work-plan-board": {
       "status": "completed",
-      "inputFingerprint": "c69d3f17374a3b707f7ace93a550908669e38d3fbda13149aeb334ede59ae7af",
+      "inputFingerprint": "d2f2f70c4dd43113bc138adf08fc859d32dc2cc62ad29155ce50c313bd810430",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5418,6 +5488,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceWorkPlanView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5457,7 +5528,7 @@
     },
     "annual-conference-registrations-guests": {
       "status": "completed",
-      "inputFingerprint": "0fb6b4a19abd8e847ded98141493e63ab01ee8314be97f7c133210d6db2c2d82",
+      "inputFingerprint": "ecfb819462d2306f8c632157a6d6fb1ad704be80a07bc758f5ef2a241956dbbc",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5496,6 +5567,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5535,7 +5607,7 @@
     },
     "annual-conference-registrations-form": {
       "status": "completed",
-      "inputFingerprint": "31a42c0bec318ee6d0a42b6398d60bc760006205d7867aace235299fa1e5aedb",
+      "inputFingerprint": "479a1bb180395eae032579712e08e3af9f66983b57db678ad464d83599faf159",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5573,6 +5645,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5612,7 +5685,7 @@
     },
     "annual-conference-registrations-emails": {
       "status": "completed",
-      "inputFingerprint": "fefff5335af51319538041490539c475cc42204520ca3d85fd434e39d94318f6",
+      "inputFingerprint": "56131abe8ec2527b8a8d3279d68988e7bf5e39b52779d1c59ea6ca33ab043b98",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5651,6 +5724,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5690,7 +5764,7 @@
     },
     "annual-conference-registrations-blasts": {
       "status": "completed",
-      "inputFingerprint": "bc6bbb108bb6c9c46b7fef7ac47fbdd2d67d4e1c6bf05219c8eeaba162fee76f",
+      "inputFingerprint": "75041ddd000e60696c4d41a88ec9bc7ea3305031b662ff68a6c9d497c582cba2",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5728,6 +5802,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5767,7 +5842,7 @@
     },
     "annual-conference-registrations-community": {
       "status": "completed",
-      "inputFingerprint": "6296d2ed077d838b394b5d3ae5a940a7170a1373ca0277dbd11b9b17f61fb51a",
+      "inputFingerprint": "fcb77e76b7077590d03d372bce461a03edc3a8688f25d3f916145c1abfdc2191",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5806,6 +5881,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5845,7 +5921,7 @@
     },
     "mobile-conference-workspace-tasks": {
       "status": "completed",
-      "inputFingerprint": "63904ce49e717b9c556072fc0a0476743d00cd594058182db575de4cc3f0c10f",
+      "inputFingerprint": "68a087eae3cb1b1a3757741e10a38438e7d3ba051d197fe7fc70c4c1609c67b7",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5883,6 +5959,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileAnnualConferenceView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5922,7 +5999,7 @@
     },
     "mobile-conference-workspace-volunteers": {
       "status": "completed",
-      "inputFingerprint": "62afdc565f8ad354f3e7012c890737abfec18fe58c4a3e3a08de59722b6fa046",
+      "inputFingerprint": "a7a8afce465229040d03d9f038ba9efef7238da9d278e4c9c1afaf615052e783",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -5960,6 +6037,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileAnnualConferenceView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -5999,7 +6077,7 @@
     },
     "mobile-conference-workspace-assigned": {
       "status": "completed",
-      "inputFingerprint": "5df6b4767c7a7fc4f4d462c58ade661621ddc0d5f21acc87add8ffe4a3f05401",
+      "inputFingerprint": "1557d99117f18ba95adb9ac9d3accbf7be96513751ef796d29784fc54da35b48",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6037,6 +6115,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileAnnualConferenceView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -6076,7 +6155,7 @@
     },
     "mobile-conference-workspace-my-tasks": {
       "status": "completed",
-      "inputFingerprint": "e691c1a14396f4e4096f9d739dea9f6a0dc1a38f718eefa76ca6882f2f95b027",
+      "inputFingerprint": "c5ff6373c8ba3ba0bff628603a8a8ecca75bb5c1aeccf54e3cb8156fe6dcd88f",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6114,6 +6193,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileAnnualConferenceView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -6153,7 +6233,7 @@
     },
     "annual-conference-capacity-controls": {
       "status": "completed",
-      "inputFingerprint": "b957285b56e5183b4b9facf12220319e9affc1d321a7a5203ff9ba943a5a59bd",
+      "inputFingerprint": "c26901ac6d10864637e2aebf13c80baa3ed5cfbe53bfa53b8dfd727fd0dd496c",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6191,6 +6271,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -6231,7 +6312,7 @@
     },
     "annual-conference-registration-testing": {
       "status": "completed",
-      "inputFingerprint": "1f3c5e510d5279a990399ce116a139b6ddf3f33f38bfd2ae9fef438616e3aae6",
+      "inputFingerprint": "6babbc5454f846951a2251ea458b119adad7c661d8042f455feadd82fbb4b53e",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6269,6 +6350,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -6309,7 +6391,7 @@
     },
     "annual-conference-payment-settings": {
       "status": "completed",
-      "inputFingerprint": "856441db96b3bd77d657a619cf8b0dcc97c1ea1194a0c1ec51ec937c127c1c34",
+      "inputFingerprint": "ec7a9131363eb93fd8fd706aeb1db92af02c8100841035e05586642a345b8877",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6348,6 +6430,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -6387,7 +6470,7 @@
     },
     "annual-conference-registration-blasts": {
       "status": "completed",
-      "inputFingerprint": "d45630ca68c614b0ad85b846f9220205f25e0c4a924a1d130bcff1b409ebe249",
+      "inputFingerprint": "3704809f188f41f012becc6baf7b4b922c4ce6096880d87b3eb59284f115996a",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6425,6 +6508,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceRegistrationsView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -6465,7 +6549,7 @@
     },
     "annual-conference-registration-emails": {
       "status": "completed",
-      "inputFingerprint": "2dea39e2542b425f3728c076b95163cf39bab301ce5373fec2189994dd39819b",
+      "inputFingerprint": "b5c3148caf197ac1c418009d3f8c4b8578b605bd4fc36283a719037c27af0ccf",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6504,6 +6588,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -6542,7 +6627,7 @@
     },
     "annual-conference-guest-emails": {
       "status": "completed",
-      "inputFingerprint": "1053d53328bf9a423c143a43959608475bde861a929ec3a56547723c18428fcd",
+      "inputFingerprint": "fc3823cb3f37d1d95feafc326afd1d170be9c6c149f28e2913cc463b1582dea8",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6582,6 +6667,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -6621,7 +6707,7 @@
     },
     "annual-conference-community-purchases": {
       "status": "completed",
-      "inputFingerprint": "f30914fe5eafb695f5405519f1c432e66bee44900747d20911d23c57690beccf",
+      "inputFingerprint": "96c25310b58fae61dae5d0caaf0ddce0a3baaaa4559e2a5d4ddd6368c56084d8",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6660,6 +6746,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -6698,7 +6785,7 @@
     },
     "annual-conference-ticket-orders": {
       "status": "completed",
-      "inputFingerprint": "a45139f3556bf6cd4de426bef5b9abd955e395638e034223cf57c3d019541ace",
+      "inputFingerprint": "8a88e95166c1f22a000e716b217ec01a50bc835a5aaa9ead34f49306b2388edd",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6736,6 +6823,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceTicketingView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -6775,7 +6863,7 @@
     },
     "annual-conference-ticket-delivery": {
       "status": "completed",
-      "inputFingerprint": "7f8de3c4c7f87cabfcc66ab6863105d9f075df874ad1a6f1164546fa19ab80c8",
+      "inputFingerprint": "2eddd12dc17299460ae779535f87ee964587c6b6b83d9c86676f11fad39a94da",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6813,6 +6901,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceTicketingView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -6852,7 +6941,7 @@
     },
     "annual-conference-sponsor-allocations": {
       "status": "completed",
-      "inputFingerprint": "98b4743ced9480198096d252162d506e810e30e67c519ffb8a243b610f6e851f",
+      "inputFingerprint": "13d6b5b9aea2d8d2365ec2edb4708404b586851ff7767679092dab9011dba51a",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6890,6 +6979,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceTicketingView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -6929,7 +7019,7 @@
     },
     "annual-conference-test-coupon-activity": {
       "status": "completed",
-      "inputFingerprint": "0c3d99e33113eb3e35a28b772a95229f1afce4c5908ded98ebb733c01acd875d",
+      "inputFingerprint": "f3827b0faf6e39d9aeff80b42672e362319102c480a60542c3e4ac332385d39c",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6968,6 +7058,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -7006,7 +7097,7 @@
     },
     "annual-conference-task-resources": {
       "status": "completed",
-      "inputFingerprint": "75ac7aa3d080bfe0da934188165f8c54738d8977f620fc871245c4b002ccc58d",
+      "inputFingerprint": "efad06ca0e0fe2e4f58a741ec72dbfc11659c04c0e2b9d8e6455c3000afa05bb",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7046,6 +7137,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -7085,7 +7177,7 @@
     },
     "annual-conference-check-in": {
       "status": "completed",
-      "inputFingerprint": "339daccc436f6aa4e82beffe7d518251d0f99fe052e98eb2d2b3adb0c5846b93",
+      "inputFingerprint": "aa9df7816342f0ae3e4a91889716dd3ac6ee2e34007c26079bb5e8f52a0df48b",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7124,6 +7216,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceCheckInView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -7163,7 +7256,7 @@
     },
     "annual-conference-check-in-roster": {
       "status": "completed",
-      "inputFingerprint": "198eaf30ec745113216c79e7760e3a1bb464a3d739f36ead231fcfcf60404096",
+      "inputFingerprint": "8f833f1f2a066448daabed2e23ce72c49831febd4ba54cb207929c98776fa1ee",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7202,6 +7295,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -7240,7 +7334,7 @@
     },
     "volunteer-reviews": {
       "status": "completed",
-      "inputFingerprint": "3a0d254d1679da131e2b5b9e7868bae66d73b0d947abde11881ff219a070af2b",
+      "inputFingerprint": "0c97bbaf8a179cce7f78de75fa041cba8fbea74680227ebd9cb45a3da2db9b28",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7279,6 +7373,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -7317,7 +7412,7 @@
     },
     "volunteer-broadcast": {
       "status": "completed",
-      "inputFingerprint": "f5a04ae5af771bae5103d16e2bb570b311b0838eaab5a2d53163b914ba9cfda4",
+      "inputFingerprint": "64f076071588b38f028bbde4c48ad898ac92b5623dbe26a11b7d85ed38eba4f2",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7356,6 +7451,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -7395,7 +7491,7 @@
     },
     "mobile-conference-volunteer-team": {
       "status": "completed",
-      "inputFingerprint": "f82be23190306babbf7656a2e18055f92307eb472a8a95ec18b1fa47d8e16bdf",
+      "inputFingerprint": "3bff4dfc88bf3ea0e46fc0cd52ea7681751bb23bc0ad53648031e0d189c6eb9c",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7433,6 +7529,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileAnnualConferenceView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -7473,7 +7570,7 @@
     },
     "mobile-conference-volunteer-applications": {
       "status": "completed",
-      "inputFingerprint": "d693ac08f6d0b014c5efb3bb2a59c4ae6fc84487530e53aa3fa31f603a3afe9f",
+      "inputFingerprint": "5a9a1fca8f22a9307f08018952c70df8afa82a78932127430aad2f2d504cfc73",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7511,6 +7608,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminMobileAnnualConferenceView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -7551,7 +7649,7 @@
     },
     "volunteer-follow-up-form": {
       "status": "completed",
-      "inputFingerprint": "e22da370139d7451035171842e8c61a3a8133e840922adee29818a26c64b0a41",
+      "inputFingerprint": "b29526751ee3588cb2d31d1216ddc125c05eae2fd1cfcb37fac1a7e78ae9de36",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7589,6 +7687,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/VolunteerFollowUpView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -7629,7 +7728,7 @@
     },
     "system-design-learning-room-questions": {
       "status": "completed",
-      "inputFingerprint": "55a9d57918b0a3fac13d9d92cb95079a907446e81c57953a973e2bed5c660e2d",
+      "inputFingerprint": "498eb3f65f809696e155c835fd59c56afde66d58936f6f171e7441ccc1f2d5e3",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7668,6 +7767,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
         "tools/capture-boneyard.mjs",
@@ -7707,7 +7807,7 @@
     },
     "annual-conference-ticketing-orders": {
       "status": "completed",
-      "inputFingerprint": "48d881544ae9068e36ff8815e6242127813a3a366bf8b5966753e72188ba02d4",
+      "inputFingerprint": "fe0536172fa9bce1d5b5283e0dee4f0236fd71b471d249b88a70aa9e552eef55",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7745,6 +7845,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceTicketingView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -7784,7 +7885,7 @@
     },
     "annual-conference-ticketing-delivery": {
       "status": "completed",
-      "inputFingerprint": "5833375a4ecc9c983393b8c7d9fb35e537b9790dafc3ec3a66bae6fa15d3d503",
+      "inputFingerprint": "5fff4e5155b9d36991403b619163d3d0cf2dc803b6ef467efa28e780578c6d81",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7822,6 +7923,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceTicketingView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -7861,7 +7963,7 @@
     },
     "annual-conference-ticketing-sponsors": {
       "status": "completed",
-      "inputFingerprint": "74e8a2466ac4e41afdb70e779b47cf5ec20a4a20a237e021a0fad61dd72afc78",
+      "inputFingerprint": "578e3f72dd0088f4fff76af9940ebf22ae03444a1650feac1a3ce24a211f6ca4",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7899,6 +8001,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceTicketingView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",
@@ -7938,7 +8041,7 @@
     },
     "annual-conference-ticketing-testing": {
       "status": "completed",
-      "inputFingerprint": "48ffaf164ed5989c0f2ec6bd7a88ff2a6cbea53d6570a1c1090372d2eaea6eca",
+      "inputFingerprint": "03a58eb13638fff0ccf83b89dfe1e5149c738493bca2cebc56add287a888e51d",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7977,6 +8080,7 @@
         "src/styles/forms.css",
         "src/styles/registration-workspace.css",
         "src/styles/ticket-order-cards.css",
+        "src/styles/underline-section-nav.css",
         "src/views/admin/AdminAnnualConferenceTicketingView.vue",
         "tailwind.config.ts",
         "tools/boneyard.vite.config.ts",

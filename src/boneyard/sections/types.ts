@@ -50,6 +50,7 @@ export type SkeletonBlock =
       kind: 'tabs';
       labels: string[];
       active?: number;
+      appearance?: 'underline';
     }
   | {
       kind: 'toolbar';

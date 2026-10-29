@@ -149,7 +149,7 @@ function updatePlacement() {
   const position = calculateFloatingPosition({
     anchor: rect,
     viewport: viewportBounds(),
-    panelHeight: menuScroll.value?.scrollHeight ?? estimatedMenuHeight.value,
+    panelHeight: Math.min(menuScroll.value?.scrollHeight ?? estimatedMenuHeight.value, 256) + 2,
     preferredWidth: naturalWidth,
     align: props.menuAlign === 'right' ? 'right' : 'left',
   });

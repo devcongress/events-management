@@ -76,6 +76,12 @@ header offset, including the safe-area inset.
 
 ## Components
 
+**Application navigation:** At widths above 960px, keep the horizontal navbar and
+place destinations that do not fit in an anchored More disclosure. Measure the
+permission-filtered labels after fonts settle; retain their order and highlight
+More when it contains the current section. Reserve the full-width menu for
+viewports at or below 960px. Preserve keyboard focus when resizing moves a link.
+
 **Forms:** Use `AppDropdown.vue` for single choice and `AppMultiSelectDropdown.vue`
 for multiple choice, including loading fixtures. Native select menus are
 prohibited. Default fields are 50px high; compact and slim variants support dense
@@ -89,6 +95,12 @@ restore it. Preserve the workspace across query changes so drafts survive; close
 inactive overlays without clearing forms. On phones the row scrolls horizontally,
 reveals the active item, and shows an overflow cue. Links are at least 44px wide
 and 46px high.
+
+**Underline rows:** Reuse `src/styles/underline-section-nav.css` for workspace,
+Annual Conference, event Registration, and Audit Log underline navigation. Align
+labels near the divider with 5px bottom padding and a single 2px pink active
+indicator on that divider. Keep the full 46px target above the label; do not add
+another active border or turn segmented controls into underline tabs.
 
 **Parents:** Use `OrganizerBreadcrumbs.vue`. Resolve labels from cached records
 without extra reads; use neutral fallbacks while names load. Only the current

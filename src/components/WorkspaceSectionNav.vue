@@ -58,18 +58,20 @@ watch([() => props.active, () => props.items], revealActiveLink);
 </script>
 
 <template>
-  <nav class="workspace-section-nav registration-workspace-tabs" :aria-label="label">
-    <div ref="navigation" class="workspace-section-nav__viewport" @scroll.passive="updateOverflow">
+  <nav class="workspace-section-nav registration-workspace-tabs underline-section-nav" :aria-label="label">
+    <div ref="navigation" class="workspace-section-nav__viewport underline-section-nav__viewport" @scroll.passive="updateOverflow">
       <RouterLink
         v-for="item in items"
         :key="item.key"
         :to="item.to"
-        class="workspace-section-nav__link registration-workspace-tab"
+        class="workspace-section-nav__link underline-section-tab"
         :aria-current-value="active === item.key ? 'page' : 'false'"
         :aria-current="active === item.key ? 'page' : 'false'"
       >
-        <slot name="icon" :item="item" />
-        <span>{{ item.label }}</span>
+        <span class="underline-section-tab__content">
+          <slot name="icon" :item="item" />
+          <span>{{ item.label }}</span>
+        </span>
       </RouterLink>
     </div>
     <span v-if="hasMoreSections" class="workspace-section-nav__more" aria-hidden="true">
@@ -78,11 +80,12 @@ watch([() => props.active, () => props.items], revealActiveLink);
   </nav>
 </template>
 
+<style scoped src="@/src/styles/underline-section-nav.css"></style>
+
 <style scoped>
 .workspace-section-nav {
   position: relative;
   min-width: 0;
-  border-bottom: 1px solid var(--dc-border, #d6d2c8);
   padding: 0 0.125rem;
 }
 
@@ -115,46 +118,5 @@ watch([() => props.active, () => props.items], revealActiveLink);
 .workspace-section-nav__more svg {
   width: 16px;
   height: 16px;
-}
-
-.workspace-section-nav__link {
-  display: inline-flex;
-  min-width: 44px;
-  min-height: 46px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  border-bottom: 2px solid transparent;
-  color: var(--dc-gray, #6f6c65);
-  font-size: 0.8125rem;
-  font-weight: var(--font-weight-label);
-  text-decoration: none;
-  transition: transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.workspace-section-nav__link[aria-current='page'] {
-  border-bottom-color: var(--dc-pink, #e8117f);
-  color: var(--dc-ink, #111111);
-}
-
-.workspace-section-nav__link:focus-visible {
-  border-radius: 6px;
-  outline: 2px solid var(--dc-pink, #e8117f);
-  outline-offset: -2px;
-}
-
-.workspace-section-nav__link:active {
-  transform: scale(0.97);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .workspace-section-nav__link {
-    transition: none;
-  }
-
-  .workspace-section-nav__link:active {
-    transform: none;
-  }
 }
 </style>

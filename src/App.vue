@@ -17,6 +17,7 @@ import AppToaster from "./components/ui/AppToaster.vue";
 import AppBootScreen from "./components/ui/AppBootScreen.vue";
 import OrganizerBreadcrumbs from './components/OrganizerBreadcrumbs.vue';
 import { isOrganizerBreadcrumbRoute } from './organizer-breadcrumbs';
+import { fitNavigationLinkCount } from './navigation-fit';
 import {
   ADMIN_OAUTH_REDIRECT_STORAGE_KEY,
   adminPath,
@@ -87,13 +88,17 @@ const appHeader = ref<HTMLElement | null>(null);
 const mobileMenuToggle = ref<HTMLButtonElement | null>(null);
 const primaryNavigation = ref<HTMLElement | null>(null);
 const headerActions = ref<HTMLElement | null>(null);
+const navigationMeasurement = ref<HTMLElement | null>(null);
+const desktopMore = ref<HTMLElement | null>(null);
+const desktopMoreToggle = ref<HTMLButtonElement | null>(null);
+const desktopMenuOpen = ref(false);
+const visibleNavigationCount = ref<number | null>(null);
 const navigationMedia =
   typeof window === "undefined"
     ? null
     : window.matchMedia("(max-width: 960px)");
 const navigationNarrowViewport = ref(navigationMedia?.matches ?? false);
-const navigationOverflows = ref(false);
-const navigationCollapsed = computed(() => navigationNarrowViewport.value || navigationOverflows.value);
+const navigationCollapsed = computed(() => navigationNarrowViewport.value);
 const phoneViewport = ref(organizerPhoneMedia?.matches ?? false);
 const keyboardDismissVisible = ref(false);
 const keyboardInset = ref(0);
@@ -277,6 +282,10 @@ const brandHomeLink = computed(() =>
       ? annualConferencePath()
       : adminPath("events"),
 );
+const navigationLinks = computed(() => navGroups.value.flat());
+const visibleNavigationLinks = computed(() => navigationLinks.value.slice(0, visibleNavigationCount.value ?? navigationLinks.value.length));
+const overflowNavigationLinks = computed(() => navigationLinks.value.slice(visibleNavigationCount.value ?? navigationLinks.value.length));
+const activeOverflowLink = computed(() => overflowNavigationLinks.value.find(link => isActive(link.href)));
 const showSignOut = computed(
   () => isOrganizerAuthenticated.value && !isLoginRoute.value,
 );
@@ -481,7 +490,24 @@ function closeMobileMenu(restoreFocus = false) {
   if (restoreFocus) mobileMenuToggle.value?.focus({ preventScroll: true });
 }
 
+function closeDesktopMenu(restoreFocus = false) {
+  desktopMenuOpen.value = false;
+
+  if (restoreFocus) desktopMoreToggle.value?.focus({ preventScroll: true });
+}
+
+function toggleDesktopMenu() {
+  desktopMenuOpen.value = !navigationCollapsed.value && !desktopMenuOpen.value;
+}
+
 function handleNavigationKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && desktopMenuOpen.value) {
+    event.preventDefault();
+    closeDesktopMenu(true);
+
+    return;
+  }
+
   if (event.key !== "Escape" || !mobileMenuOpen.value) return;
 
   event.preventDefault();
@@ -489,6 +515,10 @@ function handleNavigationKeydown(event: KeyboardEvent) {
 }
 
 function handleNavigationPointerDown(event: PointerEvent) {
+  if (desktopMenuOpen.value && event.target instanceof Node && !desktopMore.value?.contains(event.target)) {
+    closeDesktopMenu();
+  }
+
   if (
     mobileMenuOpen.value &&
     event.target instanceof Node &&
@@ -499,6 +529,10 @@ function handleNavigationPointerDown(event: PointerEvent) {
 }
 
 function handleNavigationFocusOut(event: FocusEvent) {
+  if (desktopMenuOpen.value && event.relatedTarget instanceof Node && !desktopMore.value?.contains(event.relatedTarget)) {
+    closeDesktopMenu();
+  }
+
   if (
     event.relatedTarget instanceof Node &&
     !appHeader.value?.contains(event.relatedTarget)
@@ -510,20 +544,15 @@ function handleNavigationFocusOut(event: FocusEvent) {
 function measureNavigationFit() {
   const header = appHeader.value?.querySelector<HTMLElement>(".app-header-inner");
   const navigation = primaryNavigation.value;
+  const measurement = navigationMeasurement.value;
   const brand = appHeader.value?.querySelector<HTMLElement>(".app-brand-link");
 
-  if (!header || !navigation || !brand) {
-    navigationOverflows.value = false;
-
-    return;
-  }
+  if (!header || !navigation || !measurement || !brand) return;
 
   const headerStyle = getComputedStyle(header);
   const navigationStyle = getComputedStyle(navigation);
-  const links = [...navigation.children];
-  const linksWidth = links.reduce((total, link) => total + link.getBoundingClientRect().width, 0);
+  const links = [...measurement.querySelectorAll<HTMLElement>('[data-navigation-measure-link]')];
   const navigationGap = Number.parseFloat(navigationStyle.columnGap) || 0;
-  const navigationWidth = linksWidth + Math.max(0, links.length - 1) * navigationGap;
   const actionsWidth = headerActions.value?.getBoundingClientRect().width ?? 0;
   const headerGap = Number.parseFloat(headerStyle.columnGap) || 0;
   const horizontalPadding = Number.parseFloat(headerStyle.paddingLeft) + Number.parseFloat(headerStyle.paddingRight);
@@ -531,7 +560,29 @@ function measureNavigationFit() {
   const headerGaps = headerGap * (headerActions.value ? 2 : 1);
   const availableWidth = header.clientWidth - horizontalPadding - brand.getBoundingClientRect().width - actionsWidth - headerGaps - navigationMargin;
 
-  navigationOverflows.value = navigationWidth > availableWidth + 1;
+  const moreWidth = measurement.querySelector<HTMLElement>('[data-navigation-measure-more]')?.getBoundingClientRect().width ?? 0;
+  const count = fitNavigationLinkCount(links.map(link => link.getBoundingClientRect().width), availableWidth, navigationGap, moreWidth);
+
+  if (count === visibleNavigationCount.value) return;
+
+  const focused = document.activeElement;
+  const focusedHref = focused instanceof Element ? focused.closest('a[data-navigation-href]')?.getAttribute('data-navigation-href') : null;
+  const focusedInMore = focused instanceof Node && desktopMore.value?.contains(focused);
+  const movesToMore = focusedHref && navigationLinks.value.findIndex(link => link.href === focusedHref) >= count;
+
+  visibleNavigationCount.value = count;
+  closeDesktopMenu();
+
+  if (!navigationCollapsed.value && (movesToMore || focusedInMore)) {
+    void nextTick(() => {
+      const direct = [...(primaryNavigation.value?.querySelectorAll<HTMLAnchorElement>('a[data-direct-navigation]') ?? [])];
+      const target = movesToMore
+        ? desktopMoreToggle.value
+        : direct.find(link => link.getAttribute('data-navigation-href') === focusedHref) ?? direct[0] ?? desktopMoreToggle.value;
+
+      target?.focus({ preventScroll: true });
+    });
+  }
 }
 
 function scheduleNavigationMeasurement() {
@@ -545,7 +596,7 @@ function scheduleNavigationMeasurement() {
 function observeNavigationFit() {
   navigationResizeObserver?.disconnect();
 
-  for (const element of [appHeader.value, primaryNavigation.value, headerActions.value]) {
+  for (const element of [appHeader.value, primaryNavigation.value, headerActions.value, navigationMeasurement.value]) {
     if (element) navigationResizeObserver?.observe(element);
   }
 
@@ -555,7 +606,7 @@ function observeNavigationFit() {
 function focusVisibleNavigation() {
   const target = navigationCollapsed.value
     ? mobileMenuToggle.value
-    : primaryNavigation.value?.querySelector<HTMLElement>("a") ??
+    : primaryNavigation.value?.querySelector<HTMLElement>("a[data-direct-navigation]") ?? desktopMoreToggle.value ??
       appHeader.value?.querySelector<HTMLElement>("a");
 
   target?.focus({ preventScroll: true });
@@ -566,6 +617,7 @@ function syncNavigationViewport() {
 
   navigationNarrowViewport.value = navigationMedia?.matches ?? false;
   closeMobileMenu();
+  closeDesktopMenu();
   scheduleNavigationMeasurement();
 
   if (hadFocus) void nextTick(focusVisibleNavigation);
@@ -1036,12 +1088,13 @@ onMounted(() => {
   observeNavigationFit();
 });
 
-watch([appHeader, primaryNavigation, headerActions, navGroups], observeNavigationFit, { flush: "post" });
+watch([appHeader, primaryNavigation, headerActions, navigationMeasurement, navGroups], observeNavigationFit, { flush: "post" });
 
 watch(navigationCollapsed, () => {
   const hadFocus = appHeader.value?.contains(document.activeElement);
 
   closeMobileMenu();
+  closeDesktopMenu();
 
   if (hadFocus) void nextTick(focusVisibleNavigation);
 });
@@ -1050,6 +1103,7 @@ watch(
   () => route.path,
   (toPath, fromPath) => {
     closeMobileMenu();
+    closeDesktopMenu();
     dismissMobileKeyboard();
     resetMainScroll();
     updateRouteTransition(toPath, fromPath);
@@ -1184,18 +1238,64 @@ onUnmounted(() => {
           :aria-hidden="navigationCollapsed"
           :inert="navigationCollapsed"
         >
-          <template v-for="(group, groupIndex) in navGroups" :key="groupIndex">
             <RouterLink
-              v-for="link in group"
+              v-for="link in visibleNavigationLinks"
               :key="link.href"
               :to="link.href"
               class="app-nav-link"
+              data-direct-navigation
+              :data-navigation-href="link.href"
               :aria-current="isActive(link.href) ? 'page' : undefined"
             >
               <span class="app-nav-link-label">{{ link.label }}</span>
             </RouterLink>
-          </template>
+          <div v-if="overflowNavigationLinks.length" ref="desktopMore" class="app-nav-more">
+            <button
+              ref="desktopMoreToggle"
+              type="button"
+              class="app-nav-link app-nav-more-toggle motion-press"
+              :aria-label="activeOverflowLink ? `More navigation, current section: ${activeOverflowLink.label}` : 'More navigation'"
+              :aria-expanded="desktopMenuOpen"
+              aria-controls="desktop-navigation-more"
+              :data-active="activeOverflowLink ? 'true' : undefined"
+              @click="toggleDesktopMenu"
+            >
+              <span class="app-nav-link-label">More</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+            </button>
+            <Transition name="desktop-navigation">
+              <div
+                v-show="desktopMenuOpen"
+                id="desktop-navigation-more"
+                class="app-nav-more-panel"
+                :aria-hidden="!desktopMenuOpen"
+                :inert="!desktopMenuOpen"
+              >
+                <RouterLink
+                  v-for="link in overflowNavigationLinks"
+                  :key="link.href"
+                  :to="link.href"
+                  class="app-nav-more-link"
+                  :data-navigation-href="link.href"
+                  :aria-current="isActive(link.href) ? 'page' : undefined"
+                  @click="closeDesktopMenu(true)"
+                >{{ link.label }}</RouterLink>
+              </div>
+            </Transition>
+          </div>
         </nav>
+
+        <div v-if="showPrimaryNavigation" class="app-navigation-measurement" aria-hidden="true" inert>
+          <div ref="navigationMeasurement" class="app-navigation-measure-rail">
+            <span v-for="link in navigationLinks" :key="link.href" class="app-nav-link" data-navigation-measure-link>
+              <span class="app-nav-link-label">{{ link.label }}</span>
+            </span>
+            <span class="app-nav-link app-nav-more-toggle" data-navigation-measure-more>
+              <span class="app-nav-link-label">More</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+            </span>
+          </div>
+        </div>
 
         <div
           v-if="showHeaderActions"

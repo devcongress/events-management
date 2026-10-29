@@ -29,5 +29,6 @@ describe('owner email preview endpoint', () => {
       error: expect.any(String),
     }));
     expect(documentResponse.headers.get('x-frame-options')).toBe('DENY');
+    expect((await app.request('/api/admin/email-previews/registration_confirmed/send-test', { method: 'POST' })).status).toBe(401);
   });
 });

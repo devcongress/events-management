@@ -89,6 +89,44 @@ async function waitForRouteTransition(page) {
   );
 }
 
+async function assertUnderlineTabGeometry(page, selector) {
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForFunction(rowSelector => {
+    const active = document.querySelector(rowSelector)?.querySelector('[aria-current="page"], [aria-selected="true"]');
+
+    return active && getComputedStyle(active, '::after').opacity === '1';
+  }, selector);
+
+  const geometry = await page.locator(selector).evaluate(row => {
+    const active = row.querySelector('[aria-current="page"], [aria-selected="true"]');
+    const content = active?.querySelector('.underline-section-tab__content');
+
+    if (!active || !content) return null;
+
+    const bounds = active.getBoundingClientRect();
+    const rowBounds = row.getBoundingClientRect();
+    const contentBounds = content.getBoundingClientRect();
+    const after = getComputedStyle(active, '::after');
+
+    return {
+      height: bounds.height,
+      width: bounds.width,
+      labelGap: rowBounds.bottom - 1 - contentBounds.bottom,
+      markerDelta: bounds.bottom - Number.parseFloat(after.bottom) - rowBounds.bottom,
+      markerHeight: after.height,
+      markerOpacity: after.opacity,
+      border: getComputedStyle(active).borderBottomWidth,
+    };
+  });
+
+  assert.ok(geometry && geometry.height >= 44 && geometry.width >= 44, JSON.stringify(geometry));
+  assert.ok(geometry.labelGap >= 2 && geometry.labelGap <= 7, JSON.stringify(geometry));
+  assert.ok(Math.abs(geometry.markerDelta) <= 1, JSON.stringify(geometry));
+  assert.equal(geometry.markerHeight, '2px');
+  assert.equal(geometry.markerOpacity, '1');
+  assert.equal(geometry.border, '0px', 'The active indicator must not duplicate a tab border');
+}
+
 async function assertVisibleBoardCards(page, expectedLabels) {
   await waitForRouteTransition(page);
 
@@ -325,6 +363,41 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   browser = await chromium.launch();
+
+  await journey('underline-workspace-tabs', async ({ page, responses }) => {
+    responses.set('/api/admin/audit-log', { body: { logs: [] } });
+    responses.set('/api/admin/short-links', { body: { links: [] } });
+    responses.set('/api/admin/archived-events', { body: { events: [] } });
+    responses.set('/api/events/fixture-event/checklist', { body: { items: [] } });
+    responses.set('/api/admin/short-links/ensure', { body: { url: `${origin}/s/fixture-registration` } });
+    responses.set('/api/events/fixture-event/registrations', {
+      body: {
+        managed_internally: true,
+        event,
+        campaign: { status: 'open', capacity: 100, waitlist_enabled: true },
+        registrations: [],
+        summary: { confirmed: 0, waitlisted: 0, cancelled: 0, checked_in: 0 },
+        public_url: '/register/fixture-event',
+      },
+    });
+    responses.set('/api/events/fixture-event/blasts', { body: { blasts: [] } });
+
+    for (const width of [768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${origin}/organizer-console/audit-log`);
+      await page.getByRole('tab', { name: 'Activity', exact: true }).waitFor();
+      await assertUnderlineTabGeometry(page, '[aria-label="Audit Log sections"]');
+      await page.getByRole('tab', { name: 'Short links', exact: true }).click();
+      await assertUnderlineTabGeometry(page, '[aria-label="Audit Log sections"]');
+
+      await page.goto(`${origin}/organizer-console/events/fixture-event/registrations`);
+      await page.getByRole('tab', { name: 'Summary', exact: true }).waitFor();
+      await assertUnderlineTabGeometry(page, '[aria-label="Registration workspace"]');
+      await page.getByRole('tab', { name: 'Guests', exact: true }).click();
+      await assertUnderlineTabGeometry(page, '[aria-label="Registration workspace"]');
+    }
+  }, { role: 'owner' });
+
   for (const role of ["owner", "organizer"]) {
     await journey(`navigation-fit-${role}`, async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
@@ -333,18 +406,54 @@ try {
       const primary = page.getByRole("navigation", { name: "Primary", exact: true, includeHidden: true });
       const toggle = page.getByRole("button", { name: "Open menu", exact: true });
 
-      if (role === "owner") {
-        await toggle.waitFor();
-        assert.equal(await primary.getAttribute("aria-hidden"), "true");
-        assert.equal(await primary.evaluate((element) => element.inert), true);
-        await toggle.click();
-        await page.getByRole("navigation", { name: "Mobile primary" }).waitFor();
-        assert.equal(await page.locator(".app-mobile-menu").getByRole("button", { name: "Sign Out", exact: true }).isVisible(), true);
-        await page.keyboard.press("Escape");
-      } else {
+      const expected = ["Events", "Attendance", "Feedback", "Annual Conference", "People & Access", ...(role === "owner" ? ["Present forms", "Audit Log"] : [])];
+
+      for (const width of [1024, 1280, 1440, 1592, 1920]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.waitForFunction(() => {
+          const nav = document.querySelector('.app-primary-nav');
+
+          return nav && nav.getAttribute('aria-hidden') === 'false' && nav.scrollWidth <= nav.clientWidth + 1;
+        });
         await primary.waitFor();
         assert.equal(await primary.getAttribute("aria-hidden"), "false");
+        assert.equal(await primary.evaluate(element => element.inert), false);
+        assert.equal(await page.locator('.app-mobile-menu-toggle').isVisible(), false, 'Desktop overflow must not become a mobile menu');
         assert.equal(await primary.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), true);
+
+        const more = page.getByRole('button', { name: /^More navigation/ });
+
+        if (await more.isVisible()) {
+          await more.click();
+          await page.waitForFunction(() => {
+            const panel = document.querySelector('#desktop-navigation-more');
+
+            return panel && !panel.classList.contains('desktop-navigation-enter-active') && getComputedStyle(panel).opacity === '1';
+          });
+          const panel = await page.locator('#desktop-navigation-more').boundingBox();
+          const header = await page.locator('.app-header').boundingBox();
+
+          assert.ok(panel && header && panel.width <= 320 && panel.x >= 0 && panel.x + panel.width <= width && panel.y >= header.y + header.height - 1);
+          assert.deepEqual(await primary.getByRole('link').allTextContents().then(labels => labels.map(label => label.trim())), expected);
+          if (width === 1440) await page.screenshot({ path: `${artifacts}/navigation-more-${role}-desktop.png` });
+          await page.keyboard.press('Escape');
+          assert.equal(await more.getAttribute('aria-expanded'), 'false');
+          assert.equal(await more.evaluate(element => element === document.activeElement), true);
+          await page.keyboard.press('Enter');
+          await page.keyboard.press('Tab');
+          assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('#desktop-navigation-more'))), true);
+          await page.getByRole('heading', { name: 'Events', exact: true }).click();
+          assert.equal(await more.getAttribute('aria-expanded'), 'false');
+        } else {
+          assert.deepEqual(await primary.getByRole('link').allTextContents().then(labels => labels.map(label => label.trim())), expected);
+        }
+      }
+
+      if (role === 'organizer') {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await primary.getByRole('link', { name: 'People & Access', exact: true }).focus();
+        await page.setViewportSize({ width: 1024, height: 900 });
+        await page.waitForFunction(() => document.activeElement?.classList.contains('app-nav-more-toggle'));
       }
 
       await page.setViewportSize({ width: 960, height: 900 });
@@ -427,6 +536,9 @@ try {
       const navigationToggle = page.getByRole('button', { name: 'Open menu', exact: true });
 
       if (await navigationToggle.isVisible()) await navigationToggle.click();
+      else if (!await page.getByRole('link', { name: 'Present forms', exact: true }).isVisible()) {
+        await page.getByRole('button', { name: /^More navigation/ }).click();
+      }
 
       await page
         .getByRole("link", { name: "Present forms", exact: true })
@@ -2960,6 +3072,7 @@ try {
     const nav = page.getByRole("navigation", { name: "Ticketing sections", exact: true });
 
     await page.getByRole("rowheader").getByText("Ticketing Fixture", { exact: true }).waitFor();
+    await assertUnderlineTabGeometry(page, '[aria-label="Ticketing sections"]');
     assert.deepEqual(await nav.getByRole("link").allTextContents().then(items => items.map(item => item.trim())), ["Overview", "Orders", "Delivery", "Sponsors", "Testing"]);
     assert.equal(await nav.locator('[aria-current="page"]').innerText(), "Orders");
     assert.equal(requests.some(request => /\/ticketing\/(sponsor-allocations|email-deliveries|test-coupons)$/.test(request.path)), false, "Unvisited section queries stay idle");
@@ -3198,6 +3311,8 @@ try {
 
     await page.goto(origin + "/organizer-console/annual-conference/2026/registrations");
     await page.getByRole("heading", { name: "Registration overview" }).waitFor();
+    await assertUnderlineTabGeometry(page, '[aria-label="Registration sections"]');
+    await assertUnderlineTabGeometry(page, '[aria-label="Annual Conference workspace"]');
     const nav = page.getByRole("navigation", { name: "Registration sections" });
 
     assert.deepEqual(await nav.getByRole("link").allTextContents().then((items) => items.map((item) => item.trim())), [

@@ -6,6 +6,8 @@ The suite loads the production Vue build in headless Chromium and interacts with
 
 ## Scope and budget
 
+- Owner and organizer desktop navigation retains a horizontal row at 1024, 1280, 1440, 1592, and 1920px. Overflow destinations remain ordered inside an anchored More disclosure, with Escape, Tab, outside-click dismissal, and resize focus coverage; the 960px layout retains the full-width menu.
+- Underline navigation checks preserve at least 44px targets, a close label-to-divider gap, and one 2px active indicator. Coverage includes Ticketing, Annual Conference/Registration sections, and Audit Log/event Registration at 768, 1024, and 1440px, including selection changes. Geometry assertions wait for the active indicator transition to finish.
 - Assignee navigation shows that person's tasks across phases; direct work-plan entry uses the current phase.
 - Volunteer navigation hides edition creation and avoids organizer event/edition reads.
 - At 320px, each teleported volunteer-review filter menu waits for placement styles to settle across animation frames, then verifies it remains within the visual viewport used by the dropdown positioning logic and keeps an operable scroll region; failures report measured panel, scroll-region, and viewport bounds. A delayed route scroll reset must not override user interaction while the menu is open. Option coverage scrolls before selecting an off-screen option.
@@ -15,7 +17,7 @@ The suite loads the production Vue build in headless Chromium and interacts with
 - An email-provider failure preserves form values and allows a successful retry.
 - Check-in is disabled before and after the event date; event-day interaction sends a mutation and updates the guest state.
 
-CI allows three minutes for the eight browser scenarios, within the existing 15-minute job budget. Build and browser installation are outside that step. Locator and controlled-save waits are bounded at eight seconds. `results.json` includes individual timings; failed journeys retain full-page screenshots and Playwright traces, and the static server log is always retained. Artifacts expire after seven days. Open a failure trace with `pnpm exec playwright show-trace artifacts/organizer-journeys/<name>.zip`.
+CI allows three minutes for the browser suite, within the existing 15-minute job budget. Build and browser installation are outside that step. Locator and controlled-save waits are bounded at eight seconds. `results.json` includes individual timings; failed journeys retain full-page screenshots and Playwright traces, and the static server log is always retained. Artifacts expire after seven days. Open a failure trace with `pnpm exec playwright show-trace artifacts/organizer-journeys/<name>.zip`.
 
 The local pre-push hook runs `pnpm build` and `pnpm test:journeys` before migration verification only when the pushed range changes the journey-sensitive UI or API contract: `src/`, `server/routes/`, shared `lib/` or `types/`, this script, Vite/Tailwind/index configuration, or package manifests. Documentation, migrations, tests, and presentation assets alone do not run the browser suite. New remote refs are compared from commits not already reachable from that remote; existing refs use the exact remote-to-local range. If the remote base cannot be inspected locally, the hook stops with a fetch-and-retry error instead of guessing.
 
