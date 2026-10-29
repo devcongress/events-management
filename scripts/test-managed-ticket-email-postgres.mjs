@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
+const relevanceMigration = readFileSync(new URL('../supabase/migrations/20261029100000_flexible_order_management_email_relevance.sql', import.meta.url), 'utf8');
 const sql = (query) => execFileSync('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At'], {
   input: query, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
 }).trim();
@@ -26,30 +27,57 @@ const existing = snapshot();
 sql('alter table public.annual_conference_social_card_email_outbox enable row level security');
 sql(readFileSync(new URL('../supabase/migrations/20261028110000_managed_ticket_email_fulfillment.sql', import.meta.url), 'utf8'));
 assert.equal(snapshot(), existing, 'migration never rewrites existing or frozen payloads');
+const preRelevanceMigration = snapshot();
+
+sql(relevanceMigration);
+assert.equal(snapshot(), preRelevanceMigration, 'management-email relevance migration preserves existing queued and frozen payloads');
 testers();
 
-function paidOrder(mode) {
+function paidOrder(mode, allocations = [
+  { seat_index: 1, kind: 'self', recipient_name: 'Tester', recipient_email: emails[0] },
+  { seat_index: 2, kind: 'gift', recipient_email: emails[1] },
+  { seat_index: 3, kind: 'community_managed' },
+  { seat_index: 4, kind: 'community_shareable' },
+]) {
   setMode(mode);
-  const allocations = [
-    { seat_index: 1, kind: 'self', recipient_name: 'Tester', recipient_email: emails[0] },
-    { seat_index: 2, kind: 'gift', recipient_email: emails[1] },
-    { seat_index: 3, kind: 'community_managed' },
-    { seat_index: 4, kind: 'community_shareable' },
-  ];
   const order = sql(`select id from public.create_managed_conference_checkout_hold(
-    '${edition}', 'Tester', '${emails[0]}', 4, '${JSON.stringify(allocations)}'::jsonb,
+    '${edition}', 'Tester', '${emails[0]}', ${allocations.length}, '${JSON.stringify(allocations)}'::jsonb,
     '${uuid()}', '${mode}', ${settings().settings_version}, '${origin}')`);
   const reference = `devcon26-managed-${mode}-${order.replaceAll('-', '')}`;
 
   sql(`select * from public.claim_managed_conference_checkout_initialization('${order}', '${reference}', '${uuid()}')`);
   assert.equal(sql(`select status from public.confirm_annual_conference_ticket_payment(
-    '${order}', 'paystack', '${reference}', 'charge.success', '${reference}', 60000, 'GHS', 'fixture',
+    '${order}', 'paystack', '${reference}', 'charge.success', '${reference}',
+    (select amount_minor from public.annual_conference_ticket_orders where id = '${order}'), 'GHS', 'fixture',
     '{"domain":"${mode}","fee_mode":"merchant_absorbs"}'::jsonb)`), 'paid');
 
   return order;
 }
 
 const orders = Object.fromEntries(['test', 'live'].map((mode) => [mode, paidOrder(mode)]));
+const selfOnlyOrder = paidOrder('test', [{
+  seat_index: 1,
+  kind: 'self',
+  recipient_name: 'Tester',
+  recipient_email: emails[0],
+}]);
+const selfOnlyRows = JSON.parse(sql(`select jsonb_agg(to_jsonb(d))
+  from public.annual_conference_ticket_email_outbox d where order_id = '${selfOnlyOrder}'`));
+
+assert.equal(selfOnlyRows.length, 1, 'self-only flexible orders do not queue management mail');
+assert.equal(selfOnlyRows[0].kind, 'flexible_admission_delivery');
+assert.equal(Object.hasOwn(selfOnlyRows[0].payload, 'capability'), false, 'self-only delivery does not acquire management access');
+
+const buyerManagedOrder = paidOrder('test', [
+  { seat_index: 1, kind: 'self', recipient_name: 'Tester', recipient_email: emails[0] },
+  { seat_index: 2, kind: 'buyer_managed' },
+]);
+const buyerManagedRows = JSON.parse(sql(`select jsonb_agg(to_jsonb(d))
+  from public.annual_conference_ticket_email_outbox d where order_id = '${buyerManagedOrder}'`));
+const buyerManagedDelivery = buyerManagedRows.find((row) => row.kind === 'flexible_admission_delivery');
+
+assert.equal(buyerManagedRows.length, 2, 'buyer-managed orders retain their scoped purchaser deliveries');
+assert.match(buyerManagedDelivery.payload.capability, /^[0-9a-f]{64}$/);
 
 for (const [mode, order] of Object.entries(orders)) {
   const rows = JSON.parse(sql(`select jsonb_agg(to_jsonb(d)) from public.annual_conference_ticket_email_outbox d where order_id = '${order}'`));

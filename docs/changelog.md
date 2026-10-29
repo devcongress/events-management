@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-29 — Ticket management email relevance
+
+- Queue purchaser ticket-management access only when a flexible-ticket order includes a gift, buyer-managed claim, or community-shareable handoff. Self-only flexible orders now receive their admission delivery without an irrelevant Manage tickets link.
+- Add a forward-only, before-insert outbox trigger. Existing queued, accepted, or frozen email rows and their stored capabilities remain unchanged; this change neither resends nor alters historical mail.
+
 ## 2026-10-29 — Simplify email previews and polish navigation
 
 - Simplify email previews into a template picker and visual/plain-text preview, with an Owner-only test send to the signed-in address. Restore same-origin preview framing through Pages while retaining the preview document's restrictive policy.

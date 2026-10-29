@@ -4467,6 +4467,37 @@
       ]
     },
     {
+      "file": "20261029100000_flexible_order_management_email_relevance.sql",
+      "sha256": "76831c4fbb3605212a3ecf4f598b4d5b56a3c6e4e545e0ca268abd23ac4c1fa8",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "filter_flexible_order_management_email",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "42a08ab5c7028d32b0301c3f3e1e89fa6cac03af82f56711185dfd081aedbc6b",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "name": "a_filter_flexible_order_management_email",
+          "table": "annual_conference_ticket_email_outbox",
+          "function": "filter_flexible_order_management_email",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE INSERT",
+            "FOR EACH ROW"
+          ]
+        }
+      ]
+    },
+    {
       "file": "20261028120000_managed_checkout_privileges.sql",
       "sha256": "90667e0fdb42b763cd50b8ef4d1bf5c084fcea309994019699f18b35d7b6565d",
       "checks": [
