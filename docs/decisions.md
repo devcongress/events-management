@@ -1504,3 +1504,14 @@ ADR-118 delivery follow-up: preview dispatch must not lease historical registrat
 **Why:** The fixed maximum header width leaves insufficient space for all Owner links even on a wide desktop. Treating that overflow as a mobile viewport replaced the entire desktop navigation with the mobile panel.
 
 **Trade-offs:** Some destinations require opening More on desktop. The visual breakpoint remains independent of the existing 767px organizer route policy. Comparable underline rows share one geometry stylesheet so label and indicator spacing cannot drift between workspaces.
+
+
+## ADR-124: Separate personalized monthly-speaker blasts from attendee broadcasts
+
+**Date:** 2026-10-30
+
+**Decision:** Use a server-only speaker-blast table with immutable JSON email/recipient snapshots, optimistic revision checks and a bounded send lease. Deliver each speaker’s personalized message through the existing transactional Batch API, under a stable per-blast idempotency key. Never put multiple speakers in a single recipient list. Reuse only already valid identity-bound workspace links and revalidate before sending.
+
+**Why:** Attendee broadcasts use a shared audience segment and one email body; speaker reminders require a different private capability for each person. Acceptance-email state cannot also represent repeatable organizer messages. A distinct record keeps preview approval, retries and provider acceptance separate without altering one-time link semantics.
+
+**Trade-offs:** This first version sends immediately with manual safe retry, and requires a new private table. Uncertain sends cannot be retried after the provider idempotency window. Preview history contains sensitive links and is accessible only through protected organizer endpoints; expired capabilities remain expired. No schema change is applied automatically.

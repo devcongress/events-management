@@ -93,6 +93,70 @@ async function setup() {
 }
 
 describe('selected-speaker email workflow', () => {
+  it('builds monthly blasts with each approved speaker’s own link and excludes completed materials or expired deadlines', async () => {
+    const provider = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const emails = JSON.parse(String(init?.body)) as unknown[];
+
+      return new Response(JSON.stringify({ data: emails.map((_, index) => ({ id: `provider-${index}` })) }), { status: 200 });
+    });
+
+    vi.stubGlobal('fetch', provider);
+    const { app, submissions, submission } = await setup();
+
+    await fs.writeFile(path.join(tempRoot, 'data', 'events.json'), JSON.stringify([{ ...event, event_date: '2099-10-31T10:00:00Z' }]));
+    const second = await submissions.createSpeakerSubmission({
+      event_id: event.id, kind: 'talk', speaker_name: 'Kojo Mensah', speaker_email: 'kojo@example.com',
+      github_username: null, title: 'Building reliable apps', topic: 'Engineering', abstract: 'A practical talk.', bio: 'Engineer.', resource_url: null,
+    });
+    const withSlides = await submissions.createSpeakerSubmission({
+      event_id: event.id, kind: 'talk', speaker_name: 'Akua Mensah', speaker_email: 'akua@example.com',
+      github_username: null, title: 'Design systems', topic: 'Design', abstract: 'A practical talk.', bio: 'Engineer.', resource_url: 'https://example.com/slides',
+    });
+
+    for (const selected of [submission, second, withSlides]) {
+      const response = await app.request(`http://localhost/api/speaker-submissions/${selected.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'selected' }),
+      });
+
+      expect(response.status).toBe(200);
+    }
+    provider.mockClear();
+    const response = await app.request(`http://localhost/api/events/${event.id}/speaker-blasts/preview`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ intent: 'slides_reminder', subject: 'Please share slides', message: 'Please add your slides using your own link below.' }),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json() as { id: string; previews: Array<{ to: string; text: string }>; excluded: Array<{ name: string; reason: string }> };
+
+    expect(payload.previews).toHaveLength(2);
+    expect(payload.excluded).toContainEqual(expect.objectContaining({ name: 'Akua Mensah', reason: 'Slides are already provided.' }));
+    expect(provider).not.toHaveBeenCalled();
+    const firstLink = payload.previews[0].text.match(/https:\/\/go\.devcongress\.org\/P_[A-Za-z0-9_-]+/)?.[0];
+    const secondLink = payload.previews[1].text.match(/https:\/\/go\.devcongress\.org\/P_[A-Za-z0-9_-]+/)?.[0];
+
+    expect(firstLink).toBeTruthy();
+    expect(secondLink).toBeTruthy();
+    expect(firstLink).not.toBe(secondLink);
+    expect(payload.previews[0].text).not.toContain(secondLink!);
+    expect(payload.previews[1].text).not.toContain(firstLink!);
+    const sent = await app.request(`http://localhost/api/events/${event.id}/speaker-blasts/${payload.id}/send`, { method: 'POST' });
+
+    expect(sent.status).toBe(200);
+    const emails = JSON.parse(String(provider.mock.calls[0][1]?.body));
+
+    expect(emails[0].to).toEqual([payload.previews[0].to]);
+    expect(emails[0].text).toBe(payload.previews[0].text);
+    expect(emails[1].text).toBe(payload.previews[1].text);
+
+    await fs.writeFile(path.join(tempRoot, 'data', 'events.json'), JSON.stringify([{ ...event, event_date: '2000-10-31T10:00:00Z' }]));
+    const expired = await app.request(`http://localhost/api/events/${event.id}/speaker-blasts?intent=slides_reminder`);
+    const expiredPayload = await expired.json() as { audience: { recipients: unknown[]; excluded: Array<{ reason: string }> } };
+
+    expect(expiredPayload.audience.recipients).toEqual([]);
+    expect(expiredPayload.audience.excluded.some((item) => item.reason.includes('deadline has passed'))).toBe(true);
+  });
+
   it('shows an owner-only test proposal only to the owner', async () => {
     const { app, submissions, submission } = await setup();
 
