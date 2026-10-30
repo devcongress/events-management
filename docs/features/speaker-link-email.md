@@ -470,3 +470,5 @@ The old per-talk reminder action remains a manual follow-up log and is labeled *
 Rollout requires `20261030190000_monthly_speaker_blasts.sql` and its read-only verification contract. The migration has not been applied by local implementation. No live speaker emails were sent.
 
 The composer is available in the desktop talk workspace and the phone event submissions view. Delivery history excludes unsent previews before applying its 50-item limit.
+
+Audience revalidation compares recipient and session field values, independent of JSONB object-key ordering. Actual recipient, session, link, or deadline changes still block sending.

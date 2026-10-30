@@ -62,6 +62,25 @@ async function preview() {
 }
 
 describe('monthly speaker blast delivery', () => {
+  it('sends an unchanged preview after database-style object key reordering', async () => {
+    const draft = await preview();
+    const { getSpeakerBlast, replaceSpeakerBlast } = await import('@/lib/speaker-blast-store');
+    const row = (await getSpeakerBlast(draft.id, event.id))!;
+    const recipients = row.payload.recipients.map((recipient) => ({
+      sessions: recipient.sessions.map((session) => ({
+        deadline: session.deadline, url: session.url, title: session.title, id: session.id,
+      })),
+      name: recipient.name,
+      email: recipient.email,
+    }));
+
+    await replaceSpeakerBlast(row, { ...row.payload, recipients });
+    const result = await app.request(`${url}/${draft.id}/send`, { method: 'POST' });
+
+    expect(result.status).toBe(200);
+    expect(provider).toHaveBeenCalledTimes(1);
+  });
+
   it('previews the exact private email without sending, then sends once despite repeated confirmation', async () => {
     const draft = await preview();
 
