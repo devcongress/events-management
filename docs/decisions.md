@@ -1515,3 +1515,14 @@ ADR-118 delivery follow-up: preview dispatch must not lease historical registrat
 **Why:** Attendee broadcasts use a shared audience segment and one email body; speaker reminders require a different private capability for each person. Acceptance-email state cannot also represent repeatable organizer messages. A distinct record keeps preview approval, retries and provider acceptance separate without altering one-time link semantics.
 
 **Trade-offs:** This first version sends immediately with manual safe retry, and requires a new private table. Uncertain sends cannot be retried after the provider idempotency window. Preview history contains sensitive links and is accessible only through protected organizer endpoints; expired capabilities remain expired. No schema change is applied automatically.
+
+
+## ADR-125: Bound checkout recovery and retain ambiguous outcomes
+
+**Date:** 2026-10-30
+
+**Decision:** Reuse the existing queue for small admission and payment recovery jobs, with database leases and a shared admission cooldown. Keep frozen email payloads and provider idempotency keys stable within a 23-hour retry window. Reconcile payments against stored references; clear initialization claims only after narrowly classified definite rejection.
+
+**Why:** Provider outages must not turn into duplicate mail, duplicate payment sessions, unsafe late admission, or Worker subrequest-limit failures. Cron enqueues bounded work while preserving other scheduled services.
+
+**Trade-offs:** The queue shares capacity with blasts. Old ambiguous mail requires operator review rather than a blind resend; old terminal rows are not revived. Expired paid holds can still require refund resolution. Hosted throughput and provider-account-wide mail rate coordination are not established by local tests.

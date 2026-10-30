@@ -1,3 +1,4 @@
+import { PaystackInitializationError } from '@/lib/paystack-initialization-error';
 import crypto from 'node:crypto';
 import type { Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -19,7 +20,7 @@ import type { AppBindings } from '@/server/http/app-bindings';
 const holdSchema = z.object({
   id: z.string().uuid(), payment_mode: z.enum(['test', 'live']), amount_minor: z.number().int().positive().safe(),
   quoted_processing_fee_minor: z.number().int().nonnegative().safe(), quoted_gross_amount_minor: z.number().int().positive().safe(),
-  currency: z.literal('GHS'),
+  currency: z.literal('GHS'), expires_at: z.string().optional(),
 });
 const initializationSchema = z.object({ authorization_url: z.string().nullable(), initialization_claim: z.string().uuid().nullable() });
 
@@ -31,7 +32,8 @@ export function managedCheckoutFailure(c: Context, error: unknown) {
   if (message.includes('initialization_uncertain')) return c.json({ error: 'This checkout needs confirmation. Check your email or contact the organizer before starting another payment.', code: 'checkout_initialization_uncertain' }, 409);
   if (message.includes('capacity_exhausted')) return c.json({ error: 'There are not enough tickets left.' }, 409);
   if (message.includes('recipient_not_allowed') || message.includes('tester_not_allowed')) return c.json({ error: 'One or more addresses are not approved for testing.' }, 409);
-  if (message.includes('request_conflict') || message.includes('not_payable')) return c.json({ error: 'This checkout has expired or was already used. Check your email before starting again.' }, 409);
+  if (message.includes('not_payable')) return c.json({ error: 'This checkout cannot accept another payment. Check your ticket email or contact the organizer before starting again.' }, 409);
+  if (message.includes('request_conflict')) return c.json({ error: 'This checkout has expired or was already used. Check your email before starting again.' }, 409);
 
   return c.json({ error: 'Checkout is temporarily unavailable. No new payment was confirmed.' }, 503);
 }
@@ -91,7 +93,7 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
     const input = managedCheckoutInitializeSchema.safeParse(await c.req.json().catch(() => null));
 
     if (!input.success) return c.json({ error: 'Review your ticket details and human verification.' }, 400);
-    const limited = await enforcePublicRateLimit(c, { action: 'managed-checkout-initialize', clientKey: publicClientKey(c), maxAttempts: 20, windowSeconds: 300 }, 'Please wait before starting another checkout.');
+    const limited = await enforcePublicRateLimit(c, { action: 'managed-checkout-initialize', clientKey: publicClientKey(c), maxAttempts: 1200, windowSeconds: 300 }, 'Please wait before starting another checkout.');
 
     if (limited) return limited;
 
@@ -105,6 +107,9 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
       const challenge = await requirePublicTurnstile(c, { token: input.data.turnstile_token, submittedAction: input.data.turnstile_action, expectedAction: 'devcon26_checkout', expectedHostname: new URL(origin).hostname });
 
       if (challenge) return challenge;
+      const buyerLimit = await enforcePublicRateLimit(c, { action: 'managed-checkout-buyer', clientKey: input.data.purchaser_email, maxAttempts: 10, windowSeconds: 300 }, 'Please wait before starting another checkout.');
+
+      if (buyerLimit) return buyerLimit;
       const allocations = devcon26CartAllocationsForStorage(input.data.cart, { name: input.data.purchaser_name, email: input.data.purchaser_email });
       const recipients = new Set([input.data.purchaser_email, ...allocations.flatMap((allocation) => allocation.recipient_email ? [allocation.recipient_email] : [])]);
 
@@ -157,6 +162,13 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
         const checkout = await createPaystackHostedCheckout({
           secretKey, orderId: order.id, purchaserEmail: input.data.purchaser_email, amountMinor: order.quoted_gross_amount_minor,
           callbackUrl: `${origin}/devcon26/payment-confirmation/`, paymentReference: reference,
+        }).catch(async (error) => {
+          await managedCheckoutRpc(c, 'record_managed_initialization_failure', {
+            p_order: order.id, p_claim: claim,
+            p_rejected: error instanceof PaystackInitializationError && error.definitelyRejected,
+          });
+
+          throw error;
         });
         const saved = initializationSchema.parse(await managedCheckoutRpc(c, 'finalize_managed_conference_checkout_initialization', {
           p_order_id: order.id, p_claim_token: claim, p_authorization_url: checkout.authorizationUrl,
@@ -168,7 +180,7 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
       if (!authorizationUrl || !isPaystackCheckoutUrl(authorizationUrl)) throw new Error('checkout_destination_invalid');
       const verifier = crypto.randomBytes(32).toString('base64url');
 
-      return c.json({ mode: order.payment_mode, reference, authorization_url: authorizationUrl,
+      return c.json({ mode: order.payment_mode, reference, expires_at: order.expires_at, authorization_url: authorizationUrl,
         checkout_grant: createDevcon26FlexibleCheckoutGrant({ orderId: order.id, verifier, origin, secretKey }),
         checkout_verifier: verifier, quantity: input.data.cart.quantity, ticket_amount_minor: order.amount_minor,
         processing_fee_minor: order.quoted_processing_fee_minor, amount_minor: order.quoted_gross_amount_minor, currency: order.currency });
@@ -182,7 +194,7 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
     const input = managedCheckoutVerifySchema.safeParse(await c.req.json().catch(() => null));
 
     if (!input.success) return c.json({ error: 'Invalid checkout.' }, 400);
-    const limited = await enforcePublicRateLimit(c, { action: 'managed-checkout-verify', clientKey: publicClientKey(c), maxAttempts: 20, windowSeconds: 300 }, 'Please wait before checking this payment again.');
+    const limited = await enforcePublicRateLimit(c, { action: 'managed-checkout-verify', clientKey: publicClientKey(c), maxAttempts: 1200, windowSeconds: 300 }, 'Please wait before checking this payment again.');
 
     if (limited) return limited;
 
@@ -196,6 +208,9 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
       if (!order || !secretKey || !claims || claims.order_id !== order.id
         || managedPaymentReference(order.id, order.payment_mode) !== input.data.reference
         || (order.payment_mode === 'test' && order.checkout_origin !== origin)) return c.json({ error: 'Invalid checkout.' }, 404);
+      const orderLimit = await enforcePublicRateLimit(c, { action: 'managed-checkout-order-verify', clientKey: order.id, maxAttempts: 20, windowSeconds: 300 }, 'Please wait before checking this payment again.');
+
+      if (orderLimit) return orderLimit;
       const confirmation = await confirmManagedCheckout(c, order, input.data.reference);
 
       if (confirmation.status !== 'verified') return c.json({ mode: order.payment_mode, ...confirmation });

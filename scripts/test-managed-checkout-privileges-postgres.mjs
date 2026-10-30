@@ -129,6 +129,10 @@ execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', 
   import { readCatalog, evaluateCatalog } from './scripts/migrations/catalog.ts';
   const contract = JSON.parse(readFileSync('supabase/migration-verification-contract.json', 'utf8'));
   contract.verified = contract.verified.filter(entry => entry.file.startsWith('20261028'));
+  // This fixture stops before the checkout recovery migration; pin that historical body.
+  for (const probe of contract.verified.flatMap(entry => entry.checks)) {
+    if (probe.kind === 'function' && probe.name === 'guard_managed_conference_checkout_initialization') probe.bodySha256 = '5c3bb3f4f2ff27e2535dd9da1f7994139f62a3dc86aa1f1453dab49a0cc58cd2';
+  }
   const results = evaluateCatalog(contract, readCatalog(process.env));
   assert.equal(results.length, 3);
   assert.ok(results.every(result => result.status === 'verified'), JSON.stringify(results));

@@ -28,7 +28,7 @@ const scheduledPathsBySlot = [
   volunteerDrainPath,
   '/api/internal/devcon26-test-checkout-emails/retry',
   volunteerDrainPath,
-  '/api/internal/annual-conference-admission-emails/retry',
+  '/api/internal/annual-conference-attendee-updates/retry',
 ];
 
 const env = { SLACK_EVENTS_RETRY_SECRET: scheduledSecret };
@@ -136,4 +136,23 @@ describe('scheduled worker cycle dispatch', () => {
       '/api/internal/volunteer-broadcasts/prepare',
     ]);
   });
+});
+
+it('enqueues admission and three bounded payment checks each minute', async () => {
+  const send = vi.fn().mockResolvedValue(undefined);
+
+  await worker.scheduled({ scheduledTime: 0 }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
+  expect(send.mock.calls.map(([body]) => body.kind)).toEqual(['admission-recovery', 'payment-recovery', 'payment-recovery', 'payment-recovery']);
+});
+
+it('continues admission draining only after productive work', async () => {
+  const send = vi.fn().mockResolvedValue(undefined);
+
+  appFetch.mockResolvedValueOnce(Response.json({ admissions: { accepted: 3 } }));
+  await worker.queue({ messages: [{ body: { kind: 'admission-recovery' } }] }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
+  expect(send).toHaveBeenCalledWith({ kind: 'admission-recovery' }, { delaySeconds: 1 });
+  send.mockClear();
+  appFetch.mockResolvedValueOnce(Response.json({ admissions: { accepted: 0 } }));
+  await worker.queue({ messages: [{ body: { kind: 'admission-recovery' } }] }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
+  expect(send).not.toHaveBeenCalled();
 });

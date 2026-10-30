@@ -1,3 +1,4 @@
+import { reconcileManagedPayments } from '@/server/managed-payment-recovery';
 import { completeTestDispatchOrigin } from '@/server/complete-test-dispatch';
 import type { Hono, Context } from 'hono';
 import crypto from 'node:crypto';
@@ -26,6 +27,32 @@ export async function conferenceRegistrationOverview(c: Context, year: number) {
 }
 
 export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings>) {
+  app.post('/api/internal/annual-conference-attendee-updates/retry', async (c) => {
+    const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
+    const received = c.req.header('x-scheduled-job-secret')?.trim();
+
+    if (!expected || !received || Buffer.byteLength(expected) !== Buffer.byteLength(received)
+      || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) return c.json({ error: 'Not found.' }, 404);
+    if (completeTestDispatchOrigin(c)) return c.json({ configured: false });
+
+    return c.json(await retryAnnualConferenceAttendeeUpdates(c));
+  });
+
+  app.post('/api/internal/managed-payments/reconcile', async (c) => {
+    const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
+    const received = c.req.header('x-scheduled-job-secret')?.trim();
+
+    if (!expected || !received || Buffer.byteLength(expected) !== Buffer.byteLength(received)
+      || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) return c.json({ error: 'Not found.' }, 404);
+    if (completeTestDispatchOrigin(c)) return c.json({ checked: 0 });
+
+    try {
+      return c.json(await reconcileManagedPayments(c));
+    } catch {
+      return c.json({ error: 'Payment recovery unavailable.' }, 503);
+    }
+  });
+
   app.post('/api/internal/annual-conference-admission-emails/retry', async (c) => {
     const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
     const received = c.req.header('x-scheduled-job-secret')?.trim();
@@ -34,10 +61,8 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
       || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) return c.json({ error: 'Not found.' }, 404);
 
     try {
-      const admissions = await retryAnnualConferenceAdmissionEmails(c);
-      const updates = Boolean(completeTestDispatchOrigin(c))
-        ? { configured: false, accepted: 0, failed: 0 }
-        : await retryAnnualConferenceAttendeeUpdates(c);
+      const admissions = await retryAnnualConferenceAdmissionEmails(c, { scheduled: true });
+      const updates = { configured: false, accepted: 0, failed: 0 };
 
       return c.json({ admissions, updates });
     } catch (error) {

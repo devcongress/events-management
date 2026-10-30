@@ -20,7 +20,9 @@ export type VolunteerBlastPreparationMessage = {
 
 export type BlastPreparationMessage = EventBlastPreparationMessage | VolunteerBlastPreparationMessage;
 
+export type CheckoutRecoveryMessage = { kind: 'admission-recovery' | 'payment-recovery' };
+
 /** The small structural subset of Cloudflare's Queue binding that EMS uses. */
 export type EventBlastPreparationQueue = {
-  send(message: BlastPreparationMessage, options?: { delaySeconds?: number }): Promise<unknown>;
+  send(message: BlastPreparationMessage | CheckoutRecoveryMessage, options?: { delaySeconds?: number }): Promise<unknown>;
 };

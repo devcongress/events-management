@@ -1,3 +1,4 @@
+import { ResendDeliveryError } from '@/lib/email/resend-delivery-error';
 import { conferenceTicketEmail } from '@/lib/email/templates/conference-ticket';
 import { conferenceTicketPdf } from './conference-ticket-pdf';
 import { createAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
@@ -21,7 +22,7 @@ const deliverySchema = z.object({
     'flexible_buyer_bundle_delivery',
   ]),
   payload: z.record(z.string(), z.unknown()), idempotency_key: z.string(),
-  first_attempt_at: z.string(), claimed_until: z.string(),
+  first_attempt_at: z.string(), claimed_until: z.string(), provider_payload: z.unknown().optional(),
 });
 const frozenSchema = z.object({
   from: z.string(), to: z.array(z.string().email()).length(1), reply_to: z.string(),
@@ -232,7 +233,7 @@ export function admissionEmailReadiness(c: Context) {
   return { enabled, configured, ready: enabled && configured };
 }
 
-export async function retryAnnualConferenceAdmissionEmails(c: Context, options: Readonly<{ managed?: boolean }> = {}) {
+async function deliverAdmissionEmail(c: Context, options: Readonly<{ managed?: boolean }>, dispatchToken: string, seen: Set<string>) {
   const apiKey = envValue('RESEND_API_KEY', c)?.trim();
   const from = envValue('DEVCON26_ADMISSION_EMAIL_FROM', c)?.trim();
   const replyTo = envValue('DEVCON26_ADMISSION_EMAIL_REPLY_TO', c)?.trim();
@@ -245,7 +246,7 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context, options: 
   const claim = crypto.randomUUID();
   const previewOrigin = completeTestDispatchOrigin(c, options);
   const result = await client.rpc((previewOrigin ? 'claim_complete_test_only_admission_emails' : 'claim_annual_conference_ticket_email_outbox') as never, {
-    p_claim_token: claim, p_limit: 10,
+    p_claim_token: claim, p_limit: 1,
     ...(previewOrigin ? { p_origin: previewOrigin } : {}),
   } as never);
 
@@ -261,8 +262,10 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context, options: 
   const counts = { configured: true, accepted: 0, failed: 0 };
 
   for (const delivery of deliveries) {
+    if (seen.has(delivery.id)) break;
+    seen.add(delivery.id);
     if (Date.now() + 30000 >= Date.parse(delivery.claimed_until)
-      || Date.now() + 30000 >= Date.parse(delivery.first_attempt_at) + 3600000) continue;
+      || Date.now() + 30000 >= Date.parse(delivery.first_attempt_at) + 23 * 3600000) continue;
     let providerId: string;
     let stage = 'recipient_policy';
 
@@ -273,15 +276,24 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context, options: 
 
       if (!testContext.allowed) continue;
 
-      stage = 'badge_link';
-      const messageOrigin = testContext.is_test ? testContext.origin : websiteOrigin;
-      const badgeUrl = delivery.kind === 'flexible_admission_delivery'
-        && (testContext.is_test || delivery.payload.email_version === 2)
-        ? await admissionBadgeUrl(c, delivery, messageOrigin ?? '', testContext.is_test) : undefined;
+      const existingPayload = frozenSchema.safeParse(delivery.provider_payload);
+      let content: ResendAttachedEmail;
 
-      stage = 'content';
-      const original = await admissionEmailContent(delivery, from, replyTo, messageOrigin, testContext.is_test, badgeUrl);
-      const content = testContext.is_test && delivery.payload.email_version !== 2 ? markCompleteTestEmail(original) : original;
+      if (existingPayload.success) {
+        content = existingPayload.data;
+      } else {
+        stage = 'badge_link';
+        const messageOrigin = testContext.is_test ? testContext.origin : websiteOrigin;
+        const badgeUrl = delivery.kind === 'flexible_admission_delivery'
+          && (testContext.is_test || delivery.payload.email_version === 2)
+          ? await admissionBadgeUrl(c, delivery, messageOrigin ?? '', testContext.is_test) : undefined;
+
+        stage = 'content';
+        const original = await admissionEmailContent(delivery, from, replyTo, messageOrigin, testContext.is_test, badgeUrl);
+
+        content = testContext.is_test && delivery.payload.email_version !== 2 ? markCompleteTestEmail(original) : original;
+
+      }
 
       stage = 'freeze';
       const frozen = await client.rpc('freeze_annual_conference_admission_email' as never, {
@@ -293,14 +305,25 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context, options: 
       if (!await allowConferenceEmail(c, 'admission', delivery.id, payload.data.to[0], claim)) continue;
       if (!(await completeTestEmailContext(c, 'admission', delivery.id)).allowed) continue;
 
+      const slot = await client.rpc('admission_send_slot' as never, { p_token: dispatchToken } as never);
+
+      if (slot.error) throw new Error('Provider pacing unavailable.');
+      if (slot.data !== true) throw new ResendDeliveryError('throttled', 1);
+
       stage = 'provider';
       providerId = await sendResendAttachedEmail({ apiKey, idempotencyKey: delivery.idempotency_key, email: payload.data });
-    } catch {
+    } catch (error) {
       console.error(JSON.stringify({ event: 'admission_email_failed', stage }));
-      const failed = await client.rpc((previewOrigin ? 'finalize_complete_test_only_admission_email' : 'finalize_annual_conference_ticket_email_outbox') as never, {
-        ...(previewOrigin ? { p_origin: previewOrigin } : {}),
-        p_outbox_id: delivery.id, p_claim_token: claim, p_status: 'failed', p_last_error: 'Admission email was not accepted.',
-        p_next_attempt_at: new Date(Date.now() + 5 * 60000).toISOString(),
+      const kind = error instanceof ResendDeliveryError ? error.kind : 'ambiguous';
+      const delay = error instanceof ResendDeliveryError ? error.retryAfterSeconds : 60;
+
+      if (kind === 'throttled') {
+        const cooldown = await client.rpc('admission_send_slot' as never, { p_token: dispatchToken, p_cooldown_seconds: delay } as never);
+
+        if (cooldown.error) throw new Error('Provider cooldown unavailable.');
+      }
+      const failed = await client.rpc('defer_admission_delivery' as never, {
+        p_id: delivery.id, p_claim: claim, p_kind: kind, p_seconds: delay,
       } as never);
 
       if (failed.error) {
@@ -320,6 +343,40 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context, options: 
 
     if (finalized.error) throw new Error('Admission email acknowledgement failed.');
     counts.accepted += 1;
+  }
+
+  return counts;
+}
+
+export async function retryAnnualConferenceAdmissionEmails(c: Context, options: Readonly<{ managed?: boolean; scheduled?: boolean }> = {}) {
+  const counts = { configured: admissionEmailReadiness(c).ready, accepted: 0, failed: 0 };
+
+  if (!counts.configured) return counts;
+  const client = getSupabaseAdminClient(c);
+  const token = crypto.randomUUID();
+  const started = Date.now();
+  const lease = await client.rpc('lease_admission_dispatch' as never, { p_token: token, p_seconds: options.scheduled ? 60 : 30 } as never);
+
+  if (lease.error) throw new Error('Admission dispatcher unavailable.');
+  if (lease.data !== true) return counts;
+
+  try {
+    // A final 15-second provider call must finish before the dispatch lease and HTTP waitUntil budget.
+    const seen = new Set<string>();
+    const startBudget = options.scheduled ? 40000 : 8000;
+
+    for (let i = 0; i < 3 && Date.now() - started < startBudget; i += 1) {
+      const result = await deliverAdmissionEmail(c, options, token, seen);
+
+      counts.accepted += result.accepted;
+      counts.failed += result.failed;
+      if (result.failed || result.accepted === 0) break;
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  } finally {
+    const released = await client.rpc('release_admission_dispatch' as never, { p_token: token } as never);
+
+    if (released.error) console.error(JSON.stringify({ event: 'admission_dispatch_release_failed' }));
   }
 
   return counts;

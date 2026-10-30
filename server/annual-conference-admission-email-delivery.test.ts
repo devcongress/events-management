@@ -1,12 +1,13 @@
 import { verifyAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
+import { ResendDeliveryError } from '@/lib/email/resend-delivery-error';
 import { PNG } from 'pngjs';
 import jsQR from 'jsqr';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Context } from 'hono';
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), send: vi.fn(), enabled: true, preview: false, testSecret: 'sk_test_fixture' }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), send: vi.fn(), slot: vi.fn(), leaseAllowed: true, enabled: true, preview: false, testSecret: 'sk_test_fixture' }));
 
-vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
+vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: (...args: unknown[]) => ['lease_admission_dispatch', 'admission_send_slot'].includes(String(args[0])) ? (args[0] === 'lease_admission_dispatch' ? Promise.resolve({ data: mocks.leaseAllowed, error: null }) : mocks.slot(...args)) : mocks.rpc(...args), from: mocks.from }) }));
 vi.mock('@/lib/email/resend', () => ({ sendResendAttachedEmail: mocks.send }));
 vi.mock('@/server/env', () => ({ envValue: (key: string) => ({
   DEVCON26_ADMISSION_EMAILS_ENABLED: String(mocks.enabled), RESEND_API_KEY: 'fixture',
@@ -25,6 +26,8 @@ const delivery = {
 };
 
 beforeEach(() => {
+  mocks.leaseAllowed = true;
+  mocks.slot.mockReset().mockResolvedValue({ data: true, error: null });
   mocks.enabled = true;
   mocks.preview = false;
   mocks.testSecret = 'sk_test_fixture';
@@ -158,7 +161,7 @@ describe('conference admission delivery', () => {
   it('freezes the provider payload and acknowledges acceptance with the same idempotency key', async () => {
     expect(await retryAnnualConferenceAdmissionEmails({} as Context)).toMatchObject({ accepted: 1, failed: 0 });
     expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'fixture-admission' }));
-    expect(mocks.rpc).toHaveBeenLastCalledWith('finalize_annual_conference_ticket_email_outbox', expect.objectContaining({ p_status: 'accepted', p_provider_email_id: 'provider-fixture' }));
+    expect(mocks.rpc).toHaveBeenCalledWith('finalize_annual_conference_ticket_email_outbox', expect.objectContaining({ p_status: 'accepted', p_provider_email_id: 'provider-fixture' }));
   });
 
   it('does not turn an ambiguous accepted acknowledgement into a new failed delivery', async () => {
@@ -275,4 +278,40 @@ it('sends ticket QR and independent badge access after the separate badge email 
   expect(verifyAnnualConferenceSocialCardBuyerGrant({ grant, origin: 'https://preview.account.workers.dev', secretKey: 'sk_test_fixture' })).toMatchObject({ order_id: delivery.id, seat_numbers: [3] });
   expect(email.html).toContain('Ghana Digital Center');
   expect(mocks.rpc).toHaveBeenCalledWith('finalize_complete_test_only_admission_email', expect.objectContaining({ p_origin: 'https://preview.account.workers.dev', p_status: 'accepted' }));
+});
+
+it('reuses a frozen email after an hour without needing scrubbed rendering inputs', async () => {
+  const frozen = { from: 'original@example.test', to: [delivery.recipient_email], reply_to: 'reply@example.test', subject: 'Frozen', html: '<p>Frozen</p>', text: 'Frozen' };
+  const aged = { ...delivery, payload: {}, provider_payload: frozen, first_attempt_at: new Date(Date.now() - 61 * 60000).toISOString() };
+
+  mocks.rpc.mockImplementation(async (name, args) => ({ error: null, data: name === 'claim_annual_conference_ticket_email_outbox' ? [aged]
+    : name === 'freeze_annual_conference_admission_email' ? args.p_payload
+      : name === 'complete_test_email_context' ? { is_test: false, allowed: true }
+        : name === 'annual_conference_email_allowed' ? true : {} }));
+  expect(await retryAnnualConferenceAdmissionEmails({} as Context)).toMatchObject({ accepted: 1 });
+  expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ email: frozen, idempotencyKey: delivery.idempotency_key }));
+});
+
+it('defers uncertain provider outcomes without acknowledging acceptance', async () => {
+  mocks.send.mockRejectedValue(new Error('connection closed after send'));
+  expect(await retryAnnualConferenceAdmissionEmails({} as Context)).toMatchObject({ failed: 1 });
+  expect(mocks.rpc).toHaveBeenCalledWith('defer_admission_delivery', expect.objectContaining({ p_kind: 'ambiguous', p_seconds: 60 }));
+  expect(mocks.rpc.mock.calls.some(([name]) => name === 'finalize_annual_conference_ticket_email_outbox')).toBe(false);
+});
+
+it('does no work while another dispatcher owns the durable lease', async () => {
+  mocks.leaseAllowed = false;
+  expect(await retryAnnualConferenceAdmissionEmails({} as Context)).toMatchObject({ accepted: 0, failed: 0 });
+  expect(mocks.send).not.toHaveBeenCalled();
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+
+it('persists provider Retry-After before releasing the shared dispatch lease', async () => {
+  mocks.send.mockRejectedValue(new ResendDeliveryError('throttled', 120));
+
+  expect(await retryAnnualConferenceAdmissionEmails({} as Context)).toMatchObject({ failed: 1, accepted: 0 });
+  expect(mocks.slot).toHaveBeenCalledWith('admission_send_slot', expect.objectContaining({ p_cooldown_seconds: 120 }));
+  expect(mocks.rpc).toHaveBeenCalledWith('defer_admission_delivery', expect.objectContaining({ p_kind: 'throttled', p_seconds: 120 }));
+  expect(mocks.rpc).toHaveBeenLastCalledWith('release_admission_dispatch', expect.any(Object));
+  expect(mocks.send).toHaveBeenCalledTimes(1);
 });

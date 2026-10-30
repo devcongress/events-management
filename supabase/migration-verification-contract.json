@@ -1815,7 +1815,7 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true,
-          "bodySha256": "791f859e5c5db5fad30ac18fecc4ce574065e27e86d97ab4a7d51d152e5e3852"
+          "bodySha256": "a33f5a068fb09f44bcbf34e7ccd106069b75db85e26ec8b16328e3aefce30c10"
         },
         {
           "kind": "function",
@@ -1828,7 +1828,7 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true,
-          "bodySha256": "523700415a4bfcb1903b45d6a48060f6fe27fbc9e7355473cd1e44d4c815d4b8"
+          "bodySha256": "6def0f76e3e0d5175503791aa5e562f439a853458ff4ae56b62cae0732c58a77"
         },
         {
           "kind": "function",
@@ -2822,7 +2822,7 @@
           "argumentTypes": "uuid, uuid",
           "result": "annual_conference_ticket_email_outbox",
           "language": "plpgsql",
-          "bodySha256": "4d8d27a82ce6b749274738b17aa385cd6d432f5ebcb49df22723d9e2e56dd719",
+          "bodySha256": "2ae341b28eeb42c2ab64c8a89111df954ba51849d3b4d1e49598d1838a66fc50",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -3660,7 +3660,7 @@
           "argumentTypes": "uuid, integer, text",
           "result": "SETOF annual_conference_ticket_email_outbox",
           "language": "plpgsql",
-          "bodySha256": "ec998e59fbd0de77f4cdcf82f08537392798b559e45eced70a13c9eaf6b20113",
+          "bodySha256": "699defe4d6559ad03052464d8b4619afd667649cb87685664f3a13e4c72fec44",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -4165,7 +4165,7 @@
           "argumentTypes": "",
           "result": "trigger",
           "language": "plpgsql",
-          "bodySha256": "5c3bb3f4f2ff27e2535dd9da1f7994139f62a3dc86aa1f1453dab49a0cc58cd2",
+          "bodySha256": "cf2407ea7292b5ef5bfe8ee939ef28198088c9381132c9d0c0640bc147af3c4b",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -4452,7 +4452,7 @@
           "argumentTypes": "uuid, integer",
           "result": "SETOF annual_conference_ticket_email_outbox",
           "language": "plpgsql",
-          "bodySha256": "da80f6fe0886b1e4d5cd3d0668ac2bdf53346e0a143104b6cf653512684cf885",
+          "bodySha256": "c2c23966a6a58aa3eb0903845834f88dfdb8d25c90748947cf8be57525158616",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -4682,6 +4682,188 @@
             "event_id",
             "created_at DESC"
           ]
+        }
+      ]
+    },
+    {
+      "file": "20261030210000_checkout_delivery_recovery.sql",
+      "sha256": "d66b2fb1c3d4549a994a405d4f324f5a82e2958be93dadcf1acb849bd2290d80",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "admission_dispatch_control",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "freeze_annual_conference_admission_email",
+          "argumentTypes": "uuid, uuid, jsonb",
+          "result": "jsonb",
+          "language": "plpgsql",
+          "bodySha256": "a33f5a068fb09f44bcbf34e7ccd106069b75db85e26ec8b16328e3aefce30c10",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "scrub_annual_conference_admission_payload",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "6def0f76e3e0d5175503791aa5e562f439a853458ff4ae56b62cae0732c58a77",
+          "securityDefiner": false,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "admission_send_slot",
+          "argumentTypes": "uuid, integer",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "3898873b63e03ecfd82720f4d108fdec3f386cf2989c2403a546bdd7b9e1cafd",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "release_admission_dispatch",
+          "argumentTypes": "uuid",
+          "result": "void",
+          "language": "sql",
+          "bodySha256": "a9a50d72bdcf27d0a691828e8bd277db9f326db029fed1a3516082589bd6212f",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "defer_admission_delivery",
+          "argumentTypes": "uuid, uuid, text, integer",
+          "result": "void",
+          "language": "plpgsql",
+          "bodySha256": "1c2523345cd92ba9ea6c210bf76cbec17072bebc985a6b7c2c6c37dcce3cef77",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "finish_managed_payment_reconciliation",
+          "argumentTypes": "uuid, uuid, boolean, boolean",
+          "result": "void",
+          "language": "sql",
+          "bodySha256": "0ec6ed388dd8619be051c8c4bcea3f6aec97fee1a062a2ba2b27dd86d8dc5b0e",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_complete_test_only_admission_emails",
+          "argumentTypes": "uuid, integer, text",
+          "result": "SETOF annual_conference_ticket_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "699defe4d6559ad03052464d8b4619afd667649cb87685664f3a13e4c72fec44",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_annual_conference_ticket_email_outbox",
+          "argumentTypes": "uuid, integer",
+          "result": "SETOF annual_conference_ticket_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "c2c23966a6a58aa3eb0903845834f88dfdb8d25c90748947cf8be57525158616",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "guard_managed_conference_checkout_initialization",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "cf2407ea7292b5ef5bfe8ee939ef28198088c9381132c9d0c0640bc147af3c4b",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "retry_annual_conference_ticket_email_outbox",
+          "argumentTypes": "uuid, uuid",
+          "result": "annual_conference_ticket_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "2ae341b28eeb42c2ab64c8a89111df954ba51849d3b4d1e49598d1838a66fc50",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "lease_admission_dispatch",
+          "argumentTypes": "uuid, integer",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "baa4090a8c3f6e8d3f88501701b7811094de7240eede49d28545db5eed45f2ea",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_managed_payment_reconciliation",
+          "argumentTypes": "uuid",
+          "result": "TABLE(order_id uuid, payment_reference text)",
+          "language": "plpgsql",
+          "bodySha256": "b20f02c72635cd1298cb5b8198bf513296cede65fb5bcb52e3a7db3aca211d74",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "record_managed_initialization_failure",
+          "argumentTypes": "uuid, uuid, boolean",
+          "result": "void",
+          "language": "plpgsql",
+          "bodySha256": "d22a232a1e66db792a011c5da42cbb91e6236875e81b0161e2c9305db65b14e7",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
         }
       ]
     }

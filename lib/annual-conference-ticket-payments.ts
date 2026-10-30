@@ -1,3 +1,4 @@
+import { PaystackInitializationError } from './paystack-initialization-error';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 
@@ -241,10 +242,13 @@ export async function createPaystackHostedCheckout(input: {
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
 
-  const parsed = response ? paystackInitializationSchema.safeParse(await response.json().catch(() => null)) : null;
+  const payload = response ? await response.json().catch(() => null) : null;
+  const parsed = payload ? paystackInitializationSchema.safeParse(payload) : null;
+  const definitelyRejected = Boolean(response && [400, 401, 403, 422].includes(response.status)
+    && payload?.status === false && ['invalid_email', 'invalid_amount', 'invalid_key'].includes(payload?.code));
 
   if (!response?.ok || !parsed?.success || parsed.data.data.reference !== reference || !isPaystackCheckoutUrl(parsed.data.data.authorization_url)) {
-    throw new Error('Paystack could not initialize checkout.');
+    throw new PaystackInitializationError(definitelyRejected);
   }
 
   return { authorizationUrl: parsed.data.data.authorization_url, paymentReference: reference };
