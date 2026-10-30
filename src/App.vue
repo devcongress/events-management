@@ -1306,7 +1306,10 @@ onUnmounted(() => {
         >
           <OrganizerRoleBadge v-if="currentOrganizerRole" :role="currentOrganizerRole" />
           <button v-if="showSignOut" class="app-nav-button" type="button" @click="logout">
-            Sign Out
+            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 2H3v12h3M9.5 4.5 13 8l-3.5 3.5M6 8h7" />
+            </svg>
+            <span>Sign out</span>
           </button>
         </div>
 
@@ -1352,7 +1355,10 @@ onUnmounted(() => {
           <div v-if="showHeaderActions" class="app-mobile-menu-actions">
             <OrganizerRoleBadge v-if="currentOrganizerRole" :role="currentOrganizerRole" />
             <button v-if="showSignOut" class="app-nav-button" type="button" @click="logout">
-              Sign Out
+              <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 2H3v12h3M9.5 4.5 13 8l-3.5 3.5M6 8h7" />
+              </svg>
+              <span>Sign out</span>
             </button>
           </div>
         </div>
