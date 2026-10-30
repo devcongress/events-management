@@ -1646,54 +1646,37 @@ async function retryEmails() {
             aria-labelledby="registration-tab-emails"
             class="editorial-panel mt-5 overflow-hidden"
           >
-          <div class="border-b border-dc-border bg-dc-paper-warm px-5 py-4">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p class="editorial-eyebrow">transactional only</p>
-                <h2 class="mt-1 text-xl font-bold text-dc-ink">Registration emails</h2>
-                <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">Delivery records for registration receipts, waitlist updates, and promotion notices. This area has no broadcasts, bulk messaging, or exports.</p>
-              </div>
-              <button
-                v-if="emailSummary.failed > 0"
-                type="button"
-                class="editorial-action min-h-11 justify-center px-4 disabled:opacity-50"
-                :disabled="retryPending"
-                @click="retryEmails"
-              >
-                {{ retryPending ? 'RETRYING…' : `RETRY ${emailSummary.failed} FAILED` }}
-              </button>
+          <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-dc-border px-5 py-4">
+            <div class="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
+              <h2 class="text-base font-semibold text-dc-ink">Email delivery</h2>
+              <dl class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm" aria-label="Email delivery summary">
+                <div class="flex items-baseline gap-1.5 text-dc-gray">
+                  <dd class="font-semibold tabular-nums text-dc-ink">{{ emailSummary.accepted }}</dd>
+                  <dt>accepted</dt>
+                </div>
+                <div v-if="emailSummary.pending > 0" class="flex items-baseline gap-1.5 text-amber-800">
+                  <dd class="font-semibold tabular-nums">{{ emailSummary.pending }}</dd>
+                  <dt>queued</dt>
+                </div>
+                <div v-if="emailSummary.failed > 0" class="flex items-baseline gap-1.5 text-red-700">
+                  <dd class="font-semibold tabular-nums">{{ emailSummary.failed }}</dd>
+                  <dt>failed</dt>
+                </div>
+                <div v-if="emailSummary.notQueued > 0" class="flex items-baseline gap-1.5 text-dc-gray">
+                  <dd class="font-semibold tabular-nums">{{ emailSummary.notQueued }}</dd>
+                  <dt>not queued</dt>
+                </div>
+              </dl>
             </div>
-          </div>
-
-          <div class="grid gap-3 border-b border-dc-border p-5 sm:grid-cols-2 lg:grid-cols-4">
-            <div
-              v-for="item in [
-                { label: 'Accepted', value: emailSummary.accepted },
-                { label: 'Queued', value: emailSummary.pending },
-                { label: 'Failed', value: emailSummary.failed },
-                { label: 'Not queued', value: emailSummary.notQueued },
-              ]"
-              :key="item.label"
-              class="rounded-lg border border-dc-border bg-white px-4 py-3"
+            <button
+              v-if="emailSummary.failed > 0"
+              type="button"
+              class="editorial-secondary-action min-h-11 justify-center px-3 text-sm disabled:opacity-50"
+              :disabled="retryPending"
+              @click="retryEmails"
             >
-              <p class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">{{ item.label }}</p>
-              <p class="mt-1 text-2xl font-bold text-dc-ink">{{ item.value }}</p>
-            </div>
-          </div>
-
-          <div class="grid gap-3 border-b border-dc-border bg-dc-paper-warm p-5 md:grid-cols-3">
-            <div class="rounded-md border border-dc-border bg-white px-4 py-3">
-              <p class="text-sm font-bold text-dc-ink">Place receipt</p>
-              <p class="mt-1 text-xs leading-5 text-dc-gray">Sent automatically when a guest receives a place.</p>
-            </div>
-            <div class="rounded-md border border-dc-border bg-white px-4 py-3">
-              <p class="text-sm font-bold text-dc-ink">Waitlist notice</p>
-              <p class="mt-1 text-xs leading-5 text-dc-gray">Sent automatically when capacity overflow is waitlisted.</p>
-            </div>
-            <div class="rounded-md border border-dc-border bg-white px-4 py-3">
-              <p class="text-sm font-bold text-dc-ink">Promotion notice</p>
-              <p class="mt-1 text-xs leading-5 text-dc-gray">Sent automatically when a cancellation gives the next waitlisted guest a place.</p>
-            </div>
+              {{ retryPending ? 'Retrying…' : `Retry ${emailSummary.failed} failed` }}
+            </button>
           </div>
 
           <div v-if="emailRegistrations.length === 0" class="px-5 py-12 text-center text-sm text-dc-gray">

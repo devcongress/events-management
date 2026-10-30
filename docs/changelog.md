@@ -2,6 +2,10 @@
 
 ## 2026-10-30
 
+- Keep source modules and brand asset imports with Vite during local development so loading-skeleton and logo imports cannot hit the API HTML fallback and leave the organizer workspace blank.
+
+- Refine Sign out into a quiet secondary control with a thin border, 6px corners, and an exit icon. Condense registration email delivery into one summary row, retaining accepted totals, nonzero attention states, and failed-email retry while removing redundant explanatory cards.
+
 - Make desktop and mobile Sign Out buttons rectangular with 2px corners. Replace sideways hover movement with a warm-yellow background while preserving keyboard focus, press feedback, and reduced-motion support.
 
 - Restored completed selected-speaker links for monthly events as a slides-only editor through the local end of the event day, while preserving one-time completion semantics and every other link closure.

@@ -81,8 +81,9 @@ place destinations that do not fit in an anchored More disclosure. Measure the
 permission-filtered labels after fonts settle; retain their order and highlight
 More when it contains the current section. Reserve the full-width menu for
 viewports at or below 960px. Preserve keyboard focus when resizing moves a link.
-Sign Out uses a rectangular outline with 2px corners and a warm-yellow hover
-background without positional movement. Keep its 44px target and focus outline.
+Sign out is a quiet secondary control with a thin warm-gray border, 6px corners,
+a cap-height exit icon, and a white hover surface without positional movement.
+Keep its 44px target and focus outline.
 
 **Forms:** Use `AppDropdown.vue` for single choice and `AppMultiSelectDropdown.vue`
 for multiple choice, including loading fixtures. Native select menus are

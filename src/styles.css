@@ -325,18 +325,25 @@
     min-height: 44px;
     justify-content: center;
     align-items: center;
-    border: 2px solid #111111;
-    border-radius: 2px;
-    background: transparent;
-    padding: 10px 1rem;
-    color: #111111;
+    gap: 0.5rem;
+    border: 1px solid #d5d1c7;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.35);
+    padding: 8px 12px;
+    color: #55514a;
     font-family: var(--font-sans), system-ui, sans-serif;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 500;
     letter-spacing: 0;
     line-height: 1.2;
     white-space: nowrap;
     transition: transform 120ms var(--motion-fast);
+  }
+
+  .app-nav-button svg {
+    width: auto;
+    height: 1cap;
+    flex-shrink: 0;
   }
 
   .app-header :is(a, button):focus-visible {
@@ -457,7 +464,9 @@
     }
 
     .app-nav-button:hover {
-      background: #fff8a8;
+      border-color: #b9b3a7;
+      background: #ffffff;
+      color: #111111;
     }
 
     .app-nav-more-link:hover {

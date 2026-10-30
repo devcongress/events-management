@@ -20,6 +20,8 @@ pnpm dev
 
 The dev server runs Vite and the Hono API on the same origin at `http://localhost:5173`. `pnpm dev` explicitly selects the Supabase data source and refuses to move to another port, so local launchers can discover one stable organizer-capable entry point from `package.json`.
 
+Vite owns `/src/` module requests and `/brand/` asset imports, including JSON skeleton imports. The Hono adapter excludes those paths in addition to its defaults; otherwise its HTML fallback can break route imports and leave only the app header visible. The asset-import regression test runs with a separate temporary dependency cache.
+
 ## Environment Variables
 
 The server falls back to JSON mock data when local/dev runs omit `APP_DATA_SOURCE`, even when Supabase credentials exist in `.env.local`. The committed example selects `APP_DATA_SOURCE=supabase` because organizer access now uses Supabase in every environment; choose `local-json` only for public-only local work where organizer routes are not needed.
