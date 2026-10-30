@@ -3046,7 +3046,8 @@
           "name": "annual_conference_ticket_orders_flexible_cart_snapshot",
           "contains": [
             "checkout_flow = 'flexible'",
-            "flexible_payment_fee_mode = 'merchant_absorbs'",
+            "merchant_absorbs",
+            "buyer_pays_processing",
             "provider = 'paystack'"
           ]
         },
@@ -4086,7 +4087,7 @@
           "argumentTypes": "",
           "result": "trigger",
           "language": "plpgsql",
-          "bodySha256": "75d580a1738b399d7362295cc6397064acec5fd80ccdad317544afd3ba8bc2d5",
+          "bodySha256": "10c4286e6867171bf68f67c4e68655bda93196f704d3b77c1d6481e146c42491",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -4099,7 +4100,7 @@
           "argumentTypes": "integer",
           "result": "jsonb",
           "language": "sql",
-          "bodySha256": "35f187304221350f8015ae9ee846df57aaa034dbaa595a7b08a3c9b7a40dad9f",
+          "bodySha256": "9c8ae2288981f228e67fee513e0b3b4da3ac7c2de414fd384cea44a9490c4840",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -4138,7 +4139,7 @@
           "argumentTypes": "uuid, text, text, integer, jsonb, uuid, text, bigint, text",
           "result": "annual_conference_ticket_orders",
           "language": "plpgsql",
-          "bodySha256": "3ee3bf2a11853842a299e6efe90ec0bcb594f891b632f142368fff1e81041b6d",
+          "bodySha256": "9bcd7ddf8d293e6ba02c8cc4fe4267a132d4a002b31e2fd260e69980992c332f",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -4203,7 +4204,7 @@
           "argumentTypes": "uuid, text, text, text, text, integer, text, text, jsonb",
           "result": "annual_conference_ticket_orders",
           "language": "plpgsql",
-          "bodySha256": "cf2b95dd5fdc4e4e3b900793906f10035e7b323899e68af241f2e64529d36b25",
+          "bodySha256": "594967eb31f518459e43d72c2c3a46e2e4e6ce2be1e82cd42ada01cd9a7c0039",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -4541,6 +4542,40 @@
           "name": "annual_conference_ticket_email_outbox",
           "rls": true,
           "private": true
+        }
+      ]
+    },
+    {
+      "file": "20261030110000_managed_buyer_processing_fee.sql",
+      "sha256": "5de522c3ced8d9e11d94c10f7842ceb955391da8728522682f45fb379c846302",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticketing_settings",
+          "name": "processing_fee_rate_basis_points",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "195"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_orders",
+          "name": "quoted_gross_amount_minor",
+          "type": "integer",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_ticket_orders",
+          "name": "annual_conference_ticket_orders_processing_fee_quote",
+          "contains": [
+            "buyer_pays_processing",
+            "quoted_gross_amount_minor = (amount_minor + quoted_processing_fee_minor)"
+          ]
         }
       ]
     }

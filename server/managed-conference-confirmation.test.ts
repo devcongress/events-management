@@ -21,6 +21,7 @@ const context = {} as Context;
 const order = {
   id: '10000000-0000-4000-8000-000000000001', edition_id: '20000000-0000-4000-8000-000000000001',
   payment_mode: 'test' as 'test' | 'live', checkout_origin: 'https://devcongress.org', checkout_settings_version: 7,
+  quoted_processing_fee_policy: null as null | 'buyer_pays_processing',
 };
 const charge = { providerEventId: 'charge:123', amountMinor: 15000, currency: 'GHS' };
 
@@ -45,6 +46,21 @@ describe('managed checkout stored-order confirmation', () => {
     expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({
       providerEventId: `managed:${mode}:charge:123`, amountMinor: 15000, currency: 'GHS',
       paymentFacts: { ...(mode === 'test' ? { id: '123' } : {}), domain: mode, amount: 15000, currency: 'GHS', fee_mode: 'merchant_absorbs' },
+    }), context);
+  });
+
+  it.each(['test', 'live'] as const)('uses the stored buyer-paid fee policy for a %s payment', async (mode) => {
+    const reference = 'devcon26-managed-' + mode + '-' + 'a'.repeat(32);
+    const paidCharge = { ...charge, amountMinor: 15299 };
+
+    mocks.testPayment.mockResolvedValue({ status: 'verified', ...paidCharge });
+    mocks.livePayment.mockResolvedValue({ status: 'success', charge: paidCharge });
+
+    await confirmManagedCheckout(context, { ...order, payment_mode: mode, quoted_processing_fee_policy: 'buyer_pays_processing' }, reference);
+
+    expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({
+      amountMinor: 15299,
+      paymentFacts: expect.objectContaining({ domain: mode, fee_mode: 'buyer_pays_processing' }),
     }), context);
   });
 

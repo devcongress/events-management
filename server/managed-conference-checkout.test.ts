@@ -49,10 +49,11 @@ const authorizationUrl = 'https://checkout.paystack.com/fixture';
 const catalogSettings = {
   edition_id: editionId, payment_mode: 'test' as 'test' | 'live', settings_version: 7,
   public_mode: 'paid', sales_status: 'open', flexible_checkout_state: 'internal', regular_price_minor: 15000, flexible_checkout_max_amount_minor: 10000000,
+  processing_fee_rate_basis_points: 195,
 };
 const storedOrder = {
   id: orderId, edition_id: editionId, payment_mode: 'test' as 'test' | 'live',
-  checkout_origin: origin, checkout_settings_version: 7,
+  checkout_origin: origin, checkout_settings_version: 7, quoted_processing_fee_policy: 'buyer_pays_processing' as const,
 };
 const input = {
   checkout_request_key: '30000000-0000-4000-8000-000000000001',
@@ -105,7 +106,7 @@ beforeEach(() => {
   mocks.session.mockResolvedValue({ authenticated: true, role: 'owner', email: 'owner@example.test' });
   mocks.audit.mockResolvedValue(undefined);
   mocks.rpc.mockImplementation(async (_context, name: string, args: Record<string, unknown>) => {
-    if (name === 'create_managed_conference_checkout_hold') return { id: orderId, payment_mode: args.p_expected_mode, amount_minor: 30000, currency: 'GHS' };
+    if (name === 'create_managed_conference_checkout_hold') return { id: orderId, payment_mode: args.p_expected_mode, amount_minor: 30000, quoted_processing_fee_minor: 597, quoted_gross_amount_minor: 30597, currency: 'GHS' };
     if (name === 'claim_managed_conference_checkout_initialization') return { authorization_url: mocks.cachedUrl, initialization_claim: args.p_claim_token };
     if (name === 'finalize_managed_conference_checkout_initialization') return { authorization_url: args.p_authorization_url, initialization_claim: args.p_claim_token };
     if (name === 'configure_managed_conference_payment_mode') return { ...catalogSettings, payment_mode: args.p_mode, settings_version: 8 };
@@ -120,7 +121,7 @@ describe('EMS-managed public checkout', () => {
     const response = await request(path);
     const catalog = await response.json();
 
-    expect(catalog).toMatchObject({ mode: 'test', settings_version: 7, currency: 'GHS', flexible_checkout: { mode: 'test', unit_amount_minor: 15000 } });
+    expect(catalog).toMatchObject({ mode: 'test', settings_version: 7, currency: 'GHS', flexible_checkout: { mode: 'test', unit_amount_minor: 15000, fee_rate_basis_points: 195, fee_policy: 'buyer_pays_processing', fee_rounding: 'ceil_minor' } });
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('access-control-allow-origin')).toBe(origin);
     expect(JSON.stringify(catalog)).not.toMatch(/tester_emails|tester@example|gift@example|sk_test|sk_live/);
@@ -147,7 +148,7 @@ describe('EMS-managed public checkout', () => {
     const result = await response.json();
 
     expect(response.status).toBe(200);
-    expect(result).toMatchObject({ mode: 'test', reference: managedPaymentReference(orderId, 'test'), amount_minor: 30000, authorization_url: authorizationUrl });
+    expect(result).toMatchObject({ mode: 'test', reference: managedPaymentReference(orderId, 'test'), ticket_amount_minor: 30000, processing_fee_minor: 597, amount_minor: 30597, authorization_url: authorizationUrl });
     expect(mocks.challenge).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       token: 'challenge-token', expectedAction: 'devcon26_checkout', expectedHostname: 'devcongress.org',
     }));
@@ -155,7 +156,7 @@ describe('EMS-managed public checkout', () => {
       p_expected_mode: 'test', p_settings_version: 7, p_origin: origin,
       p_allocations: [{ seat_index: 1, kind: 'self', recipient_name: 'Tester', recipient_email: 'tester@example.test' }, { seat_index: 2, kind: 'gift', recipient_email: 'gift@example.test' }],
     }));
-    expect(mocks.initialize).toHaveBeenCalledWith(expect.objectContaining({ secretKey: 'sk_test_fixture', amountMinor: 30000, callbackUrl: `${origin}/devcon26/payment-confirmation/` }));
+    expect(mocks.initialize).toHaveBeenCalledWith(expect.objectContaining({ secretKey: 'sk_test_fixture', amountMinor: 30597, callbackUrl: `${origin}/devcon26/payment-confirmation/` }));
     expect(verifyDevcon26FlexibleCheckoutGrant({ grant: result.checkout_grant, verifier: result.checkout_verifier, origin, secretKey: 'sk_test_fixture' })?.order_id).toBe(orderId);
   });
 
@@ -187,7 +188,7 @@ describe('EMS-managed public checkout', () => {
 
   it.each(['checkout_initialization_in_progress', 'checkout_initialization_uncertain'])('keeps %s initialization closed without another provider call', async (error) => {
     mocks.rpc.mockImplementation(async (_context, name: string) => {
-      if (name === 'create_managed_conference_checkout_hold') return { id: orderId, payment_mode: 'test', amount_minor: 30000, currency: 'GHS' };
+      if (name === 'create_managed_conference_checkout_hold') return { id: orderId, payment_mode: 'test', amount_minor: 30000, quoted_processing_fee_minor: 597, quoted_gross_amount_minor: 30597, currency: 'GHS' };
 
       throw new Error(error);
     });

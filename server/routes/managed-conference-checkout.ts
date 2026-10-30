@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import type { Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
-import { MANAGED_CHECKOUT_PATH as path, MANAGED_PAYMENT_WEBHOOK_PATH, managedCheckoutInitializeSchema, managedCheckoutOrigin, managedCheckoutVerifySchema, managedPaymentReference, managedPaymentSecret } from '@/lib/managed-conference-checkout';
+import { MANAGED_CHECKOUT_PATH as path, MANAGED_PAYMENT_WEBHOOK_PATH, MANAGED_PROCESSING_FEE_POLICY, MANAGED_PROCESSING_FEE_ROUNDING, managedCheckoutInitializeSchema, managedCheckoutMaximumQuantity, managedCheckoutOrigin, managedCheckoutProcessingFeeQuote, managedCheckoutVerifySchema, managedPaymentReference, managedPaymentSecret } from '@/lib/managed-conference-checkout';
 import { createPaystackHostedCheckout, isPaystackCheckoutUrl, parseVerifiedPaystackCharge, verifyPaystackWebhookSignature } from '@/lib/annual-conference-ticket-payments';
 import { devcon26CartAllocationsForStorage, devcon26AvailablePaymentProviders, PAYSTACK_MAX_TRANSACTION_MINOR } from '@/lib/devcon26-ticket-cart';
 import { createDevcon26FlexibleCheckoutGrant, verifyDevcon26FlexibleCheckoutGrant } from '@/lib/devcon26-flexible-checkout-grant';
@@ -16,7 +16,11 @@ import { dispatchManagedConferenceEmails } from '@/server/complete-test-immediat
 import { assessPublicSubmissionEmail, enforcePublicRateLimit, publicClientKey, requirePublicTurnstile } from '@/server/http/public-intake-protection';
 import type { AppBindings } from '@/server/http/app-bindings';
 
-const holdSchema = z.object({ id: z.string().uuid(), payment_mode: z.enum(['test', 'live']), amount_minor: z.number().int().positive().safe(), currency: z.literal('GHS') });
+const holdSchema = z.object({
+  id: z.string().uuid(), payment_mode: z.enum(['test', 'live']), amount_minor: z.number().int().positive().safe(),
+  quoted_processing_fee_minor: z.number().int().nonnegative().safe(), quoted_gross_amount_minor: z.number().int().positive().safe(),
+  currency: z.literal('GHS'),
+});
 const initializationSchema = z.object({ authorization_url: z.string().nullable(), initialization_claim: z.string().uuid().nullable() });
 
 export function managedCheckoutFailure(c: Context, error: unknown) {
@@ -69,8 +73,13 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
       return c.json({
         mode: settings.payment_mode, settings_version: settings.settings_version,
         accepts_coupon: false, currency: 'GHS', payment_providers: devcon26AvailablePaymentProviders(),
-        flexible_checkout: { mode: settings.payment_mode, unit_amount_minor: 15000,
-          max_per_payment: Math.floor(Math.min(settings.flexible_checkout_max_amount_minor, PAYSTACK_MAX_TRANSACTION_MINOR) / 15000) },
+        flexible_checkout: {
+          mode: settings.payment_mode, unit_amount_minor: 15000,
+          fee_rate_basis_points: settings.processing_fee_rate_basis_points,
+          fee_policy: MANAGED_PROCESSING_FEE_POLICY, fee_rounding: MANAGED_PROCESSING_FEE_ROUNDING,
+          max_per_payment: managedCheckoutMaximumQuantity(15000, settings.processing_fee_rate_basis_points,
+            Math.min(settings.flexible_checkout_max_amount_minor, PAYSTACK_MAX_TRANSACTION_MINOR)),
+        },
         tiers: [{ tier_key: 'regular', quantity: 1, amount_minor: 15000, currency: 'GHS' }],
       });
     } catch {
@@ -130,8 +139,11 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
         p_expected_mode: input.data.expected_mode, p_settings_version: input.data.settings_version, p_origin: origin,
       }));
 
-      if (order.payment_mode !== settings.payment_mode || order.amount_minor !== input.data.cart.quantity * 15000
-        || order.amount_minor > PAYSTACK_MAX_TRANSACTION_MINOR) throw new Error('checkout_amount_invalid');
+      const quote = managedCheckoutProcessingFeeQuote(input.data.cart.quantity * 15000, settings.processing_fee_rate_basis_points);
+
+      if (order.payment_mode !== settings.payment_mode || order.amount_minor !== quote.ticket_amount_minor
+        || order.quoted_processing_fee_minor !== quote.processing_fee_minor || order.quoted_gross_amount_minor !== quote.amount_minor
+        || order.quoted_gross_amount_minor > PAYSTACK_MAX_TRANSACTION_MINOR) throw new Error('checkout_amount_invalid');
       const reference = managedPaymentReference(order.id, order.payment_mode);
       const claim = crypto.randomUUID();
       const initialized = initializationSchema.parse(await managedCheckoutRpc(c, 'claim_managed_conference_checkout_initialization', {
@@ -143,7 +155,7 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
       if (!authorizationUrl) {
         if (initialized.initialization_claim !== claim) throw new Error('checkout_initialization_in_progress');
         const checkout = await createPaystackHostedCheckout({
-          secretKey, orderId: order.id, purchaserEmail: input.data.purchaser_email, amountMinor: order.amount_minor,
+          secretKey, orderId: order.id, purchaserEmail: input.data.purchaser_email, amountMinor: order.quoted_gross_amount_minor,
           callbackUrl: `${origin}/devcon26/payment-confirmation/`, paymentReference: reference,
         });
         const saved = initializationSchema.parse(await managedCheckoutRpc(c, 'finalize_managed_conference_checkout_initialization', {
@@ -158,7 +170,8 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
 
       return c.json({ mode: order.payment_mode, reference, authorization_url: authorizationUrl,
         checkout_grant: createDevcon26FlexibleCheckoutGrant({ orderId: order.id, verifier, origin, secretKey }),
-        checkout_verifier: verifier, quantity: input.data.cart.quantity, amount_minor: order.amount_minor, currency: order.currency });
+        checkout_verifier: verifier, quantity: input.data.cart.quantity, ticket_amount_minor: order.amount_minor,
+        processing_fee_minor: order.quoted_processing_fee_minor, amount_minor: order.quoted_gross_amount_minor, currency: order.currency });
     } catch (error) {
       return managedCheckoutFailure(c, error);
     }

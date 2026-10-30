@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-30 — Managed buyer-paid processing fee
+
+- New EMS-managed DevCon26 checkout holds now quote a 1.95% buyer-paid processing charge immutably, exposing subtotal, fee, and gross total without changing historic merchant-absorbed order records.
+
 ## 2026-10-29 — Ticket management email relevance
 
 - Queue purchaser ticket-management access only when a flexible-ticket order includes a gift, buyer-managed claim, or community-shareable handoff. Self-only flexible orders now receive their admission delivery without an irrelevant Manage tickets link.
