@@ -55,5 +55,20 @@ export function groupSpeakerBlastRecipients(rows: Array<{ email: string; name: s
 }
 
 export function speakerBlastAudienceMatches(saved: SpeakerBlastRecipient[], current: SpeakerBlastRecipient[]): boolean {
-  return JSON.stringify(saved) === JSON.stringify(current);
+  // JSONB may reorder object keys; compare the reviewed fields, not serialization.
+  return saved.length === current.length && saved.every((recipient, index) => {
+    const candidate = current[index];
+
+    return recipient.email === candidate.email
+      && recipient.name === candidate.name
+      && recipient.sessions.length === candidate.sessions.length
+      && recipient.sessions.every((session, sessionIndex) => {
+        const currentSession = candidate.sessions[sessionIndex];
+
+        return session.id === currentSession.id
+          && session.title === currentSession.title
+          && session.url === currentSession.url
+          && session.deadline === currentSession.deadline;
+      });
+  });
 }

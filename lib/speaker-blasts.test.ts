@@ -5,6 +5,26 @@ import { speakerBlastEmail } from './email/templates/speaker-blast';
 const session = (id: string) => ({ id, title: `Talk ${id}`, url: `https://go.devcongress.org/P_${id}`, deadline: '2099-10-31T23:59:59Z' });
 
 describe('personalized speaker blasts', () => {
+  it('accepts JSONB key reordering while rejecting changes to reviewed fields', () => {
+    const current = [{ email: 'ama@example.com', name: 'Ama', sessions: [session('a')] }];
+    const saved = [{ sessions: [{ deadline: session('a').deadline, url: session('a').url, title: 'Talk a', id: 'a' }], name: 'Ama', email: 'ama@example.com' }];
+
+    expect(speakerBlastAudienceMatches(saved, current)).toBe(true);
+    for (const field of ['email', 'name'] as const) {
+      const changed = structuredClone(current);
+
+      changed[0][field] = 'changed';
+      expect(speakerBlastAudienceMatches(saved, changed)).toBe(false);
+    }
+    for (const field of ['id', 'title', 'url', 'deadline'] as const) {
+      const changed = structuredClone(current);
+
+      changed[0].sessions[0][field] = 'changed';
+      expect(speakerBlastAudienceMatches(saved, changed)).toBe(false);
+    }
+    expect(speakerBlastAudienceMatches(saved, [])).toBe(false);
+  });
+
   it('groups multiple sessions for one address without mixing private links between speakers', () => {
     const recipients = groupSpeakerBlastRecipients([
       { name: 'Ama', email: 'Ama@example.com', session: session('a') },

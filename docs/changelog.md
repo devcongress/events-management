@@ -2,6 +2,8 @@
 
 ## 2026-10-30
 
+- Fix false speaker-blast preview-change rejections after JSONB storage reorders object keys; compare recipient and session fields while retaining real-change safeguards.
+
 - Add an optional event outline to desktop and mobile blasts: ordered session titles and speakers, without session times. Preview the included outline, reject stale outlines at confirmation, and preserve rendered content for scheduling, capacity deferral and retries.
 - Add monthly speaker blasts as a separate workflow: personalized speaker updates and missing-slides reminders, exact recipient/link previews, one message per email address, durable acceptance history and bounded idempotent retry. Keep expired or mismatched private links out of reminders and label the existing manual follow-up log honestly. Requires the new speaker-blast storage migration before hosted use.
 
