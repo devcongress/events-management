@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, RouterLink, useRoute } from 'vue-router';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
+import { eventBlastOutline, type EventBlastOutlineItem } from '@/lib/event-blast-outline';
+import BlastOutlineOption from '@/src/components/ui/BlastOutlineOption.vue';
 import BlastEmailPreview from '@/src/components/ui/BlastEmailPreview.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
@@ -33,6 +35,9 @@ const savedBlastReserve = ref<string | null>(null);
 const blastReserveSaveSummary = ref<string | null>(null);
 const blastSubject = ref('');
 const blastBody = ref('');
+const includeBlastOutline = ref(false);
+const previewOutline = ref<EventBlastOutlineItem[] | undefined>();
+const availableOutline = computed(() => eventBlastOutline(event.value));
 const blastScheduledFor = ref('');
 const leaveConfirmationOpen = ref(false);
 let resolvePendingLeave: ((shouldLeave: boolean) => void) | null = null;
@@ -154,6 +159,7 @@ function openComposer() {
 
 function openPreview() {
   if (!canCreateBlast.value || blastPending.value) return;
+  previewOutline.value = includeBlastOutline.value && availableOutline.value.length ? availableOutline.value : undefined;
   previewOpen.value = true;
 }
 
@@ -233,6 +239,7 @@ async function sendBlast() {
     const result = await createEventBlast(eventId.value, {
       subject: blastSubject.value.trim(),
       body: blastBody.value.trim(),
+      outline: previewOutline.value,
       scheduled_for: toIso(blastScheduledFor.value),
     });
 
@@ -241,6 +248,8 @@ async function sendBlast() {
     composerOpen.value = false;
     blastSubject.value = '';
     blastBody.value = '';
+    includeBlastOutline.value = false;
+    previewOutline.value = undefined;
     blastScheduledFor.value = '';
     notify.success(
       result.delivery === 'waiting'
@@ -427,6 +436,7 @@ onBeforeRouteLeave(() => {
               <textarea class="app-form-control" id="mobile-blast-body" v-model="blastBody" maxlength="5000" rows="9" required />
             </label>
 
+              <BlastOutlineOption v-model="includeBlastOutline" :count="availableOutline.length" />
             <p class="mobile-blasts-recipient-note">{{ confirmedRecipients }} confirmed guest{{ confirmedRecipients === 1 ? '' : 's' }} will receive this email. Waitlisted and cancelled guests are excluded.</p>
             <p v-if="!canCreateBlast && !blastPending" class="app-form-help">{{ !managedInternally ? 'Email updates are available for internally managed events.' : confirmedRecipients < 1 ? 'At least one confirmed guest is needed to prepare an email.' : confirmedRecipients > 100 ? 'This email flow supports up to 100 confirmed guests.' : 'Add a subject and message to preview your email.' }}</p>
             <button type="submit" class="mobile-blasts-preview" :disabled="!canCreateBlast || blastPending">Preview email <span aria-hidden="true">→</span></button>
@@ -458,6 +468,7 @@ onBeforeRouteLeave(() => {
       :open="previewOpen"
       :subject="blastSubject"
       :body="blastBody"
+      :outline="previewOutline"
       :event="event"
       :action-label="previewActionLabel"
       :busy="blastPending"

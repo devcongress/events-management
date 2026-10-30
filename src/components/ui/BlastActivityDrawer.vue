@@ -15,6 +15,11 @@ const emit = defineEmits<{
   retry: [blast: EventBlast];
 }>();
 
+const savedEmailText = computed(() => props.blast?.rendered_text?.replace(
+  'Unsubscribe: {{{RESEND_UNSUBSCRIBE_URL}}}',
+  'An unsubscribe link is included in the delivered email.',
+) ?? props.blast?.body ?? '');
+
 const panelRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLButtonElement | null>(null);
 let previouslyFocused: HTMLElement | null = null;
@@ -184,8 +189,8 @@ onUnmounted(() => {
             </dl>
 
             <section class="mt-6 rounded-md border border-dc-border bg-white p-4">
-              <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Message</p>
-              <p class="mt-2 whitespace-pre-line text-sm leading-6 text-dc-ink">{{ blast.body }}</p>
+              <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">{{ blast.template_version === 'event-blast-outline-v1' ? 'Saved email' : 'Message' }}</p>
+              <p class="mt-2 whitespace-pre-line text-sm leading-6 text-dc-ink">{{ blast.template_version === 'event-blast-outline-v1' ? savedEmailText : blast.body }}</p>
             </section>
 
             <section v-if="blast.provider_broadcast_id || blast.provider_segment_id" class="mt-6">

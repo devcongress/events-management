@@ -1279,7 +1279,7 @@ export function fetchEventBlasts(eventId: string) {
 
 export function createEventBlast(
   eventId: string,
-  input: { subject: string; body: string; scheduled_for?: string | null },
+  input: { subject: string; body: string; scheduled_for?: string | null; outline?: Array<{ title: string; lead: string | null }> },
 ) {
   return fetchJson<{ blast: EventBlast; delivery: 'waiting' | 'preparing' | 'scheduled' | 'sent' | 'needs_capacity' | 'failed'; capacity: BlastCapacity; error?: string }>(
     `/api/events/${eventId}/blasts`,
