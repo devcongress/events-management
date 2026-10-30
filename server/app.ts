@@ -1,5 +1,7 @@
 import { eventBlastOutline, eventBlastOutlineSchema } from '@/lib/event-blast-outline';
 import { eventBlastEmail } from '@/lib/email/templates/event-blast';
+import { registerSpeakerBlastRoutes } from '@/server/routes/speaker-blasts';
+import { groupSpeakerBlastRecipients, type SpeakerBlastAudience, type SpeakerBlastIntent } from '@/lib/speaker-blasts';
 import { Hono } from 'hono';
 import { CONFERENCE_REGISTRATION_PREVIEW_ORIGIN } from '@/lib/annual-conference-registration';
 import { ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGINS } from '@/lib/annual-conference-cfp';
@@ -5393,6 +5395,7 @@ registerDevcon26FlexibleTicketAccessRoutes(app);
 registerDevcon26TestCheckoutRoutes(app);
 registerVolunteerFollowUpRoutes(app);
 registerVolunteerBroadcastRoutes(app);
+registerSpeakerBlastRoutes(app, { getEvent: getEventById, audience: monthlySpeakerBlastAudience, audit: auditAdminAction });
 
 app.get('/api/annual-conference/:year/finance', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
@@ -9597,6 +9600,60 @@ function serializeSpeakerIntakeLink(link: Pick<
     updated_at: link.updated_at,
     status: speakerIntakeLinkStatus(link),
   };
+}
+
+async function monthlySpeakerBlastAudience(event: Event, intent: SpeakerBlastIntent, c: Context): Promise<SpeakerBlastAudience> {
+  const [allSubmissions, talks, links] = await Promise.all([
+    getSpeakerSubmissionsByEvent(event.id), getTalksByEvent(event.id), getSpeakerIntakeLinksByEvent(event.id),
+  ]);
+  const excluded: SpeakerBlastAudience['excluded'] = [];
+  const rows: Parameters<typeof groupSpeakerBlastRecipients>[0] = [];
+  const testTalkIds = new Set(allSubmissions.filter((item) => item.internal_note === OWNER_ONLY_TEST_SPEAKER_NOTE).map((item) => item.selected_talk_id));
+  const submissions = allSubmissions.filter((item) => item.status === 'selected' && item.internal_note !== OWNER_ONLY_TEST_SPEAKER_NOTE);
+  const candidates = [
+    ...submissions.map((submission) => ({ submission, talk: talks.find((talk) => talk.id === submission.selected_talk_id) })),
+    ...talks.filter((talk) => !testTalkIds.has(talk.id) && !submissions.some((submission) => submission.selected_talk_id === talk.id)).map((talk) => ({ submission: undefined, talk })),
+  ];
+
+  for (const { submission, talk } of candidates) {
+    if (talk && !['accepted', 'slides_received', 'published'].includes(talk.status)) continue;
+    const name = talk?.speaker_name ?? submission!.speaker_name;
+    const email = talk?.speaker_email ?? submission!.speaker_email;
+    const title = talk?.title ?? submission!.title;
+    const kind = normalizeArchiveItemKind(talk?.kind ?? submission?.kind);
+    const id = talk ? `talk:${talk.id}` : `submission:${submission!.id}`;
+    let reason: string | null = !z.email().safeParse(email).success ? 'A valid speaker email is missing.' : null;
+    let url: string | null = null;
+    let deadline: string | null = null;
+
+    const link = links.find((item) => item.id === submission?.selected_intake_link_id);
+    const identityMatches = Boolean(link && submission
+      && link.event_id === event.id
+      && link.speaker_submission_id === submission.id
+      && link.speaker_email?.trim().toLowerCase() === email.trim().toLowerCase()
+      && submission.speaker_email.trim().toLowerCase() === email.trim().toLowerCase());
+    const completedAccess = identityMatches ? selectedSpeakerSlidesUpdateAccess(link, submission, event, event.id, talk) : null;
+    const initialAccess = identityMatches && !talk && link && submission && !speakerIntakeLinkError(link) && !selectedSpeakerIntakeLinkError(link, submission, event.id);
+
+    if (link && (completedAccess || initialAccess)) {
+      url = selectedSpeakerShortUrlForLink(link, c);
+      deadline = completedAccess?.deadline ?? link.expires_at;
+    }
+    if (intent === 'slides_reminder') {
+      if (kind === 'product_demo') reason = 'Demo resources are optional.';
+      else if (talk?.slides_url || talk?.slides_uploaded_at || (!talk && submission?.resource_url)) reason = 'Slides are already provided.';
+      else if (Date.now() >= eventEndOfDayMs(event)) reason = 'The event-day slides deadline has passed.';
+      else if (!url || !deadline) reason = 'No active, identity-matched slides-update link is available.';
+      else deadline = new Date(Math.min(Date.parse(deadline), eventEndOfDayMs(event))).toISOString();
+    }
+    if (reason) {
+      excluded.push({ name, title, reason });
+      continue;
+    }
+    rows.push({ name, email, session: { id, title, url, deadline } });
+  }
+
+  return { recipients: groupSpeakerBlastRecipients(rows), excluded };
 }
 
 function selectedSpeakerShortUrlForLink(link: SpeakerIntakeLink, c: Context): string | null {

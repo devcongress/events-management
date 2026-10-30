@@ -420,6 +420,58 @@ try {
     }, { role: 'owner' });
   }
 
+  for (const width of [390, 1440]) {
+    await journey(`speaker-blast-${width}`, async ({ page, responses, requests }) => {
+      const recipients = [
+        { name: 'Ama Boateng', email: 'ama@example.test', sessions: [{ id: 'a', title: 'Building AI experiences', url: 'https://go.devcongress.org/P_fixture_ama', deadline: '2026-10-31T23:59:59Z' }] },
+        { name: 'Kojo Mensah', email: 'kojo@example.test', sessions: [{ id: 'b', title: 'System design in practice', url: 'https://go.devcongress.org/P_fixture_kojo', deadline: '2026-10-31T23:59:59Z' }] },
+      ];
+      let accepted = false;
+      const blast = () => ({ id: 'fixture-speaker-blast', subject: 'Share your slides', status: 'accepted', recipient_count: 2, accepted_count: 2, error: null, recipients: recipients.map((recipient) => ({ ...recipient, provider_id: 'fixture-provider' })) });
+
+      responses.set('/api/events/fixture-event', { body: { ...event, series_type: 'monthly' } });
+      responses.set('/api/events/fixture-event/checklist', { body: { items: [] } });
+      responses.set('/api/events/fixture-event/registrations', { body: { managed_internally: false, registrations: [], summary: {} } });
+      responses.set('/api/events/fixture-event/talks', { body: [] });
+      responses.set('/api/events/fixture-event/speaker-submissions', { body: { submissions: [] } });
+      responses.set('/api/events/fixture-event/speaker-intake-links', { body: { links: [] } });
+      responses.set('/api/events/fixture-event/speaker-blasts', { get body() { return { audience: { recipients, excluded: [{ name: 'Akua', title: 'Interfaces', reason: 'Slides are already provided.' }] }, blasts: accepted ? [blast()] : [] }; } });
+      responses.set('/api/events/fixture-event/speaker-blasts/preview', {
+        body: { id: 'fixture-speaker-blast', subject: 'Share your slides', previews: recipients.map((recipient) => ({ name: recipient.name, to: recipient.email, from: 'DevCongress Speakers', subject: 'Share your slides', text: `Hi ${recipient.name},\n\nPlease add your slides.\n\n${recipient.sessions[0].title}\n${recipient.sessions[0].url}` })) },
+      });
+      responses.set('/api/events/fixture-event/speaker-blasts/fixture-speaker-blast/send', () => {
+        accepted = true;
+
+        return { body: { blast: blast() } };
+      });
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto(`${origin}/organizer-console/events/fixture-event/talks/program`);
+      await page.getByRole('button', { name: 'Email speakers', exact: true }).click();
+      await page.getByRole('button', { name: 'Message type', exact: true }).click();
+      await page.getByRole('option', { name: 'Slides reminder', exact: true }).click();
+      const panel = page.getByRole('region', { name: 'Speaker blasts', exact: true });
+
+      await panel.getByText('2 eligible speakers.', { exact: false }).waitFor();
+      await panel.screenshot({ path: `${artifacts}/speaker-blast-${width}-composer.png`, animations: 'disabled' });
+      await page.getByRole('button', { name: 'Preview speaker emails', exact: true }).click();
+      const first = panel.locator('details').filter({ hasText: 'Ama Boateng' });
+      const second = panel.locator('details').filter({ hasText: 'Kojo Mensah' });
+
+      await first.locator('summary').click();
+      await second.locator('summary').click();
+      assert.equal((await first.innerText()).includes('P_fixture_ama'), true);
+      assert.equal((await first.innerText()).includes('P_fixture_kojo'), false);
+      assert.equal((await second.innerText()).includes('P_fixture_kojo'), true);
+      assert.equal(requests.some((request) => request.path.endsWith('/send')), false);
+      await panel.screenshot({ path: `${artifacts}/speaker-blast-${width}-preview.png`, animations: 'disabled' });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.getByRole('button', { name: 'Send 2 speaker emails', exact: true }).click();
+      await panel.getByRole('status').waitFor();
+      await panel.getByText('Speaker email history', { exact: true }).waitFor();
+      assert.equal(requests.filter((request) => request.path.endsWith('/send')).length, 1);
+    }, { role: 'owner' });
+  }
+
   await journey('underline-workspace-tabs', async ({ page, responses }) => {
     responses.set('/api/admin/audit-log', { body: { logs: [] } });
     responses.set('/api/admin/short-links', { body: { links: [] } });

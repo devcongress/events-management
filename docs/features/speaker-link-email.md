@@ -453,3 +453,20 @@ Next:
 - Conference Broadcast management inside the organizer app.
 - Product-demo submission modeling.
 - Replacing the existing private speaker form.
+
+
+## Monthly speaker blasts (local implementation, rollout pending)
+
+The monthly event archive has a separate **Speaker emails** composer for Owners and Organizers. **Speaker update** targets approved proposals and accepted/materials-received/published archive speakers. **Slides reminder** targets missing talk slides only, excluding optional demos, already supplied resources, invalid addresses, closed links and passed event-day deadlines. Annual conference speakers and owner-only test records are out of scope.
+
+The server groups sessions by normalized email and renders one personalized message per speaker with their name, session titles and only their own recoverable, identity-bound workspace links. General updates can still reach approved speakers without an active link, but never show a fake or closed CTA. Missing-slide reminders require a working link. Shared message content cannot contain private speaker links. The original link is reused; this feature never reissues links or extends editing deadlines.
+
+Preview saves an immutable recipient/content snapshot for 15 minutes. The drawer-free responsive review shows every recipient’s exact sender, subject, plain text and private links before explicit confirmation. Sending rechecks the audience and link eligibility. Capacity protects queued transactional work and the configured reserve. Delivery uses the Speakers sender and Resend Batch API with one `to` per speaker, capped at 100 speakers. No email is sent merely by opening the composer or preview.
+
+A separate server-only `speaker_blasts` table holds preview content, revision, a 90-second send lease, provider IDs and outcome. Revision compare-and-set prevents simultaneous confirmations across Workers. A failed/uncertain send retries the same immutable payload and idempotency key, only within 23 hours of the first attempt and while the audience/links remain valid. Already accepted blasts never resend. Changed or expired links require review; uncertain provider acceptance must be checked before preparing a replacement message. Acceptance is not proof of inbox delivery. There is no scheduled or automatic retry in this first version.
+
+The old per-talk reminder action remains a manual follow-up log and is labeled **Log slides follow-up**; it is not an email action. Speaker-blast history is separate from attendee blasts and acceptance emails.
+
+Rollout requires `20261030190000_monthly_speaker_blasts.sql` and its read-only verification contract. The migration has not been applied by local implementation. No live speaker emails were sent.
+
+The composer is available in the desktop talk workspace and the phone event submissions view. Delivery history excludes unsent previews before applying its 50-item limit.

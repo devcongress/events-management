@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import SpeakerBlastPanel from "@/src/components/SpeakerBlastPanel.vue";
+import { resolveEventSeriesType } from "@/lib/event-series";
 import { useCheckInDay } from "@/src/composables/useCheckInDay";
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
@@ -415,6 +417,7 @@ async function confirmProposalDecision() {
             </template>
 
             <template v-else>
+              <SpeakerBlastPanel v-if="resolveEventSeriesType(event) === 'monthly'" :event-id="event.id" :event-name="event.name" />
               <section class="mobile-event-section">
                 <header class="mobile-event-section-heading">
                   <span>Speaker and demo inbox</span>

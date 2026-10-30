@@ -188,6 +188,12 @@ export type VolunteerFollowUpOutcomeMessageRow = {
 export interface Database {
   public: {
     Tables: {
+      speaker_blasts: {
+        Row: { id: string; event_id: string; revision: number; payload: Json; created_at: string };
+        Insert: { id: string; event_id: string; revision?: number; payload: Json; created_at?: string };
+        Update: { revision?: number; payload?: Json };
+        Relationships: [];
+      };
       volunteer_follow_up_campaigns: {
         Row: VolunteerFollowUpCampaignRow;
         Insert: Pick<VolunteerFollowUpCampaignRow, 'edition_year'> & Partial<VolunteerFollowUpCampaignRow>;

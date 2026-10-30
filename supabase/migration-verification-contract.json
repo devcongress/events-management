@@ -4578,6 +4578,112 @@
           ]
         }
       ]
+    },
+    {
+      "file": "20261030190000_monthly_speaker_blasts.sql",
+      "sha256": "1e88c1002600b59fa7d1766d9f04d67b46f4b3c48d2c8347abb4d903d36e4768",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "speaker_blasts",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "speaker_blasts",
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "speaker_blasts",
+          "name": "event_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "speaker_blasts",
+          "name": "revision",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "1"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "speaker_blasts",
+          "name": "payload",
+          "type": "jsonb",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "speaker_blasts",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "speaker_blasts",
+          "name": "speaker_blasts_pkey",
+          "contains": [
+            "PRIMARY KEY (id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "speaker_blasts",
+          "name": "speaker_blasts_event_id_fkey",
+          "contains": [
+            "FOREIGN KEY (event_id)",
+            "REFERENCES community_events(id)",
+            "ON DELETE CASCADE"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "speaker_blasts",
+          "name": "speaker_blasts_revision_check",
+          "contains": [
+            "revision > 0"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "speaker_blasts",
+          "name": "speaker_blasts_payload_check",
+          "contains": [
+            "jsonb_typeof(payload) = 'object'::text"
+          ]
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "speaker_blasts",
+          "name": "speaker_blasts_event_created_idx",
+          "contains": [
+            "event_id",
+            "created_at DESC"
+          ]
+        }
+      ]
     }
   ]
 }

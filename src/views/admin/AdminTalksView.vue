@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SpeakerBlastPanel from '@/src/components/SpeakerBlastPanel.vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
@@ -1156,7 +1157,7 @@ function slideLabel(talk: Talk): string {
     if (isProductDemo) return 'Demo link optional';
 
     return talk.reminder_sent_count > 0
-      ? `${talk.reminder_sent_count} reminder${talk.reminder_sent_count === 1 ? '' : 's'} sent`
+      ? `${talk.reminder_sent_count} follow-up${talk.reminder_sent_count === 1 ? '' : 's'} logged`
       : 'Needs slides';
   }
 
@@ -1204,7 +1205,7 @@ function archiveStatusLabel(talk: Talk): string {
 }
 
 function archiveReminderLabel(talk: Talk): string {
-  return archiveKindFor(talk) === 'product_demo' ? 'Request demo link' : 'Remind for slides';
+  return archiveKindFor(talk) === 'product_demo' ? 'Log demo follow-up' : 'Log slides follow-up';
 }
 
 function selectedSpeakerLinkForSubmission(submissionId: string): AdminSpeakerIntakeLink | null {
@@ -1274,6 +1275,8 @@ onUnmounted(() => {
         <h1 class="editorial-title">Archive</h1>
         <p class="editorial-subtitle">Build one event archive for talks and product demos, whether they arrive through a proposal or a direct archive request.</p>
       </div>
+
+      <SpeakerBlastPanel v-if="event && eventIsMonthly" :event-id="event.id" :event-name="event.name" />
 
       <nav
         class="talk-workflow-tabs mb-8"
