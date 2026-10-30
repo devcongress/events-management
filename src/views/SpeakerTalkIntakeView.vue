@@ -9,7 +9,7 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import type { ArchiveItemKind, ArchiveMaterialField, Event, SpeakerIntakeLinkPurpose } from '@/types';
 
-type IntakeEvent = Pick<Event, 'id' | 'name' | 'event_date' | 'status'>;
+type IntakeEvent = Pick<Event, 'id' | 'name' | 'event_date' | 'end_date' | 'status' | 'timezone'>;
 type IntakePrefill = {
   speaker_name?: string;
   speaker_email?: string;
@@ -42,6 +42,7 @@ const unavailableMessage = ref<string | null>(null);
 const error = ref<string | null>(null);
 const savedMessage = ref<string | null>(null);
 const workspaceDeadline = ref<string | null>(null);
+const slidesUpdateMode = ref(false);
 const popularTopics = [
   'Frontend Engineering',
   'Backend Engineering',
@@ -96,6 +97,10 @@ function isMaterialsFollowUpLink() {
   return linkPurpose.value === 'archive_materials_follow_up';
 }
 
+function isSlidesUpdateMode() {
+  return slidesUpdateMode.value;
+}
+
 function requestsField(field: ArchiveMaterialField) {
   return requestedFields.value.includes(field);
 }
@@ -118,6 +123,7 @@ function resourceLabel() {
 
 function archiveHeading() {
   if (isConferenceIntake.value) return 'Speaker logistics workspace';
+  if (isSlidesUpdateMode()) return 'Update Your Slides Link';
   if (isSelectedSpeakerLink()) {
     return 'Complete Your Speaker Details';
   }
@@ -129,6 +135,7 @@ function archiveHeading() {
 
 function archiveDescription() {
   if (isConferenceIntake.value) return 'Your accepted proposal is already saved. Keep these delivery details up to date until the organizer deadline.';
+  if (isSlidesUpdateMode()) return 'Your talk details are already saved. You can update only your slides link until the end of the event day.';
   if (isSelectedSpeakerLink()) {
     return 'Add a short bio and any resource link you have. You can leave the resource link blank if it is not ready yet.';
   }
@@ -172,7 +179,9 @@ async function submitTalkDetails() {
       participants_need_laptops: form.participants_need_laptops === '' ? null : form.participants_need_laptops === 'yes',
       preferred_workshop_capacity: form.session_type === '60-minute workshop' ? form.preferred_workshop_capacity : null,
     }
-    : isSelectedSpeakerLink()
+    : isSlidesUpdateMode()
+      ? { slides_url: form.slides_url }
+      : isSelectedSpeakerLink()
     ? { topic: form.topic, bio: form.bio, slides_url: form.slides_url }
     : isMaterialsFollowUpLink()
       ? Object.fromEntries(requestedFields.value.map((field) => [field, form[field]]))
@@ -194,6 +203,7 @@ async function submitTalkDetails() {
 
     if (response.ok) {
       if (isConferenceIntake.value) savedMessage.value = 'Draft saved. You can return through the same private link to make more changes.';
+      else if (isSlidesUpdateMode()) savedMessage.value = 'Slides link saved. You can update it again until the end of the event day.';
       else submitted.value = true;
     } else {
       const data = await response.json();
@@ -218,6 +228,7 @@ onMounted(async () => {
       event.value = data.event;
       linkPurpose.value = data.link?.purpose ?? 'archive_backfill';
       workspaceDeadline.value = data.link?.deadline ?? null;
+      slidesUpdateMode.value = data.link?.mode === 'slides_update';
       archiveItemKind.value = data.link?.kind === 'product_demo' ? 'product_demo' : 'talk';
       requestedFields.value = Array.isArray(data.link?.requested_fields)
         ? data.link.requested_fields.filter((field: unknown): field is ArchiveMaterialField => (
@@ -255,6 +266,15 @@ function formatDeadline(value: string | null): string {
   if (!value) return 'the organizer deadline';
 
   return new Intl.DateTimeFormat('en-GH', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value));
+}
+
+function formatEventDay(): string {
+  if (!event.value?.event_date) return 'the event day';
+
+  return new Intl.DateTimeFormat('en-GH', {
+    dateStyle: 'long',
+    timeZone: event.value.timezone || 'Africa/Accra',
+  }).format(new Date(event.value.end_date || event.value.event_date));
 }
 </script>
 
@@ -370,7 +390,7 @@ function formatDeadline(value: string | null): string {
 
         <template v-else>
 
-        <div v-if="isSelectedSpeakerLink() || isMaterialsFollowUpLink()" class="border-l-4 border-dc-yellow pl-4">
+        <div v-if="!isSlidesUpdateMode() && (isSelectedSpeakerLink() || isMaterialsFollowUpLink())" class="border-l-4 border-dc-yellow pl-4">
           <p class="editorial-label">{{ isMaterialsFollowUpLink() ? 'Archive follow-up' : `Selected ${archiveItemLabel()}` }}</p>
           <h2 class="text-xl font-bold tracking-tight text-dc-ink">{{ form.title }}</h2>
           <p class="mt-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
@@ -379,7 +399,25 @@ function formatDeadline(value: string | null): string {
           <p v-if="form.abstract" class="mt-4 text-sm leading-6 text-dc-gray">{{ form.abstract }}</p>
         </div>
 
-        <template v-if="!isMaterialsFollowUpLink()">
+        <template v-if="isSlidesUpdateMode()">
+          <div class="border-l-4 border-dc-yellow pl-4">
+            <p class="editorial-label">Saved {{ archiveItemLabel() }}</p>
+            <h2 class="text-xl font-bold tracking-tight text-dc-ink">{{ form.title }}</h2>
+            <p class="mt-2 text-sm leading-6 text-dc-gray">Only the slides link can be changed through the end of {{ formatEventDay() }}.</p>
+          </div>
+          <div v-if="savedMessage" class="rounded-md border border-[#15803d] bg-[#effcf3] p-4 text-sm font-semibold text-[#15803d]" role="status">{{ savedMessage }}</div>
+          <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <label class="block min-w-0">
+              <span class="editorial-label">{{ resourceLabel() }}</span>
+              <input v-model="form.slides_url" required type="url" placeholder="https://..." class="editorial-input font-mono" />
+            </label>
+            <button type="submit" :disabled="submitting" class="speaker-intake-submit motion-press w-full rounded-lg border border-dc-ink bg-dc-pink px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-56">
+              {{ submitting ? 'SAVING...' : 'SAVE SLIDES LINK' }}
+            </button>
+          </div>
+        </template>
+
+        <template v-else-if="!isMaterialsFollowUpLink()">
           <div class="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
             <label v-if="!isSelectedSpeakerLink()" class="block">
               <span class="mb-2 flex items-center justify-between gap-3">
@@ -456,7 +494,7 @@ function formatDeadline(value: string | null): string {
           </div>
         </template>
 
-        <div v-if="!isMaterialsFollowUpLink() || requestsField('slides_url')" class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div v-if="!isSlidesUpdateMode() && (!isMaterialsFollowUpLink() || requestsField('slides_url'))" class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <label class="block min-w-0">
             <span class="editorial-label">{{ resourceLabel() }}<span v-if="isMaterialsFollowUpLink()"> *</span></span>
             <input v-model="form.slides_url" :required="isMaterialsFollowUpLink()" type="url" placeholder="https://..." class="editorial-input font-mono" />
@@ -476,7 +514,7 @@ function formatDeadline(value: string | null): string {
             }}
           </button>
         </div>
-        <div v-else class="flex justify-end">
+        <div v-else-if="!isSlidesUpdateMode()" class="flex justify-end">
           <button type="submit" :disabled="submitting" class="speaker-intake-submit motion-press w-full rounded-lg border border-dc-ink bg-dc-pink px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-56 lg:w-auto">
             {{ submitting ? 'SUBMITTING...' : 'SEND ARCHIVE DETAILS' }}
           </button>

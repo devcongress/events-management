@@ -22,8 +22,11 @@ type SpeakerPrivateFormEmailInput = {
   eventName: string;
   speakerName: string;
   talkTitle: string;
-  privateUrl: string;
+  privateUrl?: string;
   expiresAt: string;
+  slidesUpdateDeadline?: string;
+  slidesUpdateEventDay?: string;
+  sampleOnly?: boolean;
 };
 
 function speakerPrivateFormEmail(
@@ -36,17 +39,28 @@ function speakerPrivateFormEmail(
   const safeSpeakerFirstName = escapeHtml(speakerFirstName);
   const cardTitle = truncateSpeakerEmailCardTitle(input.talkTitle);
   const safeCardTitle = escapeHtml(cardTitle);
-  const safePrivateUrl = escapeHtml(input.privateUrl);
+  const sampleOnly = input.sampleOnly === true;
+
+  if (!sampleOnly && !input.privateUrl) {
+    throw new Error('A private URL is required for a deliverable speaker email');
+  }
+
+  const safePrivateUrl = input.privateUrl ? escapeHtml(input.privateUrl) : '';
   const safeIllustrationUrl = escapeHtml(speakerEmailAssetUrl('/brand/speaker-archive-illustration.png'));
   const expiryLabel = new Intl.DateTimeFormat('en', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
   }).format(new Date(input.expiresAt));
+  const slidesUpdateDeadlineLabel = input.slidesUpdateEventDay ?? (input.slidesUpdateDeadline
+    ? new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(input.slidesUpdateDeadline))
+    : null);
   const subject = selectedConfirmation
     ? emailSubjects.speakerSelectedConfirmation(input.eventName)
     : emailSubjects.speakerArchiveRequest(input.eventName);
-  const preheader = selectedConfirmation
+  const preheader = sampleOnly
+    ? 'Sample email only. No private link or action is included.'
+    : selectedConfirmation
     ? `Your presentation was selected. Complete your speaker details by ${expiryLabel}.`
     : `Add the archive details for ${cardTitle} by ${expiryLabel}.`;
   const brandMeta: [string, string] = selectedConfirmation
@@ -58,8 +72,10 @@ function speakerPrivateFormEmail(
   const lead = selectedConfirmation
     ? 'Great news&mdash;your presentation has been selected for the DevCongress programme.'
     : 'Let&rsquo;s give your session a permanent home in the DevCongress community archive.';
-  const instruction = selectedConfirmation
-    ? 'Confirm your speaker details and public resource using the private link below. It is secured to you and will close after a successful submission.'
+  const instruction = sampleOnly
+    ? 'This is a sample email only. It does not include a working private link.'
+    : selectedConfirmation
+    ? `Complete your speaker details and public resource using the private link below. Your initial form submission is one-time.${slidesUpdateDeadlineLabel ? ` After submitting, the same link can update only your slides link through the end of ${slidesUpdateDeadlineLabel}.` : ''}`
     : 'Add your presentation details and public resource using the private link below. It is secured to you and will close after a successful submission.';
   const cta = selectedConfirmation ? 'Complete speaker details' : 'Open your private form';
 
@@ -82,15 +98,23 @@ function speakerPrivateFormEmail(
     </table>
 
     <p class="email-copy" style="margin:0 0 24px;color:#444444;font-size:16px;line-height:1.65;">${instruction}</p>
-    <p style="margin:0;"><a href="${safePrivateUrl}" class="email-cta" style="color:#C80D68;-webkit-text-fill-color:#C80D68;font-family:'IBM Plex Mono','Courier New',monospace;font-size:13px;font-weight:700;letter-spacing:.03em;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px;text-transform:uppercase;">${cta}&nbsp;&nbsp;&rarr;</a></p>`;
+    ${sampleOnly
+    ? '<p class="email-copy" style="margin:0;color:#666666;font-size:14px;line-height:1.5;">Sample only — no action is required.</p>'
+    : `<p style="margin:0;"><a href="${safePrivateUrl}" class="email-cta" style="color:#C80D68;-webkit-text-fill-color:#C80D68;font-family:'IBM Plex Mono','Courier New',monospace;font-size:13px;font-weight:700;letter-spacing:.03em;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px;text-transform:uppercase;">${cta}&nbsp;&nbsp;&rarr;</a></p>`}`;
 
   const html = renderSpeakerEmailLayout({
     subject,
     preheader,
     brandMeta,
     contentHtml,
-    footerTitle: `Private link · Expires ${expiryLabel}`,
-    footerCopy: 'Please do not forward this email. Questions? Reply directly and the DevCongress team will help.',
+    footerTitle: sampleOnly
+      ? 'Sample email · no private link'
+      : slidesUpdateDeadlineLabel
+        ? `Initial form · Due ${expiryLabel}`
+        : `Private link · Expires ${expiryLabel}`,
+    footerCopy: sampleOnly
+      ? 'This preview contains no private link and requires no action.'
+      : 'Please do not forward this email. Questions? Reply directly and the DevCongress team will help.',
   });
 
   const text = selectedConfirmation
@@ -99,9 +123,11 @@ function speakerPrivateFormEmail(
         '',
         `Great news—your presentation "${input.talkTitle}" was selected for ${input.eventName}.`,
         '',
-        `Complete your speaker details using this private link: ${input.privateUrl}`,
+        ...(sampleOnly ? ['Sample only — no private link is included.'] : [`Complete your speaker details using this private link: ${input.privateUrl}`]),
         '',
-        `This unique link expires on ${expiryLabel}. Please do not forward it.`,
+        ...(sampleOnly
+          ? ['This preview contains no private link and requires no action.']
+          : [`This unique link expires for the initial form submission on ${expiryLabel}.${slidesUpdateDeadlineLabel ? ` After submitting, it can update only your slides link through the end of ${slidesUpdateDeadlineLabel}.` : ''} Please do not forward it.`]),
         '',
         'If you have a question, reply to this email and the DevCongress team will help.',
       ].join('\n')
@@ -110,9 +136,11 @@ function speakerPrivateFormEmail(
         '',
         `Thanks for being part of ${input.eventName}. We are completing the community archive for "${input.talkTitle}".`,
         '',
-        `Add your presentation details using this private link: ${input.privateUrl}`,
+        ...(sampleOnly ? ['Sample only — no private link is included.'] : [`Add your presentation details using this private link: ${input.privateUrl}`]),
         '',
-        `This unique link expires on ${expiryLabel}. Please do not forward it.`,
+        ...(sampleOnly
+          ? ['This preview contains no private link and requires no action.']
+          : [`This unique link expires on ${expiryLabel}. Please do not forward it.`]),
         '',
         'If you have a question, reply to this email and the DevCongress team will help.',
       ].join('\n');

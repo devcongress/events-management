@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { legacySelectedSpeakerShortCode } from '../lib/speaker-intake-short-links';
+import { legacySelectedSpeakerShortCode, selectedSpeakerShortCode } from '../lib/speaker-intake-short-links';
 
 const mockAdminRole = vi.hoisted(() => ({ value: 'owner' as 'owner' | 'organizer' }));
 const mockAdminAuditFailure = vi.hoisted(() => ({ value: false }));
@@ -198,7 +198,7 @@ describe('selected-speaker email workflow', () => {
       reply_to: 'hello@devcongress.org',
       subject: '[TEST] Your presentation was selected for DevCongress August Meetup',
       html: expect.stringContaining('Designing Reliable Event-Driven Systems'),
-      text: expect.stringContaining('https://go.devcongress.org/P_sample-private-speaker-link'),
+      text: expect.stringContaining('Sample only — no private link is included.'),
     })]);
     expect(payload[0].html).toContain('DevCongress August Meetup');
     expect(payload[0].html).not.toContain('ama@example.com');
@@ -441,6 +441,64 @@ describe('selected-speaker email workflow', () => {
     await expect(response.json()).resolves.toEqual({
       destination_path: `/speaker-talks/${event.id}/${code}`,
     });
+  });
+
+  it('resolves a consumed monthly link for slides updates only through the event-day deadline', async () => {
+    vi.useFakeTimers();
+
+    try {
+      vi.setSystemTime(new Date('2026-08-20T12:00:00.000Z'));
+      const { app, links, submissions, submission } = await setup();
+      const linkId = 'e82e328d-9bd8-446a-9bec-2fd0605f67fc';
+      const code = selectedSpeakerShortCode(linkId, event.id, 'test-speaker-intake-link-secret-2026');
+
+      await submissions.updateSpeakerSubmission(submission.id, { status: 'selected' });
+      await links.createSpeakerIntakeLink({
+        id: linkId,
+        token: code,
+        event_id: event.id,
+        event_month: '2026-08',
+        expires_at: '2026-08-21T00:00:00.000Z',
+        purpose: 'selected_speaker_confirmation',
+        speaker_submission_id: submission.id,
+        speaker_name: submission.speaker_name,
+        speaker_email: submission.speaker_email,
+        talk_title: submission.title,
+      });
+      await submissions.updateSpeakerSubmission(submission.id, { selected_intake_link_id: linkId });
+
+      const completion = await app.request(
+        `http://localhost/api/events/${event.id}/speaker-intake/${code}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slides_url: '' }),
+        },
+      );
+
+      expect(completion.status).toBe(201);
+
+      vi.setSystemTime(new Date('2026-08-29T12:00:00.000Z'));
+      const authorized = await app.request(`http://localhost/api/internal/short-links/${code}`, {
+        headers: { 'x-short-link-resolver-token': 'test-short-link-resolver-token-2026' },
+      });
+      const unauthorized = await app.request(`http://localhost/api/internal/short-links/${code}`);
+
+      expect(authorized.status).toBe(200);
+      await expect(authorized.json()).resolves.toEqual({
+        destination_path: `/speaker-talks/${event.id}/${code}`,
+      });
+      expect(unauthorized.status).toBe(404);
+
+      vi.setSystemTime(new Date('2026-08-30T00:00:00.000Z'));
+      const afterDeadline = await app.request(`http://localhost/api/internal/short-links/${code}`, {
+        headers: { 'x-short-link-resolver-token': 'test-short-link-resolver-token-2026' },
+      });
+
+      expect(afterDeadline.status).toBe(404);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('previews the exact personalized rejection message without sending it', async () => {

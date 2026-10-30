@@ -836,6 +836,10 @@ const selectedSpeakerDetailsSchema = z.object({
     .refine((value) => !value || Boolean(safePublicResourceUrl(value)), 'Resource URL must be a secure public HTTPS URL')
     .optional().default(''),
 });
+const selectedSpeakerSlidesUpdateSchema = z.object({
+  slides_url: z.string().trim().min(1, 'Slides URL is required').max(2048)
+    .refine((value) => Boolean(safePublicResourceUrl(value)), 'Resource URL must be a secure public HTTPS URL'),
+}).strict();
 const archiveMaterialFieldSchema = z.enum(['abstract', 'bio', 'slides_url']);
 const archiveMaterialsFollowUpRequestSchema = z.object({
   requested_fields: z.array(archiveMaterialFieldSchema).min(1, 'Choose at least one missing detail.').max(3)
@@ -3471,6 +3475,8 @@ async function sendPendingSelectedSpeakerEmails(
         talkTitle: submission.title,
         privateUrl: shortUrl,
         expiresAt: link.expires_at,
+        slidesUpdateDeadline: new Date(eventEndOfDayMs(event)).toISOString(),
+        slidesUpdateEventDay: eventDayLabel(event),
       });
 
       await updateSpeakerIntakeLinkEmailDeliveries(event.id, [{
@@ -6905,19 +6911,24 @@ app.get('/api/internal/short-links/:code', async (c) => {
       }
     }
 
-    if (
-      !link
-      || link.purpose !== 'selected_speaker_confirmation'
-      || speakerIntakeTokenHash(code) !== link.token_hash
-      || speakerIntakeLinkError(link)
-    ) {
+    if (!link || link.purpose !== 'selected_speaker_confirmation' || speakerIntakeTokenHash(code) !== link.token_hash) {
       return c.json({ error: 'Not found.' }, 404);
     }
     const submission = link.speaker_submission_id
       ? await getSpeakerSubmissionById(link.speaker_submission_id)
       : null;
+    const [event, completedSelectedTalk] = await Promise.all([
+      getEventById(link.event_id, c),
+      link.used_talk_id ? getTalkById(link.used_talk_id) : undefined,
+    ]);
+    const slidesUpdateAccess = event
+      ? selectedSpeakerSlidesUpdateAccess(link, submission, event, link.event_id, completedSelectedTalk)
+      : null;
 
-    if (selectedSpeakerIntakeLinkError(link, submission, link.event_id)) {
+    const linkError = speakerIntakeLinkError(link);
+    const selectedLinkError = selectedSpeakerIntakeLinkError(link, submission, link.event_id);
+
+    if ((linkError || selectedLinkError) && !slidesUpdateAccess) {
       return c.json({ error: 'Not found.' }, 404);
     }
     const destinationPath = `/speaker-talks/${encodeURIComponent(link.event_id)}/${encodeURIComponent(code)}`;
@@ -9621,6 +9632,46 @@ function selectedSpeakerIntakeLinkError(
     : { error: 'This archive completion link is no longer available.', status: 410 };
 }
 
+type SelectedSpeakerSlidesUpdateAccess = {
+  talk: Talk;
+  deadline: string;
+};
+
+function selectedSpeakerSlidesUpdateAccess(
+  link: SpeakerIntakeLink | undefined,
+  submission: SpeakerSubmission | null | undefined,
+  event: Event,
+  eventId: string,
+  talk: Talk | undefined,
+  nowMs = Date.now(),
+): SelectedSpeakerSlidesUpdateAccess | null {
+  if (
+    !link
+    || link.purpose !== 'selected_speaker_confirmation'
+    || !link.used_at
+    || !link.used_talk_id
+    || !submission
+    || submission.status !== 'selected'
+    || submission.event_id !== eventId
+    || submission.selected_intake_link_id !== link.id
+    || submission.selected_talk_id !== link.used_talk_id
+    || normalizeArchiveItemKind(submission.kind) !== normalizeArchiveItemKind(link.kind)
+    || resolveEventSeriesType(event) !== 'monthly'
+    || !talk
+    || talk.id !== link.used_talk_id
+    || talk.event_id !== eventId
+    || !['accepted', 'slides_received', 'published'].includes(talk.status)
+  ) {
+    return null;
+  }
+
+  const deadlineMs = eventEndOfDayMs(event);
+
+  if (!Number.isFinite(deadlineMs) || nowMs >= deadlineMs) return null;
+
+  return { talk, deadline: new Date(deadlineMs).toISOString() };
+}
+
 function archiveMaterialsFollowUpLinkError(
   link: SpeakerIntakeLink,
   talk: Talk | undefined,
@@ -9856,6 +9907,8 @@ async function prepareSelectedSpeakerEmailPreviews(
       talkTitle: submission.title,
       privateUrl: shortUrl,
       expiresAt: link.expires_at,
+      slidesUpdateDeadline: new Date(eventEndOfDayMs(event)).toISOString(),
+      slidesUpdateEventDay: eventDayLabel(event),
     });
 
     previews.push({
@@ -10278,8 +10331,11 @@ app.post('/api/events/:eventId/selected-speaker-emails/test', async (c) => {
     eventName: event.name,
     speakerName: session.display_name?.trim() || 'DevCongress owner',
     talkTitle: 'Designing Reliable Event-Driven Systems',
-    privateUrl: 'https://go.devcongress.org/P_sample-private-speaker-link',
+    privateUrl: undefined,
     expiresAt,
+    slidesUpdateDeadline: new Date(eventEndOfDayMs(event)).toISOString(),
+    slidesUpdateEventDay: eventDayLabel(event),
+    sampleOnly: true,
   });
   const subject = emailSubjects.customEventBlast(markTestEventTitle(content.subject, true));
   const actorId = session.membership_id ?? session.user_id ?? session.email;
@@ -10917,18 +10973,28 @@ app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
   }
 
   const link = await getSpeakerIntakeLinkByToken(eventId, token);
+  const submission = link?.speaker_submission_id
+    ? await getSpeakerSubmissionById(link.speaker_submission_id)
+    : null;
+  const completedSelectedTalk = link?.used_talk_id
+    ? await getTalkById(link.used_talk_id)
+    : undefined;
+  const slidesUpdateAccess = selectedSpeakerSlidesUpdateAccess(
+    link,
+    submission,
+    event,
+    eventId,
+    completedSelectedTalk,
+  );
   const linkError = speakerIntakeLinkError(link);
 
-  if (linkError) {
+  if (linkError && !slidesUpdateAccess) {
     return c.json({ error: linkError.error }, linkError.status);
   }
 
-  const submission = link!.speaker_submission_id
-    ? await getSpeakerSubmissionById(link!.speaker_submission_id)
-    : null;
   const selectedLinkError = selectedSpeakerIntakeLinkError(link!, submission, eventId);
 
-  if (selectedLinkError) {
+  if (selectedLinkError && !slidesUpdateAccess) {
     return c.json({ error: selectedLinkError.error }, selectedLinkError.status);
   }
 
@@ -10947,18 +11013,24 @@ app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
       name: event.name,
       description: event.description,
       event_date: event.event_date,
+      end_date: event.end_date,
+      timezone: event.timezone,
       status: event.status,
     },
-    link: serializeSpeakerIntakeLink(link!),
+    link: {
+      ...serializeSpeakerIntakeLink(link!),
+      mode: slidesUpdateAccess ? 'slides_update' : null,
+      deadline: slidesUpdateAccess?.deadline ?? null,
+    },
     prefill: {
-      speaker_name: followUpTalk?.speaker_name ?? submission?.speaker_name ?? link!.speaker_name ?? '',
-      speaker_email: followUpTalk?.speaker_email ?? submission?.speaker_email ?? link!.speaker_email ?? '',
+      speaker_name: slidesUpdateAccess?.talk.speaker_name ?? followUpTalk?.speaker_name ?? submission?.speaker_name ?? link!.speaker_name ?? '',
+      speaker_email: slidesUpdateAccess?.talk.speaker_email ?? followUpTalk?.speaker_email ?? submission?.speaker_email ?? link!.speaker_email ?? '',
       github_username: submission?.github_username ?? '',
-      title: followUpTalk?.title ?? submission?.title ?? link!.talk_title ?? '',
-      topic: followUpTalk?.topic ?? submission?.topic ?? '',
-      abstract: followUpTalk?.abstract ?? submission?.abstract ?? '',
-      bio: followUpTalk?.bio ?? submission?.bio ?? '',
-      slides_url: followUpTalk?.slides_url ?? safePublicResourceUrl(submission?.resource_url) ?? '',
+      title: slidesUpdateAccess?.talk.title ?? followUpTalk?.title ?? submission?.title ?? link!.talk_title ?? '',
+      topic: slidesUpdateAccess?.talk.topic ?? followUpTalk?.topic ?? submission?.topic ?? '',
+      abstract: slidesUpdateAccess?.talk.abstract ?? followUpTalk?.abstract ?? submission?.abstract ?? '',
+      bio: slidesUpdateAccess?.talk.bio ?? followUpTalk?.bio ?? submission?.bio ?? '',
+      slides_url: slidesUpdateAccess?.talk.slides_url ?? followUpTalk?.slides_url ?? safePublicResourceUrl(submission?.resource_url) ?? '',
     },
   });
 });
@@ -10985,22 +11057,50 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
 
   try {
     const link = await getSpeakerIntakeLinkByToken(eventId, token);
+    const selectedSubmission = link?.purpose === 'selected_speaker_confirmation' && link.speaker_submission_id
+      ? await getSpeakerSubmissionById(link.speaker_submission_id)
+      : null;
+    const completedSelectedTalk = link?.used_talk_id
+      ? await getTalkById(link.used_talk_id)
+      : undefined;
+    const slidesUpdateAccess = selectedSpeakerSlidesUpdateAccess(
+      link,
+      selectedSubmission,
+      event,
+      eventId,
+      completedSelectedTalk,
+    );
     const linkError = speakerIntakeLinkError(link);
 
-    if (linkError) {
+    if (linkError && !slidesUpdateAccess) {
       return c.json({ error: linkError.error }, linkError.status);
     }
 
     const activeLink = link!;
     const body = await c.req.json().catch(() => ({}));
     const selectedSpeakerLink = activeLink.purpose === 'selected_speaker_confirmation';
-    const selectedSubmission = selectedSpeakerLink && activeLink.speaker_submission_id
-      ? await getSpeakerSubmissionById(activeLink.speaker_submission_id)
-      : null;
     const selectedLinkError = selectedSpeakerIntakeLinkError(activeLink, selectedSubmission, eventId);
 
-    if (selectedLinkError) {
+    if (selectedLinkError && !slidesUpdateAccess) {
       return c.json({ error: selectedLinkError.error }, selectedLinkError.status);
+    }
+
+    if (slidesUpdateAccess) {
+      const parsed = selectedSpeakerSlidesUpdateSchema.safeParse(body);
+
+      if (!parsed.success) {
+        return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the slides URL' }, 400);
+      }
+
+      const talk = await updateTalk(slidesUpdateAccess.talk.id, {
+        slides_url: safePublicResourceUrl(parsed.data.slides_url)!,
+        slides_type: 'url',
+        storage_path: null,
+        slides_uploaded_at: now(),
+        status: slidesUpdateAccess.talk.status === 'accepted' ? 'slides_received' : slidesUpdateAccess.talk.status,
+      });
+
+      return c.json(talk);
     }
 
     const followUpTalk = activeLink.purpose === 'archive_materials_follow_up' && activeLink.talk_id
@@ -11675,6 +11775,13 @@ function eventEndOfDayMs(event: Pick<Event, 'event_date' | 'end_date' | 'timezon
   utc -= offset;
 
   return utc;
+}
+
+function eventDayLabel(event: Pick<Event, 'event_date' | 'end_date' | 'timezone'>): string {
+  return new Intl.DateTimeFormat('en-GH', {
+    dateStyle: 'long',
+    timeZone: event.timezone || 'Africa/Accra',
+  }).format(new Date(event.end_date || event.event_date));
 }
 
 function isSystemDesignArchived(event: Pick<Event, 'event_date' | 'end_date' | 'timezone'>, nowMs = Date.now()): boolean {
