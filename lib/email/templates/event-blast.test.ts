@@ -145,3 +145,28 @@ describe('event blast email template', () => {
     expect(googleUrl.searchParams.get('location')).toBe('Fido <Accra>');
   });
 });
+
+describe('optional blast outline', () => {
+  const input = {
+    subject: 'Join us', body: 'See you soon.', unsubscribeUrl: '#',
+    eventName: 'Meetup', eventDate: '2026-10-31T10:00:00Z', locationName: 'Accra',
+  };
+
+  it('omits the section when disabled or empty', () => {
+    expect(eventBlastEmail(input).html).not.toContain('What’s on the programme');
+    expect(eventBlastEmail({ ...input, outline: [] }).text).not.toContain('What’s on the programme');
+  });
+
+  it('renders ordered titles and optional leads safely in HTML and plain text', () => {
+    const content = eventBlastEmail({ ...input, outline: [
+      { title: '<Welcome>', lead: null },
+      { title: 'Building AI', lead: 'Samora & team' },
+    ] });
+
+    expect(content.html).toContain('&lt;Welcome&gt;');
+    expect(content.html).toContain('Building AI — Samora &amp; team');
+    expect(content.html).not.toContain('<Welcome>');
+    expect(content.text).toContain('What’s on the programme\n• <Welcome>\n• Building AI — Samora & team');
+    expect(content.text).toContain('10:00 AM');
+  });
+});

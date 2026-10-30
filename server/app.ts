@@ -1,3 +1,5 @@
+import { eventBlastOutline, eventBlastOutlineSchema } from '@/lib/event-blast-outline';
+import { eventBlastEmail } from '@/lib/email/templates/event-blast';
 import { Hono } from 'hono';
 import { CONFERENCE_REGISTRATION_PREVIEW_ORIGIN } from '@/lib/annual-conference-registration';
 import { ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGINS } from '@/lib/annual-conference-cfp';
@@ -15,7 +17,7 @@ import {
   normalizeEventFeedbackAnswer,
 } from '@/lib/event-feedback';
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
-import { addResendBroadcastRecipients, createResendBroadcastDraft, ensureResendEventBlastSegment, findResendEventBlastSegment, getResendBroadcastStatus, listResendEventBlastSegmentContacts, removeResendEventBlastSegmentContact, retrieveResendReceivedEmail, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError, ResendReceivingEmailError } from '@/lib/email/resend';
+import { addResendBroadcastRecipients, createResendBroadcastDraftFromContent, createResendBroadcastDraft, ensureResendEventBlastSegment, findResendEventBlastSegment, getResendBroadcastStatus, listResendEventBlastSegmentContacts, removeResendEventBlastSegmentContact, retrieveResendReceivedEmail, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError, ResendReceivingEmailError } from '@/lib/email/resend';
 import { EVENT_BLAST_PREPARATION_BATCH_SIZE, type EventBlastPreparationMessage } from '@/lib/event-blast-preparation';
 import { claimEventBlastSegmentSlot, findOwnedEventBlastSegmentSlot, listEventBlastSegmentSlots, markEventBlastSegmentTerminal, recordEventBlastSegmentSlotError, releaseEventBlastSegmentSlot, setEventBlastSegmentSlotProviderId } from '@/lib/event-blast-segment-pool';
 import { getEmailDeliveryHealth, getEmailOutboxSummary, getRecentEmailDeliveries, recordResendEmailHealth } from '@/lib/email/delivery-health';
@@ -496,6 +498,7 @@ const eventRegistrationCampaignUpdateSchema = z.object({
   }
 });
 const eventBlastRequestSchema = z.object({
+  outline: eventBlastOutlineSchema.optional(),
   subject: z.string().trim().min(1, 'Add an email subject.').max(160),
   body: z.string().trim().min(1, 'Add a message.').max(5000),
   scheduled_for: z.string().datetime().nullable().optional(),
@@ -8187,6 +8190,26 @@ app.post('/api/events/:eventId/blasts', async (c) => {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the blast details.' }, 400);
   }
 
+  const outline = parsed.data.outline;
+
+  if (outline && JSON.stringify(outline) !== JSON.stringify(eventBlastOutline(event))) {
+    return c.json({ error: 'The event outline has changed. Refresh the event and preview your email again.' }, 409);
+  }
+
+  const rendered = outline ? eventBlastEmail({
+    subject: parsed.data.subject,
+    body: parsed.data.body,
+    outline,
+    unsubscribeUrl: '{{{RESEND_UNSUBSCRIBE_URL}}}',
+    eventName: event.name,
+    eventDate: event.event_date,
+    eventEndDate: event.end_date,
+    locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
+    locationUrl: event.location?.url,
+    eventUrl: publicEventDetailsUrl(event, c),
+    calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
+  }) : null;
+
   const recipients = (await getEventRegistrations(event.id, c))
     .filter((registration) => registration.status === 'confirmed')
     .map((registration) => ({ email: registration.email, name: registration.name }));
@@ -8217,7 +8240,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       subject: parsed.data.subject, body: parsed.data.body, status: 'needs_capacity', recipient_count: recipients.length,
       scheduled_for: null, sent_at: null, provider_broadcast_id: null, provider_segment_id: null,
       recipient_snapshot: recipients, prepared_recipient_count: 0, preparation_error: null,
-      rendered_html: null, rendered_text: null, template_version: null,
+      rendered_html: rendered?.html ?? null, rendered_text: rendered?.text ?? null, template_version: rendered ? 'event-blast-outline-v1' : null,
       created_by_email: session.authenticated ? session.email : null,
     }, c);
 
@@ -8249,9 +8272,9 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       recipient_snapshot: recipients,
       prepared_recipient_count: 0,
       preparation_error: null,
-      rendered_html: null,
-      rendered_text: null,
-      template_version: null,
+      rendered_html: rendered?.html ?? null,
+      rendered_text: rendered?.text ?? null,
+      template_version: rendered ? 'event-blast-outline-v1' : null,
       created_by_email: session.authenticated ? session.email : null,
     }, c);
   } catch (error) {
@@ -8553,21 +8576,32 @@ app.post('/api/internal/event-blasts/prepare', async (c) => {
       if (!replyTo || !z.string().email().safeParse(replyTo).success) {
         throw new ResendBroadcastError('The registration reply-to address is not configured.');
       }
-      broadcastId = await createResendBroadcastDraft({
-        apiKey,
-        segmentId: slot.provider_segment_id!,
-        eventName: event.name,
-        eventDate: event.event_date,
-        eventEndDate: event.end_date,
-        locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
-        locationUrl: event.location?.url,
-        eventUrl: publicEventDetailsUrl(event, c),
-        calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
-        subject: current.subject,
-        body: current.body,
-        from: EMAIL_SENDERS.events.from,
-        replyTo,
-      });
+      broadcastId = current.rendered_html && current.rendered_text
+        ? await createResendBroadcastDraftFromContent({
+          apiKey,
+          segmentId: slot.provider_segment_id!,
+          name: `DevCongress · ${event.name}`,
+          from: EMAIL_SENDERS.events.from,
+          replyTo,
+          subject: emailSubjects.customEventBlast(current.subject),
+          html: current.rendered_html,
+          text: current.rendered_text,
+        })
+        : await createResendBroadcastDraft({
+          apiKey,
+          segmentId: slot.provider_segment_id!,
+          eventName: event.name,
+          eventDate: event.event_date,
+          eventEndDate: event.end_date,
+          locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
+          locationUrl: event.location?.url,
+          eventUrl: publicEventDetailsUrl(event, c),
+          calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
+          subject: current.subject,
+          body: current.body,
+          from: EMAIL_SENDERS.events.from,
+          replyTo,
+        });
       const saved = await updateEventBlast(blast.id, {
         provider_segment_id: slot.provider_segment_id,
         provider_broadcast_id: broadcastId,

@@ -2,6 +2,8 @@
 
 ## 2026-10-30
 
+- Add an optional event outline to desktop and mobile blasts: ordered session titles and speakers, without session times. Preview the included outline, reject stale outlines at confirmation, and preserve rendered content for scheduling, capacity deferral and retries.
+
 - Keep source modules and brand asset imports with Vite during local development so loading-skeleton and logo imports cannot hit the API HTML fallback and leave the organizer workspace blank.
 
 - Refine Sign out into a quiet secondary control with a thin border, 6px corners, and an exit icon. Condense registration email delivery into one summary row, retaining accepted totals, nonzero attention states, and failed-email retry while removing redundant explanatory cards.

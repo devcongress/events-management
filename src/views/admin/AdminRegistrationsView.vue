@@ -9,6 +9,8 @@ import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import BlastActivityDrawer from '@/src/components/ui/BlastActivityDrawer.vue';
+import { eventBlastOutline, type EventBlastOutlineItem } from '@/lib/event-blast-outline';
+import BlastOutlineOption from '@/src/components/ui/BlastOutlineOption.vue';
 import BlastEmailPreview from '@/src/components/ui/BlastEmailPreview.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import GhanaVenueAutocomplete from '@/src/components/ui/GhanaVenueAutocomplete.vue';
@@ -146,6 +148,9 @@ const blastActivityPage = ref(1);
 const selectedBlast = ref<EventBlast | null>(null);
 const blastSubject = ref('');
 const blastBody = ref('');
+const includeBlastOutline = ref(false);
+const previewOutline = ref<EventBlastOutlineItem[] | undefined>();
+const availableOutline = computed(() => eventBlastOutline(data.value?.event));
 const blastScheduledFor = ref('');
 const actionRegistrationId = ref<string | null>(null);
 const pendingCancellation = ref<EventRegistration | null>(null);
@@ -738,6 +743,7 @@ function selectWorkspaceTab(tab: RegistrationWorkspaceTab) {
 
 function openBlastPreview() {
   if (!canCreateBlast.value || blastPending.value) return;
+  previewOutline.value = includeBlastOutline.value && availableOutline.value.length ? availableOutline.value : undefined;
   blastPreviewOpen.value = true;
 }
 
@@ -798,6 +804,7 @@ async function sendBlast() {
     const result = await createEventBlast(eventId.value, {
       subject: blastSubject.value.trim(),
       body: blastBody.value.trim(),
+      outline: previewOutline.value,
       scheduled_for: toIso(blastScheduledFor.value),
     });
 
@@ -806,6 +813,8 @@ async function sendBlast() {
     blastPreviewOpen.value = false;
     blastSubject.value = '';
     blastBody.value = '';
+    includeBlastOutline.value = false;
+    previewOutline.value = undefined;
     blastScheduledFor.value = '';
     notify.success(
       result.delivery === 'waiting'
@@ -1820,6 +1829,7 @@ async function retryEmails() {
                 <label for="blast-body" class="editorial-label">Message</label>
                 <textarea id="blast-body" v-model="blastBody" class="editorial-input min-h-40 resize-none" maxlength="5000" placeholder="Share the update guests need to know." required />
               </div>
+              <BlastOutlineOption v-model="includeBlastOutline" :count="availableOutline.length" />
               <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
                 <p class="text-xs leading-5 text-dc-gray">
                   {{ confirmedBlastRecipients }} confirmed guest{{ confirmedBlastRecipients === 1 ? '' : 's' }} will receive this email.
@@ -1871,6 +1881,7 @@ async function retryEmails() {
       :open="blastPreviewOpen"
       :subject="blastSubject"
       :body="blastBody"
+      :outline="previewOutline"
       :event="data?.event ?? null"
       :action-label="blastScheduledFor ? `SCHEDULE FOR ${formatDateTime(toIso(blastScheduledFor) ?? new Date().toISOString())}` : `SEND TO ${confirmedBlastRecipients} GUEST${confirmedBlastRecipients === 1 ? '' : 'S'}`"
       :busy="blastPending"

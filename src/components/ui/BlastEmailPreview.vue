@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { eventBlastEmail } from '@/lib/email/templates/event-blast';
+import type { EventBlastOutlineItem } from '@/lib/event-blast-outline';
 import type { Event } from '@/types';
 
 const props = defineProps<{
   open: boolean;
   subject: string;
   body: string;
+  outline?: EventBlastOutlineItem[];
   event: Event | null;
   actionLabel: string;
   busy?: boolean;
@@ -16,6 +18,7 @@ const emit = defineEmits<{ close: []; confirm: [] }>();
 const emailMarkup = computed(() => eventBlastEmail({
   subject: props.subject,
   body: props.body,
+  outline: props.outline,
   unsubscribeUrl: '#',
   eventName: props.event?.name ?? 'DevCongress event',
   eventDate: props.event?.event_date ?? '',

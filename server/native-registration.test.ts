@@ -558,6 +558,64 @@ describe('native event registration API', () => {
     });
   });
 
+  it.each([null, '2099-08-20T12:00:00.000Z'])('preserves the reviewed outline for a deferred or scheduled blast (%s)', async (scheduledFor) => {
+    const { default: app } = await import('./app');
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Blast-ready meetup',
+        description: 'An event with an update.',
+        event_date: '2026-08-20',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    const created = await createdResponse.json() as { event: { id: string } };
+
+    await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'open' }),
+    });
+    await app.request(`http://localhost/api/registration/events/${created.event.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Ama Mensah', email: 'ama@example.com' }),
+    });
+
+    const outline = [{ title: 'Building AI', lead: 'Samora Dake' }];
+    const patch = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schedule: [{ ...outline[0], time: '11:15AM - 11:45AM', type: 'talk', resources: [] }] }),
+    });
+
+    expect(patch.status).toBe(200);
+    const stale = await app.request(`http://localhost/api/events/${created.event.id}/blasts`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject: 'Update', body: 'Hello', outline: [{ title: 'Old title', lead: null }] }),
+    });
+
+    expect(stale.status).toBe(409);
+    const blastResponse = await app.request(`http://localhost/api/events/${created.event.id}/blasts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject: 'Venue update', body: 'We have moved rooms.', outline, scheduled_for: scheduledFor }),
+    });
+
+    expect(blastResponse.status).toBe(202);
+    const payload = await blastResponse.json() as { blast: { rendered_html: string; rendered_text: string; template_version: string } };
+
+    expect(payload.blast.rendered_html).toContain('Building AI — Samora Dake');
+    expect(payload.blast.rendered_text).toContain('• Building AI — Samora Dake');
+    expect(payload.blast.rendered_text).not.toContain('11:15AM');
+    expect(payload.blast.template_version).toBe('event-blast-outline-v1');
+    expect(payload).toMatchObject({
+      delivery: 'needs_capacity',
+      blast: { recipient_count: 1, status: 'needs_capacity' },
+    });
+  });
+
   it('uses an event-specific blast reserve while preserving the deployment default as a reset option', async () => {
     const { default: app } = await import('./app');
     const createdResponse = await app.request('http://localhost/api/events', {
@@ -635,7 +693,7 @@ describe('native event registration API', () => {
     expect(registrations.registrations).toEqual([]);
   });
 
-  it('retries a persisted provider draft without creating another blast audience', async () => {
+  it.each([false, true])('retries a persisted provider draft without changing its audience or content (outline: %s)', async (withOutline) => {
     vi.stubEnv('RESEND_BROADCASTS_API_KEY', 're_broadcast_test');
     vi.stubEnv('REGISTRATION_EMAIL_REPLY_TO', 'hello@devcongress.org');
     vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'event-blast-preparation-test-secret-123456');
@@ -690,16 +748,31 @@ describe('native event registration API', () => {
       body: JSON.stringify({ name: 'Ama Mensah', email: 'ama@example.com' }),
     });
 
+    const outline = [{ title: 'Original programme', lead: 'Ama' }];
+
+    if (withOutline) {
+      await app.request(`http://localhost/api/events/${created.event.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schedule: [{ ...outline[0], time: '11AM', type: 'talk', resources: [] }] }),
+      });
+    }
+
     const queuedMessages: Array<{ event_id: string; blast_id: string; offset: number; phase?: 'prepare' | 'send' | 'clear' }> = [];
     const queue = { send: vi.fn(async (message: { event_id: string; blast_id: string; offset: number }) => { queuedMessages.push(message); }) };
     const failed = await app.fetch(new Request(`http://localhost/api/events/${created.event.id}/blasts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subject: 'Venue update', body: 'We have moved rooms.' }),
+      body: JSON.stringify({ subject: 'Venue update', body: 'We have moved rooms.', ...(withOutline ? { outline } : {}) }),
     }), { EVENT_BLAST_PREPARATION_QUEUE: queue });
 
     expect(failed.status).toBe(202);
     expect(queuedMessages).toHaveLength(1);
+    if (withOutline) {
+      await app.request(`http://localhost/api/events/${created.event.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schedule: [{ title: 'Changed programme', lead: null, time: '2PM', type: 'talk', resources: [] }] }),
+      });
+    }
     await app.fetch(new Request('http://localhost/api/internal/event-blasts/prepare', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-scheduled-job-secret': 'event-blast-preparation-test-secret-123456' },
@@ -733,7 +806,19 @@ describe('native event registration API', () => {
     const sentHistory = await app.request(`http://localhost/api/events/${created.event.id}/blasts`);
 
     await expect(sentHistory.json()).resolves.toMatchObject({ blasts: [{ id: failedBlast.id, status: 'sent', provider_broadcast_id: 'broadcast-1' }] });
-    expect(providerFetch.mock.calls.filter(([url]) => String(url).endsWith('/broadcasts'))).toHaveLength(1);
+    const drafts = providerFetch.mock.calls.filter(([url]) => String(url).endsWith('/broadcasts'));
+
+    expect(drafts).toHaveLength(1);
+    const content = JSON.parse(String(drafts[0][1]?.body));
+
+    if (withOutline) {
+      expect(content.html).toContain('Original programme — Ama');
+      expect(content.text).toContain('• Original programme — Ama');
+      expect(content.text).not.toContain('Changed programme');
+      expect(content.text).not.toContain('11AM');
+    } else {
+      expect(content.text).not.toContain('What’s on the programme');
+    }
   });
 
   it('allows the scheduled blast reconciler through the session gate only with its shared secret', async () => {

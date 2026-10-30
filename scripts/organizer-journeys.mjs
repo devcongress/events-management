@@ -364,6 +364,62 @@ try {
   }
   browser = await chromium.launch();
 
+  for (const mobile of [false, true]) {
+    await journey(`blast-outline-${mobile ? 'mobile' : 'desktop'}`, async ({ page, responses, requests }) => {
+      const outline = [
+        { title: 'Welcome address', lead: null },
+        { title: 'Building AI experiences', lead: 'Samora Dake' },
+      ];
+      const outlineEvent = { ...event, schedule: outline.map((item) => ({ ...item, time: '11:15AM - 11:45AM', type: 'talk', resources: [] })) };
+      const registration = {
+        managed_internally: true, event: outlineEvent,
+        campaign: { status: 'open', capacity: 100, waitlist_enabled: true },
+        registrations: [{ id: 'guest-1', status: 'confirmed', name: 'Fixture Guest', email: 'guest@example.com' }],
+        summary: { confirmed: 1, waitlisted: 0, cancelled: 0, checked_in: 0 },
+        public_url: '/register/fixture-event',
+      };
+
+      responses.set('/api/events/fixture-event/checklist', { body: { items: [] } });
+      responses.set('/api/admin/short-links/ensure', { body: { url: `${origin}/s/fixture-registration` } });
+      responses.set('/api/events/fixture-event/registrations', { body: registration });
+      responses.set('/api/events/fixture-event/blasts', (request) => request.method() === 'POST'
+        ? { status: 202, body: { delivery: 'preparing', blast: { recipient_count: 1 } } }
+        : { body: { blasts: [] } });
+      await page.setViewportSize({ width: mobile ? 390 : 1440, height: 1000 });
+      await page.goto(`${origin}/organizer-console/${mobile ? 'mobile/events/fixture-event/blasts' : 'events/fixture-event/registrations'}`);
+      if (!mobile) await page.getByRole('tab', { name: 'Blasts', exact: true }).click();
+      await page.getByRole('button', { name: /create blast/i }).click();
+      const checkbox = page.getByRole('checkbox', { name: /Include event outline/ });
+
+      assert.equal(await checkbox.isChecked(), false);
+      await page.getByLabel('Message', { exact: true }).fill('Join us for a day of learning and connection.');
+      await checkbox.check();
+      await page.screenshot({ path: `${artifacts}/blast-outline-${mobile ? 'mobile' : 'desktop'}-composer.png`, fullPage: true, animations: 'disabled' });
+      await page.getByRole('button', { name: /preview email/i }).click();
+      const preview = page.getByLabel('Rendered email preview');
+
+      await preview.getByText('Building AI experiences — Samora Dake', { exact: true }).waitFor();
+      assert.equal((await preview.innerText()).includes('11:15AM'), false);
+      await page.screenshot({ path: `${artifacts}/blast-outline-${mobile ? 'mobile' : 'desktop'}-preview.png`, fullPage: true, animations: 'disabled' });
+      await page.locator('.blast-preview-send').click();
+      await checkbox.waitFor({ state: 'hidden' });
+      const sent = requests.find((request) => request.path.endsWith('/blasts') && request.method === 'POST');
+
+      assert.deepEqual(JSON.parse(sent.body).outline, outline);
+      await page.getByRole('button', { name: /create blast/i }).click();
+      assert.equal(await checkbox.isChecked(), false);
+      await page.getByRole('button', { name: /preview email/i }).click();
+      assert.equal((await preview.innerText()).includes('What’s on the programme'), false);
+      await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
+      registration.event = { ...event, schedule: [] };
+      await page.reload();
+      if (!mobile) await page.getByRole('tab', { name: 'Blasts', exact: true }).click();
+      await page.getByRole('button', { name: /create blast/i }).click();
+      assert.equal(await checkbox.isDisabled(), true);
+      await page.getByText('Add a program outline to this event first.').waitFor();
+    }, { role: 'owner' });
+  }
+
   await journey('underline-workspace-tabs', async ({ page, responses }) => {
     responses.set('/api/admin/audit-log', { body: { logs: [] } });
     responses.set('/api/admin/short-links', { body: { links: [] } });

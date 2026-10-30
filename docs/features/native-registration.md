@@ -29,6 +29,9 @@ After an official monthly meetup ends, the Monthly Attendance overview uses its 
 
 New events publish a short same-origin `/r/:eventSlug` URL through the existing `registration_url` compatibility field, so the public meetup API can expose the native action without changing its consumer contract. When EMS writes shared Supabase event data, that URL is always rooted at the configured hosted EMS origin; local development URLs are permitted only for local JSON data. Existing `/register/:eventId` links remain valid. Organizer copy and QR actions can create a separate tracked `go.devcongress.org` short link without changing the canonical registration URL.
 
+**Optional blast outline:** Desktop and phone composers offer **Include event outline**, off by default. It uses the saved Program Outline in order, with titles and speaker names only; session times and other metadata are omitted. With no outline, the control is disabled with guidance to add one. The email preview shows a **What’s on the programme** section after the message. Confirmation validates the previewed rows against the current event and rejects stale outlines. Opted-in blasts save server-rendered HTML/text in the existing `event_blasts.rendered_html`, `rendered_text` and `template_version` fields (`event-blast-outline-v1`); deferred, scheduled and retried delivery reuse that snapshot. The activity drawer displays the saved text. The original message remains within its 5,000-character limit. Existing blasts and unchecked sends keep their current behavior. No new schema migration is needed.
+
+
 ## Attendee Flow
 
 - Open `/r/:eventSlug` (or a previously shared `/register/:eventId` link).
