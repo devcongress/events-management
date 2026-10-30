@@ -2,6 +2,8 @@
 
 ## 2026-10-30
 
+- Make desktop and mobile Sign Out buttons rectangular with 2px corners. Replace sideways hover movement with a warm-yellow background while preserving keyboard focus, press feedback, and reduced-motion support.
+
 - Restored completed selected-speaker links for monthly events as a slides-only editor through the local end of the event day, while preserving one-time completion semantics and every other link closure.
 
 ## 2026-10-30 — Managed buyer-paid processing fee
