@@ -2,6 +2,8 @@
 
 ## 2026-10-30
 
+- Pace admission email retries with a shared database lease and provider cooldown; preserve frozen payloads for up to 23 hours and stop uncertain older deliveries for operator review. Add bounded queued payment reconciliation, conservative initialization recovery, and shared-network checkout limits with buyer/order safeguards. Requires migration `20261030210000_checkout_delivery_recovery.sql`; not applied by this change.
+
 - Fix false speaker-blast preview-change rejections after JSONB storage reorders object keys; compare recipient and session fields while retaining real-change safeguards.
 
 - Add an optional event outline to desktop and mobile blasts: ordered session titles and speakers, without session times. Preview the included outline, reject stale outlines at confirmation, and preserve rendered content for scheduling, capacity deferral and retries.

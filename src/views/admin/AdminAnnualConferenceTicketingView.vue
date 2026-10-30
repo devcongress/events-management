@@ -481,7 +481,7 @@ function saveSponsorAllocation() {
 
 function canRetryEmailDelivery(delivery: AnnualConferenceTicketEmailDelivery) {
   return delivery.status === 'failed'
-    && delivery.attempt_count < 5
+    && Number.isFinite(Date.parse(delivery.next_attempt_at))
     && !delivery.provider_email_id
     && !delivery.accepted_at;
 }

@@ -407,3 +407,45 @@ describe('Owner payment settings', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
+
+it('permits 200 distinct buyers on one IP while stopping repeated-buyer abuse', async () => {
+  mocks.settings.mockResolvedValue({ ...catalogSettings, payment_mode: 'live' });
+  const buckets = new Map<string, number>();
+
+  mocks.limit.mockImplementation(async (c, limit) => {
+    const key = limit.action + ':' + limit.clientKey;
+    const count = (buckets.get(key) ?? 0) + 1;
+
+    buckets.set(key, count);
+
+    return count > limit.maxAttempts ? c.json({ error: 'Please wait', retry_after_seconds: 300 }, 429) : null;
+  });
+  for (let i = 0; i < 200; i += 1) {
+    const response = await initialize({ ...input, expected_mode: 'live', purchaser_email: `buyer-${i}@example.test`,
+      cart: { ...input.cart, allocations: [{ kind: 'self' }, { kind: 'gift', recipient_email: `gift-${i}@example.test` }] } });
+
+    expect(response.status).toBe(200);
+  }
+  for (let i = 0; i < 11; i += 1) {
+    const response = await initialize({ ...input, expected_mode: 'live' });
+
+    expect(response.status).toBe(i < 10 ? 200 : 429);
+  }
+});
+
+it('does not authorize a fresh payment when the existing order is not payable', async () => {
+  const original = mocks.rpc.getMockImplementation()!;
+
+  mocks.rpc.mockImplementation(async (...args) => {
+    if (args[1] === 'claim_managed_conference_checkout_initialization') throw new Error('not_payable');
+
+    return original(...args);
+  });
+  const response = await initialize();
+  const body = await response.json();
+
+  expect(response.status).toBe(409);
+  expect(body.code).toBeUndefined();
+  expect(body.error).toContain('Check your ticket email');
+  expect(mocks.initialize).not.toHaveBeenCalled();
+});

@@ -135,6 +135,10 @@ execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', 
   import { readCatalog, evaluateCatalog } from './scripts/migrations/catalog.ts';
   const contract = JSON.parse(readFileSync('supabase/migration-verification-contract.json', 'utf8'));
   contract.verified = contract.verified.filter(entry => entry.file === '20261021160000_preview_only_ticket_email_leasing.sql');
+  // This fixture stops before the checkout recovery migration; pin that historical body.
+  for (const probe of contract.verified.flatMap(entry => entry.checks)) {
+    if (probe.kind === 'function' && probe.name === 'claim_complete_test_only_admission_emails') probe.bodySha256 = 'ec998e59fbd0de77f4cdcf82f08537392798b559e45eced70a13c9eaf6b20113';
+  }
   const results = evaluateCatalog(contract, readCatalog(process.env));
   assert.equal(results[0].status, 'verified', JSON.stringify(results));
 `], { stdio: 'inherit' });

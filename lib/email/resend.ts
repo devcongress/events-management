@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ResendDeliveryError, resendRetryAfter } from './resend-delivery-error';
 import { emailSubjects } from '@/lib/email/scenarios';
 import { parseResendQuotaUsage, type EmailQuotaUsage } from '@/lib/email/delivery-health';
 import { eventBlastEmail } from './templates/event-blast';
@@ -81,10 +82,15 @@ export async function sendResendAttachedEmail(input: {
     },
     body: JSON.stringify(input.email),
     signal: AbortSignal.timeout(15000),
-  });
+  }).catch(() => { throw new ResendDeliveryError('ambiguous'); });
+
+  if (!response.ok) {
+    throw new ResendDeliveryError(response.status === 429 ? 'throttled' : response.status >= 500 ? 'ambiguous' : 'rejected', resendRetryAfter(response.headers.get('retry-after')));
+  }
+
   const parsed = resendIdResponseSchema.safeParse(await response.json().catch(() => null));
 
-  if (!response.ok || !parsed.success) throw new Error('Admission email was not accepted.');
+  if (!parsed.success) throw new ResendDeliveryError('ambiguous');
 
   return parsed.data.id;
 }
