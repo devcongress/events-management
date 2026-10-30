@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-30
+
+- Restored completed selected-speaker links for monthly events as a slides-only editor through the local end of the event day, while preserving one-time completion semantics and every other link closure.
+
 ## 2026-10-30 — Managed buyer-paid processing fee
 
 - New EMS-managed DevCon26 checkout holds now quote a 1.95% buyer-paid processing charge immutably, exposing subtotal, fee, and gross total without changing historic merchant-absorbed order records.

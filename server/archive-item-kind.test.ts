@@ -338,6 +338,155 @@ describe('archive item discriminator at the public intake boundary', () => {
     await expect(talks.getTalksByEvent(event.id)).resolves.toEqual([]);
   });
 
+  it('reopens a completed monthly selected-speaker link only to update its bound talk slides through the event day', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-25T12:00:00.000Z'));
+
+    try {
+      const { app, links, submissions, talks } = await importArchiveModules();
+      const submission = await submissions.createSpeakerSubmission({
+        event_id: event.id,
+        kind: 'talk',
+        speaker_name: 'Completed Presenter',
+        speaker_email: 'completed@example.com',
+        github_username: null,
+        title: 'Completed selected talk',
+        topic: 'Engineering',
+        abstract: 'A selected talk that needs its slides added.',
+        bio: 'Community builder.',
+      });
+
+      await submissions.updateSpeakerSubmission(submission.id, { status: 'selected' });
+      const { link, token } = await links.createSpeakerIntakeLink({
+        event_id: event.id,
+        event_month: '2026-07',
+        expires_at: '2026-07-20T00:00:00.000Z',
+        kind: 'talk',
+        purpose: 'selected_speaker_confirmation',
+        speaker_submission_id: submission.id,
+        speaker_name: submission.speaker_name,
+        speaker_email: submission.speaker_email,
+        talk_title: submission.title,
+      });
+
+      await submissions.updateSpeakerSubmission(submission.id, {
+        selected_intake_link_id: link.id,
+      });
+
+      // Complete before expiry, then move into the event-day recovery window.
+      vi.setSystemTime(new Date('2026-07-19T12:00:00.000Z'));
+      const completion = await app.request(
+        `http://localhost/api/events/${event.id}/speaker-intake/${token}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slides_url: '' }),
+        },
+      );
+
+      expect(completion.status).toBe(201);
+      const completedTalk = await completion.json();
+
+      vi.setSystemTime(new Date('2026-07-25T12:00:00.000Z'));
+      const prefill = await app.request(`http://localhost/api/events/${event.id}/speaker-intake/${token}`);
+
+      expect(prefill.status).toBe(200);
+      await expect(prefill.json()).resolves.toMatchObject({
+        link: { mode: 'slides_update', deadline: '2026-07-26T00:00:00.000Z' },
+        prefill: { title: submission.title, slides_url: '' },
+      });
+
+      const extraField = await app.request(
+        `http://localhost/api/events/${event.id}/speaker-intake/${token}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slides_url: 'https://example.com/slides', topic: 'Tampered' }),
+        },
+      );
+
+      expect(extraField.status).toBe(400);
+
+      const updated = await app.request(
+        `http://localhost/api/events/${event.id}/speaker-intake/${token}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slides_url: 'https://example.com/slides' }),
+        },
+      );
+
+      expect(updated.status).toBe(200);
+      await expect(updated.json()).resolves.toMatchObject({
+        id: completedTalk.id,
+        slides_url: 'https://example.com/slides',
+        topic: submission.topic,
+      });
+      await expect(talks.getTalksByEvent(event.id)).resolves.toEqual([
+        expect.objectContaining({ id: completedTalk.id, slides_url: 'https://example.com/slides' }),
+      ]);
+
+      vi.setSystemTime(new Date('2026-07-26T00:00:00.000Z'));
+      const afterDeadline = await app.request(`http://localhost/api/events/${event.id}/speaker-intake/${token}`);
+
+      expect(afterDeadline.status).toBe(410);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not reopen a completed selected-speaker link when it is no longer bound to its created talk', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-25T12:00:00.000Z'));
+
+    try {
+      const { app, links, submissions } = await importArchiveModules();
+    const submission = await submissions.createSpeakerSubmission({
+      event_id: event.id,
+      kind: 'talk',
+      speaker_name: 'Bound Presenter',
+      speaker_email: 'bound@example.com',
+      github_username: null,
+      title: 'Bound selected talk',
+      topic: 'Engineering',
+      abstract: 'A selected talk with a deliberately changed binding.',
+      bio: 'Community builder.',
+    });
+
+    await submissions.updateSpeakerSubmission(submission.id, { status: 'selected' });
+    const { link, token } = await links.createSpeakerIntakeLink({
+      event_id: event.id,
+      event_month: '2026-07',
+      expires_at: '2099-01-01T00:00:00.000Z',
+      kind: 'talk',
+      purpose: 'selected_speaker_confirmation',
+      speaker_submission_id: submission.id,
+      speaker_name: submission.speaker_name,
+      speaker_email: submission.speaker_email,
+      talk_title: submission.title,
+    });
+
+    await submissions.updateSpeakerSubmission(submission.id, { selected_intake_link_id: link.id });
+    const completion = await app.request(
+      `http://localhost/api/events/${event.id}/speaker-intake/${token}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slides_url: '' }),
+      },
+    );
+    const completedTalk = await completion.json();
+
+    await submissions.updateSpeakerSubmission(submission.id, { selected_talk_id: 'another-talk-id' });
+    const response = await app.request(`http://localhost/api/events/${event.id}/speaker-intake/${token}`);
+
+      expect(completedTalk.id).toBeTruthy();
+      expect(response.status).toBe(410);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('serializes concurrent submissions of the same one-time archive request', async () => {
     const { app, links, talks } = await importArchiveModules();
     const { token } = await links.createSpeakerIntakeLink({

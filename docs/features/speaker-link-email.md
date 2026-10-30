@@ -83,6 +83,8 @@ One submit creates a fresh `archive_backfill` link and sends a personalized emai
 - Hosted links use relational Supabase rows and atomic claim/consume/release functions so two Workers cannot complete the same link concurrently.
 - The form cannot change the locked identity, event, kind, or title.
 - Used, expired, deleted, anonymous legacy, cross-event, and type-mismatched links must not be emailed or accepted.
+- A completed, correctly bound selected-speaker link for a monthly event may reopen only as a slides-link editor until the end of that event day in its timezone. This mode requires the selected proposal, consumed link, and created Talk to agree on the same event and Talk ID; it accepts one secure HTTPS `slides_url` field and never creates, claims, consumes, or changes another record. All other used or expired links remain closed.
+- Selected-speaker email copy distinguishes the original one-time form expiry from the post-completion slides-only deadline at the end of the event day. Owner test emails and catalog previews are explicitly non-actionable and do not contain a fake private-link URL.
 
 ## Implemented Archive Prerequisites
 

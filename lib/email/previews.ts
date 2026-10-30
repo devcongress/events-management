@@ -130,8 +130,9 @@ function speakerPreview(input: {
     eventName: sampleEvent.name,
     speakerName: 'Efua Owusu',
     talkTitle: input.talkTitle,
-    privateUrl: 'https://go.devcongress.org/P_sample-private-speaker-link',
+    privateUrl: undefined,
     expiresAt: '2026-10-10T23:59:59.000Z',
+    sampleOnly: true,
   });
 
   return {
