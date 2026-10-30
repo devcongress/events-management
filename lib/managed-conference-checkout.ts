@@ -15,7 +15,34 @@ export const managedCheckoutSettingsSchema = z.object({
   flexible_checkout_state: z.enum(['foundation', 'internal', 'public']),
   regular_price_minor: z.number().int().positive().safe(),
   flexible_checkout_max_amount_minor: z.number().int().positive().safe(),
+  processing_fee_rate_basis_points: z.number().int().min(1).max(9_999).safe(),
 });
+
+export const MANAGED_PROCESSING_FEE_POLICY = 'buyer_pays_processing' as const;
+export const MANAGED_PROCESSING_FEE_ROUNDING = 'ceil_minor' as const;
+
+export function managedCheckoutProcessingFeeQuote(ticketAmountMinor: number, rateBasisPoints: number) {
+  if (!Number.isSafeInteger(ticketAmountMinor) || ticketAmountMinor < 1
+    || !Number.isSafeInteger(rateBasisPoints) || rateBasisPoints < 1 || rateBasisPoints >= 10_000) {
+    throw new Error('Invalid managed checkout fee quote input.');
+  }
+
+  const grossAmountMinor = Math.ceil(ticketAmountMinor * 10_000 / (10_000 - rateBasisPoints));
+
+  if (!Number.isSafeInteger(grossAmountMinor)) throw new Error('Managed checkout fee quote overflow.');
+
+  return {
+    ticket_amount_minor: ticketAmountMinor,
+    processing_fee_minor: grossAmountMinor - ticketAmountMinor,
+    amount_minor: grossAmountMinor,
+  };
+}
+
+export function managedCheckoutMaximumQuantity(unitAmountMinor: number, rateBasisPoints: number, maximumGrossAmountMinor: number) {
+  if (!Number.isSafeInteger(maximumGrossAmountMinor) || maximumGrossAmountMinor < 1) return 0;
+
+  return Math.floor(maximumGrossAmountMinor * (10_000 - rateBasisPoints) / (unitAmountMinor * 10_000));
+}
 
 export const managedCheckoutInitializeSchema = devcon26FlexibleCheckoutInitializeSchema.extend({
   expected_mode: managedPaymentModeSchema,

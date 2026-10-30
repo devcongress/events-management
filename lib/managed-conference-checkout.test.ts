@@ -4,6 +4,8 @@ import {
   MANAGED_CHECKOUT_PATH,
   MANAGED_PAYMENT_WEBHOOK_PATH,
   isManagedCheckoutRequest,
+  managedCheckoutMaximumQuantity,
+  managedCheckoutProcessingFeeQuote,
   managedCheckoutInitializeSchema,
   managedCheckoutSettingsSchema,
   managedCheckoutOrigin,
@@ -49,6 +51,7 @@ const storedOrder = {
   payment_mode: 'test' as const,
   checkout_origin: origin,
   checkout_settings_version: 5,
+  quoted_processing_fee_policy: null,
 };
 
 beforeEach(() => {
@@ -104,7 +107,7 @@ describe('managed checkout credential and browser contracts', () => {
     const settings = {
       edition_id: editionId, payment_mode: 'test', settings_version: 5,
       public_mode: 'paid', sales_status: 'open', regular_price_minor: 15000,
-      flexible_checkout_max_amount_minor: 10000000,
+      flexible_checkout_max_amount_minor: 10000000, processing_fee_rate_basis_points: 195,
     };
 
     expect(managedCheckoutSettingsSchema.safeParse(settings).success).toBe(false);
@@ -133,6 +136,22 @@ describe('managed checkout credential and browser contracts', () => {
     expect(isManagedCheckoutRequest(`${MANAGED_CHECKOUT_PATH}/verify`, 'POST')).toBe(true);
     expect(isManagedCheckoutRequest(MANAGED_PAYMENT_WEBHOOK_PATH, 'POST')).toBe(true);
     expect(isManagedCheckoutRequest(`${MANAGED_CHECKOUT_PATH}/initialize`, 'GET')).toBe(false);
+  });
+});
+
+describe('managed buyer-paid processing-fee quote', () => {
+  it('grosses up once in integer pesewas and keeps the ticket subtotal distinct', () => {
+    expect(managedCheckoutProcessingFeeQuote(15_000, 195)).toEqual({
+      ticket_amount_minor: 15_000, processing_fee_minor: 299, amount_minor: 15_299,
+    });
+    expect(managedCheckoutProcessingFeeQuote(30_000, 195)).toEqual({
+      ticket_amount_minor: 30_000, processing_fee_minor: 597, amount_minor: 30_597,
+    });
+  });
+
+  it('uses the gross limit when calculating the maximum cart quantity', () => {
+    expect(managedCheckoutMaximumQuantity(15_000, 195, 15_298)).toBe(0);
+    expect(managedCheckoutMaximumQuantity(15_000, 195, 15_299)).toBe(1);
   });
 });
 
@@ -190,6 +209,21 @@ describe('managed checkout server reconciliation', () => {
     expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({
       orderId, providerEventId: 'managed:test:charge:123', paymentFacts: expect.objectContaining({ domain: 'test' }),
     }), context);
+  });
+
+  it('sends the stored buyer-paid policy while allowing a test charge without provider fee facts', async () => {
+    const buyerPaidOrder = { ...storedOrder, quoted_processing_fee_policy: 'buyer_pays_processing' as const };
+    const reference = managedPaymentReference(orderId, 'test');
+
+    mocks.testPayment.mockResolvedValue({
+      status: 'verified', providerEventId: 'charge:buyer-paid', paymentReference: reference,
+      amountMinor: 15_299, currency: 'GHS',
+    });
+
+    await expect(confirmManagedCheckout(context, buyerPaidOrder, reference)).resolves.toEqual({ status: 'verified' });
+    expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ paymentFacts: expect.objectContaining({
+      amount: 15_299, fee_mode: 'buyer_pays_processing',
+    }) }), context);
   });
 
   it('uses the live key for an existing live order while Testing is selected for new purchases', async () => {

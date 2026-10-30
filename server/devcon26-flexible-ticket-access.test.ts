@@ -99,7 +99,7 @@ describe('DevCon26 flexible ticket public access', () => {
     vi.mocked(managedCheckoutSettings).mockResolvedValue({
       edition_id: orderId, payment_mode: mode, settings_version: 4,
       public_mode: 'paid', sales_status: 'closed', flexible_checkout_state: 'internal', regular_price_minor: 15000,
-      flexible_checkout_max_amount_minor: 10000000,
+      flexible_checkout_max_amount_minor: 10000000, processing_fee_rate_basis_points: 195,
     });
   }
 

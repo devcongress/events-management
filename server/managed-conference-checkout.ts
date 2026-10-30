@@ -54,6 +54,7 @@ export function managedCheckoutReadiness(c: Context, mode: 'test' | 'live') {
 const storedOrderSchema = z.object({
   id: z.string().uuid(), edition_id: z.string().uuid(), payment_mode: managedPaymentModeSchema,
   checkout_origin: z.string().nullable(), checkout_settings_version: z.number().int().positive().safe(),
+  quoted_processing_fee_policy: z.enum(['buyer_pays_processing']).nullable(),
 });
 
 export async function managedCheckoutOrder(c: Context, reference: string) {
@@ -64,7 +65,7 @@ export async function managedCheckoutOrder(c: Context, reference: string) {
   if (attempt.error) throw new Error('Payment attempt unavailable.');
   if (!attempt.data || attempt.data.provider !== 'paystack') return null;
   const stored = await client.from('annual_conference_ticket_orders' as never)
-    .select('id,edition_id,payment_mode,checkout_origin,checkout_settings_version').eq('id', attempt.data.order_id).maybeSingle();
+    .select('id,edition_id,payment_mode,checkout_origin,checkout_settings_version,quoted_processing_fee_policy').eq('id', attempt.data.order_id).maybeSingle();
 
   if (stored.error) throw new Error('Payment order unavailable.');
   const parsed = storedOrderSchema.safeParse(stored.data);
@@ -99,7 +100,7 @@ export async function confirmManagedCheckout(c: Context, order: z.infer<typeof s
   }
   const facts = {
     ...charge.facts, domain: order.payment_mode, amount: charge.amountMinor,
-    currency: charge.currency, fee_mode: 'merchant_absorbs',
+    currency: charge.currency, fee_mode: order.quoted_processing_fee_policy ?? 'merchant_absorbs',
   };
   const confirmed = await confirmSupabaseAnnualConferenceTicketPayment({
     orderId: order.id, provider: 'paystack', providerEventId: `managed:${order.payment_mode}:${charge.providerEventId}`,

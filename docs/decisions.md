@@ -1,5 +1,13 @@
 # Architectural Decisions
 
+## ADR-124: Buyer-paid managed checkout fees are immutable order quotes
+
+**Date:** 2026-10-30
+
+**Decision:** New EMS-managed orders retain the ticket subtotal in `amount_minor` and store a separate rate, policy, processing-fee, and gross-total quote.
+
+**Why:** Payment verification and failed-hold refunds must not depend on a later settings change, while historic merchant-absorbed orders must keep their original contract.
+
 ## ADR-111: Validate and replay volunteer outcome batches in bounded database calls
 
 **Date:** 2026-10-19
