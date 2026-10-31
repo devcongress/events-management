@@ -1799,7 +1799,7 @@
     },
     "annual-conference-overview": {
       "status": "completed",
-      "inputFingerprint": "ced38c17247d36c7b85381c2465c14ed1df52a140c33a6cd3b8e4cd01a4912ba",
+      "inputFingerprint": "3a08c0b2c264ce257c3ae8143ea81d97239dcd43d53ed272dd079a11a110fd93",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -1850,7 +1850,7 @@
         "src/bones/annual-conference-overview.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/annual-conference-overview.bones.json": "3e72e241ac92fe3138275bf7269fd92b83eea8fd4d5ec6e27177a3b94a9245d4"
+        "src/bones/annual-conference-overview.bones.json": "1b7a44a2c1e5abeb1b6a0f9dbb72a7094cb35761ebfdd396795a007af3892758"
       },
       "captureConfig": {
         "breakpoints": [
@@ -7412,7 +7412,7 @@
     },
     "volunteer-broadcast": {
       "status": "completed",
-      "inputFingerprint": "64f076071588b38f028bbde4c48ad898ac92b5623dbe26a11b7d85ed38eba4f2",
+      "inputFingerprint": "a7c8c256b8d4ed18b67bdaffd96c5e59cf5aac9406475f6c1b6bf2f531fd5917",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7463,7 +7463,7 @@
         "src/bones/volunteer-broadcast.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/volunteer-broadcast.bones.json": "d825d84846b83bf9558cbbcdfa2602efe455ea853a4de86c0def5e1327b85e56"
+        "src/bones/volunteer-broadcast.bones.json": "997c2284cfdba7c5663b61b2833e77838bb0f58bc9beacbda802c70354375b74"
       },
       "captureConfig": {
         "breakpoints": [

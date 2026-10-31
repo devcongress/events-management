@@ -1526,3 +1526,14 @@ ADR-118 delivery follow-up: preview dispatch must not lease historical registrat
 **Why:** Provider outages must not turn into duplicate mail, duplicate payment sessions, unsafe late admission, or Worker subrequest-limit failures. Cron enqueues bounded work while preserving other scheduled services.
 
 **Trade-offs:** The queue shares capacity with blasts. Old ambiguous mail requires operator review rather than a blind resend; old terminal rows are not revived. Expired paid holds can still require refund resolution. Hosted throughput and provider-account-wide mail rate coordination are not established by local tests.
+
+
+## ADR-126: Reuse canonical short links for ticket purchases
+
+**Date:** 2026-10-31
+
+**Decision:** Add an edition-scoped `conference_ticket_purchase` destination to the existing short-link enum and ensure RPC. Preserve advisory locking, active-link uniqueness, revocation and organizer authorization. The redirect service permits only the exact DevCon26 checkout path to leave the EMS origin for the fixed official website origin.
+
+**Why:** Ticketing and Present Forms should share one reusable purchase URL and QR without creating payment sessions or introducing another shortening service.
+
+**Trade-offs:** The enum and RPC require separate forward migrations and a coordinated EMS/short-link deployment. Only DevCon26 is supported until a checkout route exists for another edition. A valid link does not imply that sales are open.

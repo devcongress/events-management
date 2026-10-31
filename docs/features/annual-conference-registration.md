@@ -235,3 +235,12 @@ Payment reconciliation checks stored provider references for up to 48 hours, inc
 Checkout initialization and verification allow a higher shared-IP ceiling (1,200 per five minutes). Initialization also has a ten-per-buyer limit per five minutes, alongside the existing daily recipient limit; authenticated order verification is limited to twenty per five minutes. These controls do not establish hosted capacity.
 
 Apply and verify the forward migration before deployment. Local verification uses `scripts/test-checkout-recovery-postgres.mjs` against a disposable database; never target production for failure tests.
+
+
+## Ticket purchase sharing
+
+For DevCon26, the ticketing overview can prepare a reusable purchase short link and download its QR. Present Forms includes an optional **DevCon26 ticket purchase** tile using the same canonical destination and edition. Existing default tiles and the three-tile display limit remain unchanged. No link is created merely by opening the ticketing overview.
+
+The QR encodes the short URL. The short-link service redirects the exact `/devcon26/checkout` destination to `https://devcongress.org/devcon26/checkout`; other destinations retain the configured EMS origin. Checkout availability and Testing/Live restrictions remain enforced by the existing checkout. Future conference years are not advertised until their checkout exists.
+
+Rollout requires `20261031093000_ticket_purchase_short_link_enum.sql`, followed in a separate transaction by `20261031093100_ticket_purchase_short_link_support.sql`, then verified EMS and short-link service deployments. No website change is required for the existing checkout route. Preparing or presenting links still requires the existing organizer authorization.

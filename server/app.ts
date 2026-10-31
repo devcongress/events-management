@@ -1,3 +1,4 @@
+import { TICKET_PURCHASE_PATH } from '@/short-links/ticket-purchase';
 import { eventBlastOutline, eventBlastOutlineSchema } from '@/lib/event-blast-outline';
 import { eventBlastEmail } from '@/lib/email/templates/event-blast';
 import { registerSpeakerBlastRoutes } from '@/server/routes/speaker-blasts';
@@ -778,7 +779,7 @@ const adminCreateTalkSchema = z.object({
   publish: z.boolean().optional().default(false),
 }).strict();
 const shortLinkCreateSchema = z.object({
-  destination: z.enum(['monthly_cfp', 'event_registration', 'event_feedback', 'conference_cfp', 'volunteer_intake', 'volunteer_follow_up_test']),
+  destination: z.enum(['monthly_cfp', 'event_registration', 'event_feedback', 'conference_cfp', 'conference_ticket_purchase', 'volunteer_intake', 'volunteer_follow_up_test']),
   event_id: z.string().uuid().optional(),
   conference_year: z.number().int().min(2020).max(3000).optional(),
 }).strict();
@@ -1332,11 +1333,13 @@ async function shortLinkDestinationPath(link: {
 
   if (staticDestinationPath) return staticDestinationPath;
 
-  if (link.destination === 'conference_cfp') {
+  if (link.destination === 'conference_cfp' || link.destination === 'conference_ticket_purchase') {
     if (!link.conference_edition_id) return null;
     const repository = createAnnualConferenceRepository(c);
     const editions = await repository.listEditions();
     const edition = editions.find((candidate) => candidate.id === link.conference_edition_id);
+
+    if (link.destination === 'conference_ticket_purchase') return edition?.year === 2026 ? TICKET_PURCHASE_PATH : null;
 
     return edition?.speaker_call_status === 'open' ? `/speak/c/${edition.year}` : null;
   }
@@ -1372,6 +1375,12 @@ async function prepareShortLinkTarget(input: z.infer<typeof shortLinkCreateSchem
 
   if (input.destination === 'volunteer_intake' || input.destination === 'volunteer_follow_up_test') {
     // The evergreen volunteer form is a single global public destination.
+  } else if (input.destination === 'conference_ticket_purchase') {
+    if (input.conference_year !== 2026) throw new ShortLinkStorageError('Ticket purchase links are available for DevCon26 only.', 'not_found');
+    const edition = await getAnnualConferenceEditionByYear(input.conference_year, c);
+
+    if (!edition) throw new ShortLinkStorageError('Conference edition not found.', 'not_found');
+    conferenceEditionId = edition.id;
   } else if (input.destination === 'conference_cfp') {
     if (!input.conference_year) throw new ShortLinkStorageError('Choose an open conference Call for Speakers.', 'not_found');
     const edition = await getAnnualConferenceEditionByYear(input.conference_year, c);
@@ -1440,6 +1449,9 @@ async function listOpenShortLinkTargets(c: Context): Promise<{
           return campaign ? isFeedbackCampaignOpen(event, campaign) : false;
         })
         .map((event) => ({ destination: 'event_feedback' as const, eventId: event.id, conferenceEditionId: null, destinationPath: `/feedback/${event.id}` })),
+      ...editions
+        .filter((edition) => edition.year === 2026)
+        .map((edition) => ({ destination: 'conference_ticket_purchase' as const, eventId: null, conferenceEditionId: edition.id, destinationPath: TICKET_PURCHASE_PATH })),
       ...editions
         .filter((edition) => edition.speaker_call_status === 'open')
         .map((edition) => ({ destination: 'conference_cfp' as const, eventId: null, conferenceEditionId: edition.id, destinationPath: `/speak/c/${edition.year}` })),
@@ -6707,7 +6719,7 @@ app.get('/api/admin/presentation-forms', async (c) => {
   try {
     const { events, editions, targets } = await listOpenShortLinkTargets(c);
     const openKeys = new Set(targets.map(shortLinkTargetKey));
-    const presentationTargets = targets.filter((target) => target.destination === 'volunteer_intake' || target.destination === 'conference_cfp');
+    const presentationTargets = targets.filter((target) => target.destination === 'volunteer_intake' || target.destination === 'conference_cfp' || target.destination === 'conference_ticket_purchase');
 
     for (const event of events.filter((item) => item.series_type === 'monthly')) {
       presentationTargets.push({ destination: 'event_feedback', eventId: event.id, conferenceEditionId: null, destinationPath: `/feedback/${event.id}` });
@@ -6724,7 +6736,7 @@ app.get('/api/admin/presentation-forms', async (c) => {
           destination: target.destination,
           event_id: target.eventId,
           conference_year: edition?.year ?? null,
-          label: event?.name ?? edition?.name ?? 'Volunteer form',
+          label: target.destination === 'conference_ticket_purchase' ? 'DevCon26 tickets' : event?.name ?? edition?.name ?? 'Volunteer form',
           event_date: event?.event_date ?? null,
           series_type: event?.series_type ?? null,
         };
@@ -6781,7 +6793,9 @@ app.get('/api/admin/short-links', async (c) => {
       links: links.map((link) => ({
         ...link,
         url: shortLinkPublicUrl(link.code, c),
-        label: link.destination === 'volunteer_intake'
+        label: link.destination === 'conference_ticket_purchase'
+          ? 'DevCon26 tickets'
+          : link.destination === 'volunteer_intake'
           ? 'Volunteer form'
           : link.destination === 'volunteer_follow_up_test'
             ? 'Volunteer follow-up test'

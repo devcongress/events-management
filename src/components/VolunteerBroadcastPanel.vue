@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 
 import AppPagination from '@/src/components/AppPagination.vue';
+import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import { fetchJson } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 
@@ -54,7 +55,7 @@ type Preview = {
   text: string;
 };
 
-const pageSize = 8;
+const pageSize = 4;
 const query = useQuery({
   queryKey: ['annual-conference', '2026', 'volunteer-follow-up', 'blasts'],
   queryFn: () => fetchJson<BlastListResponse>('/api/annual-conference/2026/volunteer-follow-up/blasts', { credentials: 'include' }),
@@ -311,7 +312,9 @@ onBeforeUnmount(() => {
     />
     <p v-else-if="query.isError.value && !query.data.value" class="volunteer-blasts__error" role="alert">Unable to load volunteer Broadcasts. Refresh and try again.</p>
     <div v-else-if="accepted.length" class="volunteer-blasts__composer">
-      <div class="volunteer-blasts__fields">
+      <section class="volunteer-blasts__message-panel" aria-labelledby="volunteer-message-heading">
+        <h4 id="volunteer-message-heading">Message</h4>
+        <div class="volunteer-blasts__fields">
         <label>
           <span>Subject</span>
           <input v-model="subject" class="editorial-input" maxlength="160" placeholder="Volunteer orientation and next steps">
@@ -320,13 +323,18 @@ onBeforeUnmount(() => {
           <span>Message</span>
           <textarea v-model="body" class="editorial-input" rows="6" maxlength="5000" placeholder="Write the update the selected volunteers should receive."></textarea>
         </label>
-        <label>
-          <span>Schedule (optional)</span>
-          <input v-model="scheduledFor" class="editorial-input" type="datetime-local">
-        </label>
-      </div>
+        <div class="volunteer-blasts__schedule">
+          <AppDatePicker v-model="scheduledFor" label="Send later (optional)" mode="datetime" density="field" />
+          <p>Leave blank to send after confirmation.</p>
+        </div>
+        </div>
+      </section>
 
       <div class="volunteer-blasts__audience">
+        <div class="volunteer-blasts__audience-heading">
+          <h4>Recipients</h4>
+          <span aria-live="polite">{{ selectedCount }} selected</span>
+        </div>
         <div class="volunteer-blasts__audience-toolbar">
           <label>
             <span class="sr-only">Search accepted volunteers</span>
@@ -338,10 +346,10 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <p class="volunteer-blasts__safety">No one is selected automatically. Your selection stays intact while you search or change pages.</p>
+        <p class="volunteer-blasts__safety">No one is selected automatically. Selections stay saved across search and pages.</p>
         <ul class="volunteer-blasts__people">
           <li v-for="recipient in pageRecipients" :key="recipient.id">
-            <label>
+            <label :class="{ 'is-selected': selectedIds.has(recipient.id) }">
               <input type="checkbox" :checked="selectedIds.has(recipient.id)" @change="toggleRecipient(recipient.id)">
               <span><strong>{{ recipient.name }}</strong><small>{{ recipient.email }}</small></span>
             </label>
@@ -356,12 +364,16 @@ onBeforeUnmount(() => {
           :range-end="pageEnd"
           :total="filtered.length"
           item-label="accepted volunteers"
+          aria-label="Recipient pages"
         />
       </div>
 
-      <button type="button" class="volunteer-blasts__primary" :disabled="!canPreview" @click="openPreview">
-        Preview update for {{ selectedCount }} volunteer{{ selectedCount === 1 ? '' : 's' }}
-      </button>
+      <footer class="volunteer-blasts__composer-footer">
+        <span aria-live="polite">{{ selectedCount }} volunteer{{ selectedCount === 1 ? '' : 's' }} selected</span>
+        <button type="button" class="volunteer-blasts__primary" :disabled="!canPreview" @click="openPreview">
+          Preview update
+        </button>
+      </footer>
     </div>
     <p v-else class="volunteer-blasts__empty">No accepted volunteers are available yet. Save accepted decisions in Reviews first.</p>
 
@@ -478,53 +490,115 @@ onBeforeUnmount(() => {
   border: 1px solid #d8d2c4;
   border-radius: 8px;
   background: #faf5e9;
-  font: 700 0.72rem/1.2 var(--font-mono), monospace;
+  font: 600 0.875rem/1.4 var(--font-sans), sans-serif;
 }
 
 .volunteer-blasts__composer {
   display: grid;
-  gap: 1rem;
-  margin-top: 1rem;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
 }
 
 .volunteer-blasts__fields {
   display: grid;
-  gap: 0.8rem;
-  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.38fr);
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.volunteer-blasts__fields label:nth-child(2) {
-  grid-column: 1 / -1;
-  grid-row: 2;
-}
-
-.volunteer-blasts label {
+.volunteer-blasts__fields > label,
+.volunteer-blasts__audience-toolbar > label {
   display: grid;
   gap: 0.35rem;
   color: #69665f;
-  font: 700 0.68rem/1.2 var(--font-mono), monospace;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font: 600 0.875rem/1.5 var(--font-sans), sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
-.volunteer-blasts input,
-.volunteer-blasts textarea {
+.volunteer-blasts__fields > label input,
+.volunteer-blasts__fields > label textarea,
+.volunteer-blasts__audience-toolbar input {
   width: 100%;
   min-width: 0;
   border: 1px solid #d3d0c9;
   border-radius: 8px;
   background: #fff;
   color: #25231f;
-  font: 500 0.88rem/1.45 var(--font-sans), sans-serif;
+  font: 400 1rem/1.5 var(--font-sans), sans-serif;
   letter-spacing: 0;
   text-transform: none;
 }
 
+.volunteer-blasts__message-panel,
 .volunteer-blasts__audience {
   padding: 1rem;
-  border: 1px solid #e7dcc5;
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  background: #faf5e9;
+  background: var(--surface-paper);
+}
+
+.volunteer-blasts__message-panel > .volunteer-blasts__fields {
+  margin-top: 1rem;
+}
+
+.volunteer-blasts__schedule :deep(.editorial-label) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.volunteer-blasts__composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+  color: #555555;
+  font-size: 0.875rem;
+}
+
+.volunteer-blasts__audience-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.volunteer-blasts__message-panel > h4,
+.volunteer-blasts__audience-heading h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.volunteer-blasts__audience-heading span {
+  color: #555555;
+  font-size: 0.875rem;
+}
+
+.volunteer-blasts__schedule p {
+  margin: 0.5rem 0 0;
+  color: #555555;
+  font-size: 0.875rem;
+}
+
+.volunteer-blasts__people label.is-selected {
+  background: var(--surface-warm);
+}
+
+.volunteer-blasts__people input:focus-visible {
+  outline: 2px solid #111111;
+  outline-offset: 3px;
+}
+
+.volunteer-blasts__audience :deep(.app-pagination) {
+  padding: 1rem 0 0;
+  border-top: 0;
 }
 
 .volunteer-blasts__audience-toolbar {
@@ -548,8 +622,8 @@ onBeforeUnmount(() => {
 
 @container (min-width: 54rem) {
   .volunteer-blasts__composer {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: start;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    align-items: stretch;
   }
 
   .volunteer-blasts__fields {
@@ -558,11 +632,11 @@ onBeforeUnmount(() => {
 
   .volunteer-blasts__audience {
     grid-column: 2;
-    grid-row: 1 / span 2;
+    grid-row: 1;
   }
 
-  .volunteer-blasts__composer > .volunteer-blasts__primary {
-    grid-column: 1;
+  .volunteer-blasts__composer-footer {
+    grid-column: 1 / -1;
   }
 
   .volunteer-blasts__audience-toolbar {
@@ -592,8 +666,8 @@ onBeforeUnmount(() => {
 
 .volunteer-blasts__people {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .volunteer-blasts__people li {
@@ -603,18 +677,21 @@ onBeforeUnmount(() => {
 .volunteer-blasts__people label {
   display: flex;
   align-items: flex-start;
-  gap: 0.65rem;
-  padding: 0.7rem;
-  border: 1px solid #dedbd4;
-  border-radius: 8px;
-  background: #fff;
+  min-height: 64px;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-paper);
   cursor: pointer;
+  letter-spacing: 0;
   text-transform: none;
 }
 
 .volunteer-blasts__people input {
-  width: 1rem;
-  margin: 0.15rem 0 0;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0.2rem 0 0;
   accent-color: #c80d68;
 }
 
@@ -626,31 +703,30 @@ onBeforeUnmount(() => {
 
 .volunteer-blasts__people strong,
 .volunteer-blasts__people small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .volunteer-blasts__people strong {
   color: #25231f;
-  font: 700 0.83rem/1.3 var(--font-sans), sans-serif;
+  font: 600 1rem/1.35 var(--font-sans), sans-serif;
 }
 
 .volunteer-blasts__people small {
   color: #69665f;
-  font: 500 0.72rem/1.3 var(--font-sans), sans-serif;
+  font: 400 0.875rem/1.4 var(--font-sans), sans-serif;
 }
 
 .volunteer-blasts__primary,
 .volunteer-blasts__secondary,
 .volunteer-blasts__drawer header button,
 .volunteer-blasts__tabs button {
-  min-height: 2.55rem;
+  min-height: 44px;
   border: 1px solid #d3d0c9;
-  border-radius: 8px;
-  background: #fff;
+  border-radius: 6px;
+  background: var(--surface-paper);
   color: #25231f;
-  font: 700 0.78rem/1 var(--font-sans), sans-serif;
+  font: 600 0.875rem/1 var(--font-sans), sans-serif;
   cursor: pointer;
 }
 
@@ -879,14 +955,12 @@ onBeforeUnmount(() => {
   .volunteer-blasts__primary,
   .volunteer-blasts__secondary,
   .volunteer-blasts__tabs button {
-    transition:
-      transform 150ms cubic-bezier(0.34, 1.56, 0.64, 1),
-      border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .volunteer-blasts__primary:hover,
   .volunteer-blasts__secondary:hover {
-    transform: translateY(-1px);
+    border-color: #111111;
   }
 }
 

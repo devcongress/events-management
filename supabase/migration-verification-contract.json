@@ -4866,6 +4866,51 @@
           "serviceExecute": true
         }
       ]
+    },
+    {
+      "file": "20261031093000_ticket_purchase_short_link_enum.sql",
+      "sha256": "2da49bd512b483f2b5aa85fc87d6e2a8e632f3d32003b96351a017672bbf8013",
+      "checks": [
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "name": "short_links_destination_target",
+          "table": "short_links",
+          "contains": [
+            "conference_ticket_purchase",
+            "conference_edition_id IS NOT NULL"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "20261031093100_ticket_purchase_short_link_support.sql",
+      "sha256": "4577ce59ee5f7e2da6cd35918bcd3f08bf1d0845d057d9c330b5361371443e8c",
+      "checks": [
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "name": "short_links_destination_target",
+          "table": "short_links",
+          "contains": [
+            "conference_ticket_purchase",
+            "conference_edition_id IS NOT NULL"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "ensure_active_short_link",
+          "argumentTypes": "short_link_destination, uuid, uuid, text, uuid",
+          "result": "SETOF short_links",
+          "language": "plpgsql",
+          "bodySha256": "f3d974c133b1917901d6cfdced443539d877868d70119868444568943f34d979",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
     }
   ]
 }

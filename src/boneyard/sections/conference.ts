@@ -93,22 +93,20 @@ export const conferenceSections: SkeletonSection[] = [
       },
       {
         "kind": "heading",
-        "title": "Completion by assignee",
+        "title": "Team progress",
         "eyebrow": "Team workload",
         "level": "section"
       },
       {
-        "kind": "cards",
-        "count": 3,
-        "columns": 3,
-        "title": "Accountable owner",
-        "meta": [
-          "Pending tasks",
-          "Complete of assigned"
+        "kind": "table",
+        "columns": [
+          { "label": "Assignee", "width": "25%" },
+          { "label": "Completion", "width": "45%" },
+          { "label": "Complete", "width": "15%", "cell": "number" },
+          { "label": "Pending", "width": "15%", "cell": "number" }
         ],
-        "actions": [
-          "View tasks"
-        ]
+        "rows": 3,
+        "mobile": "cards"
       }
     ]
   },
@@ -2152,6 +2150,7 @@ export const conferenceSections: SkeletonSection[] = [
           [
             {
               "kind": "form",
+              "title": "Message",
               "columns": 1,
               "fields": [
                 {
@@ -2165,13 +2164,10 @@ export const conferenceSections: SkeletonSection[] = [
                   "fullWidth": false
                 },
                 {
-                  "label": "Schedule (optional)",
+                  "label": "Send later (optional)",
                   "type": "input",
                   "fullWidth": false
                 }
-              ],
-              "actions": [
-                "Preview update"
               ]
             }
           ],
@@ -2191,6 +2187,10 @@ export const conferenceSections: SkeletonSection[] = [
             }
           ]
         ]
+      },
+      {
+        "kind": "toolbar",
+        "actions": ["Preview update"]
       },
       {
         "kind": "section",

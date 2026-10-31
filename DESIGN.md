@@ -111,6 +111,11 @@ leaf has current-page semantics. Phone trails show the nearest parent and curren
 workspace, returning to the same conference year. Breadcrumbs complement the
 sibling row.
 
+**Conference scrolling:** On desktop, breadcrumbs stay at the top of the main
+scroll container. The conference header sticks beneath their measured height.
+On pages with subsection navigation, only breadcrumbs remain sticky; expanded
+edition forms scroll normally.
+
 **Phones:** Keep Ticketing on its existing responsive route. Its Mobile Conference
 entry follows existing role/capability rules. Orders use cards below the desktop
 table breakpoint. Forms stack, drawer Close controls remain visible, safe areas

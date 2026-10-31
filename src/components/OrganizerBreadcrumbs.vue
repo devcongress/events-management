@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQueryClient } from '@tanstack/vue-query';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import {
   readOrganizerBreadcrumbLabels,
@@ -19,6 +19,25 @@ const props = withDefaults(defineProps<{
 const route = useRoute();
 const client = useQueryClient();
 const cacheRevision = ref(0);
+const breadcrumbElement = ref<HTMLElement | null>(null);
+let breadcrumbResizeObserver: ResizeObserver | undefined;
+let scrollContainer: HTMLElement | null = null;
+
+watch(breadcrumbElement, (element) => {
+  breadcrumbResizeObserver?.disconnect();
+  scrollContainer?.style.removeProperty('--organizer-breadcrumb-height');
+  scrollContainer = element?.closest<HTMLElement>('.app-main') ?? null;
+
+  if (!element || props.embedded || !scrollContainer) return;
+
+  const measure = () => {
+    scrollContainer?.style.setProperty('--organizer-breadcrumb-height', `${element.getBoundingClientRect().height}px`);
+  };
+
+  measure();
+  breadcrumbResizeObserver = new ResizeObserver(measure);
+  breadcrumbResizeObserver.observe(element);
+}, { flush: 'post' });
 let unsubscribe: (() => void) | undefined;
 const labels = computed(() => {
   void cacheRevision.value;
@@ -42,12 +61,17 @@ onMounted(() => {
   });
 });
 
-onUnmounted(() => unsubscribe?.());
+onUnmounted(() => {
+  unsubscribe?.();
+  breadcrumbResizeObserver?.disconnect();
+  scrollContainer?.style.removeProperty('--organizer-breadcrumb-height');
+});
 </script>
 
 <template>
   <nav
     v-if="breadcrumbs.length"
+    ref="breadcrumbElement"
     class="organizer-breadcrumbs"
     :class="{ 'organizer-breadcrumbs--embedded': embedded }"
     aria-label="Breadcrumb"

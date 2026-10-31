@@ -1,3 +1,4 @@
+import { TICKET_PURCHASE_PATH, TICKET_PURCHASE_URL } from './ticket-purchase';
 import { isSupportedShortLinkCode } from './code-patterns';
 
 export interface ShortLinkEnv {
@@ -107,9 +108,12 @@ export async function resolveShortLinkRequest(request: Request, env: ShortLinkEn
   if (typeof body.destination_path !== 'string' || !body.destination_path.startsWith('/') || body.destination_path.startsWith('//')) {
     return unavailable();
   }
-  const destination = new URL(body.destination_path, env.PUBLIC_APP_ORIGIN);
+  const origin = body.destination_path === TICKET_PURCHASE_PATH
+    ? new URL(TICKET_PURCHASE_URL).origin
+    : new URL(env.PUBLIC_APP_ORIGIN).origin;
+  const destination = new URL(body.destination_path, origin);
 
-  if (destination.origin !== new URL(env.PUBLIC_APP_ORIGIN).origin) return unavailable();
+  if (destination.origin !== origin) return unavailable();
 
   return new Response(null, {
     status: 302,

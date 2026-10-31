@@ -17,6 +17,7 @@ export interface PresentationForm {
 }
 
 export const presentationCopy = {
+  conference_ticket_purchase: { title: 'Get your ticket', label: 'DevCon26 ticket purchase' },
   conference_cfp: { title: 'Share what you know.', label: 'Conference speaker applications' },
   volunteer_intake: { title: 'Join the crew.', label: 'Volunteer with DevCongress' },
   event_feedback: { title: 'How was today?', label: 'Meetup feedback' },
@@ -33,7 +34,7 @@ export function presentationMonth(date = new Date()): string {
 }
 
 export function formsForMonth(forms: PresentationForm[], month: string): PresentationForm[] {
-  return forms.filter((form) => ['event_feedback', 'volunteer_intake', 'conference_cfp'].includes(form.destination)).filter((form) => !form.event_id || (
+  return forms.filter((form) => ['event_feedback', 'volunteer_intake', 'conference_cfp', 'conference_ticket_purchase'].includes(form.destination)).filter((form) => !form.event_id || (
     form.event_date && presentationMonth(new Date(form.event_date)) === month
   ));
 }

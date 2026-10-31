@@ -121,3 +121,27 @@ describe('short-link Worker', () => {
     expect(resolver).not.toHaveBeenCalled();
   });
 });
+
+describe('ticket purchase destination', () => {
+  it.each([
+    ['/devcon26/checkout', 'https://devcongress.org/devcon26/checkout'],
+    ['/devcon26/checkout?next=evil', 'https://em.devcongress.org/devcon26/checkout?next=evil'],
+    ['/apply', 'https://em.devcongress.org/apply'],
+  ])('routes %s to its fixed origin', async (path, expected) => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ destination_path: path })));
+
+    const response = await resolveShortLinkRequest(new Request('https://go.devcongress.org/ABC234'), env());
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe(expected);
+  });
+
+  it.each(['https://evil.example/checkout', '//evil.example/checkout'])('rejects external resolver targets: %s', async (path) => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ destination_path: path })));
+
+    const response = await resolveShortLinkRequest(new Request('https://go.devcongress.org/ABC234'), env());
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('location')).toBeNull();
+  });
+});

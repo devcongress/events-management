@@ -26,7 +26,7 @@ export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 export type EventBlastStatus =
   | 'waiting' | 'preparing' | 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
 export type ShortLinkDestination =
-  | 'monthly_cfp' | 'event_registration' | 'event_feedback' | 'conference_cfp' | 'volunteer_intake' | 'volunteer_follow_up_test';
+  | 'monthly_cfp' | 'event_registration' | 'event_feedback' | 'conference_cfp' | 'conference_ticket_purchase' | 'volunteer_intake' | 'volunteer_follow_up_test';
 export type ShortLinkStatus = 'active' | 'revoked';
 export type AdminRole = 'owner' | 'organizer' | 'volunteer';
 export type AdminMembershipStatus = 'active' | 'disabled';
