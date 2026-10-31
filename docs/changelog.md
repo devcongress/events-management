@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-31 — Presentation pixel courier
+
+- Add a larger, responsive code symbol with a pixel trail beneath the audience QR board, alternating direction with quiet intervals. Reserve a clear bottom margin beneath the QR links; pause in hidden tabs and disable it for reduced motion and print.
+
 ## 2026-10-31 — Dev-server dependency audit
 
 - Pin minimatch to 11.0.1 across the Hono dev-server and lint tooling to address the globparts amplification advisory reported by CI.

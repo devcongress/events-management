@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import QRCode from 'qrcode';
 import PresentationPeekFace from '@/src/components/PresentationPeekFace.vue';
+import PresentationPixelCourier from '@/src/components/PresentationPixelCourier.vue';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { adminPath } from '@/src/admin-routes';
 import { ensureAdminShortLink, fetchJson } from '@/src/lib/api';
@@ -117,6 +118,7 @@ onMounted(load);
         <a :href="card.url" target="_blank" rel="noopener noreferrer" class="card-url">{{ card.url.replace(/^https?:\/\//, '') }}</a>
       </article>
     </section>
+    <PresentationPixelCourier v-if="!loading && !error" />
     <footer v-if="demo"><span>Demo · sample codes only</span> — these QR codes do not open live forms.</footer>
   </main>
 </template>
@@ -130,6 +132,7 @@ onMounted(load);
   background: #f5f2e8;
   color: #111;
   padding: clamp(24px, 2.8vw, 54px) clamp(28px, 3.6vw, 70px);
+  padding-bottom: max(48px, 2.8vw);
 }
 
 .background-mark {
