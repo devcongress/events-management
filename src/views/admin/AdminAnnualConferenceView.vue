@@ -3,9 +3,12 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
+import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
+import { annualConferenceOwnerAvatarSeed, annualConferenceOwnerAvatarSeeds } from '@/lib/annual-conference-owner-avatar';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
+  createAnnualConferenceOwnerDirectory,
   summarizeAnnualConferenceDependencies,
   summarizeAnnualConferenceTasksByOwner,
   summarizeAnnualConferenceWorkPlan,
@@ -41,6 +44,19 @@ const organizersQuery = useQuery({
   queryFn: fetchAdminOrganizers,
   enabled: computed(() => Boolean(workPlanQuery.data.value) && !assignedAccess.value),
 });
+const ownerAvatarSeeds = computed(() => {
+  const members = organizersQuery.data.value?.organizers ?? [];
+  const directory = createAnnualConferenceOwnerDirectory(members);
+  const aliases = [
+    ...members.flatMap((member) => [member.email, member.display_name ?? '', member.email.split('@')[0] ?? '']),
+    ...tasks.value.map((task) => task.accountable_owner ?? ''),
+  ].filter((owner) => owner.trim());
+
+  // Use the full board roster, including people without pending tasks, so the
+  // collision-resistant seed allocation matches the work plan exactly.
+  return annualConferenceOwnerAvatarSeeds(aliases.map((owner) => directory.resolve(owner).filter_value));
+});
+
 const taskCompletionByPerson = computed(() => {
   const activeMembers = (organizersQuery.data.value?.organizers ?? [])
     .filter((member) => member.status === 'active');
@@ -350,12 +366,17 @@ onUnmounted(() => {
         <section v-if="!assignedAccess" class="conference-workload" aria-labelledby="conference-workload-title">
           <div class="conference-workload__heading">
             <div>
-              <p class="conference-brief__eyebrow">Team workload</p>
-              <h3 id="conference-workload-title">Completion by assignee</h3>
+              <h3 id="conference-workload-title">Team progress</h3>
+              <p class="conference-workload__caption">People with pending tasks</p>
             </div>
           </div>
 
           <div v-if="taskCompletionByPerson.length" class="conference-workload__list" aria-label="Task completion by person">
+            <div class="conference-workload__columns" aria-hidden="true">
+              <span>Assignee</span>
+              <span class="conference-workload__completed-label">Completed</span>
+              <span class="conference-workload__pending-label">Pending</span>
+            </div>
             <RouterLink
               v-for="person in taskCompletionByPerson"
               :key="person.email"
@@ -363,18 +384,19 @@ onUnmounted(() => {
                 path: annualConferencePath('work-plan', year),
                 query: { owner: person.filterOwner },
               }"
-              class="conference-workload__person motion-press"
+              class="conference-workload__person"
               :aria-label="`View ${person.name}'s tasks in the work plan`"
             >
-              <div class="conference-workload__person-heading">
-                <p>{{ person.name }}</p>
-                <span>{{ person.pending }} pending</span>
+              <div class="conference-workload__name">
+                <NaviiAvatar :seed="annualConferenceOwnerAvatarSeed(person.filterOwner, ownerAvatarSeeds)" :size="32" title="" aria-hidden="true" />
+                <span>{{ person.name }}</span>
               </div>
-              <div class="conference-workload__meter" role="progressbar" :aria-label="`${person.name} task completion`" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="personCompletionPercent(person)">
+              <div class="conference-workload__meter" role="progressbar" :aria-label="`${person.name} task completion`" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="personCompletionPercent(person)" :aria-valuetext="`${person.complete} of ${person.total} tasks complete`">
                 <span :style="{ transform: `scaleX(${personCompletionPercent(person) / 100})` }" />
               </div>
-              <p class="conference-workload__detail">{{ person.complete }} of {{ person.total }} complete</p>
-              <span class="conference-workload__open">View tasks <span aria-hidden="true">→</span></span>
+              <span class="conference-workload__detail"><strong>{{ person.complete }}</strong><span class="conference-workload__total"> / {{ person.total }}</span><span class="sr-only"> tasks complete</span></span>
+              <span class="conference-workload__pending">{{ person.pending }}<span class="sr-only"> pending tasks</span></span>
+              <svg class="conference-workload__open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
             </RouterLink>
           </div>
           <p v-else class="conference-workload__empty">There are no outstanding tasks with an accountable owner.</p>
@@ -607,8 +629,8 @@ onUnmounted(() => {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: clamp(2rem, 5vw, 5.5rem);
-  border-top: 1px solid #d9d5cc;
-  padding: clamp(1.35rem, 2.6vw, 2.1rem) 0;
+  border-top: 1px solid var(--border-subtle);
+  padding: 1.5rem 0;
 }
 
 .conference-volunteer-empty {
@@ -780,8 +802,8 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1.5rem 3rem;
-  border-top: 1px solid #d9d5cc;
-  padding: clamp(1.35rem, 2.6vw, 2.1rem) 0;
+  border-top: 1px solid var(--border-subtle);
+  padding: 1.5rem 0;
 }
 
 .conference-dependencies__heading {
@@ -792,12 +814,12 @@ onUnmounted(() => {
 }
 
 .conference-dependencies__heading h3 {
-  margin: 0.4rem 0 0;
+  margin: 0;
   color: #111111;
-  font-size: clamp(1.15rem, 1.8vw, 1.45rem);
+  font-size: 1.5rem;
   font-weight: var(--font-weight-heading);
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
 }
 
 .conference-dependencies__action {
@@ -996,8 +1018,8 @@ onUnmounted(() => {
 }
 
 .conference-workload {
-  border-top: 1px solid #d9d5cc;
-  padding: clamp(1.35rem, 2.6vw, 2.1rem) 0;
+  border-top: 1px solid var(--border-subtle);
+  padding: 1.5rem 0;
 }
 
 .conference-workload__heading {
@@ -1008,75 +1030,98 @@ onUnmounted(() => {
 }
 
 .conference-workload__heading h3 {
-  margin: 0.4rem 0 0;
+  margin: 0;
   color: #111111;
-  font-size: clamp(1.15rem, 1.8vw, 1.45rem);
+  font-size: 1.5rem;
   font-weight: var(--font-weight-heading);
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.conference-workload__caption {
+  margin: 0.5rem 0 0;
+  color: #666666;
+  font-size: 0.9rem;
 }
 
 .conference-workload__list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 0.7rem;
+  width: 100%;
   margin-top: 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-paper);
 }
 
+.conference-workload__columns,
 .conference-workload__person {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.1fr) minmax(5rem, 2fr) 3.5rem 4.5rem 1rem;
+  grid-template-areas: "name bar complete pending arrow";
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 56px;
   min-width: 0;
-  border: 1px solid #d9d5cc;
-  border-radius: 6px;
-  background: #fffdf6;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
   color: inherit;
-  padding: 0.85rem 0.9rem;
   text-decoration: none;
-  transition:
-    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.conference-workload__person-heading {
+.conference-workload__columns {
+  min-height: 40px;
+  border-radius: 8px 8px 0 0;
+  background: var(--surface-soft);
+  color: #555555;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.conference-workload__completed-label {
+  grid-column: 2 / 4;
+}
+
+.conference-workload__pending-label {
+  grid-column: 4;
+  text-align: right;
+}
+
+.conference-workload__person:last-child {
+  border-bottom: 0;
+  border-radius: 0 0 8px 8px;
+}
+
+.conference-workload__person:focus-visible {
+  outline: 2px solid #b80761;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.conference-workload__person:active {
+  transform: scale(0.99);
+}
+
+.conference-workload__name {
+  grid-area: name;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 0.75rem;
-}
-
-.conference-workload__person-heading p {
   min-width: 0;
   margin: 0;
+  overflow-wrap: anywhere;
   color: #111111;
-  overflow: hidden;
-  font-size: 0.86rem;
+  font-size: 1rem;
   font-weight: var(--font-weight-heading);
-  letter-spacing: -0.01em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.conference-workload__person-heading span,
-.conference-workload__detail {
-  margin: 0;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.58rem;
-  font-weight: var(--font-weight-label);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.conference-workload__person-heading span {
-  flex: 0 0 auto;
-  color: #e8117f;
+  line-height: 1.4;
 }
 
 .conference-workload__meter {
-  height: 4px;
-  margin-top: 0.75rem;
+  grid-area: bar;
+  height: 8px;
   overflow: hidden;
-  border-radius: 999px;
-  background: #e4e0d7;
+  border-radius: 6px;
+  background: var(--surface-soft);
 }
 
 .conference-workload__meter span {
@@ -1084,34 +1129,57 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   border-radius: inherit;
-  background: #111111;
+  background: #e8117f;
   transform-origin: left center;
   transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.conference-workload__detail,
+.conference-workload__pending {
+  margin: 0;
+  color: #555555;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .conference-workload__detail {
-  margin-top: 0.55rem;
-  color: #666666;
+  grid-area: complete;
+}
+
+.conference-workload__detail strong {
+  color: #111111;
+  font-weight: 600;
+}
+
+.conference-workload__pending {
+  grid-area: pending;
 }
 
 .conference-workload__open {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 0.8rem;
-  color: #111111;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.54rem;
-  font-weight: var(--font-weight-label);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  grid-area: arrow;
+  color: #666666;
+  text-align: right;
 }
 
-.conference-workload__open span {
-  color: #e8117f;
-  font-size: 0.8rem;
-  line-height: 0;
-  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+@media (max-width: 760px) {
+  .conference-workload__columns {
+    display: none;
+  }
+
+  .conference-workload__person {
+    grid-template-columns: minmax(0, 1fr) auto 1rem;
+    grid-template-areas: "name pending arrow" "bar complete complete";
+    gap: 0.65rem 0.85rem;
+    padding-block: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conference-workload__person:active {
+    transform: none;
+  }
 }
 
 .conference-workload__empty {
@@ -1162,12 +1230,11 @@ onUnmounted(() => {
   }
 
   .conference-workload__person:hover {
-    border-color: #111111;
-    transform: translate3d(0, -2px, 0);
+    background: var(--surface-warm);
   }
 
-  .conference-workload__person:hover .conference-workload__open span {
-    transform: translate3d(3px, 0, 0);
+  .conference-workload__person:hover .conference-workload__open {
+    color: #b80761;
   }
 }
 
@@ -1242,7 +1309,7 @@ onUnmounted(() => {
   .conference-delivery__progress span,
   .conference-workload__meter span,
   .conference-workload__person,
-  .conference-workload__open span,
+  .conference-workload__open,
   .conference-brief__action-arrow {
     transition-duration: 1ms;
   }

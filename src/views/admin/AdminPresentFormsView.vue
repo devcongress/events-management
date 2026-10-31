@@ -36,7 +36,7 @@ const available = computed(() => {
     choices.unshift({ key: 'feedback-unavailable', destination: 'event_feedback', available: false, event_id: null, conference_year: null, label: 'No monthly meetup feedback available', event_date: null, series_type: 'monthly' });
   }
 
-  const order = ['event_feedback', 'volunteer_intake', 'conference_cfp'];
+  const order = ['event_feedback', 'volunteer_intake', 'conference_cfp', 'conference_ticket_purchase'];
 
   return choices.sort((a, b) => order.indexOf(a.destination) - order.indexOf(b.destination));
 });
@@ -274,8 +274,8 @@ fieldset {
   color: #b90068;
 }
 
-.form-choice:focus-within {
-  outline: 3px solid #ed008c;
+.form-choice input:focus-visible {
+  outline: 2px solid #111;
   outline-offset: 3px;
 }
 .form-choice small {

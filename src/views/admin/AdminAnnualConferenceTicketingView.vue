@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
+import TicketPurchaseLinkPanel from '@/src/components/TicketPurchaseLinkPanel.vue';
 import WorkspaceSectionNav from '@/src/components/WorkspaceSectionNav.vue';
 import Devcon26TestCoupons from '@/src/components/Devcon26TestCoupons.vue';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
@@ -602,9 +603,10 @@ onUnmounted(() => {
             </dl>
             <p class="mt-4 text-sm leading-6 text-dc-gray">Next: confirm the merchant account and payment-provider configuration. No attendee can be charged from this workspace.</p>
           </aside>
+          <TicketPurchaseLinkPanel v-if="year === '2026'" />
         </div>
 
-        <section class="border-y-2 border-dc-ink py-5" aria-labelledby="passes-title">
+        <section class="py-5" aria-labelledby="passes-title">
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p class="editorial-eyebrow">Public passes</p>
@@ -617,7 +619,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <dl class="mt-5 divide-y divide-dc-border border-y border-dc-border">
+          <dl class="mt-5 divide-y divide-dc-border">
             <div v-for="tier in ticketing.settings.ticket_tiers" :key="tier.key" class="grid gap-1 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-6">
               <div>
                 <dt class="font-semibold text-dc-ink">{{ year === '2026' ? 'Individual ticket' : tier.label }}</dt>
@@ -808,7 +810,7 @@ onUnmounted(() => {
           </form>
           <p v-if="sponsorStatus" class="mt-3 text-sm font-medium" :class="Object.keys(sponsorFormErrors).length ? 'text-dc-pink' : 'text-dc-ink'" aria-live="polite">{{ sponsorStatus }}</p>
 
-          <div class="mt-6 border-y border-dc-border">
+          <div class="mt-6">
             <BoneyardPageSkeleton
               v-if="sponsorQuery.isLoading.value && !sponsorQuery.data.value"
               name="annual-conference-sponsor-allocations"
@@ -863,7 +865,7 @@ onUnmounted(() => {
             </header>
 
             <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
-              <dl class="divide-y divide-dc-border border-y border-dc-border">
+              <dl class="grid gap-1">
                 <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Pass</dt><dd class="text-right font-semibold text-dc-ink">{{ ticketTierLabel(selectedOrder.tier_key) }} · {{ selectedOrder.quantity }} {{ selectedOrder.quantity === 1 ? 'seat' : 'seats' }}</dd></div>
                 <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">{{ selectedOrder.payment_mode === 'test' ? 'Simulated amount (GH₵0 charged)' : 'Paid amount' }}</dt><dd class="font-semibold text-dc-ink">{{ formatTicketMoney(selectedOrder.amount_minor) }}</dd></div>
                 <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Purchased</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ formatTicketDate(selectedOrder.created_at) }}</dd></div>
@@ -875,7 +877,7 @@ onUnmounted(() => {
                 <p class="editorial-eyebrow">Admission seats</p>
                 <h3 id="order-seats-title" class="mt-1 text-lg font-semibold text-dc-ink">Check-in progress</h3>
                 <p class="mt-2 text-sm leading-6 text-dc-gray">Each seat will carry its own bearer ticket and can be scanned independently. QR credentials are never exposed in this organizer view.</p>
-                <ol class="mt-4 divide-y divide-dc-border border-y border-dc-border">
+                <ol class="mt-4 divide-y divide-dc-border">
                   <li v-for="seat in selectedOrder.seats" :key="seat.id" class="flex items-center justify-between gap-4 py-3"><div><p class="font-semibold text-dc-ink">Seat {{ seat.order_seat_number ?? '—' }}</p><p class="mt-1 text-xs text-dc-gray">{{ seat.checked_in_at ? `Checked in ${formatTicketDate(seat.checked_in_at)}` : seat.issued_at ? `Issued ${formatTicketDate(seat.issued_at)}` : 'Awaiting ticket issue' }}</p></div><span class="rounded-full border border-dc-border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase text-dc-ink">{{ seat.status }}</span></li>
                 </ol>
               </section>

@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-10-31 — Presentation pixel courier
+
+- Add a larger, responsive code symbol with a pixel trail beneath the audience QR board, alternating direction with quiet intervals. Reserve a clear bottom margin beneath the QR links; pause in hidden tabs and disable it for reduced motion and print.
+
+## 2026-10-31 — Dev-server dependency audit
+
+- Pin minimatch to 11.0.1 across the Hono dev-server and lint tooling to address the globparts amplification advisory reported by CI.
+
+## 2026-10-31 — Present Forms selection
+
+- Remove the pink focus outline around form cards after selection. Keep selected backgrounds and checkboxes, with keyboard focus indicated on the checkbox only.
+
+## 2026-10-31 — Ticket purchase short link and QR
+
+- Reuse the canonical short-link service for DevCon26 ticket purchases. Add copy/open/download controls in ticketing and an optional ticket QR tile to Present Forms.
+- Route only the exact ticket checkout path to devcongress.org; other short links retain their EMS destination. Add two forward migrations for the destination enum and existing ensure RPC. These migrations and the EMS/short-link deployments are required before live use.
+
+## 2026-10-31 — Organizer UI refinements
+
+- Use pink completion bars and each person’s matching work-plan Navii avatar, deriving icons from the full roster so filtering does not change their identity.
+
+- Replace assignee cards on the conference overview with aligned horizontal completion bars, readable names, and completed/pending counts. Keep the existing pending-only population, owner-filter links and restricted-access rules. Use the shared paper surface, warm-gray borders, mixed-case column labels, and compact rows; remove card hover movement. Preserve the separate phone conference route.
+
+- Balance the volunteer composer with matching Message and Recipients panels, a 55/45 desktop split, four recipients per page, and one shared preview footer.
+
+- Use the shared date/time picker in volunteer broadcasts. Replace recipient cards with readable selection rows, visible selected states, and compact shared pagination; preserve selection across search and pages.
+
+- Keep desktop conference breadcrumbs sticky with the conference header beneath them. On pages with subsection navigation, only breadcrumbs remain sticky. Expanded edition forms scroll normally. Remove the decorative stripe from selected volunteer recipients.
+
+- Remove redundant framing lines around ticket pricing, empty sponsor allocations, and order-detail fields. Retain separators between actual pricing tiers and admission seats.
+
 ## 2026-10-30
 
 - Pace admission email retries with a shared database lease and provider cooldown; preserve frozen payloads for up to 23 hours and stop uncertain older deliveries for operator review. Add bounded queued payment reconciliation, conservative initialization recovery, and shared-network checkout limits with buyer/order safeguards. Requires migration `20261030210000_checkout_delivery_recovery.sql`; not applied by this change.

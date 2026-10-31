@@ -451,10 +451,11 @@ function selectSection(section: AuditLogSection) {
   activeSection.value = section;
 }
 
-function shortLinkDestinationLabel(destination: 'monthly_cfp' | 'event_registration' | 'event_feedback' | 'conference_cfp' | 'volunteer_intake' | 'volunteer_follow_up_test'): string {
+function shortLinkDestinationLabel(destination: 'monthly_cfp' | 'event_registration' | 'event_feedback' | 'conference_cfp' | 'conference_ticket_purchase' | 'volunteer_intake' | 'volunteer_follow_up_test'): string {
   if (destination === 'volunteer_intake') return 'Volunteer form';
   if (destination === 'volunteer_follow_up_test') return 'Volunteer test form';
   if (destination === 'conference_cfp') return 'Conference CFP';
+  if (destination === 'conference_ticket_purchase') return 'Ticket purchase';
   if (destination === 'monthly_cfp') return 'Monthly CFP';
   if (destination === 'event_feedback') return 'Event feedback';
 

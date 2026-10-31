@@ -19,6 +19,13 @@ describe('presentation form selection', () => {
     expect(defaultPresentationKeys(catalog, '2026-09')).toEqual(['speakers', 'volunteers']);
   });
 
+  it('offers the ticket QR without changing the default selection', () => {
+    const catalog = [...forms, form('tickets', 'conference_ticket_purchase', { conference_year: 2026 })];
+
+    expect(formsForMonth(catalog, '2026-10').map((item) => item.key)).toContain('tickets');
+    expect(defaultPresentationKeys(catalog, '2026-10')).toEqual(['speakers', 'volunteers', 'october']);
+  });
+
   it('selects the three defaults for the requested month', () => {
     expect(defaultPresentationKeys(forms, '2026-09')).toEqual(['speakers', 'volunteers', 'september']);
     expect(defaultPresentationKeys(forms, '2026-10')).toEqual(['speakers', 'volunteers', 'october']);

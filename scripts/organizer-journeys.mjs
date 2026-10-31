@@ -984,9 +984,7 @@ try {
     responses.set("/api/admin/organizers", { body: { organizers: [] } });
     await page.goto(`${origin}/organizer-console/annual-conference/2026`);
     await page
-      .getByRole("link")
-      .filter({ hasText: "Alice" })
-      .filter({ hasText: "View tasks" })
+      .getByRole("link", { name: "View Alice's tasks in the work plan", exact: true })
       .click();
     await page.waitForURL((url) => url.searchParams.get("owner") === "Alice");
     await assertVisibleBoardCards(page, [
@@ -1659,7 +1657,7 @@ try {
       assert.equal(await followUp.getByRole("heading", { name: "Campaign setup", exact: true }).isVisible(), false);
       assert.equal(await followUp.getByRole("region", { name: "Invitation progress", exact: true }).isVisible(), false);
       await updates.getByLabel("Subject", { exact: true }).fill("Volunteer orientation");
-      await updates.getByLabel("Message", { exact: true }).fill("Join the volunteer orientation this Sunday.");
+      await updates.getByRole("textbox", { name: "Message", exact: true }).fill("Join the volunteer orientation this Sunday.");
       await updates.getByRole("checkbox", { name: "Ama Mensah ama@example.com", exact: true }).check();
       await campaignSections.getByRole("tab", { name: "Volunteer updates", exact: true }).press("End");
       await page.clock.runFor(250);
@@ -1672,7 +1670,7 @@ try {
       await campaignSections.getByRole("tab", { name: "Outcome emails", exact: true }).press("ArrowLeft");
       await waitForCampaignTabs();
       assert.equal(await updates.getByLabel("Subject", { exact: true }).inputValue(), "Volunteer orientation");
-      assert.equal(await updates.getByLabel("Message", { exact: true }).inputValue(), "Join the volunteer orientation this Sunday.");
+      assert.equal(await updates.getByRole("textbox", { name: "Message", exact: true }).inputValue(), "Join the volunteer orientation this Sunday.");
       assert.equal(await updates.getByRole("checkbox", { name: "Ama Mensah ama@example.com", exact: true }).isChecked(), true);
       assert.equal(await followUp.getByRole("tabpanel").count(), 1);
       await followUp.screenshot({ path: `${artifacts}/volunteer-campaign-updates-desktop.png`, style: ".annual-conference-nav-shell { position: static !important; }" });

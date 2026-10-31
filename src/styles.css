@@ -9818,3 +9818,19 @@
 #app .font-code {
   font-family: var(--font-code), monospace;
 }
+
+/* Keep conference navigation inside the main desktop scroll container. */
+@media (min-width: 768px) {
+  .app-main:has(.annual-conference-nav-shell) > .organizer-breadcrumbs {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: var(--surface-canvas);
+  }
+
+  .editorial-wrap:has(.workspace-section-nav) > .annual-conference-nav-shell,
+  .annual-conference-nav-shell:has(form) {
+    position: relative;
+    top: auto;
+  }
+}

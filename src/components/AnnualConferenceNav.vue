@@ -373,7 +373,7 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
 @media (min-width: 768px) {
   .annual-conference-nav-shell {
     position: sticky;
-    top: 0;
+    top: var(--organizer-breadcrumb-height, 0px);
     z-index: 35;
     background: #f5f2e8;
   }
