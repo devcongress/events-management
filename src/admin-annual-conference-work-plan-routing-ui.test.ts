@@ -226,13 +226,13 @@ describe("Annual Conference assignee work-plan routing", () => {
       "annualTaskWorkspaceObserver = new ResizeObserver(updateAnnualTaskWorkspaceHeight)",
     );
     expect(workPlanSource).toContain(
-      "'--task-board-sticky-offset': `calc(${annualConferenceNavHeight}px + ${annualTaskWorkspaceHeight}px + .75rem)`",
+      "'--task-board-sticky-offset': `calc(var(--organizer-breadcrumb-height, 0px) + ${annualConferenceNavHeight}px + ${annualTaskWorkspaceHeight}px + .75rem)`",
     );
     expect(workPlanSource).toContain(
       'class="annual-task-ledger rounded-b-lg border-x-2 border-b-2 border-dc-ink bg-dc-paper"',
     );
     expect(workPlanSource).toContain(
-      "top: var(--annual-conference-nav-height);",
+      "top: calc(var(--organizer-breadcrumb-height, 0px) + var(--annual-conference-nav-height));",
     );
     expect(taskBoardSource).toContain("top: var(--task-board-sticky-offset);");
     expect(taskBoardSource).toContain(

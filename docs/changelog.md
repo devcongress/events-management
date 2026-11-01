@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-01 — Full-height work-plan controls on scroll
+
+- Include the measured breadcrumb height in the sticky offsets for the conference phase controls and board headings, keeping the full phase bar visible beneath navigation while scrolling.
+- Add organizer and volunteer browser coverage at 1024px and 1440px across three scroll positions.
+
 ## 2026-11-01 — Illustrated organizer and volunteer README
 
 - Add a visual tour of Events, Registration, Feedback, conference planning, and volunteer tasks, including the phone view.
