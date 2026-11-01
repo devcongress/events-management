@@ -755,8 +755,22 @@ async function save() {
   color: #a00050;
   font-size: 14px;
   font-weight: 700;
-  text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.programme-summary button {
+  text-decoration: underline;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .programme-speaker-actions button:not(:disabled):hover,
+  .programme-photo-action:has(input:enabled):hover {
+    text-decoration: underline;
+  }
+
+  .programme-speaker-actions button:not(:disabled):hover:not(:focus-visible) {
+    outline: none;
+  }
 }
 
 .programme-speaker-actions .programme-photo-action {
@@ -773,7 +787,7 @@ async function save() {
   clip-path: inset(50%);
 }
 
-.programme-photo-action:focus-within {
+.programme-photo-action:has(input:focus-visible) {
   outline: 2px solid #e8117f;
   outline-offset: 2px;
 }

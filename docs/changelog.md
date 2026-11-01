@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-01 — Programme speaker actions
+
+- Underline enabled copy and portrait actions on pointer hover and retain a visible keyboard focus indicator on the file chooser.
+
 ## 2026-11-01 — Speaker programme for DevCon26
 
 - Link accepted proposals to programme rows, review suggested descriptions, and reuse optional speaker portraits. Save outline publishes the authored 2026 programme through a dedicated public read endpoint for the website.
