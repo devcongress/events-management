@@ -13,29 +13,82 @@
 [![pnpm](https://img.shields.io/badge/pnpm-10-f69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-f5e642?style=flat-square)](LICENSE)
 
-DevCongress Community is the practical backstage for DevCongress meetups: the place where a good idea becomes an event people can actually find, attend, and remember. It helps organizers publish events, review talks, follow up with speakers, import attendance, collect feedback, and run a live learning room without scattering the work across spreadsheets, inboxes, and “who has the latest link?” messages.
+DevCongress Community is the workspace behind DevCongress meetups and the annual conference. Organizers prepare events, manage registrations, coordinate speakers, and learn from attendee feedback. Volunteers follow their assigned conference tasks and keep the team updated, on a laptop or a phone.
 
-The app is a Vue 3 + Vite frontend with a Hono API. Cloudflare Pages/Workers and Supabase back the deployed path; JSON compatibility storage remains only for domains still being migrated to relational tables.
+The app is built with Vue 3, Vite, and a Hono API, backed by Supabase and Cloudflare.
+
+[Organizer tour](#for-organizers) · [Volunteer tour](#for-volunteers) · [Quick start](#quick-start) · [Documentation](#documentation)
+
+![Organizer Events workspace with the event lifecycle and three sample meetups](docs/images/readme/organizer-events.png)
+
+*The organizer’s starting point: see each event’s stage and open the next piece of work.*
+
+> Screenshots show the real app with synthetic demonstration data. This tour covers Organizer and Volunteer access only. Available actions depend on your role, assignments, and edition-specific permissions.
 
 ---
 
-## Overview
+## For organizers
 
-**What it helps a small organizer team keep moving:**
+### Take an event from idea to follow-up
 
-- Give the community a trustworthy home for meetup details, CFPs, archives, and post-event feedback
-- Keep event publishing, talk review, speaker follow-up, attendance, media, feedback, and System Design learning rooms in one organizer workspace
-- Turn Luma CSV exports into monthly attendance signals instead of another abandoned folder of spreadsheets
-- Protect organizer work with Supabase-backed access, short-lived app sessions, and scoped Annual Conference responsibilities
-- Serve the public and organizer experience through Cloudflare Pages/Workers with same-origin `/api/*` routing
+The **Events** workspace follows a meetup from draft through speaker submissions, programme preparation, the live event, and completion. Open an event to work through its overview, registrations, talks, System Design session, feedback, and attendance. Community event proposals have their own review section.
 
-### Production posture
+See [event operations](docs/user-guides/organizer-guide.md#manage-events) for the complete workflow.
 
-The organizer and public-write boundaries are hardened, the forward-only hardening migrations are applied, and the repository checks run in CI. Production MFA, alerting, backup restoration, retention, live RLS verification, and runtime performance measurements are ongoing operational assurance—not unresolved application implementation work.
+### Manage guests and check-in
 
-See the [technical-debt register](docs/reference/technical-debt.md) for evidence, impact, exit criteria, and the distinction between repository work and platform work.
+**Registration** separates the summary, guest list, form and capacity, email delivery, and guest messages. Search by name or email, filter the list, and use check-in when the event’s check-in window is open. Capacity and waitlist handling belong to the same event workspace.
 
-For the full system shape, see [Architecture](docs/architecture.md) and [Implementation Notes](docs/implementation.md).
+<details>
+<summary>See the organizer guest list</summary>
+
+![Organizer Registration workspace showing guest search, status filters, and six sample registrations](docs/images/readme/organizer-guests.png)
+
+*This sample event is still upcoming, so its check-in controls are disabled. The screenshot contains demonstration addresses only.*
+
+</details>
+
+Read about [native registration](docs/features/native-registration.md).
+
+### Coordinate the conference work plan
+
+The **Annual Conference → Work plan** board groups tasks by status, with phase progress, owners, priorities, and target dates alongside the work. Organizers can review the plan and edit tasks assigned to them; creating tasks and managing the full plan require the corresponding planning permission.
+
+![Organizer conference work plan with task owners and Not started, In progress, Blocked, and Done columns](docs/images/readme/organizer-work-plan.png)
+
+*Filter by phase or owner, then open a task for its details. The sample organizer has the standard role, without full-plan management access.*
+
+See [annual conference planning](docs/user-guides/organizer-guide.md#plan-the-annual-conference).
+
+### Learn from each meetup
+
+The **Feedback** workspace brings responses, session ratings, return intent, comments, and missed sessions together. Organizers can download responses and manage whether the form is open. “Did not attend” stays separate from numeric ratings.
+
+![Organizer feedback results with 24 sample responses, a rating distribution, and return intent](docs/images/readme/organizer-feedback.png)
+
+*Example results from a closed feedback form; these are not real event statistics.*
+
+Read about [feedback](docs/features/feedback.md).
+
+## For volunteers
+
+### Know what is yours to do
+
+Volunteers start with **Overview** and **My tasks** for their conference edition. Their default view contains only tasks assigned to them as an accountable owner or collaborator. They can review task details and update status; internal organizer notes and task-detail editing are not part of this default access.
+
+![Volunteer My tasks board showing only three assigned conference tasks](docs/images/readme/volunteer-my-tasks.png)
+
+*The same work plan, narrowed to the volunteer’s responsibilities. Additional edition-specific responsibilities can expand access.*
+
+### Keep up from a phone
+
+On a phone, **My tasks** becomes a compact list with search, status filtering, and due dates. Open a task to review it and update its status without navigating the desktop board.
+
+<p align="center">
+  <img src="docs/images/readme/volunteer-mobile.png" alt="Volunteer phone view with three assigned tasks, status filtering, due dates, and Overview and My tasks navigation" width="320">
+</p>
+
+The [Organizer Guide](docs/user-guides/organizer-guide.md#plan-the-annual-conference) explains the shared conference workflow and the differences in volunteer access.
 
 ---
 
@@ -110,15 +163,15 @@ Start with the centralized [Documentation Map](docs/README.md) if you are unsure
 | [Luma Attendance](docs/features/luma-attendance.md) | Active | Import Luma CSV exports and review attendance insights |
 | [Feedback](docs/features/feedback.md) | Active | Route feedback and event-scoped post-event forms |
 
-[How to document new features](docs/features/README.md)
+[How to document new features](docs/features/README.md) · [Refresh these screenshots](docs/images/readme/README.md)
 
 ---
 
 ## Technology Stack
 
-- **Frontend:** Vue 3, Vite 6, TypeScript, Pinia, Tailwind CSS
-- **API:** Hono served through Vite in development and Bun in production
-- **Persistence:** JSON mock DB today, Supabase/Postgres migration path underway
+- **Frontend:** Vue 3, Vite 6, TypeScript, Vue Router, TanStack Query, Tailwind CSS
+- **API:** Hono through Vite in development, with Cloudflare Worker and Bun server entry points
+- **Persistence:** Supabase/Postgres, with JSON compatibility storage for domains still being migrated
 - **Media:** Supabase Storage for meetup cover and photo uploads
 - **Testing:** Vitest, vue-tsc, public API verification script
 - **Deployment:** Cloudflare Pages, Cloudflare Workers, Supabase

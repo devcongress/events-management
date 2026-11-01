@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-01 — Illustrated organizer and volunteer README
+
+- Add a visual tour of Events, Registration, Feedback, conference planning, and volunteer tasks, including the phone view.
+- Capture the actual app with synthetic data and standard organizer/volunteer permissions; add a reproducible screenshot script and capture notes.
+- Refresh the README’s technology summary to reflect Vue Router, TanStack Query, and Supabase-backed persistence.
+
 ## 2026-11-01 — Feedback closing and failure notifications
 
 - Allow feedback campaigns with responses to close, reopen, or save when their questions are unchanged; skip rewriting those questions and retain the guard against actual edits.
