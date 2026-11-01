@@ -129,8 +129,7 @@ let organizerSessionEnding = false;
 
 const adminBaseLinks: NavLink[] = [
   { href: adminPath("events"), label: "Events" },
-  { href: adminPath("attendance"), label: "Attendance" },
-  { href: adminPath("feedback"), label: "Feedback" },
+  { href: adminPath("reports"), label: "Reports" },
   { href: annualConferencePath(), label: "Annual Conference" },
   { href: adminPath("organizers"), label: "People & Access" },
 ];
@@ -300,38 +299,9 @@ const adminReturnSource = computed(() => {
 
   return null;
 });
-const adminFeedbackReturnMonth = computed(() => {
-  const value = route.query.month;
-
-  return typeof value === "string" && /^\d{4}-\d{2}$/.test(value)
-    ? value
-    : null;
-});
-const adminReturnLink = computed(() => {
-  if (adminReturnSource.value === "attendance") {
-    return { href: adminPath("attendance"), label: "Attendance" };
-  }
-
-  if (adminReturnSource.value === "feedback") {
-    if (adminFeedbackReturnMonth.value) {
-      const params = new URLSearchParams({
-        month: adminFeedbackReturnMonth.value,
-      });
-
-      return {
-        href: `${adminPath("feedback")}?${params.toString()}`,
-        label: "Feedback",
-      };
-    }
-
-    return { href: adminPath("feedback"), label: "Feedback" };
-  }
-
-  return null;
-});
 const activeNavHref = computed(() => {
-  if (isAdminRoute.value && adminReturnLink.value && adminEventId.value) {
-    return adminReturnLink.value.href;
+  if (isAdminRoute.value && adminReturnSource.value && adminEventId.value) {
+    return adminPath("reports");
   }
 
   return (
@@ -456,7 +426,8 @@ function isActive(href: string) {
 
 function routeViewKey(routeForKey: typeof route) {
   if (
-    routeForKey.name === "admin-annual-conference-registrations"
+    routeForKey.name === "admin-reports"
+    || routeForKey.name === "admin-annual-conference-registrations"
     || routeForKey.name === 'admin-annual-conference-ticketing'
     || routeForKey.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
   ) {

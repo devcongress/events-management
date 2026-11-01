@@ -86,7 +86,7 @@ The legacy Attendance section accepts historical Luma guest CSV exports. New nat
 - Check-in rate
 - Registered people who did not check in
 
-The global Attendance Hub gives a month-by-month ledger for venue planning. Each imported event shows how many people came out of the total registrations, followed by the percentage calculated from that same total. The adjacent Attendance patterns panel offers two selected-year views from uploaded CSVs: recent approved RSVPs versus check-ins, and the share of approved RSVPs who came or missed. The people table defaults to regular attendees with at least two check-ins, showing their registration count, check-ins, attendance rate, and last check-in. Switch to **Never came** to find everyone with at least two approved RSVPs and no recorded check-in, together with their missed count and latest RSVP.
+Under **Reports → Attendance**, the global Attendance Hub gives a month-by-month ledger for venue planning. Each imported event shows how many people came out of the total registrations, followed by the percentage calculated from that same total. The adjacent Attendance patterns panel offers two selected-year views from uploaded CSVs: recent approved RSVPs versus check-ins, and the share of approved RSVPs who came or missed. The people table defaults to regular attendees with at least two check-ins, showing their registration count, check-ins, attendance rate, and last check-in. Switch to **Never came** to find everyone with at least two approved RSVPs and no recorded check-in, together with their missed count and latest RSVP.
 
 ## Collect Feedback
 
@@ -106,7 +106,7 @@ The Feedback section lets organizers prepare event-scoped feedback forms, choose
 
 Generated session questions require the attendee to choose either a rating from 1–5 or **Did not attend this session**. Missed sessions are counted separately in organizer reports and never reduce the session or speaker rating.
 
-The Feedback Hub opens directly to event feedback reports, grouped by year and event period.
+Under **Reports → Feedback**, the Feedback Hub opens directly to event feedback reports, grouped by year and event period.
 
 ## Prepare System Design Learning Rooms
 

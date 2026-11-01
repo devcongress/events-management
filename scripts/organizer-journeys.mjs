@@ -245,7 +245,7 @@ async function journey(
 
   const context = await browser.newContext({
     viewport:
-      name === "presentation-board"
+      name === "presentation-board" || name === "reports-navigation-desktop"
         ? { width: 1280, height: 720 }
         : { width: 390, height: 844 },
     timezoneId: "Africa/Accra",
@@ -365,6 +365,38 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   browser = await chromium.launch();
+
+  for (const mobile of [false, true]) {
+    await journey(`reports-navigation-${mobile ? 'mobile' : 'desktop'}`, async ({ page, responses, requests }) => {
+      const feedbackEvent = { event, campaign: null, campaign_configured: false, response_count: 0, is_open: false, insights: {} };
+      const months = ['2026-08', '2026-09'].map(month => ({ month, label: month, event_count: 1, total_responses: 0, events: [feedbackEvent] }));
+
+      responses.set('/api/attendance/monthly', { body: { ledger: [], insights: null } });
+      responses.set('/api/feedback/monthly', { body: { months } });
+      responses.set('/api/events/fixture-event/checklist', { body: { items: [] } });
+      responses.set('/api/events/fixture-event/feedback-campaign', { status: 404, body: { error: 'Fixture campaign' } });
+      await page.goto(`${origin}/organizer-console/feedback?month=2026-09&from=old#report`);
+      await page.getByRole('heading', { name: 'Event feedback' }).waitFor();
+      assert.match(page.url(), /reports\?.*month=2026-09.*section=feedback#report/);
+      const nav = page.getByRole('navigation', { name: 'Reports sections' });
+
+      assert.match(await page.getByRole('button', { name: /Sep 1 event/ }).getAttribute('class'), /feedback-month-button--active/);
+      await page.getByRole('button', { name: /Aug 1 event/ }).click();
+      await nav.getByRole('link', { name: 'Attendance' }).click();
+      await page.getByRole('heading', { name: 'Monthly attendance' }).waitFor();
+      await page.goBack();
+      await page.getByRole('heading', { name: 'Event feedback' }).waitFor();
+      assert.equal(await nav.getByRole('link', { name: 'Feedback' }).getAttribute('aria-current'), 'page');
+      assert.match(await page.getByRole('button', { name: /Aug 1 event/ }).getAttribute('class'), /feedback-month-button--active/);
+      await page.getByRole('button', { name: /Sep 1 event/ }).click();
+      await page.screenshot({ path: `${artifacts}/reports-${mobile ? 'mobile' : 'desktop'}.png`, fullPage: true });
+      await page.getByRole('link', { name: 'Configure' }).click();
+      await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Feedback' }).click();
+      await page.getByRole('heading', { name: 'Event feedback' }).waitFor();
+      assert.match(page.url(), /section=feedback.*month=2026-09/);
+      assert.equal(requests.some(request => request.method !== 'GET'), false);
+    });
+  }
 
   for (const mobile of [false, true]) {
     await journey(`blast-outline-${mobile ? 'mobile' : 'desktop'}`, async ({ page, responses, requests }) => {
@@ -516,7 +548,7 @@ try {
       const primary = page.getByRole("navigation", { name: "Primary", exact: true, includeHidden: true });
       const toggle = page.getByRole("button", { name: "Open menu", exact: true });
 
-      const expected = ["Events", "Attendance", "Feedback", "Annual Conference", "People & Access", ...(role === "owner" ? ["Present forms", "Audit Log"] : [])];
+      const expected = ["Events", "Reports", "Annual Conference", "People & Access", ...(role === "owner" ? ["Present forms", "Audit Log"] : [])];
 
       for (const width of [1024, 1280, 1440, 1592, 1920]) {
         await page.setViewportSize({ width, height: 900 });
@@ -559,11 +591,16 @@ try {
         }
       }
 
-      if (role === 'organizer') {
-        await page.setViewportSize({ width: 1440, height: 900 });
-        await primary.getByRole('link', { name: 'People & Access', exact: true }).focus();
-        await page.setViewportSize({ width: 1024, height: 900 });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      const focusedLabel = 'People & Access';
+
+      await primary.getByRole('link', { name: focusedLabel, exact: true }).focus();
+      await page.setViewportSize({ width: 961, height: 900 });
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      if (role === 'owner') {
         await page.waitForFunction(() => document.activeElement?.classList.contains('app-nav-more-toggle'));
+      } else {
+        assert.equal(await primary.getByRole('link', { name: focusedLabel, exact: true }).evaluate(element => element === document.activeElement), true);
       }
 
       await page.setViewportSize({ width: 960, height: 900 });

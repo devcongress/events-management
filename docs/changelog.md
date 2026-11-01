@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-01 — Reports navigation
+
+- Group attendance and feedback under Reports, preserving section filters while switching and restoring report context in event breadcrumbs. Existing overview links redirect to the matching section.
+
+## 2026-11-01 — Quiet publication status refresh
+
+- Keep successful event publication feedback clear by suppressing errors from its automatic website/Slack status refresh. Explicit monitoring refreshes still report failures.
+
 ## 2026-11-01 — Annual Conference speaker outcomes and workspace
 
 - Let Owners save speaker outcome messages, preview personalized emails, and queue selected recipients with frozen payloads and delivery monitoring. Address corrections and link replacements now require a fresh preview before sending.

@@ -98,12 +98,9 @@ const AdminEventsWorkspaceView = () =>
 const AdminEventsView = () => import("./views/admin/AdminEventsView.vue");
 const AdminEventSubmissionsView = () =>
   import("./views/admin/AdminEventSubmissionsView.vue");
-const AdminAttendanceOverviewView = () =>
-  import("./views/admin/AdminAttendanceOverviewView.vue");
+const AdminReportsView = () => import("./views/admin/AdminReportsView.vue");
 const AdminAttendanceView = () =>
   import("./views/admin/AdminAttendanceView.vue");
-const AdminFeedbackOverviewView = () =>
-  import("./views/admin/AdminFeedbackOverviewView.vue");
 const AdminFeedbackDisplayView = () =>
   import("./views/admin/AdminFeedbackDisplayView.vue");
 const AdminRegistrationDisplayView = () =>
@@ -339,14 +336,17 @@ export const router = createRouter({
       component: EventView,
     },
     {
+      path: adminPath("reports"),
+      name: "admin-reports",
+      component: AdminReportsView,
+    },
+    {
       path: adminPath("attendance"),
-      name: "admin-attendance-overview",
-      component: AdminAttendanceOverviewView,
+      redirect: to => ({ path: adminPath("reports"), query: { ...to.query, section: "attendance" }, hash: to.hash }),
     },
     {
       path: adminPath("feedback"),
-      name: "admin-feedback-overview",
-      component: AdminFeedbackOverviewView,
+      redirect: to => ({ path: adminPath("reports"), query: { ...to.query, section: "feedback" }, hash: to.hash }),
     },
     {
       path: adminPath("present-forms"),
