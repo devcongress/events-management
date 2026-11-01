@@ -868,7 +868,7 @@ onBeforeUnmount(() => {
           >
             <AnnualConferenceTaskBoard
               :style="{
-                '--task-board-sticky-offset': `calc(${annualConferenceNavHeight}px + ${annualTaskWorkspaceHeight}px + .75rem)`,
+                '--task-board-sticky-offset': `calc(var(--organizer-breadcrumb-height, 0px) + ${annualConferenceNavHeight}px + ${annualTaskWorkspaceHeight}px + .75rem)`,
               }"
               :tasks="visibleTasks"
               :organizer-labels="organizerLabels"
@@ -1046,7 +1046,7 @@ onBeforeUnmount(() => {
 
 @media (min-width: 768px) {
   .annual-task-workspace {
-    top: var(--annual-conference-nav-height);
+    top: calc(var(--organizer-breadcrumb-height, 0px) + var(--annual-conference-nav-height));
   }
 }
 

@@ -241,6 +241,8 @@ async function journey(
   run,
   { role = "organizer", date = "2026-09-26T12:00:00Z", useFakeClock = false } = {},
 ) {
+  if (process.env.ORGANIZER_JOURNEY_FILTER && !name.includes(process.env.ORGANIZER_JOURNEY_FILTER)) return;
+
   const context = await browser.newContext({
     viewport:
       name === "presentation-board"
@@ -1015,6 +1017,67 @@ try {
     await page.waitForURL((url) => url.searchParams.get("owner") === "Eve");
     await assertVisibleBoardCards(page, ["Open Eve current task"]);
   });
+  for (const role of ["organizer", "volunteer"]) {
+    for (const width of [1024, 1440]) {
+      await journey(`work-plan-sticky-header-${role}-${width}`, async ({ page, responses }) => {
+        await page.setViewportSize({ width, height: 900 });
+        const tasks = Array.from({ length: 24 }, (_, index) => ({
+          id: `sticky-task-${index}`,
+          edition_id: edition.id,
+          title: `Prepare conference task ${index + 1}`,
+          details: "Coordinate the materials and confirm readiness with the team.",
+          internal_note: null,
+          phase_id: "current",
+          workstream: "venue_production_logistics",
+          accountable_owner: "fixture@example.com",
+          collaborators: [],
+          priority: "medium",
+          target_date: "2026-09-30",
+          status: ["not_started", "in_progress", "blocked", "done"][index % 4],
+          dependency_task_ids: [],
+          dependency_note: null,
+          source: "manual",
+          sort_order: index,
+          created_at: "2026-09-01T00:00:00Z",
+          updated_at: "2026-09-01T00:00:00Z",
+        }));
+
+        responses.set("/api/annual-conference/2026/work-plan", { body: {
+          ...workspace,
+          phases: [{ id: "current", name: "Current phase", starts_on: "2026-09-01", ends_on: "2026-09-30", sort_order: 1 }],
+          tasks,
+          permissions: { ...workspace.permissions, access_scope: role === "volunteer" ? "assigned" : "all" },
+        } });
+        responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+        responses.set("/api/annual-conference/2026/task-members", { body: { organizers: [] } });
+        await page.goto(`${origin}/organizer-console/annual-conference/2026/work-plan`);
+        await page.getByRole("button", { name: "Open Prepare conference task 1", exact: true }).waitFor();
+        await page.evaluate(() => document.fonts.ready);
+        await waitForRouteTransition(page);
+        const originalHeight = await page.locator(".annual-task-workspace").evaluate(element => element.getBoundingClientRect().height);
+
+        for (const scrollTop of [350, 650, 900]) {
+          await page.locator(".app-main").evaluate((element, top) => { element.scrollTop = top; }, scrollTop);
+          await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          const geometry = await page.evaluate(() => {
+            const controls = document.querySelector(".annual-task-workspace").getBoundingClientRect();
+            const nav = document.querySelector(".annual-conference-nav-shell").getBoundingClientRect();
+            const phaseLabel = document.querySelector(".annual-task-workspace__controls p").getBoundingClientRect();
+            const columnHeader = document.querySelector(".task-board__column-header").getBoundingClientRect();
+
+            return { top: controls.top, bottom: controls.bottom, height: controls.height, navBottom: nav.bottom, labelTop: phaseLabel.top, columnTop: columnHeader.top };
+          });
+
+          assert.ok(Math.abs(geometry.height - originalHeight) < 1, "Phase controls must retain their full height");
+          assert.ok(geometry.top >= geometry.navBottom - 1, `Phase controls overlap navigation at scroll ${scrollTop}: ${JSON.stringify(geometry)}`);
+          assert.ok(geometry.labelTop >= geometry.navBottom, "Viewing phase label must stay visible");
+          assert.ok(geometry.columnTop >= geometry.bottom - 1, "Board headings must remain below the full controls bar");
+        }
+        await page.screenshot({ path: `${artifacts}/work-plan-sticky-header-${role}-${width}.png`, fullPage: false });
+      }, { role });
+    }
+  }
+
   await journey(
     "optimistic-board-status",
     async ({ page, responses, requests }) => {

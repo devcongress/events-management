@@ -26,3 +26,14 @@ The local pre-push hook runs `pnpm build` and `pnpm test:journeys` before migrat
 These tests protect frontend behavior against deterministic API contracts. They do not prove backend authorization, database correctness, real OAuth, email delivery, or live Turnstile behavior; existing server tests remain necessary.
 
 Next coverage candidates are real staging OAuth/session expiry, server-side permission denial, check-in at timezone midnight, volunteer submission retry/idempotency, and Slack/email queue recovery. Add cases when an incident or changed workflow supplies a concrete failure to prevent; do not inflate this smoke suite into exhaustive browser coverage. WebKit and Android browser differences remain unverified by this Chromium suite.
+
+## Focused runs
+
+Set `ORGANIZER_JOURNEY_FILTER` to a journey-name substring to run a focused local check against the built app. For the full-height conference phase bar regression:
+
+```bash
+pnpm build
+ORGANIZER_JOURNEY_FILTER=work-plan-sticky-header pnpm test:journeys
+```
+
+The normal command still runs every journey. The scroll regression checks organizer and volunteer layouts at 1024px and 1440px, verifies that navigation does not cover the phase controls, and keeps board headings below the controls at multiple scroll positions.

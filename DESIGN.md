@@ -113,8 +113,10 @@ sibling row.
 
 **Conference scrolling:** On desktop, breadcrumbs stay at the top of the main
 scroll container. The conference header sticks beneath their measured height.
-On pages with subsection navigation, only breadcrumbs remain sticky; expanded
-edition forms scroll normally.
+The work-plan phase controls sit below both breadcrumbs and the conference
+header at their full measured height; board column headings sit below those
+controls. On pages with subsection navigation, only breadcrumbs remain sticky;
+expanded edition forms scroll normally.
 
 **Phones:** Keep Ticketing on its existing responsive route. Its Mobile Conference
 entry follows existing role/capability rules. Orders use cards below the desktop
