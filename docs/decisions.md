@@ -1537,3 +1537,7 @@ ADR-118 delivery follow-up: preview dispatch must not lease historical registrat
 **Why:** Ticketing and Present Forms should share one reusable purchase URL and QR without creating payment sessions or introducing another shortening service.
 
 **Trade-offs:** The enum and RPC require separate forward migrations and a coordinated EMS/short-link deployment. Only DevCon26 is supported until a checkout route exists for another edition. A valid link does not imply that sales are open.
+
+## Annual Conference programme storage — 2026-11-01
+
+The private programme outline is stored as an ordered JSON document in a separate edition-keyed table. A revision-checked database operation protects simultaneous saves, including creation and clearing. This avoids exposing programme data through volunteer work-plan reads and leaves speaker assignment and website publication for later decisions.

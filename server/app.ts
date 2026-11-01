@@ -1,3 +1,4 @@
+import { registerAnnualConferenceProgrammeRoutes } from '@/server/routes/annual-conference-programme';
 import { TICKET_PURCHASE_PATH } from '@/short-links/ticket-purchase';
 import { eventBlastOutline, eventBlastOutlineSchema } from '@/lib/event-blast-outline';
 import { eventBlastEmail } from '@/lib/email/templates/event-blast';
@@ -1629,7 +1630,7 @@ app.use('/api/public/*', async (c, next) => {
 
 const credentialedApiCors = cors({
   origin: corsOrigin,
-  allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type'],
   credentials: true,
   maxAge: 86400,
@@ -5410,6 +5411,7 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
   }
 });
 
+registerAnnualConferenceProgrammeRoutes(app);
 registerAnnualConferenceSpeakerRoutes(app);
 registerAnnualConferenceSpeakerMaterialRoutes(app);
 registerAnnualConferenceTaskResourceRoutes(app);

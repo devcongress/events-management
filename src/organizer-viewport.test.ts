@@ -21,6 +21,16 @@ import {
 } from "./organizer-viewport";
 
 describe("organizer viewport policy", () => {
+  it('keeps Programme reachable on phones', () => {
+    expect(organizerViewportRedirect({
+      authenticated: true,
+      isAdminRoute: true,
+      isPhone: true,
+      routeName: 'admin-annual-conference-programme',
+      conferenceYear: '2027',
+    })).toBeNull();
+  });
+
   it('keeps Ticketing deep links intact on phones and across breakpoint changes', () => {
     for (const conferenceYear of ['2026', '2027']) {
       for (const section of ['overview', 'orders', 'delivery', 'sponsors', 'testing']) {

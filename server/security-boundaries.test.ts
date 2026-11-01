@@ -163,6 +163,7 @@ describe('HTTP security boundaries', () => {
     expect(allowed.status).toBe(204);
     expect(allowed.headers.get('access-control-allow-origin')).toBe('https://events.example.com');
     expect(allowed.headers.get('access-control-allow-credentials')).toBe('true');
+    expect(allowed.headers.get('access-control-allow-methods')).toContain('PUT');
 
     const rejected = await app.request('https://api.example.com/api/auth/session', {
       method: 'OPTIONS',

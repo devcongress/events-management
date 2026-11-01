@@ -425,6 +425,8 @@ function isActive(href: string) {
 }
 
 function routeViewKey(routeForKey: typeof route) {
+  if (routeForKey.name === "admin-annual-conference-programme") return "admin-annual-conference-programme";
+
   if (
     routeForKey.name === "admin-reports"
     || routeForKey.name === "admin-annual-conference-registrations"

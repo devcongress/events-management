@@ -113,6 +113,7 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
     icon: 'work-plan',
   },
   ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers', icon: 'volunteers' as const }] : []),
+  ...(canManageEditions.value ? [{ href: annualConferencePath('programme', year.value), label: 'Programme', icon: 'work-plan' as const }] : []),
   ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
   ...(registrationTarget.value ? [{ href: registrationTarget.value, label: 'Registration', icon: 'tickets' as const }] : []),
   ...(!isVolunteer.value && hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage'])
@@ -158,7 +159,11 @@ function openEditionForm() {
 function changeEdition(value: string | number) {
   const nextYear = String(value);
 
-  if (nextYear !== year.value) void router.push(annualConferencePath('', nextYear));
+  if (nextYear !== year.value) {
+    const section = route.name === 'admin-annual-conference-programme' ? 'programme' : '';
+
+    void router.push(annualConferencePath(section, nextYear));
+  }
 }
 
 function submitEdition() {

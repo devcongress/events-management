@@ -5269,6 +5269,117 @@
           ]
         }
       ]
+    },
+    {
+      "file": "20261101200000_annual_conference_programme.sql",
+      "sha256": "970b809efeedb0fff6b307bb5325a3c2fffc40a1dfa76097cd8ac29a1d714b89",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_programmes",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_programmes",
+          "name": "edition_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_programmes",
+          "name": "rows",
+          "type": "jsonb",
+          "notNull": true,
+          "defaultExpression": "'[]'::jsonb"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_programmes",
+          "name": "revision",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_programmes",
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_programmes",
+          "name": "updated_by",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_programmes",
+          "name": "annual_conference_programmes_pkey",
+          "contains": [
+            "PRIMARY KEY (edition_id)"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "save_annual_conference_programme",
+          "argumentTypes": "uuid, integer, jsonb, text",
+          "result": "jsonb",
+          "language": "plpgsql",
+          "bodySha256": "d7edc9e4bc144eb34338a12ab27c71c06dedc85b59ef9782918df0d2e7a8da82",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_programmes",
+          "name": "annual_conference_programmes_edition_id_fkey",
+          "contains": [
+            "FOREIGN KEY (edition_id)",
+            "REFERENCES annual_conference_editions(id)",
+            "ON DELETE CASCADE"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_programmes",
+          "name": "annual_conference_programmes_rows_check",
+          "contains": [
+            "jsonb_typeof(rows)",
+            "jsonb_array_length(rows)",
+            "<= 100"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_programmes",
+          "name": "annual_conference_programmes_revision_check",
+          "contains": [
+            "revision > 0"
+          ]
+        }
+      ]
     }
   ]
 }

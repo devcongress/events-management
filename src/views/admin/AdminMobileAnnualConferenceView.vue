@@ -1705,7 +1705,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
 
     <nav
       class="conference-mobile__tabs"
-      :style="{ '--tab-count': availableTabs.length + Number(canViewSpeakers) }"
+      :style="{ '--tab-count': availableTabs.length + Number(canViewSpeakers) + Number(canManageEditions) }"
       aria-label="Annual Conference workspace"
     >
       <button
@@ -1736,6 +1736,10 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
         </svg>
         <span>{{ tab.label }}</span>
       </button>
+      <RouterLink v-if="canManageEditions" :to="annualConferencePath('programme', year)" class="conference-mobile__speaker-link">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5zM8 9h8M8 13h8M8 17h5" /></svg>
+        <span>Programme</span>
+      </RouterLink>
       <RouterLink
         v-if="canViewSpeakers"
         :to="annualConferencePath('speakers', year)"
