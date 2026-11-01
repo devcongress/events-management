@@ -5380,6 +5380,21 @@
           ]
         }
       ]
+    },
+    {
+      "file": "20261101210000_annual_conference_programme_speaker_photo.sql",
+      "sha256": "bfc2ad83b872fb738bad778581fff1c0d5179a32c13a176b823afc6de5bc8865",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_profiles",
+          "name": "programme_photo_path",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        }
+      ]
     }
   ]
 }

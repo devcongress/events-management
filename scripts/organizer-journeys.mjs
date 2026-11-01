@@ -308,6 +308,11 @@ async function journey(
           role,
         },
       };
+    } else if (request.method() === "GET" && [
+      "/api/annual-conference/2026/programme/speakers",
+      "/api/annual-conference/2027/programme/speakers",
+    ].includes(url.pathname)) {
+      body = { proposals: [], canManagePhotos: true };
     } else if (url.pathname === "/api/events") body = [event];
     else if (url.pathname === "/api/events/fixture-event") body = event;
     else if (url.pathname.endsWith("/work-plan")) body = workspace;
@@ -486,6 +491,129 @@ try {
 
     await add.hover();
     assert.equal(await add.evaluate(element => getComputedStyle(element).outlineStyle), before);
+  }, { role: 'organizer' });
+
+  for (const mobile of [false, true]) {
+    await journey(`programme-speakers-${mobile ? 'mobile' : 'desktop'}`, async ({ page, responses }) => {
+      const path = '/api/annual-conference/2026/programme';
+      const proposal = { id: '11111111-1111-4111-8111-111111111111', speakerId: '22222222-2222-4222-8222-222222222222', name: 'Ada Example', title: 'Tracing services', description: 'Learn how teams trace slow requests. We will explore profiling with real examples. Participants will leave with a practical checklist for their own services.', photoUrl: null };
+      const second = { ...proposal, id: '33333333-3333-4333-8333-333333333333', speakerId: '44444444-4444-4444-8444-444444444444', name: 'Sam Example', title: 'Building systems' };
+      let saved;
+
+      responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+      responses.set('/api/annual-conference/2026/work-plan', { body: workspace });
+      responses.set(`${path}/speakers`, { body: { proposals: [proposal, second], canManagePhotos: true } });
+      responses.set(`${path}/speakers/${proposal.speakerId}/photo`, (request) => ({ body: { photoUrl: request.method() === 'DELETE' ? null : '/fixture-photo.png' } }));
+      responses.set(path, (request) => {
+        if (request.method() === 'PUT') saved = request.postDataJSON();
+
+        return { body: saved ? { ...saved, revision: 1, updated_at: null, updated_by: null } : { rows: [], revision: 0, updated_at: null, updated_by: null } };
+      });
+      await page.setViewportSize({ width: mobile ? 390 : 1440, height: 900 });
+      await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
+      await page.getByRole('button', { name: 'Add outline' }).click();
+      const row = page.locator('fieldset.programme-row').first();
+
+      await row.getByRole('button', { name: 'Description and resource' }).click();
+      await row.getByRole('button', { name: /Accepted speaker proposals/ }).click();
+      await page.getByRole('option', { name: /Ada Example/ }).click();
+      await page.getByRole('option', { name: /Sam Example/ }).click();
+      await page.getByRole('button', { name: 'Done', exact: true }).click();
+      await row.getByRole('button', { name: 'Copy title and description' }).first().click();
+      assert.equal(await row.getByLabel('Title', { exact: true }).inputValue(), proposal.title);
+      await row.getByRole('button', { name: 'Copy title and description' }).nth(1).click();
+      await page.getByRole('dialog', { name: 'Replace session text?' }).getByRole('button', { name: 'Cancel' }).click();
+      assert.equal(await row.getByLabel('Title', { exact: true }).inputValue(), proposal.title);
+      await row.getByRole('button', { name: 'Copy title and description' }).nth(1).click();
+      await page.getByRole('dialog', { name: 'Replace session text?' }).getByRole('button', { name: 'Replace text' }).click();
+      assert.equal(await row.getByLabel('Title', { exact: true }).inputValue(), second.title);
+      await row.getByRole('button', { name: 'Copy title and description' }).first().click();
+      await page.getByRole('dialog', { name: 'Replace session text?' }).getByRole('button', { name: 'Replace text' }).click();
+      await row.getByRole('button', { name: 'Suggest summary' }).click();
+      await row.getByLabel('Description', { exact: true }).fill(`${proposal.description} Additional detail.`);
+      assert.equal(await row.getByLabel('Suggested summary').count(), 0);
+      await row.getByLabel('Description', { exact: true }).fill(proposal.description);
+      await row.getByRole('button', { name: 'Suggest summary' }).click();
+      const summary = row.getByLabel('Suggested summary');
+
+      assert.ok((await summary.inputValue()).length < proposal.description.length);
+      assert.equal(await row.getByLabel('Description', { exact: true }).inputValue(), proposal.description);
+      await summary.fill('A reviewed summary.');
+      await row.getByRole('button', { name: 'Use summary' }).click();
+      assert.equal(await row.getByLabel('Description', { exact: true }).inputValue(), 'A reviewed summary.');
+      await row.locator('input[type=file]').first().setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: Buffer.from('fixture') });
+      await row.getByAltText('Photo of Ada Example').waitFor();
+      const initialPhoto = await row.getByAltText('Photo of Ada Example').getAttribute('src');
+
+      await row.locator('input[type=file]').first().setInputFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: Buffer.from('replacement') });
+      await page.waitForFunction(previous => document.querySelector('.programme-photo')?.getAttribute('src') !== previous, initialPhoto);
+      await row.getByRole('button', { name: 'Remove photo' }).click();
+      await page.getByRole('dialog', { name: 'Remove speaker photo?' }).getByRole('button', { name: 'Cancel' }).click();
+      assert.equal(await row.getByAltText('Photo of Ada Example').count(), 1);
+      await row.getByRole('button', { name: 'Remove photo' }).click();
+      await page.getByRole('dialog', { name: 'Remove speaker photo?' }).getByRole('button', { name: 'Remove photo' }).click();
+      await row.getByAltText('Photo of Ada Example').waitFor({ state: 'detached' });
+      await page.getByRole('group', { name: 'Outline actions' }).getByRole('button', { name: 'Add row' }).click();
+      await page.getByLabel('Title', { exact: true }).nth(1).fill('Break');
+      await page.getByRole('group', { name: 'Outline actions' }).getByRole('button', { name: 'Save outline' }).click();
+      await page.getByRole('heading', { name: proposal.title }).waitFor();
+      assert.equal(await page.locator('.programme-display-speaker').count(), 2);
+      assert.deepEqual(saved.rows[0].speakerProposalIds, [proposal.id, second.id]);
+      assert.deepEqual(saved.rows[1].speakerProposalIds, []);
+      assert.equal(saved.rows[0].description, 'A reviewed summary.');
+      assert.equal(proposal.description.includes('practical checklist'), true);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    }, { role: 'organizer' });
+  }
+
+  await journey('programme-speaker-unavailable', async ({ page, responses }) => {
+    const path = '/api/annual-conference/2026/programme';
+    const staleId = '55555555-5555-4555-8555-555555555555';
+    const row = { id: '66666666-6666-4666-8666-666666666666', time: 'TBD', title: 'Existing session', type: 'talk', lead: '', description: '', resourceTitle: '', resourceUrl: '', speakerProposalIds: [staleId] };
+    let saved;
+
+    responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+    responses.set('/api/annual-conference/2026/work-plan', { body: workspace });
+    responses.set(`${path}/speakers`, { body: { proposals: [], canManagePhotos: true } });
+    responses.set(path, request => {
+      if (request.method() === 'PUT') saved = request.postDataJSON();
+
+      return { body: { rows: saved?.rows ?? [row], revision: 1, updated_at: null, updated_by: null } };
+    });
+    await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
+    await page.getByRole('button', { name: 'Edit outline' }).click();
+    await page.getByRole('button', { name: 'Description and resource' }).click();
+    await page.getByText(/linked proposal is no longer available/).waitFor();
+    await page.getByRole('button', { name: /Accepted speaker proposals/ }).click();
+    await page.getByRole('option', { name: /Unavailable proposal/ }).click();
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.getByRole('button', { name: 'Save outline' }).click();
+    await page.getByRole('heading', { name: 'Existing session' }).waitFor();
+    assert.deepEqual(saved.rows[0].speakerProposalIds, []);
+  }, { role: 'organizer' });
+
+  await journey('programme-speaker-denied', async ({ page, responses }) => {
+    const path = '/api/annual-conference/2026/programme';
+    const row = { id: '66666666-6666-4666-8666-666666666666', time: 'TBD', title: 'Existing session', type: 'talk', lead: '', description: '', resourceTitle: '', resourceUrl: '', speakerProposalIds: ['55555555-5555-4555-8555-555555555555'] };
+    let saved;
+
+    responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+    responses.set('/api/annual-conference/2026/work-plan', { body: workspace });
+    responses.set(`${path}/speakers`, { status: 403, body: { error: 'Speaker access denied.' } });
+    responses.set(path, request => {
+      if (request.method() === 'PUT') saved = request.postDataJSON();
+
+      return { body: { rows: saved?.rows ?? [row], revision: 1, updated_at: null, updated_by: null } };
+    });
+    await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
+    await page.getByRole('button', { name: 'Edit outline' }).click();
+    await page.getByLabel('Title', { exact: true }).fill('Edited session');
+    await page.getByRole('button', { name: 'Description and resource' }).click();
+    await page.getByText('Speaker access denied.').waitFor();
+    assert.equal(await page.getByText(/linked proposal is no longer available/).count(), 0);
+    await page.getByRole('button', { name: 'Save outline' }).click();
+    await page.getByRole('heading', { name: 'Edited session' }).waitFor();
+    assert.deepEqual(saved.rows[0].speakerProposalIds, row.speakerProposalIds);
   }, { role: 'organizer' });
 
   for (const mobile of [false, true]) {

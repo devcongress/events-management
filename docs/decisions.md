@@ -1541,3 +1541,11 @@ ADR-118 delivery follow-up: preview dispatch must not lease historical registrat
 ## Annual Conference programme storage — 2026-11-01
 
 The private programme outline is stored as an ordered JSON document in a separate edition-keyed table. A revision-checked database operation protects simultaneous saves, including creation and clearing. This avoids exposing programme data through volunteer work-plan reads and leaves speaker assignment and website publication for later decisions.
+
+## ADR-127: Annual conference programme copy belongs to the saved schedule
+
+**Date:** 2026-11-01
+
+An organizer can use an accepted proposal as the starting point for a programme row. The row owns its public title and description, so shortening a description or naming a panel does not modify a speaker's submission. Rows can reference several accepted proposals or none. Speaker photos belong to the speaker profile and can be reused across scheduled appearances.
+
+The DevCon26 website reads an allowlisted projection of the saved 2026 programme. The public response contains ordered session details, public speaker IDs, display names, and optional photo URLs. Private submissions, contact information, speaker workspace links, and review notes remain in EMS.

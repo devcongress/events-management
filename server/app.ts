@@ -1153,7 +1153,9 @@ function registrationCorsOrigin(origin: string | undefined, c: Context): string 
 }
 
 function isPublicReadApiPath(path: string): boolean {
-  return path === '/api/public/annual-conference/2026/ticket-prices'
+  return path === '/api/public/annual-conference/2026/programme'
+    || /^\/api\/public\/annual-conference\/2026\/programme\/speakers\/[0-9a-f-]+\/photo$/.test(path)
+    || path === '/api/public/annual-conference/2026/ticket-prices'
     || path === '/api/public/meetups'
     || path.startsWith('/api/public/meetups/')
     || path === '/api/public/events'
@@ -1256,7 +1258,9 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
     || isDevcon26FlexibleTicketAccessRequest(path, method)
     || isBuyerSocialCardRequest(path, method)
     || ((method === 'GET' || method === 'HEAD') && (
-    path === '/api/public/annual-conference/2026/ticket-prices'
+    path === '/api/public/annual-conference/2026/programme'
+    || /^\/api\/public\/annual-conference\/2026\/programme\/speakers\/[0-9a-f-]+\/photo$/.test(path)
+    || path === '/api/public/annual-conference/2026/ticket-prices'
     || path === '/api/public/meetups'
     || path.startsWith('/api/public/meetups/')
     || path === '/api/public/events'

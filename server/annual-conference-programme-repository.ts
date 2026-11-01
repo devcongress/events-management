@@ -1,9 +1,10 @@
 import type { Context } from 'hono';
 import { readData, updateData } from '@/lib/mock-db';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
-import type { ProgrammeSave, ProgrammeSnapshot } from '@/lib/annual-conference-programme';
+import { programmeRowSchema, type ProgrammeSave, type ProgrammeSnapshot } from '@/lib/annual-conference-programme';
 
 const FILE = 'annual-conference-programmes';
+const normalize = (snapshot: ProgrammeSnapshot): ProgrammeSnapshot => ({ ...snapshot, rows: snapshot.rows.map((row) => programmeRowSchema.parse(row)) });
 const empty = (): ProgrammeSnapshot => ({ rows: [], revision: 0, updated_at: null, updated_by: null });
 
 type StoredProgramme = ProgrammeSnapshot & { edition_id: string };
@@ -14,7 +15,7 @@ export function createAnnualConferenceProgrammeRepository(c?: Context) {
   return {
     async get(editionId: string): Promise<ProgrammeSnapshot> {
       if (!remote) {
-        return (await readData<StoredProgramme>(FILE)).find((item) => item.edition_id === editionId) ?? empty();
+        return normalize((await readData<StoredProgramme>(FILE)).find((item) => item.edition_id === editionId) ?? empty());
       }
 
       const result = await getSupabaseAdminClient(c).from('annual_conference_programmes' as never)
@@ -22,7 +23,7 @@ export function createAnnualConferenceProgrammeRepository(c?: Context) {
 
       if (result.error) throw new Error(result.error.message);
 
-      return result.data ?? empty();
+      return normalize(result.data ?? empty());
     },
     async save(editionId: string, input: ProgrammeSave, actor: string): Promise<ProgrammeSnapshot | null> {
       if (!remote) {
