@@ -85,6 +85,8 @@ Sign out is a quiet secondary control with a thin warm-gray border, 6px corners,
 a cap-height exit icon, and a white hover surface without positional movement.
 Keep its 44px target and focus outline.
 
+**Button hover:** Action buttons use a subtle inset outline on fine-pointer hover. Form fields, dropdown triggers and options retain their own control styles. In Programme, underline only the description and resource disclosure label. Keep the preview plain and preserve keyboard focus.
+
 **Forms:** Use `AppDropdown.vue` for single choice and `AppMultiSelectDropdown.vue`
 for multiple choice, including loading fixtures. Native select menus are
 prohibited. Default fields are 50px high; compact and slim variants support dense
@@ -110,6 +112,8 @@ without extra reads; use neutral fallbacks while names load. Only the current
 leaf has current-page semantics. Phone trails show the nearest parent and current
 workspace, returning to the same conference year. Breadcrumbs complement the
 sibling row.
+
+**Programme outline:** Present saved sessions as compact rows with a non-breaking time range and a restrained type label. In edit mode keep time, title, type, and row actions visible; use the time picker for a start and duration, with an editable minute stepper and an optional previous-session shortcut; disclose descriptions and resources on demand. Keep the programme heading and top editing controls sticky beneath conference navigation on desktop and at the top of the phone scroll region. Keep Add, Save, and Cancel together in that heading. Confirm draft row removal in a desktop dialog or phone bottom sheet; destructive actions use the shared destructive color token.
 
 **Conference scrolling:** On desktop, breadcrumbs stay at the top of the main
 scroll container. The conference header sticks beneath their measured height.

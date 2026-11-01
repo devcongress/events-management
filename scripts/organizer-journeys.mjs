@@ -249,6 +249,7 @@ async function journey(
         ? { width: 1280, height: 720 }
         : { width: 390, height: 844 },
     timezoneId: "Africa/Accra",
+    hasTouch: name === "button-hover-touch" || name === "programme-time-picker-320",
     serviceWorkers: "block",
   });
   const page = await context.newPage();
@@ -366,6 +367,127 @@ try {
   }
   browser = await chromium.launch();
 
+  await journey('button-hover-feedback', async ({ page, responses }) => {
+    const rows = [{ id: '00000000-0000-4000-8000-000000000001', time: '10:00 AM', title: 'Opening', type: 'talk', lead: '', description: 'Host introduction, event overview, and housekeeping.', resourceTitle: '', resourceUrl: '' }];
+
+    responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+    responses.set('/api/annual-conference/2026/work-plan', { body: workspace });
+    responses.set('/api/annual-conference/2026/programme', { body: { rows, revision: 1, updated_at: null, updated_by: null } });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
+    await page.getByRole('button', { name: 'Edit outline' }).click();
+    const add = page.getByRole('group', { name: 'Outline actions' }).getByRole('button', { name: 'Add row' });
+    const cue = async (locator) => locator.evaluate(element => ({ style: getComputedStyle(element).textDecorationLine, outline: getComputedStyle(element).outlineStyle, icon: element.querySelector('svg') && getComputedStyle(element.querySelector('svg')).opacity }));
+
+    await page.mouse.move(0, 0);
+    const idle = await cue(add);
+
+    await add.hover();
+    assert.notDeepEqual(await cue(add), idle);
+    await page.locator('.programme-heading').screenshot({ path: `${artifacts}/button-hover-programme.png` });
+    for (const control of [
+      page.getByRole('group', { name: 'Outline actions' }).getByRole('button', { name: 'Save outline' }),
+      page.getByRole('button', { name: 'Remove Opening' }),
+    ]) {
+      await page.mouse.move(0, 0);
+      const before = await cue(control);
+
+      await control.hover();
+      assert.notDeepEqual(await cue(control), before);
+      assert.equal((await cue(control)).style, 'none');
+    }
+    const type = page.locator('.programme-type-field button').first();
+
+    await type.hover();
+    assert.equal((await cue(type)).style, 'none');
+    await type.click();
+    const option = page.getByRole('option').first();
+
+    await option.hover();
+    assert.equal((await cue(option)).style, 'none');
+    await option.click();
+    const details = page.getByRole('button', { name: /Description and resource/ }).first();
+
+    await details.hover();
+    assert.equal((await cue(details)).outline, 'none');
+    assert.equal((await cue(details)).style, 'none');
+    assert.equal((await cue(details.locator('.programme-details-label'))).style, 'underline');
+    assert.equal((await cue(details.locator('.programme-preview'))).style, 'none');
+    await details.screenshot({ path: `${artifacts}/button-hover-disclosure.png` });
+
+    await add.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    assert.equal(await add.evaluate(element => element.matches(':focus-visible')), true);
+    await page.mouse.move(0, 0);
+    const focusStyle = await cue(add);
+
+    await add.hover();
+    assert.deepEqual(await cue(add), focusStyle);
+    await add.blur();
+    const disabled = page.getByRole('button', { name: 'Move Opening up' });
+
+    await disabled.hover({ force: true });
+    assert.equal((await cue(disabled)).outline, 'none');
+    await page.getByRole('button', { name: 'Remove Opening' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Remove session?' });
+    const confirm = dialog.getByRole('button', { name: 'Remove session' });
+
+    await confirm.hover();
+    assert.notEqual((await cue(confirm)).outline, 'none');
+    await page.locator('.confirm-dialog-shell').click({ position: { x: 5, y: 5 } });
+    await page.getByRole('button', { name: 'Cancel', exact: true }).first().click();
+    await page.goto(`${origin}/organizer-console/events`);
+    const create = page.getByRole('link', { name: /Create event/i }).first();
+
+    await create.waitFor();
+    await create.hover();
+    assert.notEqual((await cue(create)).outline, 'none');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await create.hover();
+    assert.notEqual((await cue(create)).outline, 'none');
+    await page.evaluate(() => {
+      const container = document.createElement('div');
+
+      container.innerHTML = '<input type="submit" id="hover-input" value="Submit"><span role="button" id="hover-role">Action</span><a class="mobile-ops-action" href="#" id="hover-link">Action</a><fieldset disabled><button id="hover-fieldset">Disabled</button></fieldset><div aria-disabled="true"><button id="hover-aria">Disabled</button></div><div inert><button id="hover-inert">Inert</button></div><button class="submission-drawer-backdrop" id="hover-backdrop">Backdrop</button>';
+      document.body.append(container);
+    });
+    for (const selector of ['#hover-input', '#hover-role', '#hover-link']) {
+      const node = page.locator(selector);
+
+      await node.evaluate(element => { element.style.cssText = 'position:fixed;left:10px;top:80px;width:100px;height:30px;z-index:200'; });
+      await page.mouse.move(0, 0);
+      const before = await cue(node);
+
+      await page.mouse.move(20, 90);
+      assert.notDeepEqual(await cue(node), before, selector);
+      await node.evaluate(element => { element.style.display = 'none'; });
+    }
+    for (const selector of ['#hover-fieldset', '#hover-aria', '#hover-inert', '#hover-backdrop']) {
+      const node = page.locator(selector);
+
+      await node.evaluate(element => { element.style.cssText = 'position:fixed;left:10px;top:80px;width:100px;height:30px;z-index:200'; });
+      await page.mouse.move(20, 90);
+      assert.equal((await cue(node)).outline, 'none', selector);
+      await node.evaluate(element => { element.style.display = 'none'; });
+    }
+  }, { role: 'organizer' });
+
+  await journey('button-hover-touch', async ({ page, responses }) => {
+    responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+    responses.set('/api/annual-conference/2026/work-plan', { body: workspace });
+    responses.set('/api/annual-conference/2026/programme', { body: { rows: [], revision: 0, updated_at: null, updated_by: null } });
+    await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
+    const add = page.getByRole('button', { name: 'Add outline' });
+
+    await add.waitFor();
+    assert.equal(await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches), false);
+    const before = await add.evaluate(element => getComputedStyle(element).outlineStyle);
+
+    await add.hover();
+    assert.equal(await add.evaluate(element => getComputedStyle(element).outlineStyle), before);
+  }, { role: 'organizer' });
+
   for (const mobile of [false, true]) {
     await journey(`programme-${mobile ? 'mobile' : 'desktop'}`, async ({ page, responses }) => {
       let snapshot = { rows: [], revision: 0, updated_at: null, updated_by: null };
@@ -391,18 +513,20 @@ try {
       await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
       await page.getByRole('button', { name: 'Add outline' }).click();
       await page.getByLabel('Title', { exact: true }).first().fill('Opening');
-      await page.getByRole('button', { name: 'Add row' }).click();
+      await page.getByRole('group', { name: 'Outline actions' }).getByRole('button', { name: 'Add row' }).click();
       await page.getByLabel('Title', { exact: true }).nth(1).fill('Discussion');
-      await page.getByRole('button', { name: 'Save outline' }).click();
+      await page.getByRole('group', { name: 'Outline actions' }).getByRole('button', { name: 'Save outline' }).click();
       await page.getByRole('heading', { name: 'Opening' }).waitFor();
       await page.reload();
       await page.getByRole('heading', { name: 'Discussion' }).waitFor();
       await page.screenshot({ path: `${artifacts}/programme-${mobile ? 'mobile' : 'desktop'}.png`, fullPage: true });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.getByRole('button', { name: 'Edit outline' }).click();
-      await page.getByRole('group', { name: 'Session 2 actions' }).getByRole('button', { name: 'Move up' }).click();
-      await page.getByRole('group', { name: 'Session 2 actions' }).getByRole('button', { name: 'Remove' }).click();
-      await page.getByRole('button', { name: 'Save outline' }).click();
+      await page.getByRole('group', { name: 'Session 2 actions' }).getByRole('button', { name: 'Move Discussion up' }).click();
+      await page.getByRole('group', { name: 'Session 2 actions' }).getByRole('button', { name: 'Remove Opening' }).click();
+      await page.getByRole('dialog', { name: 'Remove session?' }).getByText('Remove “Opening” from the draft? Save outline to apply this change.').waitFor();
+      await page.getByRole('dialog', { name: 'Remove session?' }).getByRole('button', { name: 'Remove session' }).click();
+      await page.getByRole('group', { name: 'Outline actions' }).getByRole('button', { name: 'Save outline' }).click();
       await page.getByRole('heading', { name: 'Discussion' }).waitFor();
       assert.deepEqual(snapshot.rows.map(row => row.title), ['Discussion']);
       await page.getByRole('button', { name: 'Edit outline' }).click();
@@ -414,6 +538,365 @@ try {
       await page.getByRole('option', { name: 'December 2026' }).click();
       await page.getByText('2026 conference').waitFor();
       assert.equal(await page.getByLabel('Title', { exact: true }).first().inputValue(), 'Unsaved draft');
+    }, { role: 'organizer' });
+  }
+
+  for (const mobile of [false, true]) {
+    await journey(`programme-layout-${mobile ? 'mobile' : 'desktop'}`, async ({ page, responses, requests }) => {
+      const supplied = [
+  ['10:00–10:15 AM', 'Opening and Welcome Remarks', 'Host introduction, event overview, housekeeping and programme highlights.', 'talk'],
+  ['10:15–10:40 AM', 'Keynote Address', 'The featured speaker addresses the event theme: Technology for the Next Generation.', 'talk'],
+  ['10:40–10:55 AM', 'Sponsor Spotlight 1 — Paystack', 'Sponsor presentation, developer opportunities, or technology ecosystem insights.', 'talk'],
+  ['10:55–11:25 AM', 'Technical Speaking Sessions', 'Two talks of approximately 15 minutes each, including a brief transition.', 'talk'],
+  ['11:25–11:45 AM', 'Product Demonstrations', 'Two live demos showcasing products, developer tools, or practical technology solutions.', 'product_demo'],
+  ['11:45 AM–12:00 PM', 'Sponsor Spotlight 2 — To Be Confirmed', 'Sponsor presentation focused on products, developer resources, or industry opportunities.', 'talk'],
+  ['12:00–12:45 PM', 'Breakout Sessions — Round 1', 'Three parallel rooms. This 45-minute block is a placeholder; see breakout scheduling note below.', 'workshop'],
+  ['12:45–1:15 PM', 'Lunch and Networking', 'Refreshments, sponsor engagement and informal networking.', 'networking'],
+  ['1:15–2:00 PM', 'Breakout Sessions — Round 2', 'Three parallel rooms. This block can host a second set of talks or workshops.', 'workshop'],
+  ['2:00–2:15 PM', 'Sponsor Spotlight 3 — To Be Confirmed', 'Additional sponsor presentation.', 'talk'],
+  ['2:15–3:00 PM', 'System Design Session', 'Technical deep dive into architecture, scalability, trade-offs and real-world engineering decisions.', 'system_design'],
+  ['3:00–3:40 PM', 'Panel Discussion', 'Moderated conversation with industry professionals, followed by audience questions.', 'panel'],
+  ['3:40–4:00 PM', 'Closing Remarks and Networking', 'Acknowledgements, announcements, sponsor appreciation and event close.', 'networking'],
+];
+      const rows = supplied.map(([time, title, description, type], index) => ({
+        id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+        time, title, description, type,
+        lead: 'Hidden existing lead',
+        resourceTitle: index === 0 ? 'Slides' : '',
+        resourceUrl: index === 0 ? 'https://example.com/slides' : '',
+      }));
+      let saved = { rows, revision: 1, updated_at: null, updated_by: null };
+
+      responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+      responses.set('/api/annual-conference/2026/work-plan', { body: workspace });
+      responses.set('/api/annual-conference/2026/programme', (request) => {
+        if (request.method() === 'PUT') saved = { ...request.postDataJSON(), revision: 2, updated_at: null, updated_by: null };
+
+        return { body: saved };
+      });
+      await page.setViewportSize({ width: mobile ? 390 : 1440, height: 900 });
+      await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
+      await page.getByRole('heading', { name: 'Closing Remarks and Networking' }).waitFor();
+      assert.equal(await page.getByText('Hidden existing lead').count(), 0);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      assert.equal(await page.locator('.programme-time').nth(5).evaluate(el => (() => { const range = document.createRange();
+
+ range.selectNodeContents(el);
+
+ return range.getClientRects().length === 1 && el.scrollWidth <= el.clientWidth; })()), true);
+      await page.screenshot({ path: `${artifacts}/programme-layout-${mobile ? 'mobile' : 'desktop'}-read.png`, fullPage: true });
+      await page.locator('.programme-heading').screenshot({ path: `${artifacts}/programme-layout-${mobile ? 'mobile' : 'desktop'}-header.png` });
+      await page.getByRole('button', { name: 'Edit outline' }).click();
+      assert.equal(await page.getByLabel('Lead', { exact: true }).count(), 0);
+      const top = page.getByRole('group', { name: 'Outline actions' });
+
+      for (const label of ['Add row', 'Save outline', 'Cancel']) {
+        assert.equal(await page.getByRole('button', { name: label, exact: true }).count(), 1);
+      }
+      const first = page.locator('fieldset.programme-row').first();
+      const toggle = first.getByRole('button', { name: /Description and resource/ });
+      const geometry = await first.evaluate((element) => {
+        const controls = [element.querySelector('.programme-time-field button'), element.querySelector('[data-row-title]'), element.querySelector('.programme-type-field button')];
+
+        return controls.map((control) => {
+          const rect = control.getBoundingClientRect();
+
+          return { top: rect.top, height: rect.height };
+        });
+      });
+      const aligned = mobile ? [geometry[0], geometry[2]] : geometry;
+
+      assert.equal(aligned.every(rect => Math.abs(rect.top - aligned[0].top) < 1 && Math.abs(rect.height - aligned[0].height) < 1), true, JSON.stringify(geometry));
+      console.log(JSON.stringify({ viewport: mobile ? 390 : 1440, programmeFieldGeometry: geometry }));
+
+      assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+      assert.ok(await toggle.getAttribute('aria-controls'));
+      await page.screenshot({ path: `${artifacts}/programme-layout-${mobile ? 'mobile' : 'desktop'}-edit.png`, fullPage: true });
+      await toggle.click();
+      await first.getByLabel('Resource URL').fill('javascript:alert(1)');
+      await first.getByRole('button', { name: 'Hide details' }).click();
+      await top.getByRole('button', { name: 'Save outline' }).click();
+      assert.equal(await first.getByLabel('Resource URL').isVisible(), true);
+      assert.equal(await first.getByLabel('Resource URL').evaluate(el => el === document.activeElement), true);
+      await first.getByLabel('Resource URL').fill('https://example.com/slides');
+      await first.getByRole('button', { name: 'Hide details' }).click();
+      await top.getByRole('button', { name: 'Add row' }).click();
+      assert.equal(await page.getByLabel('Title', { exact: true }).last().evaluate(el => el === document.activeElement), true);
+      await page.getByLabel('Title', { exact: true }).last().fill('Draft session');
+      const last = page.locator('fieldset.programme-row').last();
+      const remove = last.getByRole('button', { name: /Remove/ });
+      const putCount = () => requests.filter(request => request.method === 'PUT').length;
+      const before = putCount();
+
+      await remove.click();
+      const dialog = page.getByRole('dialog', { name: 'Remove session?' });
+
+      await dialog.getByText('Remove “Draft session” from the draft? Save outline to apply this change.').waitFor();
+      await page.waitForFunction((isMobile) => {
+        const panel = document.querySelector('[role="dialog"]');
+
+        if (!panel) return false;
+        const rect = panel.getBoundingClientRect();
+
+        return isMobile
+          ? Math.abs(rect.bottom - innerHeight) < 2
+          : Math.abs(rect.top + rect.height / 2 - innerHeight / 2) < 2;
+      }, mobile);
+      await page.screenshot({ path: `${artifacts}/programme-remove-${mobile ? 'mobile' : 'desktop'}.png`, animations: 'disabled' });
+      await dialog.getByRole('button', { name: 'Cancel' }).click();
+      assert.equal(await page.locator('fieldset.programme-row').count(), 14);
+      assert.equal(putCount(), before);
+      await remove.click();
+      await page.keyboard.press('Escape');
+      assert.equal(await page.locator('fieldset.programme-row').count(), 14);
+      await remove.click();
+      await page.locator('.confirm-dialog-shell').click({ position: { x: 5, y: 5 } });
+      assert.equal(await page.locator('fieldset.programme-row').count(), 14);
+      await remove.click();
+      await dialog.getByRole('button', { name: 'Remove session' }).click();
+      assert.equal(await page.locator('fieldset.programme-row').count(), 13);
+      assert.equal(putCount(), before);
+      assert.equal(await page.getByLabel('Title', { exact: true }).last().evaluate(el => el === document.activeElement), true);
+      await top.getByRole('button', { name: 'Save outline' }).click();
+      await page.getByRole('heading', { name: 'Closing Remarks and Networking' }).waitFor();
+      assert.equal(saved.rows[0].lead, 'Hidden existing lead');
+      if (mobile) {
+        await page.setViewportSize({ width: 320, height: 900 });
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      }
+    }, { role: 'organizer' });
+  }
+
+  for (const width of [1440, 390, 320]) {
+    await journey(`programme-time-picker-${width}`, async ({ page, responses, requests }) => {
+      const rows = [
+        { id: '00000000-0000-4000-8000-000000000001', time: '1:15–2:00 PM', title: 'Breakout', type: 'talk', lead: '', description: '', resourceTitle: '', resourceUrl: '' },
+        { id: '00000000-0000-4000-8000-000000000002', time: 'After lunch', title: 'Legacy', type: 'talk', lead: '', description: '', resourceTitle: '', resourceUrl: '' },
+        { id: '00000000-0000-4000-8000-000000000003', time: '11:45 PM–12:00 AM', title: 'Midnight', type: 'talk', lead: '', description: '', resourceTitle: '', resourceUrl: '' },
+      ];
+      let snapshot = { rows, revision: 1, updated_at: null, updated_by: null };
+
+      responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+      responses.set('/api/annual-conference/2026/work-plan', { body: workspace });
+      responses.set('/api/annual-conference/2026/programme', request => {
+        if (request.method() === 'PUT') snapshot = { ...request.postDataJSON(), revision: 2, updated_at: null, updated_by: null };
+
+        return { body: snapshot };
+      });
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
+      await page.getByRole('button', { name: 'Edit outline' }).click();
+      const first = page.locator('fieldset.programme-row').first();
+      const picker = page.getByRole('dialog', { name: 'Choose programme time' });
+
+      await first.getByRole('button', { name: 'Time' }).click();
+      await picker.getByText('2:00 PM', { exact: true }).waitFor();
+      assert.equal(await picker.getByRole('spinbutton').inputValue(), '45');
+      assert.equal(await picker.getByRole('button', { name: /^(15|20|30|45) min$/ }).count(), 0);
+      const label = await picker.getByText('Duration', { exact: true }).boundingBox();
+      const plus = await picker.getByRole('button', { name: 'Increase duration by one minute' }).boundingBox();
+
+      assert.ok(Math.abs(label.y + label.height / 2 - plus.y - plus.height / 2) < 2);
+      assert.ok(plus.x + plus.width <= width);
+      const bounds = await picker.boundingBox();
+
+      assert.equal(await page.evaluate(() => Math.abs(document.documentElement.getBoundingClientRect().width - innerWidth) < 1), true);
+      assert.ok(bounds.height < 340, `Picker should remain compact: ${JSON.stringify(bounds)}`);
+      assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1);
+      if (width < 640) assert.ok(Math.abs(bounds.y + bounds.height - 900) < 2);
+      else {
+        await page.waitForFunction(() => {
+          const picker = document.querySelector('.programme-time-panel').getBoundingClientRect();
+          const trigger = document.querySelector('.programme-time-trigger').getBoundingClientRect();
+
+          return picker.bottom <= trigger.top - 4 || picker.top >= trigger.bottom + 4;
+        });
+      }
+      await page.screenshot({ path: `${artifacts}/programme-time-${width}.png`, animations: 'disabled' });
+      await picker.getByRole('button', { name: /^Start minute,/ }).click();
+      const optionBounds = await page.getByRole('option', { name: '17', exact: true }).boundingBox();
+
+      assert.ok(optionBounds.x >= 0 && optionBounds.x + optionBounds.width <= width + 1);
+      await page.getByRole('option', { name: '17', exact: true }).click();
+      await page.keyboard.press('Escape');
+      assert.equal(await first.getByRole('button', { name: 'Time' }).innerText(), '1:15–2:00 PM');
+      await first.getByRole('button', { name: 'Time' }).click();
+      await picker.getByRole('button', { name: /^Start minute,/ }).click();
+      await page.getByRole('option', { name: '17', exact: true }).click();
+      await picker.getByRole('spinbutton', { name: 'Duration in minutes' }).fill('17');
+      await picker.getByText('1:34 PM', { exact: true }).waitFor();
+      await picker.getByRole('button', { name: 'Apply' }).click();
+      assert.equal(await first.getByRole('button', { name: 'Time' }).innerText(), '1:17–1:34 PM');
+      assert.equal(requests.some(request => request.method === 'PUT'), false);
+      const second = page.locator('fieldset.programme-row').nth(1);
+
+      const third = page.locator('fieldset.programme-row').nth(2);
+
+      await third.getByRole('button', { name: 'Time' }).click();
+      await picker.getByText('12:00 AM', { exact: true }).waitFor();
+      assert.equal(await picker.getByRole('spinbutton', { name: 'Duration in minutes' }).inputValue(), '15');
+      await picker.getByRole('button', { name: /^Start hour,/ }).click();
+      await page.getByRole('option', { name: '12', exact: true }).click();
+      await picker.getByRole('button', { name: /^Start minute,/ }).click();
+      await page.getByRole('option', { name: '00', exact: true }).click();
+      await picker.getByRole('button', { name: /^Start period,/ }).click();
+      await page.getByRole('option', { name: 'AM', exact: true }).click();
+      await picker.getByRole('spinbutton', { name: 'Duration in minutes' }).fill('1440');
+      assert.equal(await picker.getByRole('button', { name: 'Apply' }).isDisabled(), true);
+      await picker.getByRole('button', { name: 'Cancel' }).click();
+      await second.getByRole('button', { name: 'Time' }).click();
+      await picker.getByText('Current: After lunch').waitFor();
+      await picker.getByRole('button', { name: 'Apply' }).click();
+      assert.equal(await second.getByRole('button', { name: 'Time' }).innerText(), 'After lunch');
+      await second.getByRole('button', { name: 'Time' }).click();
+      await picker.getByRole('button', { name: /Start after previous session/ }).click();
+      await picker.getByRole('spinbutton', { name: 'Duration in minutes' }).fill('20');
+      await picker.getByText('1:54 PM', { exact: true }).waitFor();
+      await picker.getByRole('button', { name: 'Cancel' }).click();
+      assert.equal(await second.getByRole('button', { name: 'Time' }).innerText(), 'After lunch');
+      await page.getByRole('group', { name: 'Outline actions' }).getByRole('button', { name: 'Save outline' }).click();
+      await page.getByRole('heading', { name: 'Breakout' }).waitFor();
+      assert.equal(snapshot.rows[0].time, '1:17–1:34 PM');
+      assert.equal(snapshot.rows[1].time, 'After lunch');
+      await page.reload();
+      await page.getByText('1:17–1:34 PM').waitFor();
+      await page.getByRole('button', { name: 'Edit outline' }).click();
+      await page.locator('fieldset.programme-row').first().getByRole('button', { name: 'Time' }).click();
+      const minutes = picker.getByRole('spinbutton', { name: 'Duration in minutes' });
+
+      await minutes.fill('60');
+      const focusStyle = await minutes.evaluate(input => {
+        const css = getComputedStyle(input);
+
+        return [css.boxShadow, css.outlineStyle, css.borderTopWidth, css.borderBottomWidth];
+      });
+
+      assert.deepEqual(focusStyle, ['none', 'none', '0px', '2px']);
+      await picker.getByText('2:17 PM', { exact: true }).waitFor();
+      await picker.getByRole('button', { name: 'Increase duration by one minute' }).click();
+      assert.equal(await minutes.inputValue(), '61');
+      await picker.getByRole('button', { name: 'Decrease duration by one minute' }).click();
+      assert.equal(await minutes.inputValue(), '60');
+      await picker.getByRole('spinbutton', { name: 'Duration in minutes' }).fill('20');
+      assert.equal(await minutes.inputValue(), '20');
+      await picker.getByRole('button', { name: 'Set TBD' }).click();
+      await picker.getByRole('button', { name: 'Apply' }).click();
+      assert.equal(await page.locator('fieldset.programme-row').first().getByRole('button', { name: 'Time' }).innerText(), 'TBD');
+      await page.locator('fieldset.programme-row').nth(1).getByRole('button', { name: 'Time' }).click();
+      assert.equal(await picker.getByRole('button', { name: /Start after previous session/ }).count(), 0);
+      await picker.getByRole('button', { name: 'Cancel' }).click();
+      await page.getByRole('group', { name: 'Session 2 actions' }).getByRole('button', { name: 'Move Legacy up' }).click();
+      await page.locator('fieldset.programme-row').first().getByRole('button', { name: 'Time' }).click();
+      assert.equal(await picker.getByRole('button', { name: /Start after previous session/ }).count(), 0);
+      if (width < 640) {
+        await page.locator('.programme-time-layer').click({ position: { x: 4, y: 4 } });
+        await picker.waitFor({ state: 'hidden' });
+        await page.waitForFunction(() => document.activeElement === document.querySelector('fieldset.programme-row .programme-time-trigger'));
+      } else {
+        await picker.getByRole('button', { name: 'Cancel' }).click();
+      }
+    }, { role: 'organizer' });
+  }
+
+  for (const width of [1440, 1024, 390, 320]) {
+    await journey(`programme-sticky-${width}`, async ({ page, responses }) => {
+      const rows = Array.from({ length: 13 }, (_, index) => ({
+        id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+        time: '11:45 AM–12:00 PM', title: `Session ${index + 1}`,
+        type: 'talk', lead: '', description: 'Session description.', resourceTitle: '', resourceUrl: '',
+      }));
+
+      responses.set('/api/admin/organizers', { body: { organizers: [] } });
+      responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+      responses.set('/api/annual-conference/2026/work-plan', { body: { ...workspace, permissions: { ...workspace.permissions, can_create_tasks: true } } });
+      responses.set('/api/annual-conference/2026/programme', { body: { rows, revision: 1, updated_at: null, updated_by: null } });
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
+      await page.getByRole('heading', { name: 'Session 13' }).waitFor();
+      if (width < 640) {
+        const toolbar = page.locator('.annual-conference-nav-shell');
+        const selector = await toolbar.locator('.edition-picker button').first().boundingBox();
+        const create = await toolbar.getByRole('button', { name: 'New edition' }).boundingBox();
+
+        assert.ok(selector && create);
+        assert.ok(Math.abs(selector.y - create.y) <= 1 && Math.abs(selector.height - create.height) <= 1);
+        assert.ok(selector.x + selector.width < create.x);
+        await toolbar.screenshot({ path: `${artifacts}/edition-toolbar-${width}.png` });
+      }
+      const main = page.locator('.app-main');
+      const check = async (editing) => {
+        if (width < 768) {
+          await page.evaluate(() => window.scrollTo(0, 1300));
+          await page.waitForFunction(() => window.scrollY >= 100);
+        } else {
+          await main.evaluate(element => { element.scrollTop = 1300; });
+          await page.waitForFunction(() => document.querySelector('.app-main').scrollTop >= 100);
+        }
+        const geometry = await page.evaluate(() => {
+          const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect().toJSON();
+          const buttons = [...document.querySelectorAll('[aria-label="Outline actions"] button')].map(button => button.getBoundingClientRect().toJSON());
+
+          return { main: rect('.app-main'), appHeader: rect('.app-header'), header: rect('.programme-heading'), title: rect('.programme-heading h1'), nav: rect('.annual-conference-nav-shell'), buttons, scrollWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth };
+        });
+
+        if (width >= 768) assert.ok(geometry.header.top >= geometry.main.top - 1, JSON.stringify(geometry));
+        else assert.ok(Math.abs(geometry.header.top - geometry.appHeader.bottom) < 2, JSON.stringify(geometry));
+        assert.ok(geometry.title.top >= geometry.header.top - 1 && geometry.title.bottom <= geometry.header.bottom + 1, JSON.stringify(geometry));
+        if (width >= 768) assert.ok(Math.abs(geometry.header.top - geometry.nav.bottom) < 2, JSON.stringify(geometry));
+        assert.ok(geometry.header.bottom < Math.min(geometry.main.bottom, 900), JSON.stringify(geometry));
+        assert.equal(geometry.scrollWidth <= geometry.viewportWidth, true);
+        if (editing) {
+          assert.equal(geometry.buttons.length, 3);
+          assert.ok(geometry.buttons.every(button => button.height >= (width < 768 ? 44 : 36) && button.top >= geometry.header.top - 1 && button.bottom <= geometry.header.bottom + 1), JSON.stringify(geometry));
+        }
+        await page.screenshot({ path: `${artifacts}/programme-sticky-${width}-${editing ? 'edit' : 'read'}.png` });
+        if (editing && width === 1440) await page.locator('.programme-heading').screenshot({ path: `${artifacts}/programme-layout-desktop-header.png` });
+      };
+
+      await check(false);
+      if (width === 1440) {
+        await page.getByRole('button', { name: 'New edition' }).click();
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('.annual-conference-nav-shell')).position === 'relative');
+        await main.evaluate(element => { element.scrollTop = 1300; });
+        await page.waitForFunction(() => {
+          const header = document.querySelector('.programme-heading').getBoundingClientRect();
+          const crumbs = document.querySelector('.organizer-breadcrumbs').getBoundingClientRect();
+
+          return Math.abs(header.top - crumbs.bottom) < 2;
+        });
+        await page.locator('.annual-conference-nav-shell form').getByRole('button', { name: 'Cancel' }).click();
+      }
+      await page.getByRole('button', { name: 'Edit outline' }).click();
+      await check(true);
+      await page.getByLabel('Time', { exact: true }).first().focus();
+      if (width < 768) await page.evaluate(() => window.scrollBy(0, 250));
+      else await main.evaluate(element => { element.scrollTop += 250; });
+      await page.keyboard.press('Tab');
+      await page.waitForFunction(() => {
+        const focused = document.activeElement.getBoundingClientRect();
+        const header = document.querySelector('.programme-heading').getBoundingClientRect();
+
+        return focused.top >= header.bottom - 1;
+      });
+      if (width < 768) await page.evaluate(() => window.scrollBy(0, 200));
+      else await main.evaluate(element => { element.scrollTop += 200; });
+      await page.keyboard.press('Shift+Tab');
+      await page.waitForFunction(() => {
+        const focused = document.activeElement.getBoundingClientRect();
+        const header = document.querySelector('.programme-heading').getBoundingClientRect();
+
+        return focused.top >= header.bottom - 1;
+      });
+      await page.locator('fieldset.programme-row').last().scrollIntoViewIfNeeded();
+      await page.getByRole('group', { name: 'Outline actions' }).getByRole('button', { name: 'Add row' }).click();
+      const focused = await page.getByLabel('Title', { exact: true }).last().evaluate(element => {
+        const header = document.querySelector('.programme-heading').getBoundingClientRect();
+        const field = element.getBoundingClientRect();
+
+        return element === document.activeElement && field.top >= header.bottom - 1 && field.bottom <= Math.min(innerHeight, document.querySelector('.app-main').getBoundingClientRect().bottom) + 1;
+      });
+
+      assert.equal(focused, true);
     }, { role: 'organizer' });
   }
 

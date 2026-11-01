@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-01 — Programme time picker
+
+- Set a start time and duration in a compact picker with a minute stepper, an optional previous-session shortcut, and a live finish time. Focusing the minute value highlights its underline.
+
+## 2026-11-01 — Button hover feedback
+
+- Add a fine-pointer hover edge to action buttons, with a label-only underline for the Programme details disclosure, while retaining existing focus and disabled behavior.
+
+## 2026-11-01 — Compact programme editing
+
+- Show the conference programme as a compact schedule, with aligned fields, row details on demand, and a single editing toolbar in the sticky heading. Confirm row removal before changing the draft. Existing lead data remains intact but is no longer shown.
+
 ## 2026-11-01 — Programme draft state hardening
 
 - Store per-year programme drafts in a key-safe map while preserving draft state when organizers switch editions.

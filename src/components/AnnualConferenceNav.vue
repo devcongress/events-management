@@ -206,12 +206,12 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
     class="annual-conference-nav-shell mb-6"
     :class="showPageHeading ? 'border-b-2 border-dc-ink pb-5' : ''"
   >
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-3" :class="{ 'edition-toolbar--owner': canCreateEdition }">
+      <div class="edition-fields flex min-w-0 flex-1 flex-wrap items-center gap-3">
         <p class="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-dc-ink">
           Annual Conference
         </p>
-        <div v-if="canManageEditions" class="min-w-44 max-w-56 flex-1 sm:flex-none">
+        <div v-if="canManageEditions" class="edition-picker min-w-44 max-w-56 flex-1 sm:flex-none">
           <AppDropdown
             :model-value="year"
             :options="editionOptions"
@@ -385,6 +385,25 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
 }
 
 @media (max-width: 639px) {
+  .edition-toolbar--owner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .edition-toolbar--owner .edition-fields {
+    display: contents;
+  }
+
+  .edition-toolbar--owner .edition-fields > p,
+  .edition-toolbar--owner .annual-conference-nav-viewport {
+    grid-column: 1 / -1;
+  }
+
+  .edition-toolbar--owner .edition-picker {
+    min-width: 0;
+    max-width: none;
+  }
+
   .annual-conference-nav-viewport {
     position: relative;
   }
