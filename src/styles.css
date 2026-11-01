@@ -9834,3 +9834,24 @@
     top: auto;
   }
 }
+
+/* Allow the Programme heading to follow the document scroll on phones. */
+@media (max-width: 767px) {
+  body:has(.programme-heading) {
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+}
+
+/* A quiet hover cue for enabled controls, including controls teleported outside #app. */
+@media (hover: hover) and (pointer: fine) {
+  :where(
+    button,
+    input:is([type="button"], [type="submit"], [type="reset"]),
+    [role="button"],
+    a:is(.editorial-action, .editorial-secondary-action, .submission-review-action, .cfp-primary-action, .cfp-secondary-action, .primary-button, .secondary-button, .mobile-ops-action, .mobile-event-primary-action, .icon-button, .motion-press)
+  ):where(:hover):where(:not(.programme-details-toggle, .app-form-control, [aria-haspopup="listbox"], [role="combobox"], [role="option"], [role="switch"], [role="checkbox"], [role="radio"], :disabled, :focus-visible, [aria-disabled="true"], [inert], [aria-disabled="true"] *, [inert] *, .audit-log-drawer-backdrop, .submission-drawer-backdrop, .talk-preview-drawer-backdrop)) {
+    outline: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+    outline-offset: -2px;
+  }
+}

@@ -56,8 +56,8 @@ describe("mobile organizer entry points", () => {
     expect(mobileConferenceSource).toContain(
       'v-if="canManageEditions" class="conference-mobile__edition-bar"',
     );
-    expect(conferenceNavSource).toContain(
-      'v-if="canManageEditions" class="min-w-44 max-w-56',
+    expect(conferenceNavSource).toMatch(
+      /<div\s+v-if="canManageEditions"[^>]*>\s*<AppDropdown\s+:model-value="year"/,
     );
     expect(conferenceNavSource).toContain(
       "{{ currentEdition?.label ?? `December ${year}` }}",
