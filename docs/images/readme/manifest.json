@@ -1,0 +1,66 @@
+{
+  "generated_from": "built Vue application",
+  "sample_date": "2026-11-01T10:00:00Z",
+  "captures": [
+    {
+      "file": "organizer-events.png",
+      "role": "organizer",
+      "route": "/organizer-console/events",
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "data": "synthetic"
+    },
+    {
+      "file": "organizer-guests.png",
+      "role": "organizer",
+      "route": "/organizer-console/events/november-meetup/registrations",
+      "viewport": {
+        "width": 1440,
+        "height": 1240
+      },
+      "data": "synthetic"
+    },
+    {
+      "file": "organizer-feedback.png",
+      "role": "organizer",
+      "route": "/organizer-console/events/october-meetup/feedback",
+      "viewport": {
+        "width": 1440,
+        "height": 1040
+      },
+      "data": "synthetic"
+    },
+    {
+      "file": "organizer-work-plan.png",
+      "role": "organizer",
+      "route": "/organizer-console/annual-conference/2026/work-plan",
+      "viewport": {
+        "width": 1440,
+        "height": 1120
+      },
+      "data": "synthetic"
+    },
+    {
+      "file": "volunteer-my-tasks.png",
+      "role": "volunteer",
+      "route": "/organizer-console/annual-conference/2026/work-plan",
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "data": "synthetic"
+    },
+    {
+      "file": "volunteer-mobile.png",
+      "role": "volunteer",
+      "route": "/organizer-console/mobile/annual-conference/2026?section=tasks",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "data": "synthetic"
+    }
+  ]
+}
