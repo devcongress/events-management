@@ -46,6 +46,7 @@ const PHONE_ALLOWED_ADMIN_ROUTE_NAMES = new Set([
   "admin-public-events-preview",
   "admin-public-event-preview",
   "admin-organizers",
+  "admin-reports",
   ORGANIZER_VOLUNTEER_FOLLOW_UP_PREVIEW_ROUTE_NAME,
 ]);
 
@@ -192,7 +193,10 @@ export function organizerEventContextQuery(
   query: OrganizerRouteQuery | undefined,
   section = organizerMobileEventSection(query),
 ): Record<string, string> {
-  return { section };
+  const from = query?.from === "attendance" || query?.from === "feedback" ? query.from : null;
+  const month = typeof query?.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(query.month) ? query.month : null;
+
+  return { section, ...(from ? { from, ...(month ? { month } : {}) } : {}) };
 }
 
 export function organizerPhoneCheckInPath(eventId: string): string {
@@ -262,6 +266,12 @@ export function organizerViewportRedirect({
   const normalizedRouteName = typeof routeName === "string" ? routeName : "";
 
   if (isPhone) {
+    if (
+      eventId &&
+      (query?.from === "attendance" || query?.from === "feedback") &&
+      ["admin-event", "admin-attendance", "admin-feedback", "admin-registrations", "admin-talks", "admin-speakers", "admin-system-design"].includes(normalizedRouteName)
+    ) return null;
+
     if (
       isOrganizerPhoneRouteName(normalizedRouteName) ||
       PHONE_ALLOWED_ADMIN_ROUTE_NAMES.has(normalizedRouteName)

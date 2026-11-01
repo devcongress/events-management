@@ -10,6 +10,7 @@ import {
   ORGANIZER_VOLUNTEER_FOLLOW_UP_PREVIEW_ROUTE_NAME,
   matchesOrganizerPhoneViewport,
   organizerConferenceContextQuery,
+  organizerEventContextQuery,
   organizerMobileConferenceSection,
   organizerMobileEventSection,
   organizerPostAuthLanding,
@@ -146,6 +147,7 @@ describe("organizer viewport policy", () => {
       "admin-public-events-preview",
       "admin-public-event-preview",
       "admin-organizers",
+      "admin-reports",
       "admin-mobile",
       ORGANIZER_PHONE_EVENTS_ROUTE_NAME,
       ORGANIZER_PHONE_EVENT_ROUTE_NAME,
@@ -161,6 +163,26 @@ describe("organizer viewport policy", () => {
           routeName,
         }),
       ).toBeNull();
+    }
+  });
+
+  it("preserves validated report context in mobile event redirects", () => {
+    expect(organizerEventContextQuery({ from: "feedback", month: "2026-09" }, "guests"))
+      .toEqual({ section: "guests", from: "feedback", month: "2026-09" });
+    expect(organizerEventContextQuery({ from: "feedback", month: "2026-13" }))
+      .toEqual({ section: "overview", from: "feedback" });
+    expect(organizerEventContextQuery({ from: "other", month: "2026-09" }))
+      .toEqual({ section: "overview" });
+  });
+
+  it("keeps report-origin event breadcrumbs reachable on phones", () => {
+    for (const routeName of ["admin-event", "admin-attendance", "admin-feedback", "admin-registrations", "admin-talks", "admin-speakers", "admin-system-design"]) {
+      for (const from of ["attendance", "feedback"]) {
+        expect(organizerViewportRedirect({
+          authenticated: true, isAdminRoute: true, isPhone: true, routeName,
+          eventId: "event-1", query: { from, month: "2026-09" },
+        })).toBeNull();
+      }
     }
   });
 

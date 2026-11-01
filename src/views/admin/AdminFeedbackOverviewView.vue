@@ -12,7 +12,7 @@ import {
 } from '@/src/lib/api';
 
 const FEEDBACK_START_MONTH = '2026-01';
-const FEEDBACK_MONTH_QUERY_PATTERN = /^\d{4}-\d{2}$/;
+const FEEDBACK_MONTH_QUERY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 const route = useRoute();
 const selectedMonthKey = ref(feedbackMonthQueryValue() ?? '');
@@ -66,6 +66,8 @@ function applyFeedbackMonthQuery() {
 
 watch(months, (availableMonths) => {
   if (availableMonths.length === 0) {
+    if (loading.value) return;
+
     selectedMonthKey.value = '';
     selectedYear.value = '';
 

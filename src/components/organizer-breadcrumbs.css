@@ -121,7 +121,8 @@ span {
     display: none;
   }
 
-  li:nth-last-child(2) .organizer-breadcrumbs__separator {
+  .organizer-breadcrumbs:not(.organizer-breadcrumbs--report-event) li:nth-last-child(2) .organizer-breadcrumbs__separator,
+  .organizer-breadcrumbs--report-event li:nth-last-child(3) .organizer-breadcrumbs__separator {
     display: none;
   }
 

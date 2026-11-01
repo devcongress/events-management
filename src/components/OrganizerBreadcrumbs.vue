@@ -20,6 +20,7 @@ const route = useRoute();
 const client = useQueryClient();
 const cacheRevision = ref(0);
 const breadcrumbElement = ref<HTMLElement | null>(null);
+const reportEventTrail = computed(() => Boolean(route.params.eventId && (route.query.from === 'attendance' || route.query.from === 'feedback')));
 let breadcrumbResizeObserver: ResizeObserver | undefined;
 let scrollContainer: HTMLElement | null = null;
 
@@ -73,14 +74,14 @@ onUnmounted(() => {
     v-if="breadcrumbs.length"
     ref="breadcrumbElement"
     class="organizer-breadcrumbs"
-    :class="{ 'organizer-breadcrumbs--embedded': embedded }"
+    :class="{ 'organizer-breadcrumbs--embedded': embedded, 'organizer-breadcrumbs--report-event': reportEventTrail }"
     aria-label="Breadcrumb"
   >
     <ol>
       <li
         v-for="(breadcrumb, index) in breadcrumbs"
         :key="index"
-        :class="{ 'organizer-breadcrumbs__earlier': index < breadcrumbs.length - 2 }"
+        :class="{ 'organizer-breadcrumbs__earlier': index < breadcrumbs.length - (reportEventTrail ? 3 : 2) }"
       >
         <svg v-if="index > 0" class="organizer-breadcrumbs__separator" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" /></svg>
         <RouterLink v-if="breadcrumb.to && index < breadcrumbs.length - 1" :to="breadcrumb.to" :title="breadcrumb.label" aria-current-value="false">{{ breadcrumb.label }}</RouterLink>

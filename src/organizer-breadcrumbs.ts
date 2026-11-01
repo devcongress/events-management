@@ -45,8 +45,7 @@ const breadcrumbRoutes = new Set([
   'admin-registrations',
   'admin-system-design',
   'admin-feedback',
-  'admin-attendance-overview',
-  'admin-feedback-overview',
+  'admin-reports',
   'admin-organizers',
   'admin-audit-log',
   'admin-present-forms',
@@ -163,22 +162,25 @@ function eventBreadcrumbs(
   const mobile = name.startsWith('admin-mobile-');
   const path = adminPath(`${mobile ? 'mobile/' : ''}events/${encodeURIComponent(eventId)}`);
   const eventTo = context.query ? { path, query: context.query } : path;
-  const ancestor: OrganizerBreadcrumb = context.from
-    ? { label: context.from === 'attendance' ? 'Attendance' : 'Feedback', to: { path: adminPath(context.from), ...(context.month ? { query: { month: context.month } } : {}) } }
-    : { label: 'Events', to: adminPath(mobile ? 'mobile/events' : 'events') };
+  const ancestors: OrganizerBreadcrumb[] = context.from
+    ? [
+        { label: 'Reports', to: adminPath('reports') },
+        { label: context.from === 'attendance' ? 'Attendance' : 'Feedback', to: { path: adminPath('reports'), query: { section: context.from, ...(context.month ? { month: context.month } : {}) } } },
+      ]
+    : [{ label: 'Events', to: adminPath(mobile ? 'mobile/events' : 'events') }];
   const event: OrganizerBreadcrumb = { label: label(labels.eventName) ?? 'Event' };
 
-  if (name === 'admin-event' || name === 'admin-community-event') return [ancestor, event];
+  if (name === 'admin-event' || name === 'admin-community-event') return [...ancestors, event];
 
   if (name === 'admin-mobile-event') {
     const section = query.section === 'guests' || query.section === 'submissions' ? query.section : 'overview';
 
     return section === 'overview'
-      ? [ancestor, event]
-      : [ancestor, { ...event, to: eventTo }, { label: section === 'guests' ? 'Guests' : 'Submissions' }];
+      ? [...ancestors, event]
+      : [...ancestors, { ...event, to: eventTo }, { label: section === 'guests' ? 'Guests' : 'Submissions' }];
   }
 
-  if (name === 'admin-mobile-event-blasts') return [ancestor, { ...event, to: eventTo }, { label: 'Blasts' }];
+  if (name === 'admin-mobile-event-blasts') return [...ancestors, { ...event, to: eventTo }, { label: 'Blasts' }];
 
   if (name === 'admin-talks') {
     const section = scalar(route.params?.talksSection);
@@ -186,7 +188,7 @@ function eventBreadcrumbs(
     const talksPath = `${path}/talks/cfp`;
 
     return [
-      ancestor,
+      ...ancestors,
       { ...event, to: eventTo },
       { label: 'Talks', ...(current === 'cfp' ? {} : { to: context.query ? { path: talksPath, query: context.query } : talksPath }) },
       { label: talkSections[current] },
@@ -195,7 +197,7 @@ function eventBreadcrumbs(
 
   const leaf = eventLeaves[name];
 
-  return leaf ? [ancestor, { ...event, to: eventTo }, { label: leaf }] : [];
+  return leaf ? [...ancestors, { ...event, to: eventTo }, { label: leaf }] : [];
 }
 
 function conferenceBreadcrumbs(
@@ -282,12 +284,12 @@ export function resolveOrganizerBreadcrumbs(
 
   const topLevel: Record<string, string> = {
     'admin-events': 'Events',
-    'admin-attendance-overview': 'Attendance',
-    'admin-feedback-overview': 'Feedback',
     'admin-organizers': 'People & Access',
     'admin-audit-log': 'Audit Log',
     'admin-present-forms': 'Present forms',
   };
+
+  if (name === 'admin-reports') return [{ label: 'Reports', to: adminPath('reports') }, { label: input.query?.section === 'feedback' ? 'Feedback' : 'Attendance' }];
 
   if (name === 'admin-audit-log' || name === 'admin-present-forms') {
     return input.role === 'owner' ? [{ label: topLevel[name] }] : [];

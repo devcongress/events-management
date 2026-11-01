@@ -54,7 +54,7 @@ function tabTo(href: string) {
   if (from === 'attendance' || from === 'feedback') {
     const query: { from: 'attendance' | 'feedback'; month?: string } = { from };
 
-    if (from === 'feedback' && typeof month === 'string' && /^\d{4}-\d{2}$/.test(month)) {
+    if (typeof month === 'string' && /^\d{4}-\d{2}$/.test(month)) {
       query.month = month;
     }
 

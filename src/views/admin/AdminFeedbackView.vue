@@ -579,7 +579,7 @@ async function removeFeedbackForm() {
     notify.success('Feedback form removed.', {
       description: 'Existing responses were kept for reporting.',
     });
-    await router.push(adminPath('feedback'));
+    await router.push({ path: adminPath('reports'), query: { section: 'feedback', ...(typeof route.query.month === 'string' ? { month: route.query.month } : {}) } });
   } catch {
     error.value = 'Unable to remove feedback form';
   } finally {

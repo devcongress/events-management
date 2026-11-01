@@ -44,11 +44,14 @@ describe('organizer breadcrumb routes', () => {
 
   it.each([
     ['admin-events', 'Events'],
-    ['admin-attendance-overview', 'Attendance'],
-    ['admin-feedback-overview', 'Feedback'],
     ['admin-organizers', 'People & Access'],
   ])('names the top-level %s view', (name, label) => {
     expect(resolve(name, { role: 'organizer' })).toEqual([{ label }]);
+  });
+
+  it('shows the active Reports section', () => {
+    expect(resolve('admin-reports')).toEqual([{ label: 'Reports', to: adminPath('reports') }, { label: 'Attendance' }]);
+    expect(resolve('admin-reports', { query: { section: 'feedback' } })).toEqual([{ label: 'Reports', to: adminPath('reports') }, { label: 'Feedback' }]);
   });
 
   it('does not invent Audit Log sub-navigation from local UI state', () => {
@@ -73,7 +76,8 @@ describe('event breadcrumb context', () => {
 
   it('preserves feedback return month and from context on event ancestors', () => {
     expect(resolve('admin-talks', { params: { ...eventParams, talksSection: 'program' }, query: { from: 'feedback', month: '2026-09' }, labels: { eventName: 'September Meetup' } })).toEqual([
-      { label: 'Feedback', to: { path: adminPath('feedback'), query: { month: '2026-09' } } },
+      { label: 'Reports', to: adminPath('reports') },
+      { label: 'Feedback', to: { path: adminPath('reports'), query: { section: 'feedback', month: '2026-09' } } },
       { label: 'September Meetup', to: { path: adminPath('events/private-event-id'), query: { from: 'feedback', month: '2026-09' } } },
       { label: 'Talks', to: { path: adminPath('events/private-event-id/talks/cfp'), query: { from: 'feedback', month: '2026-09' } } },
       { label: 'Talks Archive' },
@@ -83,8 +87,9 @@ describe('event breadcrumb context', () => {
   it('returns attendance navigation to Attendance and retains valid context', () => {
     const crumbs = resolve('admin-attendance', { params: eventParams, query: { from: 'attendance', month: '2026-10' } });
 
-    expect(crumbs[0]).toEqual({ label: 'Attendance', to: { path: adminPath('attendance'), query: { month: '2026-10' } } });
-    expect(crumbs[1].to).toEqual({ path: adminPath('events/private-event-id'), query: { from: 'attendance', month: '2026-10' } });
+    expect(crumbs[0]).toEqual({ label: 'Reports', to: adminPath('reports') });
+    expect(crumbs[1]).toEqual({ label: 'Attendance', to: { path: adminPath('reports'), query: { section: 'attendance', month: '2026-10' } } });
+    expect(crumbs[2].to).toEqual({ path: adminPath('events/private-event-id'), query: { from: 'attendance', month: '2026-10' } });
     expect(crumbs.at(-1)).toEqual({ label: 'Attendance' });
   });
 
@@ -98,8 +103,8 @@ describe('event breadcrumb context', () => {
   it.each(['2026-13', '2026-00', 'September', ['2026-09', '2026-10']])('discards invalid or repeated month %s', month => {
     const crumbs = resolve('admin-feedback', { params: eventParams, query: { from: 'feedback', month } });
 
-    expect(crumbs[0]).toEqual({ label: 'Feedback', to: { path: adminPath('feedback') } });
-    expect(crumbs[1].to).toEqual({ path: adminPath('events/private-event-id'), query: { from: 'feedback' } });
+    expect(crumbs[1]).toEqual({ label: 'Feedback', to: { path: adminPath('reports'), query: { section: 'feedback' } } });
+    expect(crumbs[2].to).toEqual({ path: adminPath('events/private-event-id'), query: { from: 'feedback' } });
   });
 
   it('keeps non-URL registration state out of the breadcrumb', () => {

@@ -428,7 +428,7 @@ async function fetchOverview() {
   await scrollToRequestedSection();
 }
 
-async function refreshPublicationStatus() {
+async function refreshPublicationStatus({ silent = false }: { silent?: boolean } = {}) {
   if (!event.value || publicationRefreshing.value) return;
   publicationRefreshing.value = true;
   try {
@@ -439,7 +439,9 @@ async function refreshPublicationStatus() {
     slackWebsite.value = response.website;
     slackUrl.value = response.slack_url;
   } catch (error) {
-    notify.error(error instanceof Error ? error.message : 'Publication status could not be refreshed.');
+    if (!silent) {
+      notify.error(error instanceof Error ? error.message : 'Publication status could not be refreshed.');
+    }
   } finally {
     publicationRefreshing.value = false;
   }
@@ -557,7 +559,7 @@ async function publishEvent() {
       sharedLinksError.value = null;
     }
     await invalidateEventQueries();
-    await refreshPublicationStatus();
+    await refreshPublicationStatus({ silent: true });
     notify.success('Event published to community');
   } catch (error) {
     publishError.value = error instanceof Error ? error.message : 'Failed to publish event';
