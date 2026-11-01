@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-01 — Speaker programme for DevCon26
+
+- Link accepted proposals to programme rows, review suggested descriptions, and reuse optional speaker portraits. Save outline publishes the authored 2026 programme through a dedicated public read endpoint for the website.
+
 ## 2026-11-01 — Programme time picker
 
 - Set a start time and duration in a compact picker with a minute stepper, an optional previous-session shortcut, and a live finish time. Focusing the minute value highlights its underline.

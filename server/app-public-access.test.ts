@@ -34,6 +34,21 @@ afterEach(() => {
 });
 
 describe('public API access policy', () => {
+  it('opens only read access to the programme and applies the website CORS allowlist', async () => {
+    vi.stubEnv('PUBLIC_API_CORS_ORIGINS', 'https://devcongress.org');
+    const path = '/api/public/annual-conference/2026/programme';
+
+    expect(isUnauthenticatedApiRequest(path, 'GET')).toBe(true);
+    expect(isUnauthenticatedApiRequest(path, 'PUT')).toBe(false);
+    expect(isUnauthenticatedApiRequest('/api/annual-conference/2026/programme/speakers', 'GET')).toBe(false);
+    for (const [origin, expected] of [['https://devcongress.org', 'https://devcongress.org'], ['https://attacker.example', null]]) {
+      const response = await app.request(`https://ems.example${path}`, { method: 'OPTIONS', headers: { Origin: origin!, 'Access-Control-Request-Method': 'GET' } });
+
+      expect(response.headers.get('access-control-allow-origin')).toBe(expected);
+      expect(response.headers.get('access-control-allow-credentials')).toBeNull();
+    }
+  });
+
   it('allows only the signed provider webhook POST without opening organizer ticketing', () => {
     expect(isUnauthenticatedApiRequest('/api/webhooks/paystack', 'POST')).toBe(true);
     expect(isUnauthenticatedApiRequest('/api/webhooks/paystack', 'GET')).toBe(false);

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { AppBindings } from '@/server/http/app-bindings';
 
-const mocks = vi.hoisted(() => ({ role: 'owner', exists: true, conflict: false, unavailable: false, mockReads: 0 }));
+const mocks = vi.hoisted(() => ({ role: 'owner', exists: true, conflict: false, unavailable: false, mockReads: 0, capability: true }));
 
 vi.mock('@/lib/supabase/admin-auth', () => ({
   requireAdmin: async (c: { json: (value: object, status: number) => Response }, roles: string[]) => mocks.role === 'anonymous'
@@ -23,6 +23,7 @@ vi.mock('@/server/annual-conference-programme-repository', () => ({
     save: async () => mocks.conflict ? null : { rows: [], revision: 1, updated_at: null, updated_by: null },
   }),
 }));
+vi.mock('@/server/annual-conference-request', () => ({ requireAnnualConferenceCapability: async (c: { json: (value: object, status: number) => Response }) => mocks.capability ? null : c.json({ error: 'Forbidden' }, 403) }));
 vi.mock('@/server/protected-mutation', () => ({ recordProtectedMutationAudit: async () => {} }));
 
 import { registerAnnualConferenceProgrammeRoutes } from './annual-conference-programme';
@@ -35,7 +36,7 @@ const put = (body: unknown) => app.request(url, { method: 'PUT', headers: { 'Con
 
 describe('programme API', () => {
   beforeEach(() => {
-    Object.assign(mocks, { role: 'owner', exists: true, conflict: false, unavailable: false, mockReads: 0 });
+    Object.assign(mocks, { role: 'owner', exists: true, conflict: false, unavailable: false, mockReads: 0, capability: true });
   });
 
   it.each([['anonymous', 401], ['volunteer', 403], ['owner', 200], ['organizer', 200]])('enforces the %s role', async (role, status) => {
@@ -56,4 +57,17 @@ describe('programme API', () => {
     mocks.unavailable = true;
     expect((await app.request(url)).status).toBe(500);
   });
+
+  it('enforces edition speaker capabilities while allowing unrelated programme edits', async () => {
+    mocks.role = 'organizer';
+    mocks.capability = false;
+    expect((await app.request(`${url}/speakers`)).status).toBe(403);
+    expect((await app.request(`${url}/speakers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/photo`)).status).toBe(403);
+    expect((await app.request(`${url}/speakers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/photo`, { method: 'DELETE' })).status).toBe(403);
+    expect((await put({ revision: 0, rows: [] })).status).toBe(200);
+    const row = { id: '33333333-3333-4333-8333-333333333333', time: '', title: 'Talk', type: 'talk', lead: '', description: '', resourceTitle: '', resourceUrl: '', speakerProposalIds: ['11111111-1111-4111-8111-111111111111'] };
+
+    expect((await put({ revision: 0, rows: [row] })).status).toBe(403);
+  });
+
 });

@@ -3,10 +3,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, t
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppMultiSelectDropdown from '@/src/components/AppMultiSelectDropdown.vue';
 import ProgrammeEditorActions from '@/src/components/ProgrammeEditorActions.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import ProgrammeTimePicker from '@/src/components/ui/ProgrammeTimePicker.vue';
 import { notify } from '@/src/lib/notify';
+import { suggestProgrammeSummary } from '@/src/lib/programme-summary';
 import { programmeSaveSchema, type ProgrammeRow, type ProgrammeSnapshot } from '@/lib/annual-conference-programme';
 
 const options = [
@@ -16,7 +18,8 @@ const options = [
   { value: 'networking', label: 'Networking' }, { value: 'break', label: 'Break' },
 ];
 
-type State = { snapshot: ProgrammeSnapshot | null; draft: ProgrammeRow[]; editing: boolean; loading: boolean; saving: boolean; error: string; conflict: boolean };
+type SpeakerProposal = { id: string; speakerId: string; name: string; title: string; description: string; photoUrl: string | null };
+type State = { canManagePhotos: boolean; proposals: SpeakerProposal[]; speakersLoading: boolean; speakersError: string; photoBusy: string; photoError: string; snapshot: ProgrammeSnapshot | null; draft: ProgrammeRow[]; editing: boolean; loading: boolean; saving: boolean; error: string; conflict: boolean };
 const states = reactive(new Map<string, State>());
 const expandedRows = reactive(new Map<string, Set<string>>());
 const editor = ref<HTMLElement | null>(null);
@@ -24,6 +27,7 @@ const heading = ref<HTMLElement | null>(null);
 const annualConferenceNav = ref<ComponentPublicInstance | null>(null);
 const navHeight = ref(0);
 let navObserver: ResizeObserver | undefined;
+let photoVersion = 0;
 
 function measureNavigation() {
   const element = annualConferenceNav.value?.$el;
@@ -49,6 +53,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', measureNavigation);
 });
 const pendingDeletion = ref<{ year: string; rowId: string } | null>(null);
+const pendingCopy = ref<{ year: string; row: ProgrammeRow; proposal: SpeakerProposal; title: string; description: string } | null>(null);
+const pendingPhotoRemoval = ref<{ year: string; row: ProgrammeRow; proposal: SpeakerProposal; photoUrl: string } | null>(null);
+
+function clearPendingActions() {
+  pendingDeletion.value = null;
+  pendingCopy.value = null;
+  pendingPhotoRemoval.value = null;
+}
 const route = useRoute();
 const year = computed(() => String(route.params.year));
 const state = computed(() => states.get(year.value));
@@ -58,13 +70,108 @@ const pendingTitle = computed(() => {
 
   return title || 'Untitled session';
 });
-const copy = (rows: ProgrammeRow[]) => rows.map((row) => ({ ...row }));
+const copy = (rows: ProgrammeRow[]) => rows.map((row) => ({ ...row, speakerProposalIds: [...(row.speakerProposalIds ?? [])] }));
+const suggestions = reactive(new Map<string, string>());
+const suggestionKey = (rowId: string) => `${year.value}:${rowId}`;
+
+async function loadSpeakers(target: string) {
+  const current = states.get(target);
+
+  if (!current) return;
+  current.speakersLoading = true;
+  current.speakersError = '';
+  try {
+    const response = await fetch(`/api/annual-conference/${target}/programme/speakers`, { credentials: 'include' });
+    const result = await response.json();
+
+    if (!response.ok) throw new Error(result.error ?? 'Unable to load accepted proposals.');
+    current.proposals = result.proposals;
+    current.canManagePhotos = result.canManagePhotos === true;
+  } catch (error) {
+    current.speakersError = error instanceof Error ? error.message : 'Unable to load accepted proposals.';
+  } finally {
+    current.speakersLoading = false;
+  }
+}
+
+function applyProposal(row: ProgrammeRow, proposal: SpeakerProposal) {
+  row.title = proposal.title;
+  row.description = proposal.description;
+  suggestions.delete(suggestionKey(row.id));
+}
+
+function copyProposal(row: ProgrammeRow, proposal: SpeakerProposal) {
+  if (row.title.trim() || row.description.trim()) {
+    pendingCopy.value = { year: year.value, row, proposal, title: row.title, description: row.description };
+
+    return;
+  }
+  applyProposal(row, proposal);
+}
+
+function pendingActionIsValid(target: string, row: ProgrammeRow, proposal: SpeakerProposal) {
+  const current = states.get(target);
+
+  return target === year.value && !!current && current.editing && !current.loading && !current.saving
+    && current.draft.includes(row) && current.proposals.includes(proposal) && row.speakerProposalIds.includes(proposal.id);
+}
+
+function confirmCopy() {
+  const pending = pendingCopy.value;
+
+  pendingCopy.value = null;
+  if (!pending || !pendingActionIsValid(pending.year, pending.row, pending.proposal)
+    || pending.row.title !== pending.title || pending.row.description !== pending.description) return;
+  applyProposal(pending.row, pending.proposal);
+}
+
+function requestPhotoRemoval(row: ProgrammeRow, proposal: SpeakerProposal) {
+  if (!proposal.photoUrl) return;
+  pendingPhotoRemoval.value = { year: year.value, row, proposal, photoUrl: proposal.photoUrl };
+}
+
+function confirmPhotoRemoval() {
+  const pending = pendingPhotoRemoval.value;
+
+  pendingPhotoRemoval.value = null;
+  if (!pending || !pendingActionIsValid(pending.year, pending.row, pending.proposal)
+    || pending.proposal.photoUrl !== pending.photoUrl || states.get(pending.year)?.photoBusy) return;
+  void updatePhoto(pending.proposal);
+}
+
+async function updatePhoto(proposal: SpeakerProposal, event?: Event) {
+  const target = year.value;
+  const current = states.get(target);
+  const input = event?.target as HTMLInputElement | undefined;
+  const file = input?.files?.[0];
+
+  if (!current || (input && !file)) return;
+  current.photoBusy = proposal.speakerId;
+  current.photoError = '';
+  try {
+    const body = file ? new FormData() : undefined;
+
+    if (file) body?.append('file', file);
+    const response = await fetch(`/api/annual-conference/${target}/programme/speakers/${proposal.speakerId}/photo`, { method: file ? 'PUT' : 'DELETE', credentials: 'include', body });
+    const result = await response.json();
+
+    if (!response.ok) throw new Error(result.error ?? 'Unable to update photo.');
+    for (const item of current.proposals) {
+      if (item.speakerId === proposal.speakerId) item.photoUrl = result.photoUrl ? `${result.photoUrl}?updated=${++photoVersion}` : null;
+    }
+  } catch (error) {
+    current.photoError = error instanceof Error ? error.message : 'Unable to update photo.';
+  } finally {
+    current.photoBusy = '';
+    if (input) input.value = '';
+  }
+}
 
 async function load(target: string, replaceDraft = false) {
   const current = states.get(target);
 
   if (!current) return;
-  pendingDeletion.value = null;
+  clearPendingActions();
   current.loading = true;
   current.error = '';
   try {
@@ -73,7 +180,10 @@ async function load(target: string, replaceDraft = false) {
 
     if (!response.ok) throw new Error(result.error ?? 'Unable to load programme.');
     current.snapshot = result as ProgrammeSnapshot;
-    if (replaceDraft || !current.editing) current.draft = copy(current.snapshot.rows);
+    if (replaceDraft || !current.editing) {
+      for (const row of current.draft) suggestions.delete(`${target}:${row.id}`);
+      current.draft = copy(current.snapshot.rows);
+    }
     if (replaceDraft) current.conflict = false;
   } catch (error) {
     current.error = error instanceof Error ? error.message : 'Unable to load programme.';
@@ -83,10 +193,11 @@ async function load(target: string, replaceDraft = false) {
 }
 
 watch(year, (target) => {
-  pendingDeletion.value = null;
+  clearPendingActions();
   if (!states.has(target)) {
-    states.set(target, { snapshot: null, draft: [], editing: false, loading: false, saving: false, error: '', conflict: false });
+    states.set(target, { canManagePhotos: false, proposals: [], speakersLoading: false, speakersError: '', photoBusy: '', photoError: '', snapshot: null, draft: [], editing: false, loading: false, saving: false, error: '', conflict: false });
     void load(target);
+    void loadSpeakers(target);
   }
 }, { immediate: true });
 
@@ -96,7 +207,7 @@ async function add(focus = true) {
   if (!current) return;
   const id = crypto.randomUUID();
 
-  current.draft.push({ id, time: '', title: '', type: 'talk', lead: '', description: '', resourceTitle: '', resourceUrl: '' });
+  current.draft.push({ id, time: '', title: '', type: 'talk', lead: '', description: '', resourceTitle: '', resourceUrl: '', speakerProposalIds: [] });
   if (focus) {
     await nextTick();
     focusEditorField(`[data-row-title="${id}"]`);
@@ -142,8 +253,9 @@ function cancel() {
   const current = state.value;
 
   if (!current) return;
-  pendingDeletion.value = null;
+  clearPendingActions();
   current.editing = false;
+  for (const row of current.draft) suggestions.delete(`${year.value}:${row.id}`);
   current.conflict = false;
   current.error = '';
 }
@@ -191,6 +303,7 @@ async function confirmRemoval() {
 
     return;
   }
+  suggestions.delete(`${pending.year}:${pending.rowId}`);
   current.draft.splice(index, 1);
   expandedRows.get(pending.year)?.delete(pending.rowId);
   const nextId = current.draft[Math.min(index, current.draft.length - 1)]?.id;
@@ -240,6 +353,7 @@ async function save() {
     if (response.status === 409) current.conflict = true;
     if (!response.ok) throw new Error(result.error ?? 'Unable to save programme.');
     current.snapshot = result as ProgrammeSnapshot;
+    for (const row of current.draft) suggestions.delete(`${target}:${row.id}`);
     current.draft = copy(current.snapshot.rows);
     current.editing = false;
     current.conflict = false;
@@ -322,10 +436,53 @@ async function save() {
                   <span v-if="!isExpanded(row.id) && (row.description || row.resourceUrl)" class="programme-preview">{{ row.description || row.resourceTitle || row.resourceUrl }}</span>
                 </button>
                 <div :id="`programme-details-${year}-${row.id}`" v-show="isExpanded(row.id)" class="programme-details">
+                  <div class="programme-speakers">
+                    <AppMultiSelectDropdown
+                      :model-value="row.speakerProposalIds"
+                      :options="[...state.proposals.map((proposal) => ({ value: proposal.id, label: `${proposal.name} · ${proposal.title}` })), ...row.speakerProposalIds.filter((id) => !state?.proposals.some((proposal) => proposal.id === id)).map((id) => ({ value: id, label: `Unavailable proposal (${id})` }))]"
+                      label="Accepted speaker proposals"
+                      placeholder="No speakers selected"
+                      :disabled="state.speakersLoading || !!state.speakersError || !state.canManagePhotos"
+                      teleport
+                      @update:model-value="row.speakerProposalIds = $event.map(String)"
+                    />
+                    <p class="programme-help">{{ state.canManagePhotos ? 'Select one or more proposals, or leave empty. Copying proposal text is optional.' : 'Speaker links can be changed by an organizer with speaker management access.' }}</p>
+                    <p v-if="state.speakersLoading" class="programme-help">Loading accepted proposals…</p>
+                    <p v-else-if="state.speakersError" role="alert" class="programme-error">{{ state.speakersError }} <button type="button" @click="loadSpeakers(year)">Try again</button></p>
+                    <p v-else-if="!state.proposals.length" class="programme-help">No accepted proposals for this conference yet.</p>
+                    <p v-if="!state.speakersLoading && !state.speakersError && row.speakerProposalIds.some((id) => !state?.proposals.some((proposal) => proposal.id === id))" class="programme-error">A linked proposal is no longer available. This speaker is hidden from the public programme. You can keep editing the schedule.</p>
+                    <div v-for="proposal in state.proposals.filter((item) => row.speakerProposalIds.includes(item.id))" :key="proposal.id" class="programme-speaker">
+                      <img v-if="proposal.photoUrl" :src="proposal.photoUrl" :alt="`Photo of ${proposal.name}`" class="programme-photo" />
+                      <div class="programme-speaker-copy">
+                        <strong>{{ proposal.name }}</strong>
+                        <span>{{ proposal.title }}</span>
+                        <div class="programme-speaker-actions">
+                          <button type="button" @click="copyProposal(row, proposal)">Copy title and description</button>
+                          <label v-if="state.canManagePhotos" class="programme-photo-action">{{ proposal.photoUrl ? 'Replace photo' : 'Upload photo' }}<input type="file" accept="image/avif,image/jpeg,image/png,image/webp" :disabled="!!state.photoBusy" @change="updatePhoto(proposal, $event)" /></label>
+                          <button v-if="proposal.photoUrl && state.canManagePhotos" type="button" :disabled="!!state.photoBusy" @click="requestPhotoRemoval(row, proposal)">Remove photo</button>
+                        </div>
+                      </div>
+                    </div>
+                    <p v-if="state.photoBusy" class="programme-help">Updating photo…</p>
+                    <p v-if="state.photoError" role="alert" class="programme-error">{{ state.photoError }}</p>
+                    <p v-if="row.speakerProposalIds.length" class="programme-help">Photo changes save immediately for this speaker across sessions. Use AVIF, JPEG, PNG or WebP, up to 5 MB.</p>
+                  </div>
                   <label class="programme-description">
                     Description
-                    <textarea v-model="row.description" class="app-form-control" maxlength="2000" rows="2" />
+                    <textarea v-model="row.description" class="app-form-control" maxlength="2000" rows="2" @input="suggestions.delete(suggestionKey(row.id))" />
                   </label>
+                  <p v-if="row.description.length > 2000" class="programme-error programme-description">Description: {{ row.description.length }} of 2,000 characters. Shorten it or use a suggested summary before saving.</p>
+                  <div class="programme-summary">
+                    <button type="button" :disabled="!row.description.trim()" @click="suggestions.set(suggestionKey(row.id), suggestProgrammeSummary(row.description))">Suggest summary</button>
+                    <p class="programme-help">Drafted from your description on this device. Review the extract before using it.</p>
+                    <template v-if="suggestions.has(suggestionKey(row.id))">
+                      <label>Suggested summary
+                        <textarea :value="suggestions.get(suggestionKey(row.id))" class="app-form-control" rows="3" maxlength="2000" @input="suggestions.set(suggestionKey(row.id), ($event.target as HTMLTextAreaElement).value)" />
+                      </label>
+                      <button type="button" @click="row.description = suggestions.get(suggestionKey(row.id)) || ''; suggestions.delete(suggestionKey(row.id))">Use summary</button>
+                      <button type="button" @click="suggestions.delete(suggestionKey(row.id))">Dismiss</button>
+                    </template>
+                  </div>
                   <label>
                     Resource title
                     <input v-model="row.resourceTitle" class="app-form-control" maxlength="200" />
@@ -349,6 +506,15 @@ async function save() {
               <div class="programme-copy">
                 <h2>{{ row.title }}</h2>
                 <p v-if="row.description">{{ row.description }}</p>
+                <div v-if="row.speakerProposalIds?.length" class="programme-display-speakers">
+                  <template v-for="id in row.speakerProposalIds" :key="id">
+                    <span v-if="state.proposals.find((proposal) => proposal.id === id)" class="programme-display-speaker">
+                      <img v-if="state.proposals.find((proposal) => proposal.id === id)?.photoUrl" :src="state.proposals.find((proposal) => proposal.id === id)?.photoUrl || undefined" alt="" />
+                      {{ state.proposals.find((proposal) => proposal.id === id)?.name }}
+                    </span>
+                    <span v-else-if="!state.speakersLoading" class="programme-display-speaker">{{ state.speakersError ? 'Speakers unavailable' : 'Unavailable proposal' }}</span>
+                  </template>
+                </div>
                 <a v-if="row.resourceUrl" :href="row.resourceUrl" target="_blank" rel="noopener noreferrer">{{ row.resourceTitle || 'Open resource' }}</a>
               </div>
               <span class="programme-type">{{ options.find((option) => option.value === row.type)?.label }}</span>
@@ -357,6 +523,25 @@ async function save() {
           <p v-else>No programme outline yet.</p>
         </template>
       </section>
+      <ConfirmDialog
+        :open="pendingCopy !== null"
+        title="Replace session text?"
+        message="Replace this session title and description with the proposal? Your current draft text will be lost."
+        confirm-label="Replace text"
+        mobile-sheet
+        @cancel="pendingCopy = null"
+        @confirm="confirmCopy"
+      />
+      <ConfirmDialog
+        :open="pendingPhotoRemoval !== null"
+        title="Remove speaker photo?"
+        :message="`Remove the photo for ${pendingPhotoRemoval?.proposal.name ?? 'this speaker'}? This applies wherever the speaker appears.`"
+        confirm-label="Remove photo"
+        danger
+        mobile-sheet
+        @cancel="pendingPhotoRemoval = null"
+        @confirm="confirmPhotoRemoval"
+      />
       <ConfirmDialog
         :open="pendingDeletion !== null"
         title="Remove session?"
@@ -523,6 +708,80 @@ async function save() {
   padding: 4px 0 6px;
 }
 
+.programme-speakers, .programme-summary {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.programme-help {
+  margin: 5px 0;
+  color: #555;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.programme-speaker {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #e0ddd4;
+  border-radius: 6px;
+}
+
+.programme-photo {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.programme-speaker-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
+.programme-speaker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.programme-speaker-actions button, .programme-photo-action, .programme-summary button {
+  min-height: 44px;
+  color: #a00050;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.programme-speaker-actions .programme-photo-action {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.programme-photo-action input {
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  clip-path: inset(50%);
+}
+
+.programme-photo-action:focus-within {
+  outline: 2px solid #e8117f;
+  outline-offset: 2px;
+}
+
+.programme-summary button + button {
+  margin-left: 16px;
+}
+
 .programme-description {
   grid-column: 1 / -1;
 }
@@ -612,6 +871,28 @@ async function save() {
   color: #555;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.programme-display-speakers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+
+.programme-display-speaker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #555;
+  font-size: 14px;
+}
+
+.programme-display-speaker img {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
 }
 
 .programme-copy a {

@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Implementation and review
+
+Use GPT-6.1 Terra for implementation. Use GPT-6 Astra only for review.
+
 ## Codebase Index
 
 This project has pre-generated docs. **At the start of every session, read `docs/INDEX.md` first** — it points to the relevant detail docs so you don't need to re-scan the whole codebase.

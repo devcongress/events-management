@@ -57,4 +57,58 @@ describe('conference programme', () => {
     repository.save.mockRejectedValueOnce(new Error('storage unavailable'));
     await expect(service.save(2026, input)).rejects.toThrow('storage unavailable');
   });
+
+  it('rejects unselected or cross-edition proposals before saving and deduplicates IDs per row', async () => {
+    const acceptedId = '11111111-1111-4111-8111-111111111111';
+    const otherId = '22222222-2222-4222-8222-222222222222';
+    const save = vi.fn(async (_id, input) => ({ rows: input.rows, revision: 1, updated_at: null, updated_by: null }));
+    const service = createAnnualConferenceProgrammeService({
+      role: 'owner', email: 'owner@example.com', edition: async () => ({ id: 'edition' }),
+      repository: { get: async () => ({ rows: [], revision: 0, updated_at: null, updated_by: null }), save },
+      acceptedProposalIds: async () => new Set([acceptedId]), audit: async () => {},
+    });
+    const invalid = programmeSaveSchema.parse({ revision: 0, rows: [{ ...row, speakerProposalIds: [otherId] }] });
+
+    await expect(service.save(2026, invalid)).rejects.toMatchObject({ status: 400 });
+    expect(save).not.toHaveBeenCalled();
+    const valid = programmeSaveSchema.parse({ revision: 0, rows: [{ ...row, speakerProposalIds: [acceptedId, acceptedId] }] });
+
+    await service.save(2026, valid);
+    expect(valid.rows[0].speakerProposalIds).toEqual([acceptedId]);
+  });
+
+  it('allows a denied organizer to preserve existing speaker links while editing authored copy', async () => {
+    const proposalId = '11111111-1111-4111-8111-111111111111';
+    const initial = programmeSaveSchema.parse({ revision: 1, rows: [{ ...row, speakerProposalIds: [proposalId] }] });
+    const save = vi.fn(async (_id, input) => ({ rows: input.rows, revision: 2, updated_at: null, updated_by: null }));
+    const service = createAnnualConferenceProgrammeService({
+      role: 'organizer', email: 'organizer@example.com', edition: async () => ({ id: 'edition' }),
+      repository: { get: async () => ({ rows: initial.rows, revision: 1, updated_at: null, updated_by: null }), save },
+      acceptedProposalIds: async () => new Set([proposalId]), canManageSpeakers: async () => false, audit: async () => {},
+    });
+
+    await expect(service.save(2026, { ...initial, rows: [{ ...initial.rows[0], title: 'Edited copy' }] })).resolves.toMatchObject({ revision: 2 });
+    await expect(service.save(2026, { ...initial, rows: [{ ...initial.rows[0], speakerProposalIds: [] }] })).rejects.toMatchObject({ status: 403 });
+    expect(save).toHaveBeenCalledOnce();
+  });
+
+  it('allows unchanged stale links, rejects restricted reorder, and permits authorized stale removal', async () => {
+    const stale = '11111111-1111-4111-8111-111111111111';
+    const accepted = '22222222-2222-4222-8222-222222222222';
+    const input = programmeSaveSchema.parse({ revision: 1, rows: [{ ...row, speakerProposalIds: [stale, accepted] }] });
+    const save = vi.fn(async (_id, data) => ({ rows: data.rows, revision: 2, updated_at: null, updated_by: null }));
+    const deps = {
+      role: 'organizer', email: 'organizer@example.com', edition: async () => ({ id: 'edition' }),
+      repository: { get: async () => ({ rows: input.rows, revision: 1, updated_at: null, updated_by: null }), save },
+      acceptedProposalIds: async () => new Set([accepted]), canManageSpeakers: async () => false, audit: async () => {},
+    };
+    const service = createAnnualConferenceProgrammeService(deps);
+
+    await expect(service.save(2026, input)).resolves.toMatchObject({ revision: 2 });
+    await expect(service.save(2026, { ...input, rows: [{ ...input.rows[0], speakerProposalIds: [accepted, stale] }] })).rejects.toMatchObject({ status: 403 });
+    const authorized = createAnnualConferenceProgrammeService({ ...deps, canManageSpeakers: async () => true });
+
+    await expect(authorized.save(2026, { ...input, rows: [{ ...input.rows[0], speakerProposalIds: [accepted] }] })).resolves.toMatchObject({ revision: 2 });
+  });
+
 });

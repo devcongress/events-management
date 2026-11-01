@@ -18,6 +18,7 @@ export const programmeRowSchema = z.object({
   title: z.string().trim().min(1, 'Each row needs a title.').max(200),
   type: z.enum(programmeTypes),
   lead: z.string().trim().max(200),
+  speakerProposalIds: z.array(z.string().uuid()).max(20).default([]).transform((ids) => [...new Set(ids)]),
   description: z.string().trim().max(2000),
   resourceTitle: z.string().trim().max(200),
   resourceUrl,
