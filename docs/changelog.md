@@ -2,7 +2,7 @@
 
 ## 2026-11-01 — Reports navigation
 
-- Group attendance and feedback under Reports, preserving section filters while switching and restoring report context in event breadcrumbs. Existing overview links redirect to the matching section.
+- Group attendance and feedback under Reports, preserving section filters while switching and restoring report context in event breadcrumbs. Existing overview links redirect to the matching section. Reports tabs use attendance/feedback icons and compact spacing above the content.
 
 ## 2026-11-01 — Quiet publication status refresh
 
