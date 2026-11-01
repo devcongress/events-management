@@ -4911,6 +4911,364 @@
           "serviceExecute": true
         }
       ]
+    },
+    {
+      "file": "20261101100000_annual_conference_speaker_materials.sql",
+      "sha256": "ad0cf732b532ce401ba3a19ad35886933f78c160ad01bb1af818f25559777647",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_speaker_materials",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_materials",
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_materials",
+          "name": "edition_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_materials",
+          "name": "session_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_materials",
+          "name": "file_name",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_materials",
+          "name": "content_type",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_materials",
+          "name": "size_bytes",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_materials",
+          "name": "storage_path",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_materials",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "annual_conference_speaker_materials",
+          "name": "annual_conference_speaker_materials_session_idx",
+          "contains": [
+            "session_id",
+            "created_at"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "limit_annual_conference_speaker_materials",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "d554a104deb6b3435e2891071c2dcbfca805dacffdbea5e036d5c13f06d6a89e",
+          "securityDefiner": false,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_speaker_materials",
+          "name": "limit_annual_conference_speaker_materials",
+          "function": "limit_annual_conference_speaker_materials",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE INSERT",
+            "EXECUTE FUNCTION limit_annual_conference_speaker_materials"
+          ]
+        },
+        {
+          "kind": "data",
+          "schema": "storage",
+          "name": "annual_conference_speaker_materials_bucket",
+          "value": "false|5242880|application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        }
+      ]
+    },
+    {
+      "file": "20261101180000_speaker_outcome_messages.sql",
+      "sha256": "99b31b6ff1041eb28c98a4322c08be5ffdfb2f6d8f082e06caaed219a03771fb",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_speaker_outcome_messages",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_messages",
+          "name": "edition_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_messages",
+          "name": "kind",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_messages",
+          "name": "subject",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_messages",
+          "name": "message",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_messages",
+          "name": "version",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "1"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_messages",
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_submissions",
+          "name": "decision_email_payload",
+          "type": "jsonb",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_submissions",
+          "name": "decision_email_payload_started_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_submissions",
+          "name": "decision_email_queued_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_speaker_outcome_previews",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_previews",
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_previews",
+          "name": "edition_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_previews",
+          "name": "actor_id",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_previews",
+          "name": "recipients",
+          "type": "jsonb",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_previews",
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_outcome_previews",
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "save_annual_conference_speaker_outcome_message",
+          "argumentTypes": "uuid, text, text, text, integer",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "4725369999e08c9f69e11d6cf7814b0b494b875f47cea893b878ae945b461902",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_annual_conference_speaker_email_payload",
+          "argumentTypes": "uuid, text, integer, timestamp with time zone, boolean, jsonb",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "8529fccdc516e469ed46165ffac0c6de9d1fde78af936fdbca6045db3ccb141f",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "stop_annual_conference_speaker_email_retry",
+          "argumentTypes": "uuid, text, integer, text, jsonb, timestamp with time zone",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "2db9743e6e04d2ef8440e35f4bc04bb8cb523d3a78784eb1cc35bcaf9e1467b4",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "queue_annual_conference_speaker_outcome_preview",
+          "argumentTypes": "uuid, uuid, text",
+          "result": "integer",
+          "language": "plpgsql",
+          "bodySha256": "17bbfa393756ef951fb6f75f004a588db0e977c52b42c4e5354b06baf0b68ed4",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "reset_annual_conference_speaker_email_payload",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "6157b1fd5bdf9a1438e440d8b13565ff2381ddf4a760dab8c0bf4d9c115670a4",
+          "securityDefiner": false,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_speaker_submissions",
+          "name": "reset_annual_conference_speaker_email_payload",
+          "function": "reset_annual_conference_speaker_email_payload",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE UPDATE",
+            "EXECUTE FUNCTION reset_annual_conference_speaker_email_payload"
+          ]
+        }
+      ]
     }
   ]
 }

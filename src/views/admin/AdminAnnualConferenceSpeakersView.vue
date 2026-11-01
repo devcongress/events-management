@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceSpeakerDrawer from '@/src/components/AnnualConferenceSpeakerDrawer.vue';
+import SpeakerOutcomePanel from '@/src/components/SpeakerOutcomePanel.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
@@ -13,6 +14,7 @@ import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
 import { ensureAdminShortLink, fetchJson, queryKeys } from '@/src/lib/api';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { notify } from '@/src/lib/notify';
+import { downloadSpeakerBadgeZip } from '@/src/lib/speaker-badge';
 import type { SpeakerSubmissionStatus } from '@/types';
 import type { AnnualConferenceSpeakerSubmission } from '@/lib/annual-conference-speakers';
 
@@ -24,6 +26,7 @@ type ConferenceSubmission = AnnualConferenceSpeakerSubmission & {
   decision_email_last_error?: string | null;
   decision_email_attempt_count?: number;
   decision_email_retryable?: boolean;
+  decision_email_next_retry_at?: string | null;
   logistics?: {
     slides_url: string | null;
     availability_confirmed: boolean | null;
@@ -39,7 +42,7 @@ type ConferenceSubmission = AnnualConferenceSpeakerSubmission & {
 type ConferenceSpeakersResponse = {
   edition: { year: number; label: string; name: string };
   call: { open: boolean; public_path: string; logistics_deadline: string | null };
-  permissions: { can_manage: boolean };
+  permissions: { can_manage: boolean; can_send_email: boolean };
   email_delivery: { configured: boolean; workspace_links_configured: boolean };
   counts: Record<SpeakerSubmissionStatus, number>;
   submissions: ConferenceSubmission[];
@@ -61,6 +64,8 @@ const PAGE_SIZE = 6;
 const speakersQuery = useQuery({
   queryKey: computed(() => ['annual-conference-speakers', year.value]),
   queryFn: () => fetchJson<ConferenceSpeakersResponse>(`/api/annual-conference/${year.value}/speakers`, { credentials: 'include' }),
+  refetchInterval: (query) => query.state.data?.submissions.some((item) => (item.decision_email_status === 'pending' && Boolean(item.decision_email_queued_at)) || (item.decision_email_status === 'failed' && item.decision_email_retryable && item.decision_email_attempt_count < 5) || (['accepted', 'delayed'].includes(item.decision_email_status ?? '') && Boolean(item.decision_email_sent_at) && Date.now() - new Date(item.decision_email_sent_at!).getTime() < 24 * 60 * 60_000)) ? 30_000 : false,
+  refetchIntervalInBackground: false,
 });
 const submissions = computed(() => speakersQuery.data.value?.submissions ?? []);
 const counts = computed(() => submissions.value.reduce<Record<SpeakerSubmissionStatus, number>>((total, submission) => {
@@ -75,6 +80,7 @@ const pageStart = computed(() => visibleSubmissions.value.length ? (page.value -
 const pageEnd = computed(() => Math.min(visibleSubmissions.value.length, page.value * PAGE_SIZE));
 const paginatedSubmissions = computed(() => visibleSubmissions.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const canManage = computed(() => speakersQuery.data.value?.permissions.can_manage === true);
+const canSendEmail = computed(() => speakersQuery.data.value?.permissions.can_send_email === true);
 const approvalBlockedReason = computed(() => {
   const data = speakersQuery.data.value;
 
@@ -184,26 +190,63 @@ const retryDecisionEmailMutation = useMutation({
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to retry the decision email.'),
 });
 const correctDecisionEmailMutation = useMutation({
-  mutationFn: ({ submissionId, email }: { submissionId: string; email: string }) => fetchJson<{ decision_email: { status: 'accepted' | 'failed' } }>(`/api/annual-conference/${year.value}/speaker-submissions/${submissionId}/decision-email-recipient`, {
+  mutationFn: ({ submissionId, email }: { submissionId: string; email: string }) => fetchJson<{ decision_email: { status: 'pending' } }>(`/api/annual-conference/${year.value}/speaker-submissions/${submissionId}/decision-email-recipient`, {
     method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ speaker_email: email, confirmed: true }),
   }),
-  onSuccess: async (result) => {
+  onSuccess: async () => {
     await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
-    notify.success(result.decision_email.status === 'accepted' ? 'The corrected address was saved and emailed.' : 'The address was saved, but delivery still needs attention.');
+    notify.success('Address saved. Preview the message before sending.');
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to correct the delivery address.'),
 });
 const replaceWorkspaceEmailMutation = useMutation({
-  mutationFn: (submissionId: string) => fetchJson<{ decision_email: { status: 'accepted' | 'failed' } }>(`/api/annual-conference/${year.value}/speaker-submissions/${submissionId}/replace-workspace-email`, {
+  mutationFn: (submissionId: string) => fetchJson<{ decision_email: { status: 'pending' } }>(`/api/annual-conference/${year.value}/speaker-submissions/${submissionId}/replace-workspace-email`, {
     method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmed: true }),
   }),
-  onSuccess: async (result) => {
+  onSuccess: async () => {
     replacementSubmissionId.value = null;
     await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
-    notify.success(result.decision_email.status === 'accepted' ? 'The old link was revoked and a replacement was emailed.' : 'The old link was revoked, but the replacement email needs attention.');
+    notify.success('The old link was revoked. Preview the replacement message before sending.');
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to replace the private link.'),
 });
+
+const downloadingBadges = ref(false);
+
+async function downloadBadges() {
+  const speakers = submissions.value.filter((item) => item.status === 'selected' && item.selected_session_id)
+    .map((item) => ({ sessionId: item.selected_session_id!, name: item.speaker_name }));
+
+  if (!speakers.length) return;
+  downloadingBadges.value = true;
+  try {
+    await downloadSpeakerBadgeZip(Number(year.value), speakers);
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Unable to download speaker badges.');
+  } finally {
+    downloadingBadges.value = false;
+  }
+}
+
+async function workspaceLink(submission: ConferenceSubmission, action: 'open' | 'copy') {
+  const opened = action === 'open' ? window.open('', '_blank') : null;
+
+  try {
+    const result = await fetchJson<{ url: string }>(`/api/annual-conference/${year.value}/speaker-submissions/${submission.id}/workspace-link`, { credentials: 'include' });
+
+    if (action === 'open') {
+      if (!opened) throw new Error('Allow pop-ups to open the workspace.');
+      opened.opener = null;
+      opened.location.href = result.url;
+    } else {
+      await copyTextToClipboard(result.url);
+      notify.success('Private workspace link copied.');
+    }
+  } catch (error) {
+    opened?.close();
+    notify.error(error instanceof Error ? error.message : 'Unable to retrieve the workspace link.');
+  }
+}
 
 async function copyPublicLink() {
   if (!speakersQuery.data.value?.call.open) return;
@@ -235,6 +278,19 @@ function openProposal(submissionId: string) {
 function formatSubmittedAt(value: string): string {
   return new Intl.DateTimeFormat('en-GH', { day: 'numeric', month: 'short' }).format(new Date(value));
 }
+
+function deliveryLabel(submission: ConferenceSubmission): string {
+  if (!['selected', 'not_selected'].includes(submission.status)) return 'No decision email';
+  if (submission.decision_email_status === 'pending' && !submission.decision_email_attempt_count) return submission.decision_email_queued_at ? 'Queued' : 'Ready to preview';
+  const labels: Record<string, string> = {
+    pending: 'Sending', accepted: 'Accepted by provider', delivered: 'Delivered', delayed: 'Delivery delayed',
+    failed: 'Needs attention', bounced: 'Bounced', suppressed: 'Suppressed', complained: 'Complaint',
+  };
+
+  return labels[submission.decision_email_status ?? ''] ?? 'Not sent';
+}
+
+const deliveryAttentionCount = computed(() => submissions.value.filter((item) => ['failed', 'bounced', 'suppressed', 'complained', 'delayed'].includes(item.decision_email_status ?? '')).length);
 
 function mobileProposalStatusLabel(status: SpeakerSubmissionStatus): string {
   return { submitted: 'Pending', selected: 'Approved', not_selected: 'Rejected', withdrawn: 'Withdrawn' }[status];
@@ -302,11 +358,19 @@ function toLocalDateTimeInput(value: string): string {
           <p class="mt-2 text-xs leading-5 text-dc-gray">Accepted speakers can save and revise their private workspace until this deadline.</p>
         </section>
 
+        <div v-if="year === '2026' && counts.selected" class="mt-5">
+          <button type="button" class="editorial-action" :disabled="downloadingBadges" @click="downloadBadges">{{ downloadingBadges ? 'Preparing badges…' : 'Download approved speaker badges ZIP' }}</button>
+        </div>
+
+        <SpeakerOutcomePanel v-if="canSendEmail" :year="year" :submissions="submissions" :configured="speakersQuery.data.value.email_delivery.configured" @sent="speakersQuery.refetch()" />
+
         <section class="speaker-queue editorial-panel mt-6 overflow-hidden" aria-live="polite">
           <div class="flex flex-wrap items-center justify-between gap-4 border-b border-dc-border px-5 py-4 sm:px-6">
             <div>
               <p class="editorial-eyebrow">Review queue</p>
               <p class="mt-1 text-lg font-semibold text-dc-gray">{{ pendingCountLabel }}</p>
+              <button type="button" class="mt-1 text-sm font-semibold text-dc-pink underline" @click="speakersQuery.refetch()">Refresh delivery status</button>
+              <p v-if="deliveryAttentionCount" class="mt-1 text-sm text-red-700">{{ deliveryAttentionCount }} decision email{{ deliveryAttentionCount === 1 ? ' needs' : 's need' }} attention. Open approved or rejected proposals to review delivery.</p>
             </div>
             <div class="flex flex-wrap items-center justify-end gap-2">
               <div class="speaker-queue-filters flex flex-wrap gap-2" role="group" aria-label="Filter proposals by status">
@@ -338,6 +402,7 @@ function toLocalDateTimeInput(value: string): string {
                   <span class="speaker-proposal-card__metadata">
                     <span>{{ submission.session_type }}</span>
                     <span>Submitted {{ formatSubmittedAt(submission.created_at) }}</span>
+                    <span v-if="submission.status !== 'submitted'">Email: {{ deliveryLabel(submission) }}</span>
                   </span>
                   <span class="speaker-proposal-card__footer">
                     <span class="speaker-proposal-card__status">{{ mobileProposalStatusLabel(submission.status) }}</span>
@@ -368,6 +433,7 @@ function toLocalDateTimeInput(value: string): string {
                     <td class="px-4 py-2 font-mono text-[10px] font-semibold leading-4 text-dc-gray">{{ submission.session_type }}</td>
                     <td class="px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray">{{ formatSubmittedAt(submission.created_at) }}</td>
                     <td class="px-4 py-2">
+                      <span v-if="submission.status !== 'submitted'" class="mb-1 block text-xs text-dc-gray">{{ deliveryLabel(submission) }}</span>
                       <span class="inline-flex size-8 items-center justify-center rounded-md border" :class="submission.status === 'selected' ? 'border-[#86efac] text-[#15803d]' : submission.status === 'not_selected' ? 'border-[#fda4af] text-dc-pink' : 'border-dc-border text-dc-gray'" role="img" :aria-label="proposalStatusLabel(submission.status)" :title="proposalStatusLabel(submission.status)">
                         <svg v-if="submission.status === 'selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m7.5 12.5 3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
                         <svg v-else-if="submission.status === 'not_selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m8.5 8.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
@@ -386,14 +452,18 @@ function toLocalDateTimeInput(value: string): string {
         </section>
 
         <AnnualConferenceSpeakerDrawer
+          :year="year"
           :open="Boolean(selectedSubmission)"
           :submission="selectedSubmission"
           :can-manage="canManage"
+          :can-send-email="canSendEmail"
           :submitting="decisionMutation.isPending.value || resendWorkspaceEmailMutation.isPending.value || retryDecisionEmailMutation.isPending.value || correctDecisionEmailMutation.isPending.value || replaceWorkspaceEmailMutation.isPending.value"
           :can-resend-workspace-email="canRecoverSelectedWorkspaceEmail"
           :approval-blocked-reason="approvalBlockedReason"
           :decision-email-configured="speakersQuery.data.value.email_delivery.configured"
           @close="selectedSubmissionId = null"
+          @open-workspace="workspaceLink($event, 'open')"
+          @copy-workspace="workspaceLink($event, 'copy')"
           @approve="decisionMutation.mutate({ id: $event.id, status: 'selected' })"
           @reject="decisionMutation.mutate({ id: $event.id, status: 'not_selected' })"
           @resend-workspace-email="resendWorkspaceEmailMutation.mutate($event.id)"
@@ -417,8 +487,8 @@ function toLocalDateTimeInput(value: string): string {
         <ConfirmDialog
           :open="Boolean(replacementSubmissionId)"
           title="Replace this private workspace link?"
-          message="The current link will stop working immediately. A new private link will be emailed to the saved delivery address."
-          confirm-label="Replace and email"
+          message="The current link will stop working immediately. Review and send the replacement message from Speaker outcome messages."
+          confirm-label="Replace link"
           busy-label="Replacing…"
           cancel-label="Keep current link"
           :busy="replaceWorkspaceEmailMutation.isPending.value"

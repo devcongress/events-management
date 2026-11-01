@@ -2,12 +2,13 @@
 
 ## Scope
 
-DevCon26 social cards let a selected speaker with a confirmed session personalize a share card, and let a paid ticket buyer optionally personalize one card for each issued ticket in their order. They are separate from ticket QR codes, check-in, payment receipts, and speaker-intake links. A buyer can leave any card untouched and return from the same private email link later; no photo is required.
+DevCon26 social cards let an accepted speaker personalize a badge from their private speaker workspace, and let a paid ticket buyer optionally personalize one card for each issued ticket in their order. Speaker eligibility begins when the proposal is selected and remains tied to its selected session; a speaker availability confirmation is not required. Archived sessions are ineligible. They are separate from ticket QR codes, check-in, payment receipts, and speaker-intake links. A buyer can leave any card untouched and return from the same private email link later; no photo is required.
 
 ## Security and lifecycle
 
 - An Owner issues or rotates a 256-bit management capability through the dedicated social-card delivery command. The raw value is stored only in the dedicated transactional outbox until the provider accepts the email, then it is scrubbed.
 - The DevCongress website retains the capability in a URL fragment and supplies it in `X-Social-Card-Capability`; it is never sent in a query string, stored in local storage, rendered in EMS HTML, or logged.
+- Speaker workspace badge access validates the current, unrevoked, unexpired workspace link, selected submission and its selected session on every request. The workspace edits the existing session social-card record; it does not create a second badge model. Organizers with `speakers.view` can preview and export the same saved record. Browser PNG and bulk ZIP exports use the same renderer and keep image processing in the browser.
 - Speaker/organizer management links authorize one card. A buyer collection link authorizes only the issued seats in its paid order and becomes unusable if that order is no longer paid; it never grants access to tickets, payment data, QR codes, or other orders.
 - A first paid transition creates one card slot per issued ticket and one idempotent collection-email record in the same database transaction. Historical orders are not backfilled. The sandbox checkout has its own verifier and never creates real collection links or admission-card slots.
 - Public ticket checkout is a separate, fail-closed route family. It requires `DEVCON26_PUBLIC_CHECKOUT_ENABLED=true`, Paystack as provider, the existing payment enablement flag and live secret, an exact HTTPS website origin allowlist, open ticket sales, and ready ticketing storage. Initialization creates the usual EMS checkout hold and Paystack payment attempt; the browser receives a short-lived, order-bound buyer grant and verifier in the checkout response. The fixed payment callback must be server-verified before the UI unlocks the buyer editor. No buyer grant is stored in a URL or local storage.
@@ -32,8 +33,11 @@ Backups must include the private `annual-conference-social-cards` bucket alongsi
 - `lib/devcon26-public-checkout.ts`
 - `lib/supabase/annual-conference-social-cards.ts`
 - `server/routes/annual-conference-social-cards.ts`
+- `server/routes/annual-conference-speaker-badges.ts`
+- `src/components/SpeakerBadgeEditor.vue`, `src/components/SpeakerBadgePreview.vue`, and `src/lib/speaker-badge.ts`
+- `src/lib/devcon26-digital-badge.ts` and its badge artwork and font assets: copied from the DevCongress website implementation as an independent renderer, not a shared package
 - `server/routes/annual-conference-ticketing.ts`
 
 ## Activation boundary
 
-The secure persistence, backend-only management/public API, upload boundary, website image proxy, and scheduled sender are implemented. The buyer checkout bridge is available only after its separate production flags/origins are explicitly configured; this source change does not enable live checkout, set email sender environment values, apply migrations, or deploy either app. The DevCongress website owns all rendered card and Open Graph pages. Image crop derivatives and metadata stripping still need a Worker-native image transformation path.
+The secure persistence, backend-only management/public API, upload boundary, website image proxy, and scheduled sender are implemented. The buyer checkout bridge is available only after its separate production flags/origins are explicitly configured; this source change does not enable live checkout, set email sender environment values, apply migrations, or deploy either app. The website continues to own its rendered public card and Open Graph pages; EMS renders private speaker previews and downloads with its copied renderer. Existing separately issued website management links and opted-in public cards also verify that the selected session is still eligible. The legacy owner-issued email delivery command retains its separate confirmed-session issuance requirement. Image crop derivatives and metadata stripping still need a Worker-native image transformation path.

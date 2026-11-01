@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-01 — Annual Conference speaker outcomes and workspace
+
+- Let Owners save speaker outcome messages, preview personalized emails, and queue selected recipients with frozen payloads and delivery monitoring. Address corrections and link replacements now require a fresh preview before sending.
+- Allow authorized organizers to open or copy an existing private speaker workspace without rotating the link or sending email.
+- Add optional private presentation uploads and accepted-speaker badge personalization, organizer previews, PNG exports, and bulk ZIP downloads.
+
 ## 2026-11-01 — Full-height work-plan controls on scroll
 
 - Include the measured breadcrumb height in the sticky offsets for the conference phase controls and board headings, keeping the full phase bar visible beneath navigation while scrolling.

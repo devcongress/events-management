@@ -68,6 +68,10 @@ SELECT json_build_object(
           WHERE e.year = 2026
         ))
       UNION ALL
+      SELECT json_build_object('kind', 'data', 'schema', 'storage', 'name', 'annual_conference_speaker_materials_bucket',
+        'value', (SELECT public::text || '|' || file_size_limit::text || '|' || array_to_string(allowed_mime_types, ',')
+          FROM storage.buckets WHERE id = 'annual-conference-speaker-materials'))
+      UNION ALL
       SELECT json_build_object('kind', 'data', 'schema', 'public', 'name', 'managed_checkout_launch_guard_absent',
         'value', CASE WHEN to_regprocedure('public.guard_complete_test_live_launch()') IS NULL
           AND NOT EXISTS (

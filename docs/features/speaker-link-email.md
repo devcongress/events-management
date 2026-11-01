@@ -2,9 +2,13 @@
 
 ## Status
 
-### Annual speaker decision delivery (2026-10-16)
+### Annual speaker decision delivery (2026-11-01)
 
-Annual speaker accept/reject actions save the decision without sending email. In the existing speaker drawer, organizers review delivery status and explicitly confirm **Send workspace email** for selected speakers or **Send decision email** for rejected speakers. Sender configuration gates sending, not rejection. The drawer exposes stored attempt, provider-acceptance, and delivery timestamps with existing recovery actions. Scheduled retry excludes never-sent decisions; after the organizer initiates delivery, existing bounded transport retry continues. This does not change monthly Archive Requests.
+Accepting or rejecting a proposal saves the decision without sending. Owners can save versioned acceptance and rejection messages using the documented placeholders, select up to 100 unsent recipients, review each personalized email, and explicitly queue the preview. A preview is bound to the Owner and expires after ten minutes; confirming locks and checks the complete audience before queuing. The queued sender, reply-to, recipient, subject, HTML, and text are frozen per delivery, so later message edits cannot change retries. The scheduled Worker drains the queue; acceptance by the provider is not delivery, and webhooks report later delivery events. Attempts, errors, and the next eligible retry are visible in the speaker drawer; scheduling may run later than that time.
+
+The first send is never automatic just because a decision was saved. Transport retries use the same idempotency key and payload, with 5-minute, 30-minute, 2-hour, and 12-hour backoff, up to five attempts. To avoid retries outside the provider's idempotency window, attempts stop after 23 hours from the first claim; legacy attempts without a frozen payload also stop for review. A corrected recipient or explicit link replacement prepares a new delivery for preview; it does not send immediately. Owners must assess an uncertain previous delivery before preparing a new one.
+
+Organizers with speaker-management access can open or copy the existing valid private workspace link without sending email or rotating it. This capability is returned only on demand, with no-store responses. Private PDF/PowerPoint materials and workspace badge controls are documented in [speaker materials](annual-conference-speaker-materials.md) and [social cards](devcon26-social-cards.md). This does not change monthly Archive Requests.
 
 Implemented for organizer-triggered monthly Archive Requests. Organizers can select up to 100 eligible program rows, and the Worker sends one personalized, private-link email per row through Resend's Batch API.
 

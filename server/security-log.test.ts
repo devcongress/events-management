@@ -8,6 +8,11 @@ describe('security log redaction', () => {
     )).toBe('/api/events/event-1/speaker-intake/[redacted]');
   });
 
+  it('redacts conference workspace and material tokens', () => {
+    expect(securitySafeRequestPath('/api/conferences/2026/speaker-intake/secret/badge/photo')).toBe('/api/conferences/2026/speaker-intake/[redacted]/badge/photo');
+    expect(securitySafeRequestPath('/api/conference-speaker-materials/2026/secret')).toBe('/api/conference-speaker-materials/2026/[redacted]');
+  });
+
   it('removes event-management capabilities from API and page paths', () => {
     const capability = '30000000-0000-4000-8000-000000000001.private-signature';
 

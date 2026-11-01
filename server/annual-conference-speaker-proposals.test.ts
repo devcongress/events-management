@@ -74,6 +74,21 @@ const proposal = (title: string) => ({
   learning_outcomes: ['Identify common failure modes', 'Design safe retry behavior', 'Measure reliability with useful signals'],
 });
 
+async function startDecisionDelivery(app: typeof import('./app').default, id: string): Promise<Response> {
+  const headers = { 'Content-Type': 'application/json' };
+  const preview = await app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/preview', { method: 'POST', headers, body: JSON.stringify({ ids: [id] }) });
+
+  if (!preview.ok) return preview;
+  const { preview_id } = await preview.json() as { preview_id: string };
+  const queued = await app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/send', { method: 'POST', headers, body: JSON.stringify({ preview_id }) });
+
+  if (!queued.ok) return queued;
+  const drain = await app.request('http://localhost/api/internal/annual-conference-speaker-emails/retry', { method: 'POST', headers: { 'x-scheduled-job-secret': 'test-scheduled-job-secret-that-is-at-least-32-bytes' } });
+  const result = await drain.json() as { accepted: string[]; failed: string[] };
+
+  return Response.json({ decision_email: { status: result.accepted.includes(id) ? 'accepted' : 'failed' } });
+}
+
 beforeEach(async () => {
   tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'devcon-annual-cfp-'));
   process.chdir(tempRoot);
@@ -211,13 +226,13 @@ describe('Annual Conference proposal lifecycle', () => {
     await expect(decision.json()).resolves.toMatchObject({ decision_email: { status: 'pending' } });
     expect(providerFetch).not.toHaveBeenCalled();
     expect(await speakerStore.getPendingAnnualConferenceDecisionEmails()).toEqual([]);
-    const firstSend = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/resend-decision-email`, { method: 'POST' });
+    const firstSend = await startDecisionDelivery(app, record.id);
 
     await expect(firstSend.json()).resolves.toMatchObject({ decision_email: { status: 'accepted' } });
     expect(providerFetch).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(String(providerFetch.mock.calls[0]?.[1]?.body));
 
-    expect(payload[0].subject).toContain('Update on your DevCongress');
+    expect(payload[0].subject).toContain('December 2026 proposal');
     expect(payload[0].text).toContain('A careful rejection');
 
     const webhookBody = JSON.stringify({
@@ -334,7 +349,7 @@ describe('Annual Conference proposal lifecycle', () => {
     });
     expect(resendFetch).not.toHaveBeenCalled();
     expect(await speakerStore.getPendingAnnualConferenceDecisionEmails()).toEqual([]);
-    expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${accepted.id}/resend-workspace-email`, { method: 'POST' })).status).toBe(200);
+    expect((await startDecisionDelivery(app, accepted.id)).status).toBe(200);
     await expect(speakerStore.getAnnualConferenceSpeakerSubmission(untouched.id)).resolves.toMatchObject({ status: 'submitted' });
 
     const resendPayload = JSON.parse(String(resendFetch.mock.calls[0]?.[1]?.body));
@@ -414,12 +429,13 @@ describe('Annual Conference proposal lifecycle', () => {
       decision_email: { status: 'pending' },
     });
     expect(resendFetch).not.toHaveBeenCalled();
-    expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${proposalRecord.id}/resend-workspace-email`, { method: 'POST' })).status).toBe(200);
+    expect((await startDecisionDelivery(app, proposalRecord.id)).status).toBe(200);
     const failedPayload = JSON.parse(String(resendFetch.mock.calls[0]?.[1]?.body));
     const failedUrl = failedPayload[0].text.match(/https?:\/\/[^\s]+\/conference-speakers\/2026\/[^\s]+/)?.[0];
 
     expect(failedUrl).toBeTruthy();
 
+    vi.stubEnv('SPEAKER_EMAIL_REPLY_TO', 'changed@example.com');
     const retry = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${proposalRecord.id}/resend-workspace-email`, {
       method: 'POST',
     });
@@ -431,6 +447,7 @@ describe('Annual Conference proposal lifecycle', () => {
 
     expect(retryUrl).toBeTruthy();
     expect(retryUrl).toBe(failedUrl);
+    expect(retryPayload[0]).toEqual(failedPayload[0]);
 
     const failedToken = new URL(failedUrl!).pathname.split('/').at(-1)!;
     const retryToken = new URL(retryUrl!).pathname.split('/').at(-1)!;
@@ -486,7 +503,7 @@ describe('Annual Conference proposal lifecycle', () => {
     });
 
     await expect(decision.json()).resolves.toMatchObject({ decision_email: { status: 'pending' } });
-    expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/resend-decision-email`, { method: 'POST' })).status).toBe(200);
+    expect((await startDecisionDelivery(app, record.id)).status).toBe(200);
     await speakerStore.updateAnnualConferenceSpeakerSubmission(record.id, {
       decision_email_last_attempt_at: '2026-09-07T00:00:00.000Z',
     });
@@ -518,7 +535,7 @@ describe('Annual Conference proposal lifecycle', () => {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'selected' }),
     })).status).toBe(200);
     expect(providerFetch).not.toHaveBeenCalled();
-    expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/resend-workspace-email`, { method: 'POST' })).status).toBe(200);
+    expect((await startDecisionDelivery(app, record.id)).status).toBe(200);
     const originalPayload = JSON.parse(String(providerFetch.mock.calls[0]?.[1]?.body));
     const originalUrl = originalPayload[0].text.match(/https?:\/\/[^\s]+\/conference-speakers\/2026\/[^\s]+/)?.[0];
 
@@ -529,7 +546,9 @@ describe('Annual Conference proposal lifecycle', () => {
     expect(correction.status).toBe(200);
     const corrected = await speakerStore.getAnnualConferenceSpeakerSubmission(record.id);
 
-    expect(corrected).toMatchObject({ decision_email_recipient: 'ama.corrected@example.com', decision_email_attempt_count: 1 });
+    expect(corrected).toMatchObject({ decision_email_recipient: 'ama.corrected@example.com', decision_email_attempt_count: 0 });
+    expect(providerFetch).toHaveBeenCalledTimes(1);
+    expect((await startDecisionDelivery(app, record.id)).status).toBe(200);
     const correctedPayload = JSON.parse(String(providerFetch.mock.calls[1]?.[1]?.body));
 
     expect(correctedPayload[0].to).toEqual(['ama.corrected@example.com']);
@@ -545,6 +564,8 @@ describe('Annual Conference proposal lifecycle', () => {
     });
 
     expect(replacement.status).toBe(200);
+    expect(providerFetch).toHaveBeenCalledTimes(2);
+    expect((await startDecisionDelivery(app, record.id)).status).toBe(200);
     const replacementPayload = JSON.parse(String(providerFetch.mock.calls[2]?.[1]?.body));
     const replacementUrl = replacementPayload[0].text.match(/https?:\/\/[^\s]+\/conference-speakers\/2026\/[^\s]+/)?.[0];
 
@@ -574,7 +595,7 @@ describe('Annual Conference proposal lifecycle', () => {
     expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'selected' }),
     })).status).toBe(200);
-    expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/resend-workspace-email`, { method: 'POST' })).status).toBe(200);
+    expect((await startDecisionDelivery(app, record.id)).status).toBe(200);
     await speakerStore.applyAnnualConferenceDecisionEmailProviderEvent({
       providerEmailId: 'resend-permanent-failure',
       status: 'complained',
@@ -607,7 +628,7 @@ describe('Annual Conference proposal lifecycle', () => {
     });
 
     await expect(decision.json()).resolves.toMatchObject({ decision_email: { status: 'pending' } });
-    expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/resend-workspace-email`, { method: 'POST' })).status).toBe(200);
+    expect((await startDecisionDelivery(app, record.id)).status).toBe(200);
     await expect(speakerStore.getAnnualConferenceSpeakerSubmission(record.id)).resolves.toMatchObject({
       decision_email_retryable: false,
       decision_email_provider_id: null,
@@ -638,7 +659,7 @@ describe('Annual Conference proposal lifecycle', () => {
     expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'not_selected' }),
     })).status).toBe(200);
-    expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/resend-decision-email`, { method: 'POST' })).status).toBe(200);
+    expect((await startDecisionDelivery(app, record.id)).status).toBe(200);
     await speakerStore.updateAnnualConferenceSpeakerSubmission(record.id, {
       decision_email_attempt_count: 5,
       decision_email_last_attempt_at: '2020-01-01T00:00:00.000Z',
@@ -682,7 +703,7 @@ describe('Annual Conference proposal lifecycle', () => {
     expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'not_selected' }),
     })).status).toBe(200);
-    expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/resend-decision-email`, { method: 'POST' })).status).toBe(200);
+    expect((await startDecisionDelivery(app, record.id)).status).toBe(200);
     await speakerStore.updateAnnualConferenceSpeakerSubmission(record.id, { decision_email_last_attempt_at: '2020-01-01T00:00:00.000Z' });
 
     const scheduledRetry = app.request('http://localhost/api/internal/annual-conference-speaker-emails/retry', {
@@ -735,7 +756,7 @@ describe('Annual Conference proposal lifecycle', () => {
     expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'selected' }),
     })).status).toBe(200);
-    expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/resend-workspace-email`, { method: 'POST' })).status).toBe(200);
+    expect((await startDecisionDelivery(app, record.id)).status).toBe(200);
     const failed = await speakerStore.getAnnualConferenceSpeakerSubmission(record.id);
 
     await speakerStore.updateAnnualConferenceSpeakerSubmission(record.id, { decision_email_last_attempt_at: '2020-01-01T00:00:00.000Z' });
@@ -801,4 +822,92 @@ describe('Annual Conference proposal lifecycle', () => {
       expect(resendFetch).not.toHaveBeenCalled();
     }
   });
+
+  it('freezes a reviewed outcome before queuing and sends it once through the worker', async () => {
+    vi.resetModules();
+    const provider = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ data: [{ id: 'provider-1' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    vi.stubGlobal('fetch', provider);
+    const app = (await import('./app')).default;
+    const store = await import('@/lib/annual-conference-speakers');
+    const json = { 'Content-Type': 'application/json' };
+    const created = await app.request('http://localhost/api/cfp/conferences/2026', { method: 'POST', headers: json, body: JSON.stringify(proposal('Frozen outcome')) });
+
+    expect(created.status).toBe(202);
+    const record = (await store.getAnnualConferenceSpeakerSubmissions('20260000-0000-4000-8000-000000000001'))[0];
+    const decided = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, { method: 'PATCH', headers: json, body: JSON.stringify({ status: 'not_selected' }) });
+
+    expect(decided.status).toBe(200);
+    const saved = await app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/messages', { method: 'PUT', headers: json, body: JSON.stringify({ kind: 'rejection', subject: 'Hello {first_name}', message: 'Your proposal was {talk_title}', version: 0 }) });
+
+    expect(saved.status).toBe(200);
+    const preview = await app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/preview', { method: 'POST', headers: json, body: JSON.stringify({ ids: [record.id] }) });
+    const prepared = await preview.json() as { preview_id: string; recipients: Array<{ subject: string; text: string }> };
+
+    expect(preview.status).toBe(200);
+    expect(prepared.recipients[0]).toMatchObject({ subject: 'Hello Ama', text: 'Your proposal was Frozen outcome' });
+    const queue = () => app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/send', { method: 'POST', headers: json, body: JSON.stringify({ preview_id: prepared.preview_id }) });
+
+    expect((await queue()).status).toBe(200);
+    expect(provider).not.toHaveBeenCalled();
+    expect((await queue()).status).toBe(409);
+    const changed = await app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/messages', { method: 'PUT', headers: json, body: JSON.stringify({ kind: 'rejection', subject: 'Changed', message: 'Changed', version: 1 }) });
+
+    expect(changed.status).toBe(200);
+    const drain = await app.request('http://localhost/api/internal/annual-conference-speaker-emails/retry', { method: 'POST', headers: { 'x-scheduled-job-secret': 'test-scheduled-job-secret-that-is-at-least-32-bytes' } });
+
+    expect(drain.status).toBe(200);
+    expect(provider).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(provider.mock.calls[0]?.[1]?.body));
+
+    expect(payload[0]).toMatchObject({ subject: 'Hello Ama', text: 'Your proposal was Frozen outcome' });
+    await app.request('http://localhost/api/internal/annual-conference-speaker-emails/retry', { method: 'POST', headers: { 'x-scheduled-job-secret': 'test-scheduled-job-secret-that-is-at-least-32-bytes' } });
+    expect(provider).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a speaker preview if the workspace deadline changes before queueing', async () => {
+    vi.resetModules();
+    const app = (await import('./app')).default;
+    const store = await import('@/lib/annual-conference-speakers');
+    const headers = { 'Content-Type': 'application/json' };
+
+    expect((await app.request('http://localhost/api/cfp/conferences/2026', { method: 'POST', headers, body: JSON.stringify(proposal('Deadline change')) })).status).toBe(202);
+    const record = (await store.getAnnualConferenceSpeakerSubmissions('20260000-0000-4000-8000-000000000001'))[0];
+
+    expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, { method: 'PATCH', headers, body: JSON.stringify({ status: 'selected' }) })).status).toBe(200);
+    const preview = await app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/preview', { method: 'POST', headers, body: JSON.stringify({ ids: [record.id] }) });
+    const body = await preview.json() as { preview_id: string };
+
+    expect(preview.status).toBe(200);
+    expect((await app.request('http://localhost/api/annual-conference/2026/speakers/logistics-deadline', { method: 'PATCH', headers, body: JSON.stringify({ deadline: '2099-11-01T23:59:59.000Z' }) })).status).toBe(200);
+    const queued = await app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/send', { method: 'POST', headers, body: JSON.stringify({ preview_id: body.preview_id }) });
+
+    expect(queued.status).toBe(409);
+    expect((await store.getAnnualConferenceSpeakerSubmission(record.id))?.decision_email_queued_at).toBeFalsy();
+  });
+
+  it('requires a fresh preview if a queued workspace deadline changes before the first attempt', async () => {
+    vi.resetModules();
+    const provider = vi.fn(async () => new Response('{}', { status: 500 }));
+
+    vi.stubGlobal('fetch', provider);
+    const app = (await import('./app')).default;
+    const store = await import('@/lib/annual-conference-speakers');
+    const headers = { 'Content-Type': 'application/json' };
+
+    await app.request('http://localhost/api/cfp/conferences/2026', { method: 'POST', headers, body: JSON.stringify(proposal('Queued deadline change')) });
+    const record = (await store.getAnnualConferenceSpeakerSubmissions('20260000-0000-4000-8000-000000000001'))[0];
+
+    await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, { method: 'PATCH', headers, body: JSON.stringify({ status: 'selected' }) });
+    const preview = await app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/preview', { method: 'POST', headers, body: JSON.stringify({ ids: [record.id] }) });
+    const { preview_id } = await preview.json() as { preview_id: string };
+
+    expect((await app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/send', { method: 'POST', headers, body: JSON.stringify({ preview_id }) })).status).toBe(200);
+    await app.request('http://localhost/api/annual-conference/2026/speakers/logistics-deadline', { method: 'PATCH', headers, body: JSON.stringify({ deadline: '2099-11-01T23:59:59.000Z' }) });
+    await app.request('http://localhost/api/internal/annual-conference-speaker-emails/retry', { method: 'POST', headers: { 'x-scheduled-job-secret': 'test-scheduled-job-secret-that-is-at-least-32-bytes' } });
+    expect(provider).not.toHaveBeenCalled();
+    expect(await store.getAnnualConferenceSpeakerSubmission(record.id)).toMatchObject({ decision_email_status: 'failed', decision_email_attempt_count: 0, decision_email_queued_at: null });
+    expect((await app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/preview', { method: 'POST', headers, body: JSON.stringify({ ids: [record.id] }) })).status).toBe(200);
+  });
+
 });

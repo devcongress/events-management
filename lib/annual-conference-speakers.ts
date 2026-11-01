@@ -45,6 +45,9 @@ export interface AnnualConferenceSpeakerSubmission {
   decision_email_last_error: string | null;
   decision_email_attempt_count: number;
   decision_email_retryable: boolean;
+  decision_email_payload?: { subject: string; html: string; text: string; recipient: string; from: string; replyTo: string; deadline: string | null; linkId: string | null; linkExpiresAt: string | null } | null;
+  decision_email_payload_started_at?: string | null;
+  decision_email_queued_at?: string | null;
   decided_at: string | null;
   created_at: string;
   updated_at: string;
@@ -120,6 +123,9 @@ function status(value: string): SpeakerSubmissionStatus {
 function submissionFromRow(row: SubmissionRow): AnnualConferenceSpeakerSubmission {
   return {
     ...row,
+    decision_email_payload: (row as SubmissionRow & { decision_email_payload?: AnnualConferenceSpeakerSubmission['decision_email_payload'] }).decision_email_payload ?? null,
+    decision_email_payload_started_at: (row as SubmissionRow & { decision_email_payload_started_at?: string | null }).decision_email_payload_started_at ?? null,
+    decision_email_queued_at: (row as SubmissionRow & { decision_email_queued_at?: string | null }).decision_email_queued_at ?? null,
     status: status(row.status),
     topic: row.topic as AnnualConferenceTopicTrack,
     session_type: row.session_type as AnnualConferenceSessionType,
@@ -265,7 +271,8 @@ export async function createAnnualConferenceSpeakerSubmission(input: Omit<Annual
   };
 
   if (isSupabaseRuntimeEnabled()) {
-    const { data, error } = await getSupabaseAdminClient().from('annual_conference_speaker_submissions').insert(submission).select('*').single();
+    const { decision_email_payload: _payload, decision_email_payload_started_at: _startedAt, decision_email_queued_at: _queuedAt, ...insert } = submission;
+    const { data, error } = await getSupabaseAdminClient().from('annual_conference_speaker_submissions').insert(insert).select('*').single();
 
     if (error?.code === '23505') throw new Error('This conference proposal has already been submitted.');
     if (error || !data) throw new Error('Unable to save conference proposal.');
@@ -308,7 +315,9 @@ export async function updateAnnualConferenceSpeakerSubmission(id: string, update
     const index = items.findIndex((item) => item.id === id);
 
     if (index < 0) throw new Error('Conference proposal not found.');
-    const updated = { ...items[index], ...updates, decided_at: decidedAt ?? items[index].decided_at, updated_at: now() };
+    const resetPayload = updates.decision_email_idempotency_key !== undefined && updates.decision_email_idempotency_key !== items[index].decision_email_idempotency_key
+      ? { decision_email_payload: null, decision_email_payload_started_at: null, decision_email_queued_at: null } : {};
+    const updated = { ...items[index], ...updates, ...resetPayload, decided_at: decidedAt ?? items[index].decided_at, updated_at: now() };
     const next = [...items];
 
  next[index] = updated;
@@ -317,22 +326,54 @@ export async function updateAnnualConferenceSpeakerSubmission(id: string, update
   });
 }
 
+export async function stopAnnualConferenceDecisionEmailRetry(submission: AnnualConferenceSpeakerSubmission, errorMessage: string): Promise<void> {
+  if (!submission.decision_email_idempotency_key) return;
+  if (isSupabaseRuntimeEnabled()) {
+    const { error } = await getSupabaseAdminClient().rpc('stop_annual_conference_speaker_email_retry' as never, {
+      p_submission_id: submission.id, p_expected_idempotency_key: submission.decision_email_idempotency_key,
+      p_expected_attempt_count: submission.decision_email_attempt_count, p_error: errorMessage,
+      p_expected_payload: submission.decision_email_payload ?? null, p_expected_queued_at: submission.decision_email_queued_at ?? null,
+    } as never);
+
+    if (error) throw new Error('Unable to stop the speaker email retry.');
+
+    return;
+  }
+  await updateData<AnnualConferenceSpeakerSubmission, void>(SUBMISSIONS_FILE, (items) => {
+    const index = items.findIndex((item) => item.id === submission.id);
+    const current = items[index];
+
+    if (!current || current.decision_email_idempotency_key !== submission.decision_email_idempotency_key
+      || current.decision_email_attempt_count !== submission.decision_email_attempt_count
+      || JSON.stringify(current.decision_email_payload ?? null) !== JSON.stringify(submission.decision_email_payload ?? null)
+      || (current.decision_email_queued_at ?? null) !== (submission.decision_email_queued_at ?? null)
+      || !['pending', 'failed'].includes(current.decision_email_status ?? '')) return { data: items, result: undefined };
+    const next = [...items];
+
+    next[index] = { ...current, decision_email_status: 'failed', decision_email_retryable: false, decision_email_last_error: errorMessage, decision_email_queued_at: submission.decision_email_attempt_count === 0 ? null : current.decision_email_queued_at, decision_email_payload: submission.decision_email_attempt_count === 0 ? null : current.decision_email_payload, updated_at: now() };
+
+    return { data: next, result: undefined };
+  });
+}
+
 export async function claimAnnualConferenceDecisionEmailAttempt(input: {
   submissionId: string;
   expectedIdempotencyKey: string;
   expectedAttemptCount: number;
   allowNonRetryable?: boolean;
+  payload: { subject: string; html: string; text: string; recipient: string; from: string; replyTo: string; deadline: string | null; linkId: string | null; linkExpiresAt: string | null };
 }): Promise<AnnualConferenceSpeakerSubmission | null> {
   const attemptedAt = now();
 
   if (isSupabaseRuntimeEnabled()) {
-    const { data, error } = await getSupabaseAdminClient().rpc('claim_annual_conference_speaker_email_attempt', {
+    const { data, error } = await getSupabaseAdminClient().rpc('claim_annual_conference_speaker_email_payload' as never, {
       p_submission_id: input.submissionId,
       p_expected_idempotency_key: input.expectedIdempotencyKey,
       p_expected_attempt_count: input.expectedAttemptCount,
       p_attempted_at: attemptedAt,
       p_allow_non_retryable: input.allowNonRetryable ?? false,
-    });
+      p_payload: input.payload,
+    } as never);
 
     if (error) throw new Error('Unable to claim conference speaker email delivery.');
     if (data !== true) return null;
@@ -351,10 +392,14 @@ export async function claimAnnualConferenceDecisionEmailAttempt(input: {
       || current.decision_email_attempt_count !== input.expectedAttemptCount
       || !['pending', 'failed'].includes(current.decision_email_status ?? '')
       || (!current.decision_email_retryable && !input.allowNonRetryable)
+      || JSON.stringify(current.decision_email_payload) !== JSON.stringify(input.payload)
+      || (input.expectedAttemptCount === 0 && !current.decision_email_queued_at)
     ) return { data: items, result: null };
     const updated: AnnualConferenceSpeakerSubmission = {
       ...current,
       decision_email_status: 'pending',
+      decision_email_payload: input.payload,
+      decision_email_payload_started_at: input.expectedAttemptCount === 0 ? attemptedAt : current.decision_email_payload_started_at,
       decision_email_last_attempt_at: attemptedAt,
       decision_email_attempt_count: current.decision_email_attempt_count + 1,
       decision_email_last_error: null,
@@ -424,6 +469,7 @@ export async function replaceAnnualConferenceDecisionEmailRecipient(input: {
       ...current,
       decision_email_status: 'pending', decision_email_recipient: input.recipient,
       decision_email_provider_id: null, decision_email_idempotency_key: input.idempotencyKey,
+      decision_email_payload: null, decision_email_payload_started_at: null, decision_email_queued_at: null,
       decision_email_sent_at: null, decision_email_delivered_at: null, decision_email_last_event_at: null,
       decision_email_last_error: null, decision_email_last_attempt_at: null,
       decision_email_attempt_count: 0, decision_email_retryable: true, updated_at: now(),
@@ -852,7 +898,7 @@ export async function getPendingAnnualConferenceDecisionEmails(
       .select('*')
       .in('decision_email_status', statuses)
       .eq('decision_email_retryable', true)
-      .gt('decision_email_attempt_count', 0)
+      .or('decision_email_attempt_count.gt.0,decision_email_queued_at.not.is.null')
       .lt('decision_email_attempt_count', 5)
       .order('decision_email_last_attempt_at', { ascending: true, nullsFirst: true })
       .limit(limit);
@@ -868,7 +914,7 @@ export async function getPendingAnnualConferenceDecisionEmails(
       submission.decision_email_status
       && statuses.includes(submission.decision_email_status)
       && submission.decision_email_retryable
-      && submission.decision_email_attempt_count > 0
+      && (submission.decision_email_attempt_count > 0 || Boolean(submission.decision_email_queued_at))
       && submission.decision_email_attempt_count < 5,
     ))
     .sort((a, b) => (a.decision_email_last_attempt_at ?? '').localeCompare(b.decision_email_last_attempt_at ?? ''))
