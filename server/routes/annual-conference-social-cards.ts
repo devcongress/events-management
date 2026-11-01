@@ -1,3 +1,4 @@
+import { registerAnnualConferenceSpeakerBadgeRoutes } from './annual-conference-speaker-badges';
 import { completeTestDispatchOrigin } from '@/server/complete-test-dispatch';
 import { registrationTesting } from '@/server/annual-conference-registration-testing';
 import crypto from 'crypto';
@@ -124,6 +125,7 @@ function publicCardResponse(card: NonNullable<Awaited<ReturnType<typeof getSupab
 }
 
 export function registerAnnualConferenceSocialCardRoutes(app: Hono<AppBindings>): void {
+  registerAnnualConferenceSpeakerBadgeRoutes(app);
   app.use(`${buyerCollectionPath}*`, async (c, next) => {
     const claims = buyerClaims(c);
 

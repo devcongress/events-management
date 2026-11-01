@@ -1,0 +1,7 @@
+# Annual Conference speaker materials
+
+Selected speakers can upload optional PDF, PPT, and PPTX files in their private workspace. Uploading a file is separate from saving the optional slides or resource URL and session logistics. The workspace permits five files per accepted session, each at most 5 MiB. Files are uploaded immediately and do not require saving the rest of the form. The current workspace does not offer file removal; organizers can download submitted versions from the proposal drawer.
+
+Each request checks the existing workspace token, selected proposal and session, revocation, and logistics deadline. Organizer downloads require an authenticated organizer with `speakers.view` for the conference year and are scoped to the selected session. Files live in a private Supabase Storage bucket and downloads use attachment disposition. Type, extension, size, and file signatures are checked; PPTX files also require a structurally valid ZIP directory with presentation entries. These checks are not malware scanning.
+
+The local migration `20261101100000_annual_conference_speaker_materials.sql` creates the private bucket, metadata table, and serialized five-file limit. Its migration verification contract checks the bucket configuration, access restrictions, table, and quota trigger. Deployment requires applying and verifying this forward migration in the target environment through the established migration delivery process; it is not applied by this implementation.

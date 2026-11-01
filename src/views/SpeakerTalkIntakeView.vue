@@ -6,6 +6,8 @@ import {
   SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
 } from '@/lib/speaker-intake-limits';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import SpeakerMaterialsUpload from '@/src/components/SpeakerMaterialsUpload.vue';
+import SpeakerBadgeEditor from '@/src/components/SpeakerBadgeEditor.vue';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import type { ArchiveItemKind, ArchiveMaterialField, Event, SpeakerIntakeLinkPurpose } from '@/types';
 
@@ -352,6 +354,7 @@ function formatEventDay(): string {
             <p class="mt-4 border-t border-dc-border pt-4 text-xs font-semibold text-dc-gray">Updates close {{ formatDeadline(workspaceDeadline) }}.</p>
           </section>
 
+          <SpeakerBadgeEditor v-if="String(route.params.year) === '2026'" :year="Number(route.params.year)" :token="String(route.params.token)" />
           <section class="app-form-section space-y-5">
           <h2 class="app-form-section-title">Session logistics</h2>
           <div class="grid gap-4 sm:grid-cols-2">
@@ -363,6 +366,7 @@ function formatEventDay(): string {
             <span class="editorial-label">Slides or supporting-resource link</span>
             <input v-model="form.slides_url" type="url" inputmode="url" placeholder="https://…" class="editorial-input font-mono" />
           </label>
+          <SpeakerMaterialsUpload :year="String(route.params.year)" :token="String(route.params.token)" />
           <label class="block">
             <span class="editorial-label">Technical and setup requirements</span>
             <textarea v-model="form.technical_requirements" rows="4" class="editorial-input resize-none" placeholder="Microphones, display adapters, internet access, room setup, or other needs." />

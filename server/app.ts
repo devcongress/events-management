@@ -259,6 +259,7 @@ import {
   requireAnnualConferenceCapability,
 } from '@/server/annual-conference-request';
 import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
+import { registerAnnualConferenceSpeakerMaterialRoutes } from '@/server/routes/annual-conference-speaker-materials';
 import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
 import { registerManagedConferenceCheckout } from '@/server/routes/managed-conference-checkout';
 import { registerManagedConferencePaymentSettings } from '@/server/routes/managed-conference-payment-settings';
@@ -417,7 +418,6 @@ for (const publicWritePath of [
   '/api/auth/admin/exchange',
   '/api/auth/admin/access-request',
   '/api/events/*/speaker-intake/*',
-  '/api/conferences/*/speaker-intake/*',
   '/api/public/event-submissions/manage/:capability',
   '/api/public/event-submissions/manage/:capability/submit',
   '/api/public/event-submissions/management',
@@ -435,6 +435,14 @@ for (const publicWritePath of [
   app.use(publicWritePath, bodyLimitForPayloadMethods(PUBLIC_JSON_BODY_MAX_BYTES));
 }
 
+app.use('/api/conferences/*/speaker-intake/*', (c, next) => {
+  const limit = /\/badge\/photo$/.test(c.req.path)
+    ? PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES
+    : PUBLIC_JSON_BODY_MAX_BYTES;
+
+  return bodyLimitForPayloadMethods(limit)(c, next);
+});
+
 const standardCheckoutBodyLimit = bodyLimitForPayloadMethods(PUBLIC_JSON_BODY_MAX_BYTES);
 const flexibleCheckoutBodyLimit = bodyLimitForPayloadMethods(FLEXIBLE_CHECKOUT_BODY_MAX_BYTES);
 
@@ -451,6 +459,7 @@ app.use(`${DEVCON26_PUBLIC_CHECKOUT_PATH}/*`, (c, next) => {
 
 // Covers are optional and use a dedicated endpoint so the normal public
 // submission route keeps its small JSON body ceiling.
+app.use('/api/conference-speaker-materials/:year/:token', bodyLimitForPayloadMethods(PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES));
 app.use('/api/public/event-submissions/with-cover', bodyLimitForPayloadMethods(PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES));
 app.use('/api/public/event-submissions/manage/:capability/with-cover', bodyLimitForPayloadMethods(PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES));
 app.use('/api/public/event-submissions/management/with-cover', bodyLimitForPayloadMethods(PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES));
@@ -1171,9 +1180,12 @@ function isPublicCfpEventRequest(path: string, method: string): boolean {
 }
 
 function isSpeakerTalkIntakeRequest(path: string, method: string): boolean {
+  if (['GET', 'POST', 'PATCH'].includes(method) && /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+\/badge(?:\/photo)?$/.test(path)) return true;
+
   return (method === 'GET' || method === 'POST') && (
     /^\/api\/events\/[^/]+\/speaker-intake\/[^/]+$/.test(path)
     || /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+$/.test(path)
+    || /^\/api\/conference-speaker-materials\/\d{4}\/[^/]+$/.test(path)
   );
 }
 
@@ -5399,6 +5411,7 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 });
 
 registerAnnualConferenceSpeakerRoutes(app);
+registerAnnualConferenceSpeakerMaterialRoutes(app);
 registerAnnualConferenceTaskResourceRoutes(app);
 registerManagedConferenceCheckout(app);
 registerManagedConferencePaymentSettings(app);

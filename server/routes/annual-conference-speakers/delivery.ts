@@ -4,23 +4,21 @@ import {
   annualConferenceSpeakerWorkspaceToken,
   annualConferenceSpeakerWorkspaceTokenMatches,
   claimAnnualConferenceDecisionEmailAttempt,
+  stopAnnualConferenceDecisionEmailRetry,
   getAnnualConferenceSpeakerIntakeLinkById,
   getPendingAnnualConferenceDecisionEmails,
-  rotateAnnualConferenceSpeakerWorkspace,
   updateAnnualConferenceSpeakerIntakeLink,
   updateAnnualConferenceSpeakerSubmission,
   type AnnualConferenceEmailStatus,
   type AnnualConferenceSpeakerSubmission,
 } from '@/lib/annual-conference-speakers';
+import { purgeExpiredSpeakerOutcomePreviews } from '@/lib/annual-conference-speaker-outcomes';
 import { recordResendEmailHealth } from '@/lib/email/delivery-health';
 import { sendResendEmailBatch, ResendBatchError } from '@/lib/email/resend';
-import { EMAIL_SENDERS, emailSubjects } from '@/lib/email/scenarios';
-import { conferenceSpeakerAcceptanceEmail } from '@/lib/email/templates/conference-speaker-acceptance';
-import { speakerProposalRejectionEmail } from '@/lib/email/templates/speaker-proposal-rejection';
+import { EMAIL_SENDERS } from '@/lib/email/scenarios';
 import { secureSharedSecret } from '@/lib/security/shared-secret';
 import { createAnnualConferenceRepository } from '@/server/annual-conference-repository';
 import { envValue } from '@/server/env';
-import { publicAppOrigin } from '@/server/http/public-app-origin';
 
 const RETRY_DELAYS_MS = [0, 5 * 60_000, 30 * 60_000, 2 * 60 * 60_000, 12 * 60 * 60_000] as const;
 
@@ -41,14 +39,24 @@ function deliveryFailure(error: unknown): DeliveryFailure {
   return { message: 'Email provider did not accept this delivery; delivery will retry automatically.', retryable: true };
 }
 
-export function annualConferenceDecisionEmailIsDue(submission: AnnualConferenceSpeakerSubmission, at = Date.now()): boolean {
-  // A saved selection/rejection is not consent to send. Only recover deliveries
-  // that an organizer has explicitly started.
-  if (submission.decision_email_attempt_count === 0 || !submission.decision_email_last_attempt_at) return false;
-  if (!submission.decision_email_retryable || submission.decision_email_attempt_count >= ANNUAL_CONFERENCE_EMAIL_MAX_ATTEMPTS) return false;
-  const delay = RETRY_DELAYS_MS[Math.min(submission.decision_email_attempt_count, RETRY_DELAYS_MS.length - 1)];
+export function annualConferenceDecisionEmailNextRetryAt(submission: AnnualConferenceSpeakerSubmission): string | null {
+  // A saved decision is not authorization to send.
+  if (submission.decision_email_attempt_count === 0) return submission.decision_email_queued_at ?? null;
+  if (!submission.decision_email_last_attempt_at) return null;
+  if (!submission.decision_email_retryable || submission.decision_email_attempt_count >= ANNUAL_CONFERENCE_EMAIL_MAX_ATTEMPTS) return null;
+  if (submission.decision_email_status && !['pending', 'failed'].includes(submission.decision_email_status)) return null;
+  const timestamp = new Date(submission.decision_email_last_attempt_at).getTime();
 
-  return new Date(submission.decision_email_last_attempt_at).getTime() + delay <= at;
+  if (!Number.isFinite(timestamp)) return null;
+  const delay = RETRY_DELAYS_MS[submission.decision_email_attempt_count];
+
+  return new Date(timestamp + delay).toISOString();
+}
+
+export function annualConferenceDecisionEmailIsDue(submission: AnnualConferenceSpeakerSubmission, at = Date.now()): boolean {
+  const nextRetry = annualConferenceDecisionEmailNextRetryAt(submission);
+
+  return nextRetry !== null && new Date(nextRetry).getTime() <= at;
 }
 
 export function annualConferenceDecisionEmailCooldownElapsed(submission: AnnualConferenceSpeakerSubmission, at = Date.now()): boolean {
@@ -73,6 +81,12 @@ function configuredDelivery(c: Context): { apiKey: string; replyTo: string; toke
     replyTo,
     tokenSecret: secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c)),
   };
+}
+
+export function annualConferenceSpeakerEmailEnvelope(c: Context): { from: string; replyTo: string } | null {
+  const configured = configuredDelivery(c);
+
+  return configured ? { from: EMAIL_SENDERS.speakers.from, replyTo: configured.replyTo } : null;
 }
 
 async function recordOutcome(submission: AnnualConferenceSpeakerSubmission, update: {
@@ -118,33 +132,26 @@ export async function deliverAnnualConferenceDecisionEmail(c: Context, input: {
   const configured = configuredDelivery(c);
 
   if (!configured) throw new Error('Speaker email sending is not configured.');
-  const recipient = input.submission.decision_email_recipient ?? input.submission.speaker_email;
   const idempotencyKey = input.submission.decision_email_idempotency_key;
 
   if (!idempotencyKey) throw new Error('The proposal email delivery is not prepared.');
 
-  let content: { subject: string; html: string; text: string };
+  const payload = input.submission.decision_email_payload ?? null;
 
-  if (input.submission.decision_email_kind === 'acceptance') {
-    if (!input.deadline || !input.token) throw new Error('The speaker workspace email is incomplete.');
-    const privateUrl = new URL(`/conference-speakers/${input.editionYear}/${input.token}`, publicAppOrigin(c)).toString();
+  if (input.submission.decision_email_attempt_count > 0) {
+    const started = input.submission.decision_email_payload_started_at;
 
-    content = conferenceSpeakerAcceptanceEmail({
-      editionLabel: input.editionLabel,
-      speakerName: input.submission.speaker_name,
-      talkTitle: input.submission.title,
-      privateUrl,
-      deadline: input.deadline,
-    });
-  } else if (input.submission.decision_email_kind === 'rejection') {
-    content = speakerProposalRejectionEmail({
-      eventName: input.editionLabel,
-      speakerName: input.submission.speaker_name,
-      talkTitle: input.submission.title,
-      subject: emailSubjects.conferenceSpeakerDeclined(input.editionLabel),
-    });
-  } else {
-    throw new Error('The proposal email kind is not prepared.');
+    if (!payload || !payload.from || !payload.replyTo || !started || Date.now() - new Date(started).getTime() >= 23 * 60 * 60_000) {
+      await stopAnnualConferenceDecisionEmailRetry(input.submission, 'This delivery cannot be retried safely. Review the recipient before preparing a new delivery.');
+
+      return 'failed';
+    }
+  }
+
+  if (!payload || !payload.from || !payload.replyTo || !input.submission.decision_email_queued_at) {
+    await stopAnnualConferenceDecisionEmailRetry(input.submission, 'The frozen message is incomplete. Preview it again before sending.');
+
+    return 'failed';
   }
 
   const attempted = await claimAnnualConferenceDecisionEmailAttempt({
@@ -152,16 +159,23 @@ export async function deliverAnnualConferenceDecisionEmail(c: Context, input: {
     expectedIdempotencyKey: idempotencyKey,
     expectedAttemptCount: input.submission.decision_email_attempt_count,
     allowNonRetryable: Boolean(input.manual && annualConferenceDecisionEmailCanBeRetriedManually(input.submission)),
+    payload,
   });
 
-  if (!attempted) return 'skipped';
+  if (!attempted) {
+    if (input.submission.decision_email_attempt_count === 0) {
+      await stopAnnualConferenceDecisionEmailRetry(input.submission, 'The workspace or delivery changed. Preview again before sending.');
+    }
+
+    return 'skipped';
+  }
   let result: Awaited<ReturnType<typeof sendResendEmailBatch>>;
 
   try {
     result = await sendResendEmailBatch({
       apiKey: configured.apiKey,
       idempotencyKey,
-      emails: [{ from: EMAIL_SENDERS.speakers.from, to: [recipient], reply_to: configured.replyTo, ...content }],
+      emails: [{ from: payload.from, to: [payload.recipient], reply_to: payload.replyTo, subject: payload.subject, html: payload.html, text: payload.text }],
     });
   } catch (error) {
     const failure = deliveryFailure(error);
@@ -204,6 +218,7 @@ export async function retryAnnualConferenceDecisionEmails(c: Context): Promise<{
 }> {
   const configured = configuredDelivery(c);
 
+  await purgeExpiredSpeakerOutcomePreviews();
   if (!configured) return { configured: false, accepted: [], failed: [], deferred: [] };
   const pending = await getPendingAnnualConferenceDecisionEmails(['pending', 'failed'], 20);
   const editions = await createAnnualConferenceRepository(c).listEditions();
@@ -219,23 +234,23 @@ export async function retryAnnualConferenceDecisionEmails(c: Context): Promise<{
     const edition = editions.find((item) => item.id === candidate.edition_id);
 
     if (!edition) {
-      await recordOutcome(candidate, { status: 'failed', lastError: 'The conference edition could not be loaded.', retryable: false });
+      await stopAnnualConferenceDecisionEmailRetry(candidate, 'The conference edition could not be loaded.');
       failed.push(candidate.id);
       continue;
     }
-    let submission = candidate;
+    const submission = candidate;
     let token: string | undefined;
     let deadline: string | null = null;
 
     if (candidate.decision_email_kind === 'acceptance') {
       if (!configured.tokenSecret) {
-        await recordOutcome(candidate, { status: 'failed', lastError: 'Speaker workspace link signing is not configured.', retryable: false });
+        await stopAnnualConferenceDecisionEmailRetry(candidate, 'Speaker workspace link signing is not configured.');
         failed.push(candidate.id);
         continue;
       }
       deadline = edition.speaker_logistics_deadline ?? null;
       if (!deadline || new Date(deadline).getTime() <= Date.now()) {
-        await recordOutcome(candidate, { status: 'failed', lastError: 'Set a future speaker logistics deadline before retrying this email.', retryable: false });
+        await stopAnnualConferenceDecisionEmailRetry(candidate, 'Set a future speaker logistics deadline before retrying this email.');
         failed.push(candidate.id);
         continue;
       }
@@ -243,19 +258,23 @@ export async function retryAnnualConferenceDecisionEmails(c: Context): Promise<{
         ? await getAnnualConferenceSpeakerIntakeLinkById(candidate.selected_intake_link_id)
         : undefined;
 
-      if (currentLink && annualConferenceSpeakerWorkspaceTokenMatches(currentLink, configured.tokenSecret)) {
-        token = annualConferenceSpeakerWorkspaceToken(currentLink.id, configured.tokenSecret);
-      } else {
-        const rotated = await rotateAnnualConferenceSpeakerWorkspace({
-          submission: candidate,
-          deadline,
-          tokenSecret: configured.tokenSecret,
-          emailRecipient: candidate.decision_email_recipient ?? candidate.speaker_email,
-        });
-
-        submission = rotated.submission;
-        token = rotated.token;
+      if (!currentLink || currentLink.revoked_at || currentLink.edition_id !== candidate.edition_id
+        || currentLink.speaker_submission_id !== candidate.id || currentLink.workspace_session_id !== candidate.selected_session_id
+        || new Date(currentLink.expires_at).getTime() <= Date.now()
+        || !annualConferenceSpeakerWorkspaceTokenMatches(currentLink, configured.tokenSecret)) {
+        await stopAnnualConferenceDecisionEmailRetry(candidate, 'The original speaker workspace link is unavailable. Review the delivery before replacing it.');
+        failed.push(candidate.id);
+        continue;
       }
+      if (candidate.decision_email_attempt_count === 0 && (!candidate.decision_email_payload
+        || candidate.decision_email_payload.deadline !== deadline
+        || candidate.decision_email_payload.linkId !== currentLink.id
+        || candidate.decision_email_payload.linkExpiresAt !== currentLink.expires_at)) {
+        await stopAnnualConferenceDecisionEmailRetry(candidate, 'The workspace or deadline changed after preview. Preview again before sending.');
+        failed.push(candidate.id);
+        continue;
+      }
+      token = annualConferenceSpeakerWorkspaceToken(currentLink.id, configured.tokenSecret);
     }
     const result = await deliverAnnualConferenceDecisionEmail(c, {
       editionLabel: edition.label,

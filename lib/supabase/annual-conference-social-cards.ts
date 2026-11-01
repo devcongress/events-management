@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { completeTestDispatchOrigin } from '@/server/complete-test-dispatch';
 import type { Context } from 'hono';
 import { DEVCON26_SOCIAL_CARD_BUCKET, hashDevcon26SocialCardCapability, type Devcon26SocialCardRole } from '@/lib/annual-conference-social-cards';
@@ -56,10 +57,11 @@ async function socialCardSubjectIsEligible(card: AnnualConferenceSocialCard, c?:
   if (!card.session_id) return false;
   const result = await client
     .from('annual_conference_sessions')
-    .select('id, annual_conference_speaker_submissions!inner(status)')
+    .select('id, annual_conference_speaker_submissions!inner(status, selected_session_id)')
     .eq('id', card.session_id)
     .eq('status', 'confirmed')
     .eq('annual_conference_speaker_submissions.status', 'selected')
+    .eq('annual_conference_speaker_submissions.selected_session_id', card.session_id)
     .maybeSingle();
 
   if (result.error) throw new Error(result.error.message);
@@ -276,4 +278,31 @@ export async function uploadSupabaseAnnualConferenceSocialCardPhoto(cardId: stri
   if (error) throw new Error(error.message);
 
   return path;
+}
+
+/** Creates a private card once per accepted session without rotating existing links. */
+export async function ensureSpeakerSocialCard(input: { editionId: string; sessionId: string; name: string }, c?: Context): Promise<AnnualConferenceSocialCard | null> {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+  const client = getSupabaseAdminClient(c);
+  const existing = await client.from('annual_conference_social_cards' as never).select('*').eq('session_id', input.sessionId).eq('edition_id', input.editionId).maybeSingle() as unknown as { data: Record<string, unknown> | null; error: { message: string } | null };
+
+  if (existing.error) throw new Error(existing.error.message);
+  if (existing.data) return mapCard(existing.data);
+  const capability = crypto.randomBytes(32).toString('base64url');
+  const created = await client.from('annual_conference_social_cards' as never).upsert({
+    edition_id: input.editionId,
+    subject_type: 'speaker',
+    session_id: input.sessionId,
+    display_name: input.name,
+    management_token_hash: hashDevcon26SocialCardCapability(capability),
+    public_slug: crypto.randomBytes(24).toString('base64url'),
+  } as never, { onConflict: 'session_id', ignoreDuplicates: true }).select('*').maybeSingle() as unknown as { data: Record<string, unknown> | null; error: { message: string } | null };
+
+  if (created.error) throw new Error(created.error.message);
+  if (created.data) return mapCard(created.data);
+  const raced = await client.from('annual_conference_social_cards' as never).select('*').eq('session_id', input.sessionId).eq('edition_id', input.editionId).single() as unknown as { data: Record<string, unknown> | null; error: { message: string } | null };
+
+  if (raced.error) throw new Error(raced.error.message);
+
+  return raced.data ? mapCard(raced.data) : null;
 }
