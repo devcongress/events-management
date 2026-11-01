@@ -7,6 +7,26 @@ type FeedbackCampaignRow = Database['public']['Tables']['feedback_campaigns']['R
 type FeedbackCampaignUpdate = Database['public']['Tables']['feedback_campaigns']['Update'];
 type FeedbackQuestionRow = Database['public']['Tables']['feedback_questions']['Row'];
 
+export class FeedbackQuestionsLockedError extends Error {
+  constructor() {
+    super('Feedback questions cannot be changed after responses exist. Reload to restore the saved questions, then try again.');
+    this.name = 'FeedbackQuestionsLockedError';
+  }
+}
+
+function sameQuestions(left: FeedbackQuestion[], right: FeedbackQuestion[]): boolean {
+  const fields = (questions: FeedbackQuestion[]) => questions.map((question) => [
+    question.id,
+    question.type,
+    question.label,
+    question.required,
+    question.options,
+    question.order_index,
+  ]);
+
+  return JSON.stringify(fields(left)) === JSON.stringify(fields(right));
+}
+
 export function canUseSupabaseFeedbackCampaigns(c?: Context): boolean {
   return isSupabaseRuntimeEnabled(c);
 }
@@ -208,7 +228,9 @@ export async function updateSupabaseFeedbackCampaign(
 
   if (existing === null || existing === undefined) return existing;
 
-  if (updates.questions) {
+  const questionsChanged = updates.questions !== undefined && !sameQuestions(existing.questions, updates.questions);
+
+  if (questionsChanged) {
     const { data: response, error: responseError } = await getSupabaseAdminClient(c)
       .from('feedback_submissions')
       .select('id')
@@ -218,7 +240,7 @@ export async function updateSupabaseFeedbackCampaign(
 
     if (responseError) throw new Error(responseError.message);
     if (response.length > 0) {
-      throw new Error('Feedback questions cannot be changed after responses exist. Create a new campaign for a fresh form.');
+      throw new FeedbackQuestionsLockedError();
     }
   }
 
@@ -243,7 +265,7 @@ export async function updateSupabaseFeedbackCampaign(
     throw new Error(error.message);
   }
 
-  if (updates.questions) {
+  if (questionsChanged && updates.questions) {
     const { error: deleteError } = await getSupabaseAdminClient(c)
       .from('feedback_questions')
       .delete()

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-01 — Feedback closing and failure notifications
+
+- Allow feedback campaigns with responses to close, reopen, or save when their questions are unchanged; skip rewriting those questions and retain the guard against actual edits.
+- Return an actionable 409 response for locked question edits. Show save/close failures in the shared toast as well as an accessible inline alert, with explicit recovery guidance for server and connection failures.
+
 ## 2026-10-31 — Presentation pixel courier
 
 - Add a larger, responsive code symbol with a pixel trail beneath the audience QR board, alternating direction with quiet intervals. Reserve a clear bottom margin beneath the QR links; pause in hidden tabs and disable it for reduced motion and print.
