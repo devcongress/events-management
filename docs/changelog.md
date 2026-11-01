@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-01 — Programme draft state hardening
+
+- Store per-year programme drafts in a key-safe map while preserving draft state when organizers switch editions.
+
+## 2026-11-01 — Annual Conference programme outline
+
+- Let Owners and Organizers maintain an ordered programme outline for each conference edition on desktop and phone, with revision conflicts protecting concurrent edits.
+
 ## 2026-11-01 — Reports navigation
 
 - Group attendance and feedback under Reports, preserving section filters while switching and restoring report context in event breadcrumbs. Existing overview links redirect to the matching section. Reports tabs use attendance/feedback icons and compact spacing above the content.

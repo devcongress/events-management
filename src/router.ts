@@ -425,6 +425,11 @@ export const router = createRouter({
         import("./views/admin/AdminAnnualConferenceSpeakersView.vue"),
     },
     {
+      path: adminPath("annual-conference/:year(\\d{4})/programme"),
+      name: "admin-annual-conference-programme",
+      component: () => import("./views/admin/AdminAnnualConferenceProgrammeView.vue"),
+    },
+    {
       path: adminPath("annual-conference/:year(\\d{4})/finance"),
       name: "admin-annual-conference-finance",
       redirect: (to) => annualConferencePath("", String(to.params.year)),
@@ -817,6 +822,7 @@ router.afterEach((to) => {
     to.name === "admin-annual-conference" ||
     to.name === "admin-annual-conference-work-plan" ||
     to.name === "admin-annual-conference-finance" ||
+    to.name === "admin-annual-conference-programme" ||
     to.name === "admin-annual-conference-volunteers" ||
     to.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
   ) {

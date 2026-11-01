@@ -367,6 +367,57 @@ try {
   browser = await chromium.launch();
 
   for (const mobile of [false, true]) {
+    await journey(`programme-${mobile ? 'mobile' : 'desktop'}`, async ({ page, responses }) => {
+      let snapshot = { rows: [], revision: 0, updated_at: null, updated_by: null };
+      const programmePath = '/api/annual-conference/2026/programme';
+
+      const nextEdition = { ...edition, id: 'fixture-edition-2027', year: 2027, label: 'December 2027' };
+
+      responses.set('/api/annual-conference/editions', { body: { editions: [nextEdition, edition] } });
+      responses.set('/api/annual-conference/2026/work-plan', { body: workspace });
+      responses.set('/api/annual-conference/2027/work-plan', { body: { ...workspace, edition: nextEdition } });
+      responses.set('/api/annual-conference/2027/programme', { body: { rows: [], revision: 0, updated_at: null, updated_by: null } });
+      responses.set(programmePath, (request) => {
+        if (request.method() === 'PUT') {
+          const input = request.postDataJSON();
+
+          if (input.revision !== snapshot.revision) return { status: 409, body: { error: 'Programme changed.' } };
+          snapshot = { ...input, revision: input.revision + 1, updated_at: '2026-11-01T12:00:00Z', updated_by: 'fixture@example.com' };
+        }
+
+        return { body: snapshot };
+      });
+      await page.setViewportSize({ width: mobile ? 390 : 1440, height: 900 });
+      await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
+      await page.getByRole('button', { name: 'Add outline' }).click();
+      await page.getByLabel('Title', { exact: true }).first().fill('Opening');
+      await page.getByRole('button', { name: 'Add row' }).click();
+      await page.getByLabel('Title', { exact: true }).nth(1).fill('Discussion');
+      await page.getByRole('button', { name: 'Save outline' }).click();
+      await page.getByRole('heading', { name: 'Opening' }).waitFor();
+      await page.reload();
+      await page.getByRole('heading', { name: 'Discussion' }).waitFor();
+      await page.screenshot({ path: `${artifacts}/programme-${mobile ? 'mobile' : 'desktop'}.png`, fullPage: true });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.getByRole('button', { name: 'Edit outline' }).click();
+      await page.getByRole('group', { name: 'Session 2 actions' }).getByRole('button', { name: 'Move up' }).click();
+      await page.getByRole('group', { name: 'Session 2 actions' }).getByRole('button', { name: 'Remove' }).click();
+      await page.getByRole('button', { name: 'Save outline' }).click();
+      await page.getByRole('heading', { name: 'Discussion' }).waitFor();
+      assert.deepEqual(snapshot.rows.map(row => row.title), ['Discussion']);
+      await page.getByRole('button', { name: 'Edit outline' }).click();
+      await page.getByLabel('Title', { exact: true }).first().fill('Unsaved draft');
+      await page.getByRole('button', { name: /December 2026/ }).click();
+      await page.getByRole('option', { name: 'December 2027' }).click();
+      await page.getByText('2027 conference').waitFor();
+      await page.getByRole('button', { name: /December 2027/ }).click();
+      await page.getByRole('option', { name: 'December 2026' }).click();
+      await page.getByText('2026 conference').waitFor();
+      assert.equal(await page.getByLabel('Title', { exact: true }).first().inputValue(), 'Unsaved draft');
+    }, { role: 'organizer' });
+  }
+
+  for (const mobile of [false, true]) {
     await journey(`reports-navigation-${mobile ? 'mobile' : 'desktop'}`, async ({ page, responses, requests }) => {
       const feedbackEvent = { event, campaign: null, campaign_configured: false, response_count: 0, is_open: false, insights: {} };
       const months = ['2026-08', '2026-09'].map(month => ({ month, label: month, event_count: 1, total_responses: 0, events: [feedbackEvent] }));

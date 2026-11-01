@@ -52,6 +52,7 @@ const breadcrumbRoutes = new Set([
   'admin-annual-conference',
   'admin-annual-conference-work-plan',
   'admin-annual-conference-speakers',
+  'admin-annual-conference-programme',
   'admin-annual-conference-ticketing',
   'admin-annual-conference-registrations',
   'admin-annual-conference-check-in',
@@ -260,6 +261,7 @@ function conferenceBreadcrumbs(
   const sections: Record<string, { path: string; label: string }> = {
     'admin-annual-conference-work-plan': { path: 'work-plan', label: 'Work plan' },
     'admin-annual-conference-speakers': { path: 'speakers', label: 'Speakers' },
+    'admin-annual-conference-programme': { path: 'programme', label: 'Programme' },
     'admin-annual-conference-check-in': { path: 'check-in', label: 'Guests' },
     'admin-annual-conference-volunteers': { path: 'volunteers', label: 'Volunteers' },
   };

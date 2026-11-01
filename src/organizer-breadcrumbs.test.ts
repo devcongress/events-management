@@ -124,6 +124,13 @@ describe('event breadcrumb context', () => {
 });
 
 describe('conference breadcrumb context', () => {
+  it('links Programme back to the same conference year', () => {
+    const crumbs = resolve('admin-annual-conference-programme', { params: { year: '2027' } });
+
+    expect(crumbs.at(-1)).toEqual({ label: 'Programme' });
+    expect(JSON.stringify(crumbs)).toContain('2027');
+  });
+
   it('shows real edition labels and a separate Ticketing section destination', () => {
     expect(resolve('admin-annual-conference-ticketing', { params: { year }, query: { section: 'orders' }, labels: { editionLabel: 'DevCon 2026' } })).toEqual([
       { label: 'Annual Conference' },
