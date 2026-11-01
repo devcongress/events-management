@@ -175,7 +175,7 @@ import {
   updateEventSubmissionReplySlackStatus,
   updateEventSubmissionEmailDelivery,
 } from '@/lib/supabase/event-submissions';
-import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignsByEventIds, getSupabaseFeedbackHubData, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
+import { FeedbackQuestionsLockedError, createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignsByEventIds, getSupabaseFeedbackHubData, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
 import {
   removeMeetupMedia,
   uploadEventSubmissionCover,
@@ -299,6 +299,10 @@ app.use('*', async (c, next) => {
 });
 
 app.onError((error, c) => {
+  if (error instanceof FeedbackQuestionsLockedError) {
+    return c.json({ error: error.message, code: 'feedback_questions_locked' }, 409);
+  }
+
   if (error instanceof HTTPException) {
     return error.getResponse();
   }

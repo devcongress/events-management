@@ -236,6 +236,8 @@ async function saveCampaign(options: SaveCampaignOptions = {}) {
   saving.value = true;
   error.value = '';
 
+  const action = options.overrideStatus === 'closed' ? 'close feedback' : 'save the feedback form';
+
   try {
     const response = await fetch(`/api/events/${route.params.eventId}/feedback-campaign`, {
       method: 'PATCH',
@@ -259,10 +261,14 @@ async function saveCampaign(options: SaveCampaignOptions = {}) {
     } else {
       const payload = await response.json().catch(() => ({}));
 
-      error.value = payload.error ?? 'Unable to save feedback campaign';
+      error.value = response.status >= 500
+        ? `Unable to ${action} because of a server error. Reload to check its current status, then try again.`
+        : payload.error ?? `Unable to ${action}. Reload and try again.`;
+      notify.error(error.value, { id: 'feedback-campaign-saved', duration: 10000 });
     }
   } catch {
-    error.value = 'Unable to save the feedback campaign. Check your connection and try again.';
+    error.value = `Unable to confirm whether we could ${action}. Check your connection and reload before trying again.`;
+    notify.error(error.value, { id: 'feedback-campaign-saved', duration: 10000 });
   } finally {
     saving.value = false;
   }
@@ -619,7 +625,7 @@ onBeforeUnmount(() => {
           </div>
         </header>
 
-        <div v-if="error" class="mb-6 rounded-md border-2 border-red-700 bg-red-50 p-4 text-sm font-semibold text-red-800">{{ error }}</div>
+        <div v-if="error" role="alert" class="mb-6 rounded-md border-2 border-red-700 bg-red-50 p-4 text-sm font-semibold text-red-800">{{ error }}</div>
         <template v-if="responsesMode">
           <section class="space-y-6">
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
