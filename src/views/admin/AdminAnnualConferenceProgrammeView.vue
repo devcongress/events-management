@@ -758,18 +758,34 @@ async function save() {
   text-underline-offset: 2px;
 }
 
-.programme-summary button {
-  text-decoration: underline;
+:is(.programme-speaker-actions button, .programme-photo-action, .programme-summary button, .programme-copy a, .programme-error button) {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+:is(.programme-speaker-actions button, .programme-summary button, .programme-copy a, .programme-error button):focus-visible,
+.programme-photo-action:has(input:focus-visible) {
+  background: #ffe1ef;
+  color: #111;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .programme-speaker-actions button:not(:disabled):hover,
-  .programme-photo-action:has(input:enabled):hover {
+  :is(.programme-speaker-actions button, .programme-summary button, .programme-error button):enabled:hover,
+  .programme-photo-action:has(input:enabled):hover,
+  .programme-copy a:hover {
+    outline: none;
     text-decoration: underline;
   }
+}
 
-  .programme-speaker-actions button:not(:disabled):hover:not(:focus-visible) {
-    outline: none;
+@media (forced-colors: active) {
+  :is(.programme-speaker-actions button, .programme-summary button, .programme-copy a, .programme-error button):focus-visible,
+  .programme-photo-action:has(input:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
   }
 }
 
@@ -785,11 +801,6 @@ async function save() {
   overflow: hidden;
   position: absolute;
   clip-path: inset(50%);
-}
-
-.programme-photo-action:has(input:focus-visible) {
-  outline: 2px solid #e8117f;
-  outline-offset: 2px;
 }
 
 .programme-summary button + button {
@@ -911,7 +922,6 @@ async function save() {
 
 .programme-copy a {
   color: #c80d68;
-  text-decoration: underline;
   overflow-wrap: anywhere;
 }
 
