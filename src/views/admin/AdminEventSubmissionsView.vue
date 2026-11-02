@@ -40,6 +40,8 @@ const drawerCloseButton = ref<HTMLButtonElement | null>(null);
 const drawerPanel = ref<HTMLElement | null>(null);
 const approvingSubmissionId = ref<string | null>(null);
 const rejecting = ref(false);
+const rejectionFields = ref<HTMLElement | null>(null);
+const rejectButton = ref<HTMLButtonElement | null>(null);
 const rejectionCategory = ref<EventSubmissionRejectionCategory | ''>('');
 const organizerMessage = ref('');
 const internalNote = ref('');
@@ -355,6 +357,33 @@ function setRetryingReply(replyId: string, retrying: boolean) {
 
 function isRetryingReply(replyId: string) {
   return retryingReplyIds.value.has(replyId);
+}
+
+function resizeOrganizerMessage(event: Event) {
+  const textarea = event.target;
+
+  if (!(textarea instanceof HTMLTextAreaElement)) return;
+
+  textarea.style.height = 'auto';
+  const style = window.getComputedStyle(textarea);
+  const borders = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+
+  textarea.style.height = `${textarea.scrollHeight + borders}px`;
+}
+
+function openRejectionForm() {
+  rejecting.value = true;
+  void nextTick(() => {
+    const trigger = rejectionFields.value?.querySelector<HTMLButtonElement>('button');
+
+    trigger?.focus();
+    trigger?.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function cancelRejection() {
+  resetRejectionForm();
+  void nextTick(() => rejectButton.value?.focus());
 }
 
 function resetRejectionForm() {
@@ -876,77 +905,82 @@ function replyPresentation(reply: EventSubmissionReply) {
 
             <footer class="submission-drawer-footer">
               <template v-if="selectedSubmission.review_status === 'pending'">
-                <section class="submission-decision-checklist" aria-labelledby="submission-decision-checklist-title">
-                  <div class="submission-decision-checklist-heading">
-                    <div>
-                      <p class="submission-section-kicker">Before you decide</p>
-                      <h4 id="submission-decision-checklist-title">Check these four things</h4>
+                <div class="submission-decision-content">
+                  <section v-if="!rejecting" class="submission-decision-checklist" aria-labelledby="submission-decision-checklist-title">
+                    <div class="submission-decision-checklist-heading">
+                      <div>
+                        <p class="submission-section-kicker">Before you decide</p>
+                        <h4 id="submission-decision-checklist-title">Check these four things</h4>
+                      </div>
+                      <p>All four should be true before approval.</p>
                     </div>
-                    <p>All four should be true before approval.</p>
-                  </div>
-                  <ol class="submission-decision-checklist-items">
-                    <li>
-                      <span aria-hidden="true">01</span>
-                      <div><strong>Community fit</strong><p>Relevant to Ghana's technology community.</p></div>
-                    </li>
-                    <li>
-                      <span aria-hidden="true">02</span>
-                      <div><strong>Event clarity</strong><p>Date, place or link, and registration are ready.</p></div>
-                    </li>
-                    <li>
-                      <span aria-hidden="true">03</span>
-                      <div><strong>Credibility</strong><p>The organizer and event details can be verified.</p></div>
-                    </li>
-                    <li>
-                      <span aria-hidden="true">04</span>
-                      <div><strong>Calendar value</strong><p>Not a duplicate, past, or avoidable major clash.</p></div>
-                    </li>
-                  </ol>
-                </section>
-                <Transition name="submission-review">
-                  <div v-if="rejecting" class="mb-4 space-y-4">
-                    <AppDropdown
-                      v-model="rejectionCategory"
-                      label="Reason category"
-                      placeholder="Choose a reason"
-                      :options="rejectionOptions"
-                      density="compact"
-                      required
-                      teleport
-                    />
-                    <div>
-                      <label for="organizer-message" class="submission-field-label">Message to organizer (optional)</label>
-                      <p class="mt-1 text-xs leading-5 text-dc-gray">This message will be included in the rejection email.</p>
-                      <textarea id="organizer-message" v-model="organizerMessage" maxlength="1200" rows="3" class="editorial-input mt-2 min-h-24 resize-none text-sm" placeholder="Add a helpful explanation or next step" />
+                    <ol class="submission-decision-checklist-items">
+                      <li>
+                        <span aria-hidden="true">01</span>
+                        <div><strong>Community fit</strong><p>Relevant to Ghana's technology community.</p></div>
+                      </li>
+                      <li>
+                        <span aria-hidden="true">02</span>
+                        <div><strong>Event clarity</strong><p>Date, place or link, and registration are ready.</p></div>
+                      </li>
+                      <li>
+                        <span aria-hidden="true">03</span>
+                        <div><strong>Credibility</strong><p>The organizer and event details can be verified.</p></div>
+                      </li>
+                      <li>
+                        <span aria-hidden="true">04</span>
+                        <div><strong>Calendar value</strong><p>Not a duplicate, past, or avoidable major clash.</p></div>
+                      </li>
+                    </ol>
+                  </section>
+                  <Transition name="submission-review">
+                    <div v-if="rejecting" ref="rejectionFields" class="space-y-4">
+                      <AppDropdown
+                        v-model="rejectionCategory"
+                        label="Reason category"
+                        placeholder="Choose a reason"
+                        :options="rejectionOptions"
+                        density="compact"
+                        required
+                        teleport
+                      />
+                      <div>
+                        <label for="organizer-message" class="submission-field-label">Message to organizer (optional)</label>
+                        <p class="mt-1 text-xs leading-5 text-dc-gray">This message will be included in the rejection email.</p>
+                        <textarea id="organizer-message" v-model="organizerMessage" maxlength="1200" rows="3" class="editorial-input submission-organizer-message mt-2 text-sm" placeholder="Add a helpful explanation or next step" @input="resizeOrganizerMessage" />
+                      </div>
+                      <div>
+                        <label for="internal-note" class="submission-field-label">Internal note (optional)</label>
+                        <p class="mt-1 text-xs leading-5 text-dc-gray">Private to DevCongress organizers. Never included in email.</p>
+                        <textarea id="internal-note" v-model="internalNote" maxlength="1000" rows="3" class="editorial-input mt-2 min-h-24 resize-none text-sm" placeholder="Add private review context" />
+                      </div>
+                      <details v-if="rejectionCategory" class="rounded-md border border-dc-border bg-white p-3">
+                        <summary class="cursor-pointer">
+                          <span class="submission-field-label">Email preview</span>
+                          <span class="mt-2 block text-xs font-semibold text-dc-ink">Update on your event submission: {{ selectedSubmission.title }}</span>
+                        </summary>
+                        <p class="mt-2 text-xs leading-5 text-dc-gray">{{ rejectionCategoryLabel(rejectionCategory) }}</p>
+                        <p v-if="organizerMessage" class="mt-2 whitespace-pre-line break-words text-xs leading-5 text-dc-gray">{{ organizerMessage }}</p>
+                      </details>
                     </div>
-                    <div>
-                      <label for="internal-note" class="submission-field-label">Internal note (optional)</label>
-                      <p class="mt-1 text-xs leading-5 text-dc-gray">Private to DevCongress organizers. Never included in email.</p>
-                      <textarea id="internal-note" v-model="internalNote" maxlength="1000" rows="3" class="editorial-input mt-2 min-h-24 resize-none text-sm" placeholder="Add private review context" />
-                    </div>
-                    <div v-if="rejectionCategory" class="rounded-md border border-dc-border bg-white p-3">
-                      <p class="submission-field-label">Email preview</p>
-                      <p class="mt-2 text-xs font-semibold text-dc-ink">Update on your event submission: {{ selectedSubmission.title }}</p>
-                      <p class="mt-2 text-xs leading-5 text-dc-gray">{{ rejectionCategoryLabel(rejectionCategory) }}</p>
-                      <p v-if="organizerMessage" class="mt-2 whitespace-pre-line text-xs leading-5 text-dc-gray">{{ organizerMessage }}</p>
-                    </div>
-                  </div>
-                </Transition>
-                <div class="flex flex-wrap gap-3">
+                  </Transition>
+                </div>
+                <div class="submission-decision-actions flex flex-wrap gap-3">
                   <button
+                    v-if="!rejecting"
                     type="button"
                     class="editorial-action motion-press min-h-11 flex-1 justify-center disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="rejecting || approvingSubmissionId === selectedSubmission.id || approveMutation.isPending.value || rejectMutation.isPending.value"
+                    :disabled="approvingSubmissionId === selectedSubmission.id || approveMutation.isPending.value || rejectMutation.isPending.value"
                     @click="approveMutation.mutate(selectedSubmission)"
                   >
                     {{ approvingSubmissionId === selectedSubmission.id || approveMutation.isPending.value ? 'Publishing…' : 'Approve & publish' }}
                   </button>
-                  <button v-if="!rejecting" type="button" class="editorial-secondary-action motion-press min-h-11" @click="rejecting = true">Reject</button>
+                  <button v-if="!rejecting" ref="rejectButton" type="button" class="editorial-secondary-action motion-press min-h-11" @click="openRejectionForm">Reject</button>
                   <template v-else>
                     <button type="button" class="motion-press min-h-11 rounded-md border-2 border-red-800 bg-red-800 px-5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white disabled:cursor-not-allowed disabled:opacity-50" :disabled="!rejectionCategory || rejectMutation.isPending.value" @click="rejectMutation.mutate(selectedSubmission)">
                       {{ rejectMutation.isPending.value ? 'Rejecting…' : 'Reject & notify organizer' }}
                     </button>
-                    <button type="button" class="editorial-secondary-action motion-press min-h-11" @click="resetRejectionForm">Cancel</button>
+                    <button type="button" class="editorial-secondary-action motion-press min-h-11" @click="cancelRejection">Cancel</button>
                   </template>
                 </div>
               </template>

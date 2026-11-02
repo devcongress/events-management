@@ -777,6 +777,25 @@
     @apply shrink-0 border-t border-dc-border bg-dc-cream px-6 py-4;
   }
 
+  .submission-drawer-footer:has(.submission-decision-content) {
+    @apply flex min-h-0 flex-col;
+    max-height: min(70dvh, 42rem);
+  }
+
+  .submission-decision-content {
+    @apply min-h-0 overflow-y-auto;
+  }
+
+  .submission-decision-actions {
+    @apply shrink-0 pt-4;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .submission-organizer-message {
+    @apply min-h-24 resize-none overflow-y-auto;
+    max-height: min(30dvh, 16rem);
+  }
+
   .submission-review-actions {
     @apply flex flex-wrap items-center gap-2;
   }

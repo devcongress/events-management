@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-02 — Community submission rejection form
+
+- Keep rejection actions visible while the review form scrolls, grow the organizer message as it is edited, and collapse the email preview with its subject visible.
+
 ## 2026-11-02 — Programme text actions
 
 - Show an underline only while an enabled Programme text action is hovered. Keyboard focus uses a distinct fill, including after cancelling photo removal.
