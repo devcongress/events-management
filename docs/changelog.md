@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-02 — Programme text actions
+
+- Show an underline only while an enabled Programme text action is hovered. Keyboard focus uses a distinct fill, including after cancelling photo removal.
+
 ## 2026-11-01 — Programme speaker actions
 
 - Underline enabled copy and portrait actions on pointer hover and retain a visible keyboard focus indicator on the file chooser.
