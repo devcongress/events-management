@@ -44,7 +44,7 @@ Before making a pending-submission decision, the review drawer presents the same
 3. **Credibility** — the organizer and the supplied details can be verified.
 4. **Calendar value** — it is not a duplicate, already past, or an avoidable major clash.
 
-All four should be true before approval. A reviewer should use the existing rejection category and organizer message to explain a decline clearly; the internal note remains private to organizers.
+All four should be true before approval. A reviewer should use the existing rejection category and organizer message to explain a decline clearly; the internal note remains private to organizers. The message field grows up to a viewport-aware limit, the email preview starts collapsed with its subject visible, and decision actions remain visible while the review form scrolls.
 
 Approval and rejection are transactional, idempotent Supabase functions. A source-submission unique constraint prevents repeated approval requests from creating duplicate canonical events. Each decision queues one durable email in the same transaction. **Approve & publish** needs no extra confirmation; it publishes the canonical external event and queues the approval notice. **Reject & notify organizer** shows the outgoing reason/message separately from the internal note, directs the organizer to submit a new event if appropriate, and does not invite email replies. Review actions are written to the admin audit ledger without submitter contact data or note/message content.
 
