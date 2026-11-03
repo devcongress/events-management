@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ centerContent?: boolean }>();
+defineProps<{ centerContent?: boolean; fullWidth?: boolean }>();
 
 const DEVCONGRESS_FORM_COLLABORATION_PATH = '/illustrations/devcongress-form-collaboration.png';
 </script>
@@ -19,7 +19,7 @@ const DEVCONGRESS_FORM_COLLABORATION_PATH = '/illustrations/devcongress-form-col
     </aside>
     <div
       class="public-form-route-frame__content"
-      :class="{ 'public-form-route-frame__content--centered': centerContent }"
+      :class="{ 'public-form-route-frame__content--centered': centerContent, 'public-form-route-frame__content--full': fullWidth }"
     >
       <slot />
     </div>
@@ -67,6 +67,8 @@ const DEVCONGRESS_FORM_COLLABORATION_PATH = '/illustrations/devcongress-form-col
   bottom: max(env(safe-area-inset-bottom), -0.25rem);
   width: min(24rem, 86vw);
   aspect-ratio: 836 / 600;
+  opacity: 0.22;
+  filter: blur(3px);
   overflow: hidden;
 }
 
@@ -111,7 +113,8 @@ const DEVCONGRESS_FORM_COLLABORATION_PATH = '/illustrations/devcongress-form-col
     width: calc(100% - clamp(20rem, 30vw, 30rem));
   }
 
-  .public-form-route-frame__content--centered {
+  .public-form-route-frame__content--centered,
+  .public-form-route-frame__content--full {
     width: 100%;
   }
 }

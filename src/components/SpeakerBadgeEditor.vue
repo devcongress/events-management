@@ -10,6 +10,14 @@ const photo = ref<File | null>(null);
 const error = ref('');
 const message = ref('');
 const busy = ref(false);
+const savedCard = ref('');
+const hasUnsavedChanges = computed(() => busy.value || (card.value !== null && savedCard.value !== badgeFields(card.value)));
+
+defineExpose({ hasUnsavedChanges });
+
+function badgeFields(value: SpeakerBadge) {
+  return JSON.stringify({ display_name: value.display_name, crop: value.crop });
+}
 let renderQueue: Promise<void> = Promise.resolve();
 
 function draw() {
@@ -35,6 +43,7 @@ async function load() {
     const result = await loadSpeakerBadge(path.value);
 
     card.value = result.card;
+    savedCard.value = badgeFields(result.card);
     photo.value = result.photo;
     await draw();
   } catch (reason) {
@@ -43,18 +52,23 @@ async function load() {
 }
 
 async function save() {
-  if (!card.value) return;
+  if (busy.value || !card.value) return;
   busy.value = true;
   error.value = '';
   message.value = '';
   try {
+    const submittedCard = badgeFields(card.value);
+
     await draw();
-    const result = await fetch(path.value, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ display_name: card.value.display_name, crop: card.value.crop }) });
+    const result = await fetch(path.value, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: submittedCard });
     const body = await result.json();
 
     if (!result.ok) throw new Error(body.error || 'Unable to save badge.');
-    card.value = body.card;
-    message.value = 'Badge saved.';
+    savedCard.value = badgeFields(body.card);
+    if (card.value && badgeFields(card.value) === submittedCard) card.value = body.card;
+    message.value = card.value && badgeFields(card.value) !== savedCard.value
+      ? 'Badge saved. You have newer changes to save.'
+      : 'Badge saved.';
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : 'Unable to save badge.';
   } finally {
@@ -77,7 +91,13 @@ async function upload(event: Event) {
     const body = await result.json();
 
     if (!result.ok) throw new Error(body.error || 'Unable to save photo.');
-    card.value = body.card;
+    const currentCard = card.value;
+    const hadUnsavedChanges = currentCard !== null && badgeFields(currentCard) !== savedCard.value;
+
+    card.value = hadUnsavedChanges && currentCard
+      ? { ...body.card, display_name: currentCard.display_name, crop: { ...currentCard.crop } }
+      : body.card;
+    savedCard.value = badgeFields(body.card);
     photo.value = file;
     await draw();
     message.value = 'Photo saved.';
@@ -107,21 +127,30 @@ onMounted(load);
 
 <template>
   <section class="speaker-badge" aria-labelledby="speaker-badge-title">
-    <h2 id="speaker-badge-title">Your speaker badge</h2>
-    <p>Personalize your badge and download it to share. Your changes are saved privately.</p>
-    <p v-if="error" role="alert">{{ error }}</p>
-    <p v-if="message" role="status">{{ message }}</p>
+    <header class="speaker-badge__heading">
+      <h2 id="speaker-badge-title">Your speaker badge</h2>
+      <p>Save your display name and photo position here, then download your badge to share.</p>
+    </header>
+    <p v-if="error" role="alert" class="speaker-badge__feedback">{{ error }}</p>
+    <p v-if="message" role="status" class="speaker-badge__feedback">{{ message }}</p>
     <div v-if="card" class="speaker-badge__layout">
-      <canvas ref="canvas" class="speaker-badge__preview" aria-label="Speaker badge preview" />
+      <div class="speaker-badge__preview-wrap">
+        <canvas ref="canvas" class="speaker-badge__preview" aria-label="Speaker badge preview" />
+      </div>
       <div class="speaker-badge__fields">
-        <label>Display name <input v-model="card.display_name" class="editorial-input" maxlength="120" @input="refreshPreview"></label>
-        <label>Photo <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" :disabled="busy" @change="upload"></label>
-        <p>JPEG, PNG, WebP or AVIF, up to 5 MB.</p>
-        <label>Zoom <input v-model.number="card.crop.scale" type="range" class="editorial-input" min="1" max="4" step="0.01" @input="refreshPreview"></label>
-        <label>Horizontal position <input v-model.number="card.crop.x" type="range" class="editorial-input" min="0" max="1" step="0.01" @input="refreshPreview"></label>
-        <label>Vertical position <input v-model.number="card.crop.y" type="range" class="editorial-input" min="0" max="1" step="0.01" @input="refreshPreview"></label>
+        <div class="speaker-badge__identity">
+          <label>Display name <input v-model="card.display_name" class="editorial-input" maxlength="120" @keydown.enter.prevent="save" @input="refreshPreview"></label>
+          <label>Photo <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" :disabled="busy" @change="upload"></label>
+          <p>JPEG, PNG, WebP or AVIF, up to 5 MB.</p>
+        </div>
+        <div class="speaker-badge__adjustments">
+          <p class="speaker-badge__adjustments-title">Adjust photo</p>
+          <label>Zoom <input v-model.number="card.crop.scale" type="range" class="app-form-control-range" min="1" max="4" step="0.01" @input="refreshPreview"></label>
+          <label>Horizontal position <input v-model.number="card.crop.x" type="range" class="app-form-control-range" min="0" max="1" step="0.01" @input="refreshPreview"></label>
+          <label>Vertical position <input v-model.number="card.crop.y" type="range" class="app-form-control-range" min="0" max="1" step="0.01" @input="refreshPreview"></label>
+        </div>
         <div class="speaker-badge__actions">
-          <button type="button" :disabled="busy" @click="save">Save badge</button>
+          <button type="button" class="speaker-badge__save" :disabled="busy" @click="save">Save badge</button>
           <button type="button" :disabled="busy" @click="download">Download PNG</button>
         </div>
       </div>
@@ -130,14 +159,112 @@ onMounted(load);
 </template>
 
 <style scoped>
-.speaker-badge { margin-top: 24px; padding: 20px; border: 1px solid #e0ddd4; border-radius: 8px; background: white; }
-.speaker-badge h2 { font-size: 1.3rem; font-weight: 600; }
-.speaker-badge__layout { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 24px; margin-top: 16px; }
-.speaker-badge__preview { width: 100%; height: auto; }
-.speaker-badge__fields { display: grid; align-content: start; gap: 12px; }
-.speaker-badge__fields label { display: grid; gap: 4px; font-weight: 600; }
-.speaker-badge__fields input:not([type='range']) { width: 100%; border: 1px solid #aaa; border-radius: 6px; padding: 8px; }
-.speaker-badge__actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.speaker-badge__actions button { min-height: 44px; padding: 8px 14px; border: 1px solid #111; border-radius: 6px; }
-@media (max-width: 600px) { .speaker-badge__layout { grid-template-columns: 1fr; } .speaker-badge__preview { max-width: 260px; } }
+.speaker-badge {
+  margin-top: 24px;
+  padding: clamp(1.25rem, 2.5vw, 2rem);
+  border: 1px solid #e0ddd4;
+  border-radius: 8px;
+  background: white;
+}
+
+.speaker-badge__heading h2 {
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.speaker-badge__heading p,
+.speaker-badge__identity p {
+  color: #555;
+}
+
+.speaker-badge__feedback {
+  margin-top: 0.75rem;
+}
+
+.speaker-badge__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  margin-top: 1.5rem;
+}
+
+.speaker-badge__preview-wrap {
+  min-width: 0;
+}
+
+.speaker-badge__preview {
+  display: block;
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+}
+
+.speaker-badge__fields,
+.speaker-badge__identity,
+.speaker-badge__adjustments {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 1rem;
+}
+
+.speaker-badge__fields label {
+  display: grid;
+  min-width: 0;
+  gap: 0.375rem;
+  font-weight: 600;
+}
+
+.speaker-badge__identity input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #aaa;
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.speaker-badge__identity p {
+  margin-top: -0.5rem;
+  font-size: 0.875rem;
+}
+
+.speaker-badge__adjustments-title {
+  font-weight: 600;
+}
+
+.speaker-badge__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.speaker-badge__actions button {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid #111;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.speaker-badge__actions .speaker-badge__save {
+  background: #e8117f;
+  color: white;
+}
+
+@media (min-width: 64rem) {
+  .speaker-badge__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(1.5rem, 3vw, 3rem);
+  }
+
+  .speaker-badge__actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .speaker-badge__layout {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

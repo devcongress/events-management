@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute } from 'vue-router';
 import {
   SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS,
   SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
@@ -48,6 +48,31 @@ const error = ref<string | null>(null);
 const savedMessage = ref<string | null>(null);
 const workspaceDeadline = ref<string | null>(null);
 const slidesUpdateMode = ref(false);
+const badgeEditor = ref<{ hasUnsavedChanges: boolean } | null>(null);
+const materialsUpload = ref<{ hasUnsavedChanges: boolean } | null>(null);
+const savedForm = ref<string | null>(null);
+const hasUnsavedChanges = computed(() => (
+  submitting.value
+  || (savedForm.value !== null && JSON.stringify(form) !== savedForm.value)
+  || Boolean(badgeEditor.value?.hasUnsavedChanges)
+  || Boolean(materialsUpload.value?.hasUnsavedChanges)
+));
+
+function warnBeforeBrowserExit(event: BeforeUnloadEvent) {
+  if (!hasUnsavedChanges.value) return;
+
+  event.preventDefault();
+  event.returnValue = '';
+}
+
+function confirmLeaving() {
+  return !hasUnsavedChanges.value || window.confirm('You have unsaved changes. Leave without saving?');
+}
+
+onBeforeRouteLeave(confirmLeaving);
+onBeforeRouteUpdate(confirmLeaving);
+onMounted(() => window.addEventListener('beforeunload', warnBeforeBrowserExit));
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeBrowserExit));
 const popularTopics = [
   'Frontend Engineering',
   'Backend Engineering',
@@ -203,6 +228,8 @@ async function submitTalkDetails() {
       slides_url: form.slides_url,
     };
 
+  const submittedForm = JSON.stringify(form);
+
   try {
     const response = await fetch(isConferenceIntake.value
       ? `/api/conferences/${route.params.year}/speaker-intake/${route.params.token}`
@@ -213,7 +240,10 @@ async function submitTalkDetails() {
     });
 
     if (response.ok) {
-      if (isConferenceIntake.value) savedMessage.value = 'Draft saved. You can return through the same private link to make more changes.';
+      savedForm.value = submittedForm;
+      if (isConferenceIntake.value) savedMessage.value = JSON.stringify(form) === submittedForm
+        ? 'Draft saved. You can return through the same private link to make more changes.'
+        : 'Draft saved. You have newer changes to save.';
       else if (isSlidesUpdateMode()) savedMessage.value = 'Slides link saved. You can update it again until the end of the event day.';
       else submitted.value = true;
     } else {
@@ -247,6 +277,7 @@ onMounted(async () => {
         ))
         : [];
       applyPrefill(data.prefill ?? {});
+      savedForm.value = JSON.stringify(form);
     } else {
       unavailableMessage.value = data.error || 'This archive form link is no longer available.';
     }
@@ -294,7 +325,7 @@ function formatEventDay(): string {
 
 <template>
   <div class="min-h-full bg-dc-cream text-dc-ink">
-    <div v-if="loading" class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+    <div v-if="loading" class="mx-auto w-full px-4 py-6 sm:px-6 lg:px-8" :class="{ 'max-w-6xl': !isConferenceIntake }">
       <BoneyardPageSkeleton :name="isConferenceIntake ? 'speaker-talk-intake-conference' : 'speaker-talk-intake'" label="talk details form" layout="form" />
     </div>
 
@@ -332,7 +363,7 @@ function formatEventDay(): string {
       </div>
     </div>
 
-    <div v-else class="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+    <div v-else class="mx-auto w-full px-4 py-5 sm:px-6 sm:py-6 lg:px-8" :class="{ 'max-w-6xl': !isConferenceIntake }">
       <header class="mb-5 sm:mb-6">
         <img
           src="/brand/dev-con-logo.png"
@@ -366,9 +397,10 @@ function formatEventDay(): string {
             <p class="mt-4 border-t border-dc-border pt-4 text-xs font-semibold text-dc-gray">Logistics due {{ formatDeadline(workspaceDeadline) }}. You can still make updates after this date.</p>
           </section>
 
-          <SpeakerBadgeEditor v-if="String(route.params.year) === '2026'" :year="Number(route.params.year)" :token="String(route.params.token)" />
-          <section class="app-form-section space-y-5">
-          <h2 class="app-form-section-title">Session logistics</h2>
+          <SpeakerBadgeEditor v-if="String(route.params.year) === '2026'" ref="badgeEditor" :year="Number(route.params.year)" :token="String(route.params.token)" />
+          <section class="app-form-section speaker-logistics">
+          <h2 class="app-form-section-title speaker-logistics__title">Session logistics</h2>
+          <div class="speaker-logistics__fields">
           <div class="grid gap-4 sm:grid-cols-2">
             <AppDropdown v-model="form.availability_confirmed" label="Availability confirmation" :options="[{ value: '', label: 'Choose an answer' }, { value: 'yes', label: 'I confirm I am available' }, { value: 'not_yet', label: 'Not confirmed yet' }]" />
             <AppDropdown v-model="form.participants_need_laptops" label="Do participants need laptops?" :options="[{ value: '', label: 'Choose an answer' }, { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]" />
@@ -378,7 +410,7 @@ function formatEventDay(): string {
             <span class="editorial-label">Slides or supporting-resource link</span>
             <input v-model="form.slides_url" type="url" inputmode="url" placeholder="https://…" class="editorial-input font-mono" />
           </label>
-          <SpeakerMaterialsUpload :year="String(route.params.year)" :token="String(route.params.token)" />
+          <SpeakerMaterialsUpload ref="materialsUpload" :year="String(route.params.year)" :token="String(route.params.token)" />
           <label class="block">
             <span class="editorial-label">Technical and setup requirements</span>
             <textarea v-model="form.technical_requirements" rows="4" class="editorial-input resize-none" placeholder="Microphones, display adapters, internet access, room setup, or other needs." />
@@ -395,11 +427,12 @@ function formatEventDay(): string {
             <span class="editorial-label">Social handle (optional)</span>
             <input v-model="form.social_handle" maxlength="200" type="text" class="editorial-input" />
           </label>
-          <p class="text-sm text-dc-gray">These details are shared privately with organizers and are not published automatically.</p>
+          <p class="speaker-logistics__note text-sm text-dc-gray">These details are shared privately with organizers and are not published automatically.</p>
           <label class="block">
             <span class="editorial-label">Required software or equipment</span>
             <textarea v-model="form.required_software_equipment" rows="3" class="editorial-input resize-none" placeholder="Software, accounts, devices, adapters, or equipment needed." />
           </label>
+          </div>
           </section>
           <section v-if="form.session_type === '60-minute workshop'" class="app-form-section space-y-5">
             <h2 class="app-form-section-title">Workshop preparation</h2>
@@ -555,6 +588,29 @@ function formatEventDay(): string {
 </template>
 
 <style scoped>
+.speaker-logistics__fields {
+  display: grid;
+  min-width: 0;
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.speaker-logistics__fields > * {
+  min-width: 0;
+}
+
+.speaker-logistics__fields > .grid,
+.speaker-logistics__note {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 64rem) {
+  .speaker-logistics__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1.5rem;
+  }
+}
+
 .speaker-intake-form :deep(.editorial-label) {
   color: #555555;
   font-size: 0.68rem;

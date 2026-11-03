@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-03 — Speaker workspace readability
+
+- Use the available desktop width for badge and logistics controls. Warn before leaving with unsaved edits or a selected file awaiting upload.
+- Soften the background illustration so labels and upload instructions stay legible where they overlap it.
+
 ## 2026-11-03 — Speaker list pagination
 
 - Proposals, Participation, and Delivery use a single neutral frame and show six entries per page. Each section keeps its own page within the edition.

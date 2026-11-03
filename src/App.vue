@@ -1397,6 +1397,7 @@ onUnmounted(() => {
             <PublicFormRouteFrame
               v-if="isPublicFormRouteName(route.name)"
               :key="routeViewKey(route)"
+              :full-width="route.name === 'conference-speaker-intake'"
               :center-content="route.name === 'event-registration' || route.name === 'event-registration-short'"
             >
               <component :is="Component" class="page-view" />

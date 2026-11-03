@@ -8,6 +8,7 @@
               v-if="isPublicFormRouteName(route.name)"
               :key="route.fullPath"
               :center-content="route.name === 'event-registration' || route.name === 'event-registration-short'"
+              :full-width="route.name === 'conference-speaker-intake'"
             >
               <component :is="Component" class="page-view" />
             </PublicFormRouteFrame>

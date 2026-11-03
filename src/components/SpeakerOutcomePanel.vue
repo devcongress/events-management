@@ -231,7 +231,7 @@ async function send() {
       <p v-if="!eligible.length" class="mt-2 text-sm text-dc-gray">No unsent decisions are ready.</p>
       <div v-else class="speaker-outcome-recipients mt-2 max-h-64 overflow-y-auto">
         <label v-for="item in eligible" :key="item.id" class="flex min-h-11 items-center gap-3 border-b border-dc-border py-2 text-sm">
-          <input v-model="selected" type="checkbox" :value="item.id" :disabled="busy || (selected.length >= 100 && !selected.includes(item.id))">
+          <input v-model="selected" type="checkbox" class="accent-dc-pink" :value="item.id" :disabled="busy || (selected.length >= 100 && !selected.includes(item.id))">
           <span><strong>{{ item.speaker_name }}</strong> · {{ item.title }} · {{ item.status === 'selected' ? 'Acceptance' : 'Not selected' }}</span>
         </label>
       </div>
