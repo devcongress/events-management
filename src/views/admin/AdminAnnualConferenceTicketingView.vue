@@ -530,7 +530,17 @@ onUnmounted(() => {
           <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Manage seat inventory and sponsor reservations while public checkout remains deliberately inactive.</p>
         </header>
 
-      <WorkspaceSectionNav class="mb-6" :active="activeSection" label="Ticketing sections" :items="sectionLinks" />
+      <WorkspaceSectionNav class="mb-6" :active="activeSection" label="Ticketing sections" :items="sectionLinks">
+        <template #icon="{ item }">
+          <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path v-if="item.key === 'overview'" d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" />
+            <path v-else-if="item.key === 'orders'" d="M5 3h14v18l-3-2-4 2-4-2-3 2zM8 8h8M8 12h6" />
+            <path v-else-if="item.key === 'delivery'" d="M3 5h18v14H3zM3 6l9 7 9-7" />
+            <path v-else-if="item.key === 'sponsors'" d="M3 21h18M5 21V7l9-4v18M14 10h5v11M8 9v1M11 8v1M8 13v1M11 12v1M8 17v1M11 16v1" />
+            <path v-else-if="item.key === 'testing'" d="M9 3h6M10 3v7L4 19a1 1 0 0 0 1 2h14a1 1 0 0 0 1-2l-6-9V3M7 15h10" />
+          </svg>
+        </template>
+      </WorkspaceSectionNav>
 
       <BoneyardPageSkeleton v-if="ticketingQuery.isLoading.value" :name="activeSection === 'overview' ? 'annual-conference-ticketing' : `annual-conference-ticketing-${activeSection}`" label="conference ticketing" layout="workspace" />
 

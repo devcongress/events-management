@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-03 — Ticketing tabs and speaker delivery refresh
+
+- Add icons to all five Ticketing tabs. Keep the speaker delivery refresh action in Delivery and remove its duplicate from the proposal review queue.
+
 ## 2026-11-03 — Speaker upload feedback and file removal
 
 - Reserve space for pink progress and save feedback when uploading a badge photo or supporting file. Speakers can clear selected files and remove uploaded materials from their private workspace.
