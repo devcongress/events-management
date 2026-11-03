@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceSpeakerDrawer from '@/src/components/AnnualConferenceSpeakerDrawer.vue';
 import SpeakerOutcomePanel from '@/src/components/SpeakerOutcomePanel.vue';
+import WorkspaceSectionNav from '@/src/components/WorkspaceSectionNav.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
@@ -19,6 +20,7 @@ import type { SpeakerSubmissionStatus } from '@/types';
 import type { AnnualConferenceSpeakerSubmission } from '@/lib/annual-conference-speakers';
 
 type ConferenceSubmission = AnnualConferenceSpeakerSubmission & {
+  workspace_access?: 'active' | 'revoked' | 'unavailable';
   decision_email_status?: 'pending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | null;
   decision_email_recipient?: string | null;
   decision_email_last_attempt_at?: string | null;
@@ -31,6 +33,9 @@ type ConferenceSubmission = AnnualConferenceSpeakerSubmission & {
     slides_url: string | null;
     availability_confirmed: boolean | null;
     technical_requirements: string | null;
+    accessibility_requirements: string | null;
+    headshot_url: string | null;
+    social_handle: string | null;
     workshop_prerequisites: string | null;
     required_software_equipment: string | null;
     participants_need_laptops: boolean | null;
@@ -53,12 +58,17 @@ const queryClient = useQueryClient();
 const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
 const publicLinkCopyState = ref<'idle' | 'copying' | 'copied'>('idle');
 const closeCallConfirmationOpen = ref(false);
+const compactHeader = ref(false);
+const callControlsOpen = ref(true);
 const deadlineInput = ref('');
 const emailRecoveryClock = ref(Date.now());
 const selectedSubmissionId = ref<string | null>(null);
 const replacementSubmissionId = ref<string | null>(null);
+const revokeWorkspaceSubmissionId = ref<string | null>(null);
 const statusFilter = ref<'all' | 'submitted' | 'selected' | 'not_selected'>('submitted');
 const page = ref(1);
+const participationPage = ref(1);
+const deliveryPage = ref(1);
 const PAGE_SIZE = 6;
 
 const speakersQuery = useQuery({
@@ -81,12 +91,42 @@ const pageEnd = computed(() => Math.min(visibleSubmissions.value.length, page.va
 const paginatedSubmissions = computed(() => visibleSubmissions.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const canManage = computed(() => speakersQuery.data.value?.permissions.can_manage === true);
 const canSendEmail = computed(() => speakersQuery.data.value?.permissions.can_send_email === true);
+const activeSection = computed(() => {
+  const section = route.query.section;
+
+  if (section === 'participation') return section;
+  if ((section === 'outcome-messages' || section === 'delivery') && canSendEmail.value) return section;
+
+  return 'proposals';
+});
+const decidedSubmissions = computed(() => submissions.value.filter((item) => ['selected', 'not_selected'].includes(item.status)));
+const acceptedSubmissions = computed(() => submissions.value.filter((item) => item.status === 'selected'));
+const participationPageCount = computed(() => Math.max(1, Math.ceil(acceptedSubmissions.value.length / PAGE_SIZE)));
+const participationPageStart = computed(() => acceptedSubmissions.value.length ? (participationPage.value - 1) * PAGE_SIZE + 1 : 0);
+const participationPageEnd = computed(() => Math.min(acceptedSubmissions.value.length, participationPage.value * PAGE_SIZE));
+const paginatedAcceptedSubmissions = computed(() => acceptedSubmissions.value.slice((participationPage.value - 1) * PAGE_SIZE, participationPage.value * PAGE_SIZE));
+const deliveryPageCount = computed(() => Math.max(1, Math.ceil(decidedSubmissions.value.length / PAGE_SIZE)));
+const deliveryPageStart = computed(() => decidedSubmissions.value.length ? (deliveryPage.value - 1) * PAGE_SIZE + 1 : 0);
+const deliveryPageEnd = computed(() => Math.min(decidedSubmissions.value.length, deliveryPage.value * PAGE_SIZE));
+const paginatedDecidedSubmissions = computed(() => decidedSubmissions.value.slice((deliveryPage.value - 1) * PAGE_SIZE, deliveryPage.value * PAGE_SIZE));
+const sectionLinks = computed(() => [
+  { key: 'proposals', label: 'Proposals', icon: 'proposals', to: { path: route.path, query: { ...route.query, section: 'proposals' }, hash: route.hash } },
+  { key: 'participation', label: 'Participation', icon: 'participation', to: { path: route.path, query: { ...route.query, section: 'participation' }, hash: route.hash } },
+  ...(canSendEmail.value ? [{ key: 'delivery', label: 'Delivery', icon: 'delivery', to: { path: route.path, query: { ...route.query, section: 'delivery' }, hash: route.hash } }, { key: 'outcome-messages', label: 'Outcome messages', icon: 'messages', to: { path: route.path, query: { ...route.query, section: 'outcome-messages' }, hash: route.hash } }] : []),
+]);
+
+watch(activeSection, () => {
+  selectedSubmissionId.value = null;
+  replacementSubmissionId.value = null;
+  revokeWorkspaceSubmissionId.value = null;
+  closeCallConfirmationOpen.value = false;
+});
 const approvalBlockedReason = computed(() => {
   const data = speakersQuery.data.value;
 
   if (!data) return 'Loading speaker settings.';
   if (!data.email_delivery.workspace_links_configured) return 'Configure speaker workspace link signing before accepting proposals.';
-  if (!data.call.logistics_deadline || new Date(data.call.logistics_deadline).getTime() <= Date.now()) return 'Set a future speaker logistics deadline before accepting proposals.';
+  if (!data.call.logistics_deadline) return 'Set a speaker logistics due date before accepting proposals.';
 
   return null;
 });
@@ -94,7 +134,7 @@ const selectedSubmission = computed(() => submissions.value.find((submission) =>
 const canRecoverSelectedWorkspaceEmail = computed(() => {
   const submission = selectedSubmission.value;
 
-  if (!submission || submission.status !== 'selected' || !submission.logistics || ['accepted', 'delivered'].includes(submission.decision_email_status ?? '')) return false;
+  if (!submission || submission.status !== 'selected' || submission.workspace_access !== 'active' || !submission.logistics || ['accepted', 'delivered'].includes(submission.decision_email_status ?? '')) return false;
   if (!['pending', 'failed'].includes(submission.decision_email_status ?? '')) return false;
   if (submission.decision_email_status === 'failed'
     && submission.decision_email_retryable === false
@@ -105,11 +145,21 @@ const canRecoverSelectedWorkspaceEmail = computed(() => {
 });
 let emailRecoveryTimer: number | undefined;
 let publicLinkCopyResetTimer: number | undefined;
+let compactHeaderQuery: MediaQueryList | undefined;
+
+function updateCompactHeader() {
+  compactHeader.value = compactHeaderQuery?.matches ?? false;
+  callControlsOpen.value = !compactHeader.value;
+}
 
 onMounted(() => {
+  compactHeaderQuery = window.matchMedia('(max-height: 600px), (max-width: 360px)');
+  updateCompactHeader();
+  compactHeaderQuery.addEventListener('change', updateCompactHeader);
   emailRecoveryTimer = window.setInterval(() => { emailRecoveryClock.value = Date.now(); }, 30_000);
 });
 onUnmounted(() => {
+  compactHeaderQuery?.removeEventListener('change', updateCompactHeader);
   if (emailRecoveryTimer) window.clearInterval(emailRecoveryTimer);
   if (publicLinkCopyResetTimer) window.clearTimeout(publicLinkCopyResetTimer);
 });
@@ -123,6 +173,13 @@ const selectedStatusLabel = computed(() => ({
 
 watch(statusFilter, () => { page.value = 1; });
 watch(pageCount, () => { page.value = Math.min(page.value, pageCount.value); });
+watch(participationPageCount, () => { participationPage.value = Math.min(participationPage.value, participationPageCount.value); });
+watch(deliveryPageCount, () => { deliveryPage.value = Math.min(deliveryPage.value, deliveryPageCount.value); });
+watch(year, () => {
+  page.value = 1;
+  participationPage.value = 1;
+  deliveryPage.value = 1;
+});
 watch(submissions, (next) => {
   if (selectedSubmissionId.value && !next.some((submission) => submission.id === selectedSubmissionId.value)) {
     selectedSubmissionId.value = null;
@@ -211,6 +268,18 @@ const replaceWorkspaceEmailMutation = useMutation({
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to replace the private link.'),
 });
 
+const revokeWorkspaceMutation = useMutation({
+  mutationFn: (submissionId: string) => fetchJson<{ revoked: boolean }>(`/api/annual-conference/${year.value}/speaker-submissions/${submissionId}/revoke-workspace`, {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmed: true }),
+  }),
+  onSuccess: async () => {
+    revokeWorkspaceSubmissionId.value = null;
+    await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
+    notify.success('Speaker workspace access revoked.');
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to revoke workspace access.'),
+});
+
 const downloadingBadges = ref(false);
 
 async function downloadBadges() {
@@ -290,6 +359,30 @@ function deliveryLabel(submission: ConferenceSubmission): string {
   return labels[submission.decision_email_status ?? ''] ?? 'Not sent';
 }
 
+const deliveryTime = new Intl.DateTimeFormat('en-GH', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Africa/Accra',
+});
+
+const deliveryMilestones = [
+  { label: 'Queued', key: 'decision_email_queued_at' },
+  { label: 'Last attempt', key: 'decision_email_last_attempt_at' },
+  { label: 'Provider accepted', key: 'decision_email_sent_at' },
+  { label: 'Delivered', key: 'decision_email_delivered_at' },
+  { label: 'Retry eligible', key: 'decision_email_next_retry_at' },
+] as const;
+
+function milestoneTime(submission: ConferenceSubmission, key: typeof deliveryMilestones[number]['key']) {
+  if (key === 'decision_email_next_retry_at' && !submission.decision_email_attempt_count) return null;
+
+  return submission[key];
+}
+
+const deliveryColumns = computed(() => deliveryMilestones.filter(({ key }) =>
+  decidedSubmissions.value.some((submission) => milestoneTime(submission, key))));
+const hasDeliveryErrors = computed(() => decidedSubmissions.value.some((submission) => submission.decision_email_last_error));
+
 const deliveryAttentionCount = computed(() => submissions.value.filter((item) => ['failed', 'bounced', 'suppressed', 'complained', 'delayed'].includes(item.decision_email_status ?? '')).length);
 
 function mobileProposalStatusLabel(status: SpeakerSubmissionStatus): string {
@@ -321,55 +414,121 @@ function toLocalDateTimeInput(value: string): string {
       <BoneyardPageSkeleton v-else-if="speakersQuery.isLoading.value" name="annual-conference-speakers" label="conference speakers" layout="table" />
 
       <template v-else-if="speakersQuery.data.value">
-        <section class="grid gap-4 border-b-2 border-dc-ink pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div>
-            <p class="editorial-eyebrow">{{ speakersQuery.data.value.edition.label }}</p>
-            <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Call for Speakers</h1>
-            <p class="mt-2 max-w-xl text-sm leading-6 text-dc-gray">Review proposals and manage the public call for {{ speakersQuery.data.value.edition.name }}.</p>
-          </div>
-          <div class="flex flex-wrap gap-2 lg:justify-end">
-            <a
-              v-if="speakersQuery.data.value.call.open"
-              :href="speakersQuery.data.value.call.public_path"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="motion-press inline-flex min-h-11 items-center gap-2 rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
-            >
-              <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3h7v7M21 3l-9 9M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5" /></svg>
-              Open form<span class="sr-only"> (opens in a new tab)</span>
-            </a>
-            <AppCopyButton :state="publicLinkCopyState" label="Copy public link" class="min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :disabled="!speakersQuery.data.value.call.open" @click="copyPublicLink" />
-            <button v-if="canManage" class="motion-press min-h-11 rounded-md border-2 border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white" :class="speakersQuery.data.value.call.open ? 'bg-red-600' : 'bg-dc-pink'" :disabled="callMutation.isPending.value" @click="speakersQuery.data.value.call.open ? closeCallConfirmationOpen = true : callMutation.mutate(true)">{{ speakersQuery.data.value.call.open ? 'Close call' : 'Open call' }}</button>
-          </div>
-        </section>
+        <div class="speakers-header">
+          <section class="speakers-heading border-b-2 border-dc-ink pb-3">
+            <div>
+              <p class="editorial-eyebrow">{{ speakersQuery.data.value.edition.label }}</p>
+              <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Call for Speakers</h1>
+              <p class="mt-2 max-w-xl text-sm leading-6 text-dc-gray">Review proposals and manage the public call for {{ speakersQuery.data.value.edition.name }}.</p>
+            </div>
+          </section>
+          <button v-if="compactHeader" type="button" class="speakers-controls-summary text-action" :aria-expanded="callControlsOpen" aria-controls="speaker-call-controls" @click="callControlsOpen = !callControlsOpen">Call controls and deadline <span aria-hidden="true">{{ callControlsOpen ? '−' : '+' }}</span></button>
+          <div id="speaker-call-controls" v-show="callControlsOpen" class="speakers-controls">
+            <div class="speakers-actions mt-2 flex flex-wrap gap-2">
+              <a
+                v-if="speakersQuery.data.value.call.open"
+                :href="speakersQuery.data.value.call.public_path"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="motion-press inline-flex min-h-11 items-center gap-2 rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
+              >
+                <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3h7v7M21 3l-9 9M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5" /></svg>
+                Open form<span class="sr-only"> (opens in a new tab)</span>
+              </a>
+              <AppCopyButton :state="publicLinkCopyState" label="Copy public link" class="min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :disabled="!speakersQuery.data.value.call.open" @click="copyPublicLink" />
+              <button v-if="canManage" class="motion-press min-h-11 rounded-md border-2 border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white" :class="speakersQuery.data.value.call.open ? 'bg-red-600' : 'bg-dc-pink'" :disabled="callMutation.isPending.value" @click="speakersQuery.data.value.call.open ? closeCallConfirmationOpen = true : callMutation.mutate(true)">{{ speakersQuery.data.value.call.open ? 'Close call' : 'Open call' }}</button>
+            </div>
 
-        <section v-if="canManage" class="mt-5 rounded-lg border border-dc-border bg-dc-paper-warm p-4">
-          <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            <AppDatePicker
-              v-model="deadlineInput"
-              class="min-w-0"
-              label="Speaker logistics deadline"
-              mode="datetime"
-              density="field"
-              required
-            />
-            <button type="button" class="motion-press min-h-[50px] w-full rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-[11px] font-semibold uppercase sm:w-auto" :disabled="deadlineMutation.isPending.value || !deadlineInput" @click="deadlineMutation.mutate()">{{ deadlineMutation.isPending.value ? 'Saving…' : 'Save deadline' }}</button>
+            <section v-if="canManage" class="speakers-deadline mt-5 rounded-lg border border-dc-border bg-dc-paper-warm p-4">
+              <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <AppDatePicker
+                  v-model="deadlineInput"
+                  class="min-w-0"
+                  label="Speaker logistics deadline"
+                  mode="datetime"
+                  density="field"
+                  required
+                />
+                <button type="button" class="motion-press min-h-[50px] w-full rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-[11px] font-semibold uppercase sm:w-auto" :disabled="deadlineMutation.isPending.value || !deadlineInput" @click="deadlineMutation.mutate()">{{ deadlineMutation.isPending.value ? 'Saving…' : 'Save deadline' }}</button>
+              </div>
+              <p class="mt-2 text-xs leading-5 text-dc-gray">This is the due date for speaker logistics. Accepted speakers can still update their private workspace afterward.</p>
+            </section>
           </div>
-          <p class="mt-2 text-xs leading-5 text-dc-gray">Accepted speakers can save and revise their private workspace until this deadline.</p>
-        </section>
 
-        <div v-if="year === '2026' && counts.selected" class="mt-5">
-          <button type="button" class="editorial-action" :disabled="downloadingBadges" @click="downloadBadges">{{ downloadingBadges ? 'Preparing badges…' : 'Download approved speaker badges ZIP' }}</button>
+          <WorkspaceSectionNav :active="activeSection" label="Speaker sections" :items="sectionLinks">
+            <template #icon="{ item }">
+              <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path v-if="item.icon === 'proposals'" d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h7" />
+                <path v-else-if="item.icon === 'participation'" d="M16 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2M10.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM17 8h4M19 6v4" />
+                <path v-else-if="item.icon === 'delivery'" d="M3 6h18v12H3zM3 7l9 6 9-6M16 20h5" />
+                <path v-else d="M4 5h16v12H8l-4 3zM8 9h8M8 13h6" />
+              </svg>
+            </template>
+          </WorkspaceSectionNav>
         </div>
 
-        <SpeakerOutcomePanel v-if="canSendEmail" :year="year" :submissions="submissions" :configured="speakersQuery.data.value.email_delivery.configured" @sent="speakersQuery.refetch()" />
+        <section v-if="activeSection === 'participation'" class="speaker-list-panel mt-2 overflow-hidden">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-dc-border p-5">
+            <div><h2 class="text-lg font-bold">Accepted speakers</h2><p class="text-sm text-dc-gray">Availability and resources supplied in the speaker workspace.</p></div>
+            <button v-if="year === '2026' && acceptedSubmissions.some((item) => item.selected_session_id)" type="button" class="editorial-action" :disabled="downloadingBadges" @click="downloadBadges">{{ downloadingBadges ? 'Preparing badges…' : 'Download speaker badges ZIP' }}</button>
+          </div>
+          <p v-if="!acceptedSubmissions.length" class="p-5 text-sm text-dc-gray">No accepted speakers yet.</p>
+          <ul v-else class="divide-y divide-dc-border">
+            <li v-for="submission in paginatedAcceptedSubmissions" :key="submission.id">
+              <button type="button" aria-haspopup="dialog" class="speaker-summary-row grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 px-4 py-2 text-left focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-dc-pink" @click="openProposal(submission.id)">
+                <strong class="min-w-0 break-words text-sm font-semibold">{{ submission.speaker_name }}</strong>
+                <span class="text-right text-sm text-dc-gray">{{ submission.logistics?.availability_confirmed === true ? 'Confirmed' : submission.logistics?.availability_confirmed === false ? 'Not yet confirmed' : 'Awaiting response' }}</span>
+                <span aria-hidden="true" class="speaker-summary-chevron text-lg leading-none text-dc-gray">›</span>
+              </button>
+            </li>
+          </ul>
+          <AppPagination v-model:page="participationPage" :page-count="participationPageCount" :total="acceptedSubmissions.length" :range-start="participationPageStart" :range-end="participationPageEnd" item-label="speakers" aria-label="Speaker participation pagination" />
+        </section>
 
-        <section class="speaker-queue editorial-panel mt-6 overflow-hidden" aria-live="polite">
+        <section v-if="activeSection === 'delivery' && canSendEmail" class="speaker-list-panel mt-2 overflow-hidden">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-dc-border p-5">
+            <div><h2 class="text-lg font-bold">Decision email delivery</h2><p class="text-sm text-dc-gray">Times are shown in Accra time. Open a row to correct the address or retry when available.</p></div>
+            <button type="button" class="text-action text-sm font-semibold text-dc-pink underline" @click="speakersQuery.refetch()">Refresh delivery status</button>
+          </div>
+          <p v-if="!decidedSubmissions.length" class="p-5 text-sm text-dc-gray">No decisions to track yet.</p>
+          <div v-else class="overflow-x-auto">
+            <table class="delivery-table w-full text-left text-sm">
+              <caption class="sr-only">Decision email delivery, times in Accra</caption>
+              <thead class="border-b border-dc-border text-xs text-dc-gray">
+                <tr>
+                  <th scope="col">Speaker</th>
+                  <th scope="col">Recipient</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" class="text-right">Attempts</th>
+                  <th v-for="column in deliveryColumns" :key="column.key" scope="col">{{ column.label }}</th>
+                  <th v-if="hasDeliveryErrors" scope="col">Error</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-dc-border">
+                <tr v-for="submission in paginatedDecidedSubmissions" :key="submission.id" class="cursor-pointer" @click="openProposal(submission.id)">
+                  <th scope="row">
+                    <button type="button" aria-haspopup="dialog" class="min-h-11 font-semibold focus-visible:outline-dc-pink" :aria-label="`Review delivery for ${submission.speaker_name}`" @click.stop="openProposal(submission.id)">{{ submission.speaker_name }}</button>
+                  </th>
+                  <td>{{ submission.decision_email_recipient ?? submission.speaker_email }}</td>
+                  <td>{{ deliveryLabel(submission) }}</td>
+                  <td class="text-right tabular-nums">{{ submission.decision_email_attempt_count ?? 0 }}</td>
+                  <td v-for="column in deliveryColumns" :key="column.key" class="tabular-nums">{{ milestoneTime(submission, column.key) ? deliveryTime.format(new Date(submission[column.key]!)) : '—' }}</td>
+                  <td v-if="hasDeliveryErrors" class="text-red-700">{{ submission.decision_email_last_error || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <AppPagination v-model:page="deliveryPage" :page-count="deliveryPageCount" :total="decidedSubmissions.length" :range-start="deliveryPageStart" :range-end="deliveryPageEnd" item-label="deliveries" aria-label="Speaker delivery pagination" />
+        </section>
+
+        <SpeakerOutcomePanel v-if="canSendEmail" v-show="activeSection === 'outcome-messages'" class="speaker-outcome-panel" :year="year" :submissions="submissions" :configured="speakersQuery.data.value.email_delivery.configured" @sent="speakersQuery.refetch()" />
+
+        <section v-show="activeSection === 'proposals'" class="speaker-queue speaker-list-panel mt-2 overflow-hidden" aria-live="polite">
           <div class="flex flex-wrap items-center justify-between gap-4 border-b border-dc-border px-5 py-4 sm:px-6">
             <div>
               <p class="editorial-eyebrow">Review queue</p>
               <p class="mt-1 text-lg font-semibold text-dc-gray">{{ pendingCountLabel }}</p>
-              <button type="button" class="mt-1 text-sm font-semibold text-dc-pink underline" @click="speakersQuery.refetch()">Refresh delivery status</button>
+              <button type="button" class="text-action mt-1 text-sm font-semibold text-dc-pink underline" @click="speakersQuery.refetch()">Refresh delivery status</button>
               <p v-if="deliveryAttentionCount" class="mt-1 text-sm text-red-700">{{ deliveryAttentionCount }} decision email{{ deliveryAttentionCount === 1 ? ' needs' : 's need' }} attention. Open approved or rejected proposals to review delivery.</p>
             </div>
             <div class="flex flex-wrap items-center justify-end gap-2">
@@ -453,6 +612,7 @@ function toLocalDateTimeInput(value: string): string {
 
         <AnnualConferenceSpeakerDrawer
           :year="year"
+          :mode="activeSection === 'participation' || activeSection === 'delivery' ? activeSection : 'proposal'"
           :open="Boolean(selectedSubmission)"
           :submission="selectedSubmission"
           :can-manage="canManage"
@@ -464,6 +624,7 @@ function toLocalDateTimeInput(value: string): string {
           @close="selectedSubmissionId = null"
           @open-workspace="workspaceLink($event, 'open')"
           @copy-workspace="workspaceLink($event, 'copy')"
+          @revoke-workspace="revokeWorkspaceSubmissionId = $event.id"
           @approve="decisionMutation.mutate({ id: $event.id, status: 'selected' })"
           @reject="decisionMutation.mutate({ id: $event.id, status: 'not_selected' })"
           @resend-workspace-email="resendWorkspaceEmailMutation.mutate($event.id)"
@@ -485,6 +646,18 @@ function toLocalDateTimeInput(value: string): string {
           @confirm="callMutation.mutate(false)"
         />
         <ConfirmDialog
+          :open="Boolean(revokeWorkspaceSubmissionId)"
+          title="Revoke speaker workspace access?"
+          message="The current private link will stop working immediately, including access to files and the speaker badge. No replacement link will be sent."
+          confirm-label="Revoke access"
+          busy-label="Revoking…"
+          cancel-label="Keep access"
+          :busy="revokeWorkspaceMutation.isPending.value"
+          danger
+          @cancel="revokeWorkspaceSubmissionId = null"
+          @confirm="revokeWorkspaceSubmissionId && revokeWorkspaceMutation.mutate(revokeWorkspaceSubmissionId)"
+        />
+        <ConfirmDialog
           :open="Boolean(replacementSubmissionId)"
           title="Replace this private workspace link?"
           message="The current link will stop working immediately. Review and send the replacement message from Speaker outcome messages."
@@ -502,11 +675,143 @@ function toLocalDateTimeInput(value: string): string {
 </template>
 
 <style scoped>
+.delivery-table :is(th, td) {
+  padding-inline: 0.75rem;
+  white-space: nowrap;
+}
+
+.delivery-table thead th {
+  padding-block: 0.5rem;
+  font-weight: 600;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .delivery-table tbody tr:hover {
+    background-color: #f7f7f7;
+  }
+}
+
+.speaker-list-panel {
+  border: 1px solid var(--dc-border, #dedbd3);
+  border-radius: 8px;
+  background: var(--dc-paper, #fff);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .speaker-summary-row:hover:not(:focus-visible) {
+    outline: none;
+    background-color: #f7f7f7;
+  }
+
+  .speaker-summary-row:hover .speaker-summary-chevron {
+    color: var(--color-dc-ink, #111111);
+  }
+}
+
+:deep(.annual-conference-nav-shell) {
+  position: relative;
+  top: auto;
+}
+
+.speakers-header {
+  position: sticky;
+  top: var(--app-header-fixed-offset);
+  z-index: 30;
+  background: var(--surface-canvas, #f5f2e8);
+  padding-bottom: 16px;
+}
+
+.speaker-outcome-panel {
+  margin-top: 8px;
+}
+
+.speakers-controls-summary {
+  min-height: 44px;
+  padding: 10px 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.speakers-controls-summary:focus-visible {
+  outline: 2px solid var(--dc-pink, #e8117f);
+  outline-offset: 2px;
+}
+
+@media (min-width: 768px) {
+  .speakers-header {
+    top: var(--organizer-breadcrumb-height, 0px);
+  }
+}
+
+@media (min-width: 1024px) and (min-height: 601px) {
+  .speakers-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .speakers-controls {
+    display: contents;
+  }
+
+  .speakers-heading {
+    grid-column: 1;
+    grid-row: 1;
+    padding-bottom: 1.5rem;
+  }
+
+  .speakers-actions {
+    grid-column: 2;
+    grid-row: 1;
+    align-content: end;
+    justify-content: end;
+    border-bottom: 2px solid var(--dc-ink, #111);
+    padding-bottom: 1.5rem;
+  }
+
+  .speakers-deadline,
+  .workspace-section-nav {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 768px) and (hover: none) and (pointer: coarse) {
+  .speakers-header {
+    top: calc(var(--app-header-fixed-offset) + var(--organizer-breadcrumb-height, 0px));
+  }
+}
+
+@media (max-height: 800px), (max-width: 767px) {
+  .speakers-heading {
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .speakers-heading h1 {
+    margin-top: 0;
+    font-size: 1.5rem;
+    line-height: 1.2;
+  }
+
+  .speakers-heading p:not(.editorial-eyebrow),
+  .speakers-deadline > p {
+    display: none;
+  }
+
+  .speakers-deadline {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+  }
+}
+
 .speaker-proposal-list {
   display: none;
 }
 
 @media (max-width: 767px) {
+  .speakers-header {
+    padding-bottom: 12px;
+  }
+
   .speaker-proposal-table {
     display: none;
   }
@@ -583,18 +888,18 @@ function toLocalDateTimeInput(value: string): string {
     padding-inline: 12px;
   }
 
-  .speaker-queue :deep(.app-pagination) {
+  .speaker-list-panel :deep(.app-pagination) {
     grid-template-columns: 1fr 1fr;
     gap: 12px;
     padding: 16px 20px;
   }
 
-  .speaker-queue :deep(.app-pagination__count) {
+  .speaker-list-panel :deep(.app-pagination__count) {
     grid-column: 1 / -1;
     grid-row: 1;
   }
 
-  .speaker-queue :deep(.app-pagination__button) {
+  .speaker-list-panel :deep(.app-pagination__button) {
     min-height: 44px;
     width: 100%;
     justify-content: center;

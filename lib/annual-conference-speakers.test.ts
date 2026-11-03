@@ -27,6 +27,7 @@ afterEach(async () => {
 describe('Annual Conference speaker scope', () => {
   it('keeps independent proposals and a reusable logistics workspace inside one edition', async () => {
     const {
+      claimAnnualConferenceDecisionEmailAttempt,
       createAnnualConferenceSession,
       createAnnualConferenceSpeakerIntakeLink,
       createAnnualConferenceSpeakerSubmission,
@@ -34,6 +35,7 @@ describe('Annual Conference speaker scope', () => {
       getAnnualConferenceSpeakerIntakeLink,
       getAnnualConferenceSpeakerSubmissions,
       getAnnualConferenceSpeakerSubmission,
+      revokeAnnualConferenceSpeakerWorkspace,
       rotateAnnualConferenceSpeakerWorkspace,
       updateAnnualConferenceSessionLogistics,
       updateAnnualConferenceSpeakerSubmission,
@@ -103,6 +105,9 @@ describe('Annual Conference speaker scope', () => {
       slides_url: 'https://example.com/slides',
       availability_confirmed: true,
       technical_requirements: 'HDMI display',
+      accessibility_requirements: 'Step-free access',
+      headshot_url: 'https://example.com/headshot',
+      social_handle: '@ada',
       workshop_prerequisites: null,
       required_software_equipment: 'Presentation clicker',
       participants_need_laptops: false,
@@ -112,6 +117,9 @@ describe('Annual Conference speaker scope', () => {
       slides_url: 'https://example.com/final-slides',
       availability_confirmed: true,
       technical_requirements: 'USB-C display',
+      accessibility_requirements: 'Step-free access',
+      headshot_url: 'https://example.com/headshot',
+      social_handle: '@ada',
       workshop_prerequisites: null,
       required_software_equipment: 'Presentation clicker',
       participants_need_laptops: false,
@@ -120,6 +128,9 @@ describe('Annual Conference speaker scope', () => {
     await expect(getAnnualConferenceSession(session.id)).resolves.toMatchObject({
       slides_url: 'https://example.com/final-slides',
       technical_requirements: 'USB-C display',
+      accessibility_requirements: 'Step-free access',
+      headshot_url: 'https://example.com/headshot',
+      social_handle: '@ada',
     });
     await expect(getAnnualConferenceSpeakerIntakeLink('edition-2026', token)).resolves.toMatchObject({
       workspace_session_id: session.id,
@@ -141,6 +152,29 @@ describe('Annual Conference speaker scope', () => {
       tokenSecret: 'test-speaker-link-secret-that-is-at-least-32-bytes',
       allowAccepted: true,
     });
+
+    const [rotated, revoked] = await Promise.all([
+      rotateAnnualConferenceSpeakerWorkspace({
+        submission: replacement.submission,
+        deadline: '2099-12-31T23:59:59.000Z',
+        tokenSecret: 'test-speaker-link-secret-that-is-at-least-32-bytes',
+        allowAccepted: true,
+      }),
+      revokeAnnualConferenceSpeakerWorkspace(submission.edition_id, submission.id),
+    ]);
+
+    expect(revoked).toBe(true);
+    await expect(getAnnualConferenceSpeakerIntakeLink(submission.edition_id, rotated.token)).resolves.toMatchObject({ revoked_at: expect.any(String) });
+    const payload = { subject: 'Subject', html: 'HTML', text: 'Text', recipient: submission.speaker_email, from: 'sender@example.com', replyTo: 'reply@example.com', deadline: '2099-12-31T23:59:59.000Z', linkId: rotated.link.id, linkExpiresAt: rotated.link.expires_at };
+
+    await updateAnnualConferenceSpeakerSubmission(submission.id, { decision_email_kind: 'acceptance', decision_email_status: 'failed', decision_email_attempt_count: 1 });
+    const submissionsPath = path.join(tempRoot, 'data', 'annual-conference-speaker-submissions.json');
+    const submissions = JSON.parse(await fs.readFile(submissionsPath, 'utf-8'));
+    const target = submissions.find((item: { id: string }) => item.id === submission.id);
+
+    target.decision_email_payload = payload;
+    await fs.writeFile(submissionsPath, JSON.stringify(submissions));
+    await expect(claimAnnualConferenceDecisionEmailAttempt({ submissionId: submission.id, expectedIdempotencyKey: rotated.submission.decision_email_idempotency_key!, expectedAttemptCount: 1, payload })).resolves.toBeNull();
 
     expect(replacement.submission.decision_email_attempt_count).toBe(0);
     expect(replacement.submission.decision_email_last_attempt_at).toBeNull();

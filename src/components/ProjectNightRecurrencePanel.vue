@@ -88,13 +88,13 @@ watch(() => [props.eventId, props.eventName], () => {
       <div v-if="confirmSkip && recurrence" class="mt-4 border-t border-dc-line pt-4">
         <p class="text-sm">Skip {{ dateLabel(recurrence.next_date) }}? Its draft will not be automatically published or announced.</p>
         <div class="mt-2 flex gap-3">
-          <button type="button" class="min-h-11 px-3 font-semibold text-dc-pink disabled:opacity-50" :disabled="saving" @click="save('skip')">Yes, skip this week</button>
-          <button type="button" class="min-h-11 px-3 font-semibold" :disabled="saving" @click="confirmSkip = false">Keep it</button>
+          <button type="button" class="text-action min-h-11 px-3 font-semibold text-dc-pink disabled:opacity-50" :disabled="saving" @click="save('skip')">Yes, skip this week</button>
+          <button type="button" class="text-action min-h-11 px-3 font-semibold" :disabled="saving" @click="confirmSkip = false">Keep it</button>
         </div>
       </div>
     </template>
     <p v-if="error" role="alert" class="mt-3 text-sm text-dc-pink">{{ error }}</p>
-    <button v-if="!loading && !ready" type="button" class="mt-2 min-h-11 font-semibold underline" @click="load">Try again</button>
+    <button v-if="!loading && !ready" type="button" class="text-action mt-2 min-h-11 font-semibold underline" @click="load">Try again</button>
   </section>
 </template>
 

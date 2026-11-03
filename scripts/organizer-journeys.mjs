@@ -250,7 +250,8 @@ async function journey(
         : { width: 390, height: 844 },
     timezoneId: "Africa/Accra",
     hasTouch: name === "button-hover-touch" || name === "programme-time-picker-320",
-    serviceWorkers: "block",
+    // Playwright’s service-worker blocker throws in the sandboxed email iframe.
+    serviceWorkers: name.startsWith("speaker-outcome-preview-") ? "allow" : "block",
   });
   const page = await context.newPage();
   const errors = [];
@@ -454,7 +455,7 @@ try {
     await page.evaluate(() => {
       const container = document.createElement('div');
 
-      container.innerHTML = '<input type="submit" id="hover-input" value="Submit"><span role="button" id="hover-role">Action</span><a class="mobile-ops-action" href="#" id="hover-link">Action</a><fieldset disabled><button id="hover-fieldset">Disabled</button></fieldset><div aria-disabled="true"><button id="hover-aria">Disabled</button></div><div inert><button id="hover-inert">Inert</button></div><button class="submission-drawer-backdrop" id="hover-backdrop">Backdrop</button>';
+      container.innerHTML = '<input type="submit" id="hover-input" value="Submit"><span role="button" id="hover-role">Action</span><a class="mobile-ops-action" href="#" id="hover-link">Action</a><button class="text-action" id="hover-text">Text action</button><button class="submission-review-action submission-review-action--quiet text-action" id="hover-quiet">Quiet action</button><fieldset disabled><button id="hover-fieldset">Disabled</button></fieldset><div aria-disabled="true"><button id="hover-aria">Disabled</button></div><div inert><button id="hover-inert">Inert</button></div><button class="submission-drawer-backdrop" id="hover-backdrop">Backdrop</button>';
       document.body.append(container);
     });
     for (const selector of ['#hover-input', '#hover-role', '#hover-link']) {
@@ -474,6 +475,23 @@ try {
       await node.evaluate(element => { element.style.cssText = 'position:fixed;left:10px;top:80px;width:100px;height:30px;z-index:200'; });
       await page.mouse.move(20, 90);
       assert.equal((await cue(node)).outline, 'none', selector);
+      await node.evaluate(element => { element.style.display = 'none'; });
+    }
+    for (const selector of ['#hover-text', '#hover-quiet']) {
+      const node = page.locator(selector);
+
+      await node.evaluate(element => { element.style.cssText = 'position:fixed;left:10px;top:80px;width:100px;height:30px;z-index:200'; });
+      await page.mouse.move(0, 0);
+      const decoration = element => {
+        const style = getComputedStyle(element);
+
+        return [style.outlineColor, style.backgroundColor, style.borderColor, style.boxShadow];
+      };
+      const idleDecoration = await node.evaluate(decoration);
+
+      await page.mouse.move(20, 90);
+      assert.deepEqual(await node.evaluate(decoration), idleDecoration, selector);
+      assert.equal((await cue(node)).style, 'underline', selector);
       await node.evaluate(element => { element.style.display = 'none'; });
     }
   }, { role: 'organizer' });
@@ -3400,6 +3418,200 @@ try {
       );
     }
   }
+  for (const mobile of [false, true]) {
+    await journey(`speaker-outcome-preview-${mobile ? "mobile" : "desktop"}`, async ({ page, responses, requests }) => {
+      const ids = ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"];
+      const previewId = "00000000-0000-4000-8000-000000000003";
+      const people = ["Ada Example", "Ama Example"];
+      const submissions = people.map((name, index) => ({
+        id: ids[index], speaker_name: name, speaker_email: `speaker${index}@example.test`,
+        title: `Talk ${index + 1}`, session_type: "Talk", topic: "Engineering", abstract: "Fixture abstract",
+        bio: "Fixture bio", learning_outcomes: [], status: "not_selected", created_at: "2026-10-18T10:00:00Z",
+        decision_email_status: "pending", decision_email_attempt_count: 0, decision_email_queued_at: null,
+      }));
+      const recipients = people.map((name, index) => ({
+        id: ids[index], name, recipient: `speaker${index}@example.test`, from: "sender@example.test",
+        replyTo: "reply@example.test", subject: `Subject ${index + 1}`,
+        html: `<p>Frozen for ${name}</p>`, text: `Frozen for ${name}`,
+      }));
+      const base = "/api/annual-conference/2026/speaker-outcomes";
+
+      responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+      responses.set("/api/annual-conference/2026/speakers", { body: {
+        edition: { ...edition, name: "DevCongress Annual Conference" },
+        call: { open: true, public_path: "/speak/c/2026", logistics_deadline: null },
+        permissions: { can_manage: true, can_send_email: true },
+        email_delivery: { configured: true, workspace_links_configured: true },
+        counts: { submitted: 0, selected: 0, not_selected: 2, withdrawn: 0 }, submissions,
+      } });
+      responses.set(`${base}/messages`, { body: { messages: [
+        { kind: "acceptance", subject: "Accept", message: "Accept", version: 1 },
+        { kind: "rejection", subject: "Update", message: "Update", version: 1 },
+      ] } });
+      responses.set(`${base}/preview`, { body: { preview_id: previewId, recipients } });
+      const testGate = createSaveGate();
+
+      responses.set(`${base}/test`, async () => {
+        testGate.markEntered();
+        await testGate.response;
+
+        return { body: { accepted: true, recipient: "tester@example.test" } };
+      });
+      responses.set(`${base}/send`, { body: { queued: 2 } });
+      await page.setViewportSize({ width: mobile ? 390 : 1440, height: 844 });
+      await page.goto(`${origin}/organizer-console/annual-conference/2026/speakers?section=outcome-messages`);
+      await page.getByLabel(/Ada Example · Talk 1/).check();
+      await page.getByLabel(/Ama Example · Talk 2/).check();
+      await page.getByRole("button", { name: "Preview 2 selected" }).click();
+      const drawer = page.getByRole("dialog", { name: "Review personalized emails" });
+
+      await drawer.waitFor();
+      assert.equal(await drawer.getByRole("button", { name: "Close" }).evaluate((button) => document.activeElement === button), true);
+      await page.keyboard.press("Escape");
+      await drawer.waitFor({ state: "hidden" });
+      assert.equal(await page.getByRole("button", { name: "Preview 2 selected" }).evaluate((button) => document.activeElement === button), true);
+      await page.getByRole("button", { name: "Preview 2 selected" }).click();
+      await drawer.waitFor();
+      assert.deepEqual(JSON.parse(requests.find((request) => request.path === `${base}/preview`).body), { ids });
+      await drawer.getByRole("button", { name: "Ama Example" }).click();
+      assert.equal(await drawer.locator("iframe").getAttribute("srcdoc"), recipients[1].html);
+      await drawer.getByLabel("Test recipient").fill("tester@example.test");
+      await drawer.getByRole("button", { name: "Send test email" }).click();
+      await waitForSaveGate(testGate, "speaker test email");
+      await drawer.getByRole("button", { name: "Ada Example" }).click();
+      assert.equal(await drawer.getByLabel("Test recipient").inputValue(), "");
+      const testResponse = page.waitForResponse((response) => response.url().endsWith(`${base}/test`));
+
+      testGate.release();
+      await testResponse;
+      await drawer.getByRole("button", { name: "Send selected emails" }).waitFor({ state: "visible" });
+      await page.waitForFunction(() => !document.querySelector('.speaker-drawer-footer button')?.disabled);
+      assert.equal(await drawer.getByRole("status").count(), 0);
+      assert.equal(await drawer.getByRole("alert").count(), 0);
+      const testRequest = requests.find((request) => request.path === `${base}/test`);
+      const testBody = JSON.parse(testRequest.body);
+
+      assert.equal(testBody.preview_id, previewId);
+      assert.equal(testBody.recipient_id, ids[1]);
+      assert.equal(testBody.email, "tester@example.test");
+      assert.match(testBody.request_id, /^[0-9a-f-]{36}$/);
+      assert.equal(requests.some((request) => request.path === `${base}/send`), false);
+      await drawer.getByRole("button", { name: "Send selected emails" }).click();
+      await drawer.waitFor({ state: "hidden" });
+      await page.waitForFunction(() => document.activeElement?.textContent === "Ready to send");
+      assert.deepEqual(JSON.parse(requests.find((request) => request.path === `${base}/send`).body), { preview_id: previewId });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    }, { role: "owner" });
+  }
+
+  for (const canSendEmail of [false, true]) {
+    for (const mobile of [false, true]) {
+      await journey(`speaker-tracking-${canSendEmail ? "sender" : "viewer"}-${mobile ? "mobile" : "desktop"}`, async ({ page, responses, requests }) => {
+        const base = "/organizer-console/annual-conference/2026/speakers";
+        const accepted = {
+          id: "tracking-accepted", proposal_schema_version: 2, speaker_name: "Ada Example", speaker_email: "ada@example.test",
+          title: "Reliable systems", session_type: "Talk", topic: "Engineering", abstract: "Fixture abstract",
+          bio: "Fixture bio", learning_outcomes: [], status: "selected", created_at: "2026-10-18T10:00:00Z",
+          workspace_access: "active",
+          logistics: { availability_confirmed: true, slides_url: "https://example.test/slides" },
+          decision_email_status: "failed", decision_email_attempt_count: 2,
+          decision_email_last_error: "Fixture delivery failure",
+          decision_email_last_attempt_at: "2026-11-03T03:15:00Z",
+          decision_email_next_retry_at: "2026-11-03T03:45:00Z",
+        };
+
+        const extraSpeakers = Array.from({ length: 6 }, (_, index) => ({
+          ...accepted, id: `tracking-extra-${index}`, speaker_name: `Guest ${index + 1}`, title: `Session ${index + 1}`,
+        }));
+
+        async function checkSecondPage(lastRow) {
+          const pager = page.getByRole("navigation", { name: /pagination/i });
+
+          await pager.getByRole("button", { name: "Next page" }).click();
+          await pager.getByText("Page 2 of 2").waitFor();
+          await lastRow.waitFor();
+          assert.equal(await pager.getByRole("button", { name: "Next page" }).isDisabled(), true);
+          await pager.getByRole("button", { name: "Previous page" }).click();
+          await lastRow.waitFor({ state: "hidden" });
+        }
+
+        responses.set("/api/annual-conference/2026/speaker-submissions/tracking-accepted/materials", { body: { materials: [] } });
+        responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+        responses.set("/api/annual-conference/2026/speakers", { body: {
+          edition: { ...edition, name: "DevCongress Annual Conference" },
+          call: { open: true, public_path: "/speak/c/2026", logistics_deadline: null },
+          permissions: { can_manage: canSendEmail, can_send_email: canSendEmail },
+          email_delivery: { configured: true, workspace_links_configured: true },
+          counts: { submitted: 0, selected: 7, not_selected: 0, withdrawn: 0 }, submissions: [accepted, ...extraSpeakers],
+        } });
+        responses.set("/api/annual-conference/2026/speaker-outcomes/messages", { body: { messages: [] } });
+        await page.setViewportSize({ width: mobile ? 390 : 1440, height: 844 });
+        await page.goto(`${origin}${base}`);
+        const nav = page.getByRole("navigation", { name: "Speaker sections" });
+        const proposals = nav.getByRole("link", { name: "Proposals", exact: true });
+        const participation = nav.getByRole("link", { name: "Participation", exact: true });
+
+        await proposals.waitFor();
+        assert.equal(await proposals.getAttribute("aria-current"), "page");
+        assert.equal(await nav.getByRole("link", { name: "Delivery", exact: true }).count(), canSendEmail ? 1 : 0);
+        assert.equal(await nav.getByRole("link", { name: "Outcome messages", exact: true }).count(), canSendEmail ? 1 : 0);
+        await page.getByRole("button", { name: "Approved", exact: true }).click();
+        await checkSecondPage(page.locator(".speaker-queue").getByText("Session 6", { exact: true }).filter({ visible: true }));
+        await participation.click();
+        await page.waitForURL(/section=participation/);
+        assert.equal(await participation.getAttribute("aria-current"), "page");
+        assert.equal(await page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Participation", { exact: true }).count(), 1);
+        await checkSecondPage(page.getByRole("button", { name: "Guest 6 Confirmed", exact: true }));
+        await page.getByRole("button", { name: "Ada Example Confirmed", exact: true }).click();
+        const logistics = page.getByRole("dialog", { name: "Participation · Ada Example", exact: true });
+
+        await logistics.getByText("Slides/resources", { exact: true }).waitFor();
+        assert.equal(await logistics.getByText("Delivery address", { exact: true }).count(), 0);
+        assert.equal(await logistics.getByText("Abstract", { exact: true }).count(), 0);
+        await logistics.getByRole("button", { name: "Close participation details" }).click();
+        await page.getByRole("dialog").waitFor({ state: "hidden" });
+        assert.equal(await page.locator(".speaker-queue").isVisible(), false);
+        await page.reload();
+        await page.getByRole("heading", { name: "Accepted speakers", exact: true }).waitFor();
+        if (canSendEmail) {
+          await nav.getByRole("link", { name: "Delivery", exact: true }).click();
+          await page.waitForURL(/section=delivery/);
+          await checkSecondPage(page.getByRole("button", { name: "Review delivery for Guest 6", exact: true }));
+          const deliveryRow = page.getByRole("row").filter({ has: page.getByRole("button", { name: "Review delivery for Ada Example" }) });
+
+          await deliveryRow.getByText("Fixture delivery failure", { exact: true }).waitFor();
+          await deliveryRow.getByRole("cell", { name: /3:15/ }).waitFor();
+          await deliveryRow.getByRole("cell", { name: /3:45/ }).waitFor();
+          await deliveryRow.getByRole("button").click();
+          const delivery = page.getByRole("dialog", { name: "Delivery · Ada Example", exact: true });
+
+          await delivery.getByText("Fixture delivery failure", { exact: true }).waitFor();
+          await delivery.getByText("Delivery address", { exact: true }).waitFor();
+          await delivery.getByRole("button", { name: "Retry workspace email" }).click();
+          await delivery.getByRole("heading", { name: "Send workspace email?" }).waitFor();
+          await delivery.getByRole("button", { name: "Cancel", exact: true }).click();
+          assert.equal(await delivery.getByText("Slides/resources", { exact: true }).count(), 0);
+          assert.equal(await delivery.getByText("Abstract", { exact: true }).count(), 0);
+          await delivery.getByRole("button", { name: "Close delivery details" }).click();
+          await page.getByRole("dialog").waitFor({ state: "hidden" });
+          await nav.getByRole("link", { name: "Outcome messages", exact: true }).click();
+          await page.waitForURL(/section=outcome-messages/);
+          await page.getByRole("heading", { name: "Speaker outcome messages", exact: true }).waitFor();
+        } else {
+          for (const section of ["delivery", "outcome-messages"]) {
+            await page.goto(`${origin}${base}?section=${section}`);
+            await page.locator(".speaker-queue:visible").waitFor();
+            assert.equal(await page.getByRole("heading", { name: "Decision email delivery", exact: true }).count(), 0);
+            assert.equal(await page.getByRole("heading", { name: "Speaker outcome messages", exact: true }).count(), 0);
+          }
+          assert.equal(requests.some((request) => request.path.includes("speaker-outcomes")), false);
+        }
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        await page.screenshot({ path: `${artifacts}/speaker-tracking-${canSendEmail ? "sender" : "viewer"}-${mobile ? "mobile" : "desktop"}.png`, fullPage: true });
+      }, { role: canSendEmail ? "owner" : "organizer" });
+    }
+  }
+
   for (const capability of ["speakers.view", "speakers.manage"]) {
     await journey(`mobile-speakers-${capability}`, async ({ page, responses, requests }) => {
       await page.setViewportSize({ width: 390, height: 844 });

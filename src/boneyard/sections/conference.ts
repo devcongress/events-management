@@ -390,7 +390,7 @@ export const conferenceSections: SkeletonSection[] = [
         "actions": [
           "Save deadline"
         ],
-        "description": "Accepted speakers can save and revise their private workspace until this deadline."
+        "description": "This is the due date for speaker logistics. Accepted speakers can still update their private workspace afterward."
       },
       {
         "kind": "toolbar",

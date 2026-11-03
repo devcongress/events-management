@@ -124,6 +124,22 @@ describe('event breadcrumb context', () => {
 });
 
 describe('conference breadcrumb context', () => {
+  it('resolves speaker sections with same-year links and owner-only outcomes', () => {
+    const input = { params: { year: '2027' }, query: { section: 'outcome-messages' } };
+    const crumbs = resolve('admin-annual-conference-speakers', input);
+
+    expect(crumbs.slice(-2)).toEqual([
+      { label: 'Speakers', to: { path: annualConferencePath('speakers', '2027'), query: { section: 'proposals' } } },
+      { label: 'Outcome messages' },
+    ]);
+    expect(resolve('admin-annual-conference-speakers', { ...input, role: 'organizer' }).at(-1)).toEqual({ label: 'Proposals' });
+    expect(resolve('admin-annual-conference-speakers', { ...input, query: { section: 'participation' }, role: 'organizer' }).at(-1)).toEqual({ label: 'Participation' });
+    expect(resolve('admin-annual-conference-speakers', { ...input, query: { section: 'delivery' } }).at(-1)).toEqual({ label: 'Delivery' });
+    expect(resolve('admin-annual-conference-speakers', { ...input, query: { section: 'delivery' }, role: 'organizer' }).at(-1)).toEqual({ label: 'Proposals' });
+    expect(resolve('admin-annual-conference-speakers', { ...input, role: 'volunteer' })).toEqual([]);
+    expect(resolve('admin-annual-conference-speakers', { ...input, phone: true }).at(-1)).toEqual({ label: 'Outcome messages' });
+  });
+
   it('links Programme back to the same conference year', () => {
     const crumbs = resolve('admin-annual-conference-programme', { params: { year: '2027' } });
 

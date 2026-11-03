@@ -615,7 +615,7 @@ async function openEventNextStep(event: CommunityEvent) {
                 <button
                   v-if="slugWasEdited"
                   type="button"
-                  class="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink hover:text-dc-ink"
+                  class="text-action shrink-0 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink hover:text-dc-ink"
                   @click="resetWebsiteSlug"
                 >
                   Use generated

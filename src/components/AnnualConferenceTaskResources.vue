@@ -88,7 +88,7 @@ async function remove(resourceId: string) {
   <section class="mt-6 border-t border-dc-border pt-5" aria-labelledby="task-resources-heading">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h3 id="task-resources-heading" ref="heading" tabindex="-1" class="font-semibold text-dc-ink">Resources <span v-if="query.data.value" class="ml-1 text-xs font-normal text-dc-gray">{{ resources.length }}/{{ query.data.value.permissions.max_resources }}</span></h3>
-      <button v-if="query.data.value?.permissions.can_add" ref="addButton" type="button" class="resource-button text-dc-pink" :disabled="!canAdd || pending || adding || Boolean(editing)" @click="openEditor()">+ Add resource</button>
+      <button v-if="query.data.value?.permissions.can_add" ref="addButton" type="button" class="resource-button text-action text-dc-pink" :disabled="!canAdd || pending || adding || Boolean(editing)" @click="openEditor()">+ Add resource</button>
     </div>
     <p class="mt-1 text-xs leading-5 text-dc-gray">Keep documents, designs and useful references together. Links only—no file uploads.</p>
     <BoneyardPageSkeleton
@@ -110,15 +110,15 @@ async function remove(resourceId: string) {
             <p class="mt-1 break-all text-xs text-dc-gray">Added by {{ resource.created_by_email }}</p>
           </div>
           <div v-if="resource.can_manage" class="flex gap-1">
-            <button type="button" class="resource-button" :disabled="pending || adding || Boolean(editing)" :aria-label="`Edit ${resource.label || resource.url}`" @click="openEditor(resource)">Edit</button>
-            <button type="button" class="resource-button text-red-700" :disabled="pending || adding || Boolean(editing)" :aria-label="`Remove ${resource.label || resource.url}`" @click="removing = resource.id; error = ''; success = ''">Remove</button>
+            <button type="button" class="resource-button text-action" :disabled="pending || adding || Boolean(editing)" :aria-label="`Edit ${resource.label || resource.url}`" @click="openEditor(resource)">Edit</button>
+            <button type="button" class="resource-button text-action text-red-700" :disabled="pending || adding || Boolean(editing)" :aria-label="`Remove ${resource.label || resource.url}`" @click="removing = resource.id; error = ''; success = ''">Remove</button>
           </div>
         </div>
         <div v-if="removing === resource.id" class="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm">
           <p>Remove this resource link? The original document won’t be deleted.</p>
           <div class="mt-2 flex gap-2">
             <button type="button" class="resource-button bg-red-700 text-white" :disabled="pending" @click="remove(resource.id)">{{ pending ? 'Removing…' : 'Remove link' }}</button>
-            <button type="button" class="resource-button" :disabled="pending" @click="removing = null">Cancel</button>
+            <button type="button" class="resource-button text-action" :disabled="pending" @click="removing = null">Cancel</button>
           </div>
         </div>
       </li>
@@ -129,7 +129,7 @@ async function remove(resourceId: string) {
       <label class="block text-xs font-semibold">Label <span class="font-normal text-dc-gray">(optional)</span><input v-model="label" class="editorial-input mt-1" maxlength="120" placeholder="e.g. Final speaker flyer" :disabled="pending" /></label>
       <div class="flex flex-wrap gap-2">
         <button type="submit" class="resource-button bg-dc-pink text-white" :disabled="pending">{{ pending ? 'Saving…' : 'Save resource' }}</button>
-        <button type="button" class="resource-button" :disabled="pending" @click="closeEditor">Cancel</button>
+        <button type="button" class="resource-button text-action" :disabled="pending" @click="closeEditor">Cancel</button>
       </div>
     </form>
     <p v-if="query.data.value && resources.length >= query.data.value.permissions.max_resources" class="mt-3 text-xs text-dc-gray">This task has reached its 20-link limit. Use a shared folder for larger collections.</p>

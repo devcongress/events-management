@@ -321,7 +321,7 @@ function submitForm() {
           The organizer list could not be loaded.
           <button
             type="button"
-            class="motion-press font-semibold underline decoration-2 underline-offset-2"
+            class="text-action motion-press font-semibold underline decoration-2 underline-offset-2"
             @click="organizersQuery.refetch()"
           >
             Try again

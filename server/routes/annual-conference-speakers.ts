@@ -33,6 +33,7 @@ import {
   rejectAnnualConferenceSpeakerSubmission,
   replaceAnnualConferenceDecisionEmailRecipient,
   rotateAnnualConferenceSpeakerWorkspace,
+  revokeAnnualConferenceSpeakerWorkspace,
   updateAnnualConferenceSessionLogistics,
   updateAnnualConferenceSpeakerIntakeDeadlines,
   updateAnnualConferenceSpeakerSubmission,
@@ -165,6 +166,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
         return {
           ...safeSubmission,
+          workspace_access: decisionLink ? (decisionLink.revoked_at ? 'revoked' : 'active') : 'unavailable',
           decision_email_status: submission.decision_email_status ?? decisionLink?.email_status ?? null,
           decision_email_recipient: submission.decision_email_recipient ?? decisionLink?.email_recipient ?? submission.speaker_email,
           decision_email_last_attempt_at: submission.decision_email_last_attempt_at ?? decisionLink?.email_last_attempt_at ?? null,
@@ -178,6 +180,9 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
             slides_url: acceptedSession.slides_url,
             availability_confirmed: acceptedSession.availability_confirmed,
             technical_requirements: acceptedSession.technical_requirements,
+            accessibility_requirements: acceptedSession.accessibility_requirements,
+            headshot_url: acceptedSession.headshot_url,
+            social_handle: acceptedSession.social_handle,
             workshop_prerequisites: acceptedSession.workshop_prerequisites,
             required_software_equipment: acceptedSession.required_software_equipment,
             participants_need_laptops: acceptedSession.participants_need_laptops,
@@ -281,9 +286,6 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       const edition = await getAnnualConferenceEditionByYear(year, c);
 
       if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
-      if (parsed.data.deadline && new Date(parsed.data.deadline).getTime() <= Date.now()) {
-        return c.json({ error: 'The logistics deadline must be in the future.' }, 400);
-      }
       const repository = createAnnualConferenceRepository(c);
 
       await repository.getWorkspace(year);
@@ -358,8 +360,8 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         }
         const deadline = annualConferenceDeadline(edition);
 
-        if (!deadline || new Date(deadline).getTime() <= Date.now()) {
-          return c.json({ error: 'Set a future speaker logistics deadline before accepting this proposal.' }, 409);
+        if (!deadline) {
+          return c.json({ error: 'Set a speaker logistics due date before accepting this proposal.' }, 409);
         }
         const accepted = await acceptAnnualConferenceSpeakerSubmission({
           submission: existing,
@@ -424,6 +426,30 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
     }
   });
 
+  app.post('/api/annual-conference/:year/speaker-submissions/:submissionId/revoke-workspace', async (c) => {
+    const adminError = await requireAdmin(c);
+
+    if (adminError) return adminError;
+    const yearParam = c.req.param('year');
+
+    if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+    const year = Number(yearParam);
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+
+    if (capabilityError) return capabilityError;
+    if (!conferenceSpeakerReplacementEmailSchema.safeParse(await c.req.json().catch(() => null)).success) return c.json({ error: 'Confirm the workspace revocation.' }, 400);
+    try {
+      const edition = await getAnnualConferenceEditionByYear(year, c);
+
+      if (!edition || !await revokeAnnualConferenceSpeakerWorkspace(edition.id, c.req.param('submissionId'))) return c.json({ error: 'Accepted conference proposal not found.' }, 404);
+      await recordProtectedMutationAudit(c, { action: 'annual_conference.speaker_workspace.revoke', targetType: 'annual_conference_speaker_submission', targetId: c.req.param('submissionId'), metadata: { edition_year: year } });
+
+      return c.json({ revoked: true });
+    } catch (error) {
+      return internalErrorResponse(c, 'annual_conference_speaker_workspace_revoke_failed', error, 'Unable to revoke the workspace.');
+    }
+  });
+
   app.get('/api/annual-conference/:year/speaker-submissions/:submissionId/workspace-link', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer']);
 
@@ -450,7 +476,6 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
       if (!link || link.edition_id !== edition.id || link.speaker_submission_id !== submission.id
         || link.workspace_session_id !== submission.selected_session_id || link.revoked_at
-        || new Date(link.expires_at).getTime() <= Date.now()
         || !annualConferenceSpeakerWorkspaceTokenMatches(link, secret)) {
         return c.json({ error: 'The current workspace link is unavailable.' }, 409);
       }
@@ -521,13 +546,13 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       }
       const deadline = annualConferenceDeadline(edition);
 
-      if (!deadline || new Date(deadline).getTime() <= Date.now()) {
-        return c.json({ error: 'The speaker logistics deadline has passed.' }, 409);
+      if (!deadline) {
+        return c.json({ error: 'Set a speaker logistics due date.' }, 409);
       }
       let deliverySubmission = submission;
       let deliveryToken: string;
 
-      if (currentLink && annualConferenceSpeakerWorkspaceTokenMatches(currentLink, tokenSecret)) {
+      if (currentLink && !currentLink.revoked_at && annualConferenceSpeakerWorkspaceTokenMatches(currentLink, tokenSecret)) {
         deliveryToken = annualConferenceSpeakerWorkspaceToken(currentLink.id, tokenSecret);
       } else {
         if (submission.decision_email_attempt_count > 0) return c.json({ error: 'The original workspace link is unavailable. Review before replacing it.' }, 409);
@@ -664,7 +689,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         if (!tokenSecret) return c.json({ error: 'Speaker workspace link signing is not configured.' }, 503);
         const deadline = annualConferenceDeadline(edition);
 
-        if (!deadline || new Date(deadline).getTime() <= Date.now()) return c.json({ error: 'Set a future speaker logistics deadline before sending a workspace email.' }, 409);
+        if (!deadline) return c.json({ error: 'Set a speaker logistics due date before sending a workspace email.' }, 409);
         await rotateAnnualConferenceSpeakerWorkspace({
           submission, deadline, tokenSecret, emailRecipient: emailAssessment.normalizedEmail, allowAccepted: true,
         });
@@ -721,7 +746,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       }
       const deadline = annualConferenceDeadline(edition);
 
-      if (!deadline || new Date(deadline).getTime() <= Date.now()) return c.json({ error: 'Set a future speaker logistics deadline before replacing the workspace link.' }, 409);
+      if (!deadline) return c.json({ error: 'Set a speaker logistics due date before replacing the workspace link.' }, 409);
       await rotateAnnualConferenceSpeakerWorkspace({ submission, deadline, tokenSecret, allowAccepted: true });
 
       await recordProtectedMutationAudit(c, {
@@ -920,7 +945,6 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
     if (
       !link
       || link.revoked_at
-      || new Date(edition.speaker_logistics_deadline ?? link.expires_at).getTime() <= Date.now()
       || !link.speaker_submission_id
       || !link.workspace_session_id
     ) {
@@ -965,6 +989,9 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         slides_url: safePublicResourceUrl(session.slides_url) ?? '',
         availability_confirmed: session.availability_confirmed,
         technical_requirements: session.technical_requirements ?? '',
+        accessibility_requirements: session.accessibility_requirements ?? '',
+        headshot_url: session.headshot_url ?? '',
+        social_handle: session.social_handle ?? '',
         workshop_prerequisites: session.workshop_prerequisites ?? '',
         required_software_equipment: session.required_software_equipment ?? '',
         participants_need_laptops: session.participants_need_laptops,
@@ -999,13 +1026,10 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
     try {
       const link = await getAnnualConferenceSpeakerIntakeLink(edition.id, c.req.param('token'));
-      const deadline = link ? edition.speaker_logistics_deadline ?? link.expires_at : null;
 
       if (
         !link
         || link.revoked_at
-        || !deadline
-        || new Date(deadline).getTime() <= Date.now()
         || !link.speaker_submission_id
         || !link.workspace_session_id
       ) {
@@ -1030,6 +1054,9 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         slides_url: safePublicResourceUrl(parsed.data.slides_url) || null,
         availability_confirmed: parsed.data.availability_confirmed,
         technical_requirements: parsed.data.technical_requirements || null,
+        ...(parsed.data.accessibility_requirements === undefined ? {} : { accessibility_requirements: parsed.data.accessibility_requirements || null }),
+        ...(parsed.data.headshot_url === undefined ? {} : { headshot_url: parsed.data.headshot_url || null }),
+        ...(parsed.data.social_handle === undefined ? {} : { social_handle: parsed.data.social_handle || null }),
         workshop_prerequisites: parsed.data.workshop_prerequisites || null,
         required_software_equipment: parsed.data.required_software_equipment || null,
         participants_need_laptops: parsed.data.participants_need_laptops,

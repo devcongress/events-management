@@ -103,16 +103,16 @@ describe('speaker material validation', () => {
 });
 
 describe('private speaker materials routes', () => {
-  it('checks the active token and its deadline before reading attachments', async () => {
-    for (const condition of ['invalid', 'revoked', 'expired'] as const) {
+  it('checks the active token and allows access after the due date', async () => {
+    for (const condition of ['invalid', 'revoked'] as const) {
       state.revoked = condition === 'revoked';
-      state.expired = condition === 'expired';
       const response = await app.request(`/api/conference-speaker-materials/2026/${condition === 'invalid' ? 'bad' : 'valid'}`);
 
       expect(response.status).toBe(410);
       expect(state.queries).toBe(0);
     }
-    state.expired = false;
+    state.revoked = false;
+    state.expired = true;
     const response = await app.request('/api/conference-speaker-materials/2026/valid');
 
     expect(response.status).toBe(200);

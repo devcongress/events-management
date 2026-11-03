@@ -10,6 +10,10 @@ The first send is never automatic just because a decision was saved. Transport r
 
 Organizers with speaker-management access can open or copy the existing valid private workspace link without sending email or rotating it. This capability is returned only on demand, with no-store responses. Private PDF/PowerPoint materials and workspace badge controls are documented in [speaker materials](annual-conference-speaker-materials.md) and [social cards](devcon26-social-cards.md). This does not change monthly Archive Requests.
 
+The default acceptance message includes personalized year, session format and duration, conference date, and the configured logistics due date for confirmation and materials. Provisional dates are labeled, and venue remains to be confirmed because the edition venue note is internal planning text. Existing custom messages remain intact. An exact match to the former default opens as the updated draft, which the owner must save before previewing or sending it.
+
+The Speakers workspace has URL-backed Proposals and Participation sections for speaker viewers, plus Delivery and Outcome messages for the owner. Participation lists accepted proposals with recorded availability and whether a slides/resources link was provided; it does not imply whether a private file was uploaded. Delivery shows the existing provider status, attempt count, next retry when present, and errors, with the proposal drawer available for recovery actions. Switching sections preserves the outcome message draft.
+
 Implemented for organizer-triggered monthly Archive Requests. Organizers can select up to 100 eligible program rows, and the Worker sends one personalized, private-link email per row through Resend's Batch API.
 
 Resend acceptance, safe retry, duplicate-send prevention, and organizer toasts are active. Provider delivery webhooks, scheduled reminders, and annual-conference Broadcasts remain future work.
@@ -476,3 +480,7 @@ Rollout requires `20261030190000_monthly_speaker_blasts.sql` and its read-only v
 The composer is available in the desktop talk workspace and the phone event submissions view. Delivery history excludes unsent previews before applying its 50-item limit.
 
 Audience revalidation compares recipient and session field values, independent of JSONB object-key ordering. Actual recipient, session, link, or deadline changes still block sending.
+
+## Annual conference outcome previews
+
+Owners review each frozen personalized outcome email in a drawer before queueing. A test can send the selected snapshot to a chosen address using the same subject, sender, HTML and text; acceptance messages contain the speaker’s private workspace link. Tests are rate limited and audited, and do not change speaker decisions or queue delivery. Snapshot expiry and ownership are checked before a test. Provider acceptance does not confirm inbox delivery.

@@ -24,6 +24,9 @@ type IntakePrefill = {
   learning_outcomes?: string[];
   availability_confirmed?: boolean | null;
   technical_requirements?: string;
+  accessibility_requirements?: string;
+  headshot_url?: string;
+  social_handle?: string;
   workshop_prerequisites?: string;
   required_software_equipment?: string;
   participants_need_laptops?: boolean | null;
@@ -69,6 +72,9 @@ const form = reactive({
   learning_outcomes: [] as string[],
   availability_confirmed: '' as '' | 'yes' | 'not_yet',
   technical_requirements: '',
+  accessibility_requirements: '',
+  headshot_url: '',
+  social_handle: '',
   workshop_prerequisites: '',
   required_software_equipment: '',
   participants_need_laptops: '' as '' | 'yes' | 'no',
@@ -136,7 +142,7 @@ function archiveHeading() {
 }
 
 function archiveDescription() {
-  if (isConferenceIntake.value) return 'Your accepted proposal is already saved. Keep these delivery details up to date until the organizer deadline.';
+  if (isConferenceIntake.value) return 'Your accepted proposal is already saved. Please provide these delivery details by the organizer due date. You can still update them afterward.';
   if (isSlidesUpdateMode()) return 'Your talk details are already saved. You can update only your slides link until the end of the event day.';
   if (isSelectedSpeakerLink()) {
     return 'Add a short bio and any resource link you have. You can leave the resource link blank if it is not ready yet.';
@@ -176,6 +182,9 @@ async function submitTalkDetails() {
       slides_url: form.slides_url,
       availability_confirmed: form.availability_confirmed === '' ? null : form.availability_confirmed === 'yes',
       technical_requirements: form.technical_requirements,
+      accessibility_requirements: form.accessibility_requirements,
+      headshot_url: form.headshot_url,
+      social_handle: form.social_handle,
       workshop_prerequisites: form.workshop_prerequisites,
       required_software_equipment: form.required_software_equipment,
       participants_need_laptops: form.participants_need_laptops === '' ? null : form.participants_need_laptops === 'yes',
@@ -258,6 +267,9 @@ function applyPrefill(prefill: IntakePrefill) {
   form.learning_outcomes = prefill.learning_outcomes ?? form.learning_outcomes;
   form.availability_confirmed = prefill.availability_confirmed === true ? 'yes' : prefill.availability_confirmed === false ? 'not_yet' : '';
   form.technical_requirements = prefill.technical_requirements || '';
+  form.accessibility_requirements = prefill.accessibility_requirements || '';
+  form.headshot_url = prefill.headshot_url || '';
+  form.social_handle = prefill.social_handle || '';
   form.workshop_prerequisites = prefill.workshop_prerequisites || '';
   form.required_software_equipment = prefill.required_software_equipment || '';
   form.participants_need_laptops = prefill.participants_need_laptops === true ? 'yes' : prefill.participants_need_laptops === false ? 'no' : '';
@@ -351,7 +363,7 @@ function formatEventDay(): string {
             <ol class="mt-4 list-decimal space-y-1 pl-5 text-sm leading-6 text-dc-gray">
               <li v-for="outcome in form.learning_outcomes" :key="outcome">{{ outcome }}</li>
             </ol>
-            <p class="mt-4 border-t border-dc-border pt-4 text-xs font-semibold text-dc-gray">Updates close {{ formatDeadline(workspaceDeadline) }}.</p>
+            <p class="mt-4 border-t border-dc-border pt-4 text-xs font-semibold text-dc-gray">Logistics due {{ formatDeadline(workspaceDeadline) }}. You can still make updates after this date.</p>
           </section>
 
           <SpeakerBadgeEditor v-if="String(route.params.year) === '2026'" :year="Number(route.params.year)" :token="String(route.params.token)" />
@@ -371,6 +383,19 @@ function formatEventDay(): string {
             <span class="editorial-label">Technical and setup requirements</span>
             <textarea v-model="form.technical_requirements" rows="4" class="editorial-input resize-none" placeholder="Microphones, display adapters, internet access, room setup, or other needs." />
           </label>
+          <label class="block">
+            <span class="editorial-label">Accessibility support (optional)</span>
+            <textarea v-model="form.accessibility_requirements" maxlength="2000" rows="3" class="editorial-input resize-none" placeholder="Tell the organizers about any support you need." />
+          </label>
+          <label class="block">
+            <span class="editorial-label">Headshot link (optional)</span>
+            <input v-model="form.headshot_url" maxlength="2048" type="url" inputmode="url" placeholder="https://…" class="editorial-input font-mono" />
+          </label>
+          <label class="block">
+            <span class="editorial-label">Social handle (optional)</span>
+            <input v-model="form.social_handle" maxlength="200" type="text" class="editorial-input" />
+          </label>
+          <p class="text-sm text-dc-gray">These details are shared privately with organizers and are not published automatically.</p>
           <label class="block">
             <span class="editorial-label">Required software or equipment</span>
             <textarea v-model="form.required_software_equipment" rows="3" class="editorial-input resize-none" placeholder="Software, accounts, devices, adapters, or equipment needed." />

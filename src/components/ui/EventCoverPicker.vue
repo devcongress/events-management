@@ -119,7 +119,7 @@ function handleUrlInput(event: Event) {
             <button
               v-if="selectedFile"
               type="button"
-              class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray hover:text-dc-pink disabled:opacity-50"
+              class="text-action font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray hover:text-dc-pink disabled:opacity-50"
               :disabled="disabled"
               @click="clearFileSelection"
             >

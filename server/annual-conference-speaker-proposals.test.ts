@@ -382,6 +382,41 @@ describe('Annual Conference proposal lifecycle', () => {
       }),
     });
 
+    const privateDetails = {
+      accessibility_requirements: 'Step-free access',
+      headshot_url: 'https://example.com/headshot',
+      social_handle: '@ama',
+    };
+    const savePrivateDetails = (details: Record<string, string>) => app.request(`http://localhost/api/conferences/2026/speaker-intake/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(details),
+    });
+    const updateLogistics = vi.spyOn(speakerStore, 'updateAnnualConferenceSessionLogistics');
+
+    expect((await savePrivateDetails(privateDetails)).status).toBe(200);
+    expect((await save('Legacy client')).status).toBe(200);
+    expect(updateLogistics.mock.lastCall?.[1]).not.toHaveProperty('accessibility_requirements');
+    expect(updateLogistics.mock.lastCall?.[1]).not.toHaveProperty('headshot_url');
+    expect(updateLogistics.mock.lastCall?.[1]).not.toHaveProperty('social_handle');
+    await expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${token}`)).json()).resolves.toMatchObject({ prefill: privateDetails });
+    expect((await savePrivateDetails({ accessibility_requirements: '', headshot_url: '', social_handle: '' })).status).toBe(200);
+    expect(updateLogistics.mock.lastCall?.[1]).toMatchObject({ accessibility_requirements: null, headshot_url: null, social_handle: null });
+    await expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${token}`)).json()).resolves.toMatchObject({ prefill: { accessibility_requirements: '', headshot_url: '', social_handle: '' } });
+    updateLogistics.mockRestore();
+
+    const editionsPath = path.join(tempRoot, 'data', 'annual-conference-editions.json');
+    const editions = JSON.parse(await fs.readFile(editionsPath, 'utf-8'));
+
+    editions[0].speaker_logistics_deadline = '2020-01-01T00:00:00.000Z';
+    await fs.writeFile(editionsPath, JSON.stringify(editions));
+    const linksPath = path.join(tempRoot, 'data', 'annual-conference-speaker-intake-links.json');
+    const links = JSON.parse(await fs.readFile(linksPath, 'utf-8'));
+
+    links[0].expires_at = '2020-01-01T00:00:00.000Z';
+    await fs.writeFile(linksPath, JSON.stringify(links));
+    expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${token}`)).status).toBe(200);
+    expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${accepted.id}/workspace-link`)).status).toBe(200);
     expect((await save('Projector')).status).toBe(200);
     expect((await save('Projector and lapel microphone')).status).toBe(200);
 
@@ -390,6 +425,27 @@ describe('Annual Conference proposal lifecycle', () => {
     await expect(refreshed.json()).resolves.toMatchObject({
       prefill: { technical_requirements: 'Projector and lapel microphone', availability_confirmed: true },
     });
+    const revokePath = `http://localhost/api/annual-conference/2026/speaker-submissions/${accepted.id}/revoke-workspace`;
+
+    expect((await app.request(revokePath, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })).status).toBe(400);
+    expect((await app.request(revokePath, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmed: true }) })).status).toBe(200);
+    expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${token}`)).status).toBe(410);
+    expect((await save('Denied')).status).toBe(410);
+    const replacement = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${accepted.id}/replace-workspace-email`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmed: true }),
+    });
+
+    expect(replacement.status).toBe(200);
+    const preview = await app.request('http://localhost/api/annual-conference/2026/speaker-outcomes/preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [accepted.id] }),
+    });
+
+    expect(preview.status).toBe(200);
+    const { recipients } = await preview.json();
+
+    expect(recipients[0].text).toContain('Date: 19 December 2026\nVenue: Ghana Digital Center, Accra');
+    expect(recipients[0].html).toContain('Ghana Digital Center, Accra');
+    expect(recipients[0].html).not.toContain('(provisional)');
   });
 
   it('retries a failed acceptance email without changing the private link or accepted proposal', async () => {
@@ -456,7 +512,7 @@ describe('Annual Conference proposal lifecycle', () => {
     expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${retryToken}`)).status).toBe(200);
   });
 
-  it('requires an explicit future organizer deadline before acceptance', async () => {
+  it('requires an explicit organizer due date before acceptance', async () => {
     vi.resetModules();
     const editionsPath = path.join(tempRoot, 'data', 'annual-conference-editions.json');
     const editions = JSON.parse(await fs.readFile(editionsPath, 'utf8'));

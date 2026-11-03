@@ -258,9 +258,19 @@ function conferenceBreadcrumbs(
     return [...base, { label: 'Registration', ...(section === 'summary' ? {} : { to: { path, query: { section: 'summary' } } }) }, { label: registrationSections[section] }];
   }
 
+  if (name === 'admin-annual-conference-speakers') {
+    const path = annualConferencePath('speakers', year);
+
+    if (!canLink(path)) return [];
+    const sectionLabel = query.section === 'participation' ? 'Participation'
+      : role === 'owner' && query.section === 'delivery' ? 'Delivery'
+        : role === 'owner' && query.section === 'outcome-messages' ? 'Outcome messages' : 'Proposals';
+
+    return [...base, { label: 'Speakers', ...(sectionLabel !== 'Proposals' ? { to: { path, query: { section: 'proposals' } } } : {}) }, { label: sectionLabel }];
+  }
+
   const sections: Record<string, { path: string; label: string }> = {
     'admin-annual-conference-work-plan': { path: 'work-plan', label: 'Work plan' },
-    'admin-annual-conference-speakers': { path: 'speakers', label: 'Speakers' },
     'admin-annual-conference-programme': { path: 'programme', label: 'Programme' },
     'admin-annual-conference-check-in': { path: 'check-in', label: 'Guests' },
     'admin-annual-conference-volunteers': { path: 'volunteers', label: 'Volunteers' },

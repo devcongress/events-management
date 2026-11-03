@@ -1800,7 +1800,7 @@ async function retryEmails() {
                   <p class="font-semibold text-dc-ink">Write the update</p>
                   <p class="mt-1 text-xs leading-5 text-dc-gray">Plain text keeps the message clean in every inbox. Links can be pasted directly.</p>
                 </div>
-                <button type="button" class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray" @click="blastComposerOpen = false">
+                <button type="button" class="text-action font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray" @click="blastComposerOpen = false">
                   Cancel
                 </button>
               </div>

@@ -198,7 +198,7 @@ function revealActiveNavLink() {
   });
 }
 
-watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immediate: true });
+watch([links, () => route.path], revealActiveNavLink, { flush: 'post', immediate: true });
 </script>
 
 <template>

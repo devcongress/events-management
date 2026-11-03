@@ -3,9 +3,12 @@ import type { Hono, Context } from 'hono';
 import { z } from 'zod';
 import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
 import { annualConferenceSpeakerWorkspaceToken, annualConferenceSpeakerWorkspaceTokenMatches, getAnnualConferenceSpeakerIntakeLinkById, getAnnualConferenceSpeakerSubmission, type AnnualConferenceEmailKind } from '@/lib/annual-conference-speakers';
-import { getSpeakerOutcomeMessage, queueSpeakerOutcomePreview, renderSpeakerOutcomeMessage, saveSpeakerOutcomeMessage, saveSpeakerOutcomePreview } from '@/lib/annual-conference-speaker-outcomes';
+import { defaultSpeakerOutcomeMessage, getSpeakerOutcomeMessage, getSpeakerOutcomePreviewRecipient, isLegacyDefaultAcceptance, queueSpeakerOutcomePreview, renderSpeakerOutcomeMessage, saveSpeakerOutcomeMessage, saveSpeakerOutcomePreview } from '@/lib/annual-conference-speaker-outcomes';
 import { secureSharedSecret } from '@/lib/security/shared-secret';
 import { getAnnualConferenceEditionByYear, requireAnnualConferenceCapability } from '@/server/annual-conference-request';
+import { sendResendEmailBatch } from '@/lib/email/resend';
+import { recordResendEmailHealth } from '@/lib/email/delivery-health';
+import { enforcePublicRateLimit } from '@/server/http/public-intake-protection';
 import { envValue } from '@/server/env';
 import { publicAppOrigin } from '@/server/http/public-app-origin';
 import { internalErrorResponse } from '@/server/http/internal-error-response';
@@ -62,9 +65,9 @@ async function preview(c: Context<AppBindings>, ids: string[]) {
       const secret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
       const link = submission.selected_intake_link_id ? await getAnnualConferenceSpeakerIntakeLinkById(submission.selected_intake_link_id) : undefined;
 
-      if (!secret || !deadline || new Date(deadline).getTime() <= Date.now() || !link || link.revoked_at
+      if (!secret || !deadline || !link || link.revoked_at
         || link.edition_id !== edition.id || link.speaker_submission_id !== submission.id
-        || link.workspace_session_id !== submission.selected_session_id || new Date(link.expires_at).getTime() <= Date.now()
+        || link.workspace_session_id !== submission.selected_session_id
         || !annualConferenceSpeakerWorkspaceTokenMatches(link, secret)) {
         throw new Error('A selected speaker workspace is unavailable. Refresh and review the deadline or link.');
       }
@@ -72,7 +75,17 @@ async function preview(c: Context<AppBindings>, ids: string[]) {
       linkExpiresAt = link.expires_at;
       workspaceUrl = new URL(`/conference-speakers/${year}/${annualConferenceSpeakerWorkspaceToken(link.id, secret)}`, publicAppOrigin(c)).toString();
     }
-    const rendered = renderSpeakerOutcomeMessage({ template: message, speakerName: submission.speaker_name, talkTitle: submission.title, edition: edition.label, deadline: deadline ? new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(deadline)) : '', workspaceUrl });
+    const [duration, format] = submission.session_type.split('-minute ');
+    const date = edition.provisional_date
+      ? new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${edition.provisional_date}T00:00:00Z`))
+      : 'To be confirmed';
+    const rendered = renderSpeakerOutcomeMessage({
+      template: message, speakerName: submission.speaker_name, talkTitle: submission.title, edition: edition.label,
+      deadline: deadline ? new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(deadline)) : '',
+      workspaceUrl, year: String(year), sessionFormat: format || submission.session_type, sessionDuration: format ? `${duration} minutes` : 'To be confirmed',
+      conferenceDate: year === 2026 ? '19 December 2026' : edition.provisional_date && edition.date_status === 'provisional' ? `${date} (provisional)` : date,
+      conferenceVenue: year === 2026 ? 'Ghana Digital Center, Accra' : 'To be confirmed',
+    });
 
     result.push({ id: submission.id, key: submission.decision_email_idempotency_key, kind: submission.decision_email_kind, version: message.version, deadline, link_id: linkId, link_expires_at: linkExpiresAt, name: submission.speaker_name, from: envelope.from, replyTo: envelope.replyTo, recipient: submission.decision_email_recipient ?? submission.speaker_email, ...rendered });
   }
@@ -93,7 +106,9 @@ export function registerSpeakerOutcomeRoutes(app: Hono<AppBindings>) {
 
       if (!edition) return c.json({ error: 'Conference edition not found.' }, 404);
 
-      return c.json({ messages: await Promise.all(['acceptance', 'rejection'].map((kind) => getSpeakerOutcomeMessage(edition.id, kind as AnnualConferenceEmailKind))) });
+      const messages = await Promise.all(['acceptance', 'rejection'].map((kind) => getSpeakerOutcomeMessage(edition.id, kind as AnnualConferenceEmailKind)));
+
+      return c.json({ messages, suggested_acceptance: defaultSpeakerOutcomeMessage(edition.id, 'acceptance'), legacy_acceptance: messages.some(isLegacyDefaultAcceptance) });
     } catch (error) {
       return internalErrorResponse(c, 'speaker_outcome_messages_failed', error, 'Unable to load outcome messages.');
     }
@@ -107,7 +122,7 @@ export function registerSpeakerOutcomeRoutes(app: Hono<AppBindings>) {
 
     if (!parsed.success) return c.json({ error: 'Check the message, subject, and version.' }, 400);
     if (parsed.data.kind === 'acceptance' && !parsed.data.message.includes('{workspace_url}')) return c.json({ error: 'Acceptance messages must include {workspace_url}.' }, 400);
-    if (/\{(?!first_name\}|talk_title\}|edition\}|deadline\}|workspace_url\})[^}]*\}/.test(`${parsed.data.subject} ${parsed.data.message}`)) return c.json({ error: 'The message contains an unknown placeholder.' }, 400);
+    if (/\{(?!first_name\}|talk_title\}|edition\}|deadline\}|workspace_url\}|year\}|session_format\}|session_duration\}|conference_date\}|conference_venue\})[^}]*\}/.test(`${parsed.data.subject} ${parsed.data.message}`)) return c.json({ error: 'The message contains an unknown placeholder.' }, 400);
     try {
       const edition = await getAnnualConferenceEditionByYear(Number(c.req.param('year')), c);
 
@@ -148,6 +163,55 @@ export function registerSpeakerOutcomeRoutes(app: Hono<AppBindings>) {
       if (error instanceof Error && (error.message.includes('no longer ready') || error.message.includes('workspace is unavailable'))) return c.json({ error: error.message }, 409);
 
       return internalErrorResponse(c, 'speaker_outcome_preview_failed', error, 'Unable to preview messages.');
+    }
+  });
+
+  app.post(`${base}/test`, async (c) => {
+    const denied = await ownerAccess(c);
+
+    if (denied) return denied;
+    const parsed = z.object({ preview_id: z.string().uuid(), recipient_id: z.string().uuid(), email: z.string().trim().max(254).email(), request_id: z.string().uuid() }).strict().safeParse(await c.req.json().catch(() => null));
+
+    if (!parsed.success) return c.json({ error: 'Choose a preview and enter one valid test email address.' }, 400);
+    const session = c.get('adminSession') ?? await getAdminSession(c);
+
+    if (!session.authenticated || !session.membership_id || !session.email) return c.json({ error: 'Owner session identity is unavailable.' }, 403);
+    const apiKey = envValue('RESEND_API_KEY', c)?.trim();
+
+    if (!apiKey) return c.json({ error: 'Test email sending is not configured.' }, 503);
+    try {
+      const edition = await getAnnualConferenceEditionByYear(Number(c.req.param('year')), c);
+
+      if (!edition) return c.json({ error: 'Conference edition not found.' }, 404);
+      const item = await getSpeakerOutcomePreviewRecipient(parsed.data.preview_id, edition.id, session.membership_id, parsed.data.recipient_id);
+
+      if (!item) return c.json({ error: 'The preview expired or is unavailable. Preview again.' }, 409);
+      const rateError = await enforcePublicRateLimit(c, { action: 'speaker_outcome_email_test', clientKey: session.membership_id, maxAttempts: 5, windowSeconds: 600 }, 'Wait a few minutes before sending another test email.');
+
+      if (rateError) return rateError;
+      const recipient = parsed.data.email.toLowerCase();
+      const digest = crypto.createHash('sha256').update(JSON.stringify([session.membership_id, parsed.data.preview_id, item.id, recipient, parsed.data.request_id])).digest('hex');
+      let result: Awaited<ReturnType<typeof sendResendEmailBatch>>;
+
+      try {
+        result = await sendResendEmailBatch({ apiKey, idempotencyKey: `speaker-outcome-test-${digest}`, emails: [{ from: item.from, reply_to: item.replyTo, to: [recipient], subject: item.subject, html: item.html, text: item.text }] });
+      } catch {
+        return c.json({ error: 'Test email acceptance could not be confirmed. Check your inbox before retrying.' }, 502);
+      }
+      try {
+        await recordResendEmailHealth(c, result.quota);
+      } catch {
+        console.warn(JSON.stringify({ event: 'speaker_outcome_test_health_failed', edition_id: edition.id }));
+      }
+      try {
+        await recordProtectedMutationAudit(c, { action: 'annual_conference.speaker_outcomes.test_send', targetType: 'annual_conference_edition', targetId: edition.id, metadata: { preview_id: parsed.data.preview_id, recipient_id: item.id, custom_recipient: recipient !== session.email.toLowerCase(), provider_id: result.ids[0] } });
+      } catch {
+        console.warn(JSON.stringify({ event: 'speaker_outcome_test_reporting_failed', edition_id: edition.id }));
+      }
+
+      return c.json({ accepted: true, recipient });
+    } catch (error) {
+      return internalErrorResponse(c, 'speaker_outcome_test_failed', error, 'Unable to prepare the test email.');
     }
   });
 

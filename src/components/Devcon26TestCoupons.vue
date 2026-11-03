@@ -449,7 +449,7 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
                   <p v-if="checkout.resolution_reason" class="mt-1 max-w-48 break-words text-xs text-dc-pink">{{ checkout.resolution_reason.replaceAll('_', ' ') }}</p>
                 </td>
                 <td class="py-4 pl-4 pr-4">
-                  <button type="button" class="motion-press min-h-11 rounded-md px-1 text-sm text-dc-ink underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink" :aria-label="`Open private sandbox checkout details from ${dateLabel(checkout.created_at)}`" @click="openCheckoutDetails(checkout, $event)">Details</button>
+                  <button type="button" class="text-action motion-press min-h-11 rounded-md px-1 text-sm text-dc-ink underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink" :aria-label="`Open private sandbox checkout details from ${dateLabel(checkout.created_at)}`" @click="openCheckoutDetails(checkout, $event)">Details</button>
                 </td>
               </tr>
             </tbody>

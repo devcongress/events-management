@@ -403,7 +403,7 @@ onBeforeRouteLeave(() => {
         <section class="mobile-blasts-compose">
           <header>
             <div><span>New message</span><h2>{{ composerOpen ? 'Write the update' : 'Send an event update' }}</h2></div>
-            <button v-if="composerOpen" type="button" class="mobile-blasts-quiet-action" @click="composerOpen = false">Close</button>
+            <button v-if="composerOpen" type="button" class="mobile-blasts-quiet-action text-action" @click="composerOpen = false">Close</button>
           </header>
 
           <button

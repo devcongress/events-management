@@ -55,12 +55,12 @@ describe('speaker badge access', () => {
     expect(mocks.ensure).not.toHaveBeenCalled();
   });
 
-  it('rejects revoked and expired links', async () => {
+  it('rejects revoked links but allows access after the due date', async () => {
     mocks.link.mockResolvedValueOnce({ id: 'link', revoked_at: '2026-01-01', speaker_submission_id: 'submission', workspace_session_id: 'session', expires_at: '2099-01-01' });
     mocks.link.mockResolvedValueOnce({ id: 'link', revoked_at: null, speaker_submission_id: 'submission', workspace_session_id: 'session', expires_at: '2020-01-01' });
     expect((await app().request('/api/conferences/2026/speaker-intake/token/badge')).status).toBe(404);
-    expect((await app().request('/api/conferences/2026/speaker-intake/token/badge')).status).toBe(404);
-    expect(mocks.ensure).not.toHaveBeenCalled();
+    expect((await app().request('/api/conferences/2026/speaker-intake/token/badge')).status).toBe(200);
+    expect(mocks.ensure).toHaveBeenCalledOnce();
   });
 
   it('allows organizers with speaker viewing capability', async () => {
