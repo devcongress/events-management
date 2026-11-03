@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-03 — Speaker photo storage and loading placeholders
+
+- Add a visible gap between adjacent placeholders in shared skeleton loaders.
+- Show current speaker photo count and storage alongside total badge photo storage in Speakers → Participation.
+
 ## 2026-11-03 — Speaker uploads and badge preview
 
 - Show upload progress, file limits, and confirmation for badge photos and session materials. Speakers can see, replace, or remove their saved badge photo and enlarge the current badge in a desktop dialog or phone bottom drawer.

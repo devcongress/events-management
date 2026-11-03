@@ -1,6 +1,6 @@
 # Annual Conference speaker materials
 
-Participation opens the selected speaker’s logistics and materials. Delivery opens the decision email status, recipient, attempt count, timestamps, and available recovery actions.
+Participation opens the selected speaker’s logistics and materials. For 2026 it also shows the number and size of current speaker badge photos, alongside storage for all photos in the shared badge bucket (including attendee badges and retained uploads). The totals refresh every minute while Participation is visible. They are measurements, not limits. Delivery opens the decision email status, recipient, attempt count, timestamps, and available recovery actions.
 
 Selected speakers can upload optional PDF, PPT, and PPTX files in their private workspace. Uploading a file is separate from saving the optional slides or resource URL and session logistics. The workspace permits five files per accepted session, each at most 5 MiB. Selecting a file stages it; **Upload file** saves it independently of logistics and badge edits. Leaving with a staged file or unsaved changes triggers a warning. The current workspace does not offer file removal; organizers can download submitted versions from the proposal drawer.
 
@@ -13,3 +13,5 @@ Each request checks the existing workspace token, selected proposal and session,
 The local migration `20261101100000_annual_conference_speaker_materials.sql` creates the private bucket, metadata table, and serialized five-file limit. Its migration verification contract checks the bucket configuration, access restrictions, table, and quota trigger. Deployment requires applying and verifying this forward migration in the target environment through the established migration delivery process; it is not applied by this implementation.
 
 The local migration `20261103130000_speaker_private_details.sql` adds the three private detail fields to conference sessions. Its verification contract checks the columns. Apply and verify it through the established migration delivery process before deploying code that reads or writes these fields; it has not been applied by this implementation.
+
+The Participation storage readout requires the forward migration `20261103140000_speaker_badge_storage_usage.sql`. Its aggregate is callable only by the service role; the organizer endpoint requires `speakers.view`. If the query is unavailable, the readout offers a retry without blocking participation management.

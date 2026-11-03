@@ -3535,6 +3535,10 @@ try {
           await lastRow.waitFor({ state: "hidden" });
         }
 
+        const storagePath = "/api/annual-conference/2026/speakers/storage";
+        const storageResponse = { body: { speaker_photo_count: 1, speaker_photo_bytes: 566231, shared_bucket_bytes: 14229176 } };
+
+        responses.set(storagePath, { status: 503, body: { error: "Unavailable" } });
         responses.set("/api/annual-conference/2026/speaker-submissions/tracking-accepted/materials", { body: { materials: [] } });
         responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
         responses.set("/api/annual-conference/2026/speakers", { body: {
@@ -3560,6 +3564,17 @@ try {
         await participation.click();
         await page.waitForURL(/section=participation/);
         assert.equal(await participation.getAttribute("aria-current"), "page");
+        const usage = page.locator(".badge-storage");
+
+        await usage.getByRole("button", { name: "Try again" }).waitFor();
+        responses.set(storagePath, storageResponse);
+        await usage.getByRole("button", { name: "Try again" }).click();
+        await usage.getByText("All badge photos", { exact: true }).waitFor();
+        assert.match(await usage.innerText(), /1 photo/);
+        assert.equal(await usage.evaluate(el => el.scrollWidth <= el.clientWidth), true);
+        await usage.evaluate(el => el.scrollIntoView({ block: "end", behavior: "instant" }));
+        await usage.screenshot({ path: artifacts + "/badge-storage-" + (mobile ? "phone" : "desktop") + ".png" });
+
         assert.equal(await page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Participation", { exact: true }).count(), 1);
         await checkSecondPage(page.getByRole("button", { name: "Guest 6 Confirmed", exact: true }));
         await page.getByRole("button", { name: "Ada Example Confirmed", exact: true }).click();

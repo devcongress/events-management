@@ -44,6 +44,12 @@ type ConferenceSubmission = AnnualConferenceSpeakerSubmission & {
   } | null;
 };
 
+type BadgeStorageUsage = {
+  speaker_photo_count: number;
+  speaker_photo_bytes: number;
+  shared_bucket_bytes: number;
+};
+
 type ConferenceSpeakersResponse = {
   edition: { year: number; label: string; name: string };
   call: { open: boolean; public_path: string; logistics_deadline: string | null };
@@ -99,6 +105,24 @@ const activeSection = computed(() => {
 
   return 'proposals';
 });
+const badgeStorageQuery = useQuery({
+  queryKey: computed(() => ['annual-conference-speaker-badge-storage', year.value]),
+  queryFn: () => fetchJson<BadgeStorageUsage>(`/api/annual-conference/${year.value}/speakers/storage`, { credentials: 'include' }),
+  enabled: computed(() => activeSection.value === 'participation' && year.value === '2026'),
+  staleTime: 0,
+  refetchOnWindowFocus: true,
+  refetchInterval: 60_000,
+  refetchIntervalInBackground: false,
+  retry: false,
+});
+
+function formatStorageSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
+}
+
 const decidedSubmissions = computed(() => submissions.value.filter((item) => ['selected', 'not_selected'].includes(item.status)));
 const acceptedSubmissions = computed(() => submissions.value.filter((item) => item.status === 'selected'));
 const participationPageCount = computed(() => Math.max(1, Math.ceil(acceptedSubmissions.value.length / PAGE_SIZE)));
@@ -472,6 +496,17 @@ function toLocalDateTimeInput(value: string): string {
             <div><h2 class="text-lg font-bold">Accepted speakers</h2><p class="text-sm text-dc-gray">Availability and resources supplied in the speaker workspace.</p></div>
             <button v-if="year === '2026' && acceptedSubmissions.some((item) => item.selected_session_id)" type="button" class="editorial-action" :disabled="downloadingBadges" @click="downloadBadges">{{ downloadingBadges ? 'Preparing badges…' : 'Download speaker badges ZIP' }}</button>
           </div>
+          <div v-if="year === '2026'" class="badge-storage border-b border-dc-border px-5 py-3 text-sm text-dc-gray" aria-live="polite">
+            <div v-if="badgeStorageQuery.data.value" class="badge-storage__readout">
+              <p><span class="font-semibold text-dc-ink">Speaker photos</span> · {{ badgeStorageQuery.data.value.speaker_photo_count }} {{ badgeStorageQuery.data.value.speaker_photo_count === 1 ? 'photo' : 'photos' }} · {{ formatStorageSize(badgeStorageQuery.data.value.speaker_photo_bytes) }}</p>
+              <p><span class="font-semibold text-dc-ink">All badge photos</span> · {{ formatStorageSize(badgeStorageQuery.data.value.shared_bucket_bytes) }} <span>(includes attendee badges)</span></p>
+            </div>
+            <p v-if="badgeStorageQuery.isError.value" class="badge-storage__error">
+              {{ badgeStorageQuery.data.value ? 'Could not refresh storage.' : 'Badge photo storage unavailable.' }}
+              <button type="button" class="text-action font-semibold text-dc-pink underline" @click="badgeStorageQuery.refetch()">Try again</button>
+            </p>
+            <p v-else-if="!badgeStorageQuery.data.value">Loading badge photo storage…</p>
+          </div>
           <p v-if="!acceptedSubmissions.length" class="p-5 text-sm text-dc-gray">No accepted speakers yet.</p>
           <ul v-else class="divide-y divide-dc-border">
             <li v-for="submission in paginatedAcceptedSubmissions" :key="submission.id">
@@ -675,6 +710,12 @@ function toLocalDateTimeInput(value: string): string {
 </template>
 
 <style scoped>
+.badge-storage__readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 2rem;
+}
+
 .delivery-table :is(th, td) {
   padding-inline: 0.75rem;
   white-space: nowrap;

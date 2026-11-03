@@ -242,7 +242,7 @@ onMounted(load);
     <p v-if="message" role="status" class="speaker-badge__feedback">{{ message }}</p>
     <div v-if="card" class="speaker-badge__layout">
       <div class="speaker-badge__preview-wrap">
-        <button ref="previewTrigger" type="button" class="speaker-badge__preview-button" aria-label="View a larger badge preview" @click="openPreview">
+        <button ref="previewTrigger" type="button" class="speaker-badge__preview-button text-action" aria-label="View a larger badge preview" @click="openPreview">
           <canvas ref="canvas" class="speaker-badge__preview" aria-label="Speaker badge preview" />
           <span>Preview badge</span>
         </button>
@@ -296,7 +296,11 @@ onMounted(load);
       <dialog ref="previewDialog" class="speaker-badge-dialog" aria-labelledby="speaker-badge-preview-title" @close="restorePreviewFocus">
         <header class="speaker-badge-dialog__header">
           <h2 id="speaker-badge-preview-title">Badge preview</h2>
-          <button type="button" autofocus @click="closePreview">Close</button>
+          <button type="button" class="speaker-badge-dialog__close" aria-label="Close badge preview" autofocus @click="closePreview">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
         </header>
         <canvas ref="previewCanvas" class="speaker-badge-dialog__canvas" aria-label="Larger speaker badge preview" />
       </dialog>
@@ -491,12 +495,22 @@ onMounted(load);
   font-weight: 600;
 }
 
-.speaker-badge-dialog__header button {
+.speaker-badge-dialog__close {
+  display: grid;
+  place-items: center;
   min-width: 44px;
   min-height: 44px;
   padding: 0.5rem;
-  color: #555;
-  text-decoration: underline;
+  color: var(--color-dc-pink, #e8117f);
+}
+
+.speaker-badge-dialog__close:hover:not(:focus-visible) {
+  outline: none;
+}
+
+.speaker-badge-dialog__close:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 .speaker-badge-dialog__canvas {

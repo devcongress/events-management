@@ -5473,6 +5473,25 @@
           "defaultExpression": null
         }
       ]
+    },
+    {
+      "file": "20261103140000_speaker_badge_storage_usage.sql",
+      "sha256": "c1c7d3278f25c0eec1a609373c291b2bbb9dd4190ddeb5e1f313632dabe5db2e",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "annual_conference_speaker_badge_storage_usage",
+          "argumentTypes": "uuid",
+          "result": "TABLE(speaker_photo_count bigint, speaker_photo_bytes bigint, shared_bucket_bytes bigint)",
+          "language": "sql",
+          "bodySha256": "c1806f70223028eda2eeadfcb80e4226b7ae10915a8e8d0a4d2b02e45c484d29",
+          "securityDefiner": false,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
     }
   ]
 }
