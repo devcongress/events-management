@@ -563,7 +563,6 @@ function toLocalDateTimeInput(value: string): string {
             <div>
               <p class="editorial-eyebrow">Review queue</p>
               <p class="mt-1 text-lg font-semibold text-dc-gray">{{ pendingCountLabel }}</p>
-              <button type="button" class="text-action mt-1 text-sm font-semibold text-dc-pink underline" @click="speakersQuery.refetch()">Refresh delivery status</button>
               <p v-if="deliveryAttentionCount" class="mt-1 text-sm text-red-700">{{ deliveryAttentionCount }} decision email{{ deliveryAttentionCount === 1 ? ' needs' : 's need' }} attention. Open approved or rejected proposals to review delivery.</p>
             </div>
             <div class="flex flex-wrap items-center justify-end gap-2">
