@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { readData, updateData } from '@/lib/mock-db';
+import { acquireSpeakerIntakeSubmissionLock } from '@/server/http/speaker-intake-lock';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 import { generateId, now } from '@/lib/utils';
 import type { SpeakerSubmissionStatus } from '@/types';
@@ -102,6 +103,9 @@ export interface AnnualConferenceSession {
   slides_url: string | null;
   availability_confirmed: boolean | null;
   technical_requirements: string | null;
+  accessibility_requirements: string | null;
+  headshot_url: string | null;
+  social_handle: string | null;
   workshop_prerequisites: string | null;
   required_software_equipment: string | null;
   participants_need_laptops: boolean | null;
@@ -381,51 +385,72 @@ export async function claimAnnualConferenceDecisionEmailAttempt(input: {
     return (await getAnnualConferenceSpeakerSubmission(input.submissionId)) ?? null;
   }
 
-  const claimed = await updateData<AnnualConferenceSpeakerSubmission, AnnualConferenceSpeakerSubmission | null>(SUBMISSIONS_FILE, (items) => {
-    const index = items.findIndex((item) => item.id === input.submissionId);
+  const release = await acquireSpeakerIntakeSubmissionLock(`annual-conference-workspace:${input.submissionId}`);
 
-    if (index < 0) return { data: items, result: null };
-    const current = submissionFromMock(items[index]);
+  try {
+    const current = await getAnnualConferenceSpeakerSubmission(input.submissionId);
 
-    if (
-      current.decision_email_idempotency_key !== input.expectedIdempotencyKey
-      || current.decision_email_attempt_count !== input.expectedAttemptCount
-      || !['pending', 'failed'].includes(current.decision_email_status ?? '')
-      || (!current.decision_email_retryable && !input.allowNonRetryable)
-      || JSON.stringify(current.decision_email_payload) !== JSON.stringify(input.payload)
-      || (input.expectedAttemptCount === 0 && !current.decision_email_queued_at)
-    ) return { data: items, result: null };
-    const updated: AnnualConferenceSpeakerSubmission = {
-      ...current,
-      decision_email_status: 'pending',
-      decision_email_payload: input.payload,
-      decision_email_payload_started_at: input.expectedAttemptCount === 0 ? attemptedAt : current.decision_email_payload_started_at,
-      decision_email_last_attempt_at: attemptedAt,
-      decision_email_attempt_count: current.decision_email_attempt_count + 1,
-      decision_email_last_error: null,
-      updated_at: attemptedAt,
-    };
-    const next = [...items];
+    if (current?.decision_email_kind === 'acceptance') {
+      const link = current.selected_intake_link_id ? await getAnnualConferenceSpeakerIntakeLinkById(current.selected_intake_link_id) : undefined;
 
- next[index] = updated;
+      if (current.status !== 'selected' || !link || link.revoked_at || link.id !== input.payload.linkId
+        || link.edition_id !== current.edition_id || link.speaker_submission_id !== current.id
+        || link.workspace_session_id !== current.selected_session_id) return null;
+      if (input.expectedAttemptCount === 0) {
+        const editions = await readData<{ id: string; speaker_logistics_deadline: string | null }>('annual-conference-editions');
 
-    return { data: next, result: updated };
-  });
-
-  if (claimed?.selected_intake_link_id) {
-    const link = await getAnnualConferenceSpeakerIntakeLinkById(claimed.selected_intake_link_id);
-
-    if (link?.email_idempotency_key === input.expectedIdempotencyKey) {
-      await updateAnnualConferenceSpeakerIntakeLink(link.id, {
-        email_status: 'pending',
-        email_last_attempt_at: attemptedAt,
-        email_attempt_count: link.email_attempt_count + 1,
-        email_last_error: null,
-      });
+        if (editions.find((edition) => edition.id === current.edition_id)?.speaker_logistics_deadline !== input.payload.deadline
+          || link.expires_at !== input.payload.linkExpiresAt) return null;
+      }
     }
-  }
+    const claimed = await updateData<AnnualConferenceSpeakerSubmission, AnnualConferenceSpeakerSubmission | null>(SUBMISSIONS_FILE, (items) => {
+      const index = items.findIndex((item) => item.id === input.submissionId);
 
-  return claimed;
+      if (index < 0) return { data: items, result: null };
+      const current = submissionFromMock(items[index]);
+
+      if (
+        current.decision_email_idempotency_key !== input.expectedIdempotencyKey
+        || current.decision_email_attempt_count !== input.expectedAttemptCount
+        || !['pending', 'failed'].includes(current.decision_email_status ?? '')
+        || (!current.decision_email_retryable && !input.allowNonRetryable)
+        || JSON.stringify(current.decision_email_payload) !== JSON.stringify(input.payload)
+        || (input.expectedAttemptCount === 0 && !current.decision_email_queued_at)
+      ) return { data: items, result: null };
+      const updated: AnnualConferenceSpeakerSubmission = {
+        ...current,
+        decision_email_status: 'pending',
+        decision_email_payload: input.payload,
+        decision_email_payload_started_at: input.expectedAttemptCount === 0 ? attemptedAt : current.decision_email_payload_started_at,
+        decision_email_last_attempt_at: attemptedAt,
+        decision_email_attempt_count: current.decision_email_attempt_count + 1,
+        decision_email_last_error: null,
+        updated_at: attemptedAt,
+      };
+      const next = [...items];
+
+   next[index] = updated;
+
+      return { data: next, result: updated };
+    });
+
+    if (claimed?.selected_intake_link_id) {
+      const link = await getAnnualConferenceSpeakerIntakeLinkById(claimed.selected_intake_link_id);
+
+      if (link?.email_idempotency_key === input.expectedIdempotencyKey) {
+        await updateAnnualConferenceSpeakerIntakeLink(link.id, {
+          email_status: 'pending',
+          email_last_attempt_at: attemptedAt,
+          email_attempt_count: link.email_attempt_count + 1,
+          email_last_error: null,
+        });
+      }
+    }
+
+    return claimed;
+  } finally {
+    release();
+  }
 }
 
 export async function replaceAnnualConferenceDecisionEmailRecipient(input: {
@@ -684,8 +709,8 @@ export async function getAnnualConferenceSpeakerIntakeLinkById(id: string): Prom
 }
 
 export async function createAnnualConferenceSession(
-  input: Omit<AnnualConferenceSession, 'id' | 'status' | 'created_at' | 'updated_at' | 'availability_confirmed' | 'technical_requirements' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at'>
-    & Partial<Pick<AnnualConferenceSession, 'availability_confirmed' | 'technical_requirements' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at'>>,
+  input: Omit<AnnualConferenceSession, 'id' | 'status' | 'created_at' | 'updated_at' | 'availability_confirmed' | 'technical_requirements' | 'accessibility_requirements' | 'headshot_url' | 'social_handle' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at'>
+    & Partial<Pick<AnnualConferenceSession, 'availability_confirmed' | 'technical_requirements' | 'accessibility_requirements' | 'headshot_url' | 'social_handle' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at'>>,
 ): Promise<AnnualConferenceSession> {
   const createdAt = now();
   const session: AnnualConferenceSession = {
@@ -693,6 +718,9 @@ export async function createAnnualConferenceSession(
     id: generateId(),
     availability_confirmed: input.availability_confirmed ?? null,
     technical_requirements: input.technical_requirements ?? null,
+    accessibility_requirements: input.accessibility_requirements ?? null,
+    headshot_url: input.headshot_url ?? null,
+    social_handle: input.social_handle ?? null,
     workshop_prerequisites: input.workshop_prerequisites ?? null,
     required_software_equipment: input.required_software_equipment ?? null,
     participants_need_laptops: input.participants_need_laptops ?? null,
@@ -729,7 +757,8 @@ export async function getAnnualConferenceSession(id: string): Promise<AnnualConf
 
 export async function updateAnnualConferenceSessionLogistics(
   id: string,
-  updates: Pick<AnnualConferenceSession, 'slides_url' | 'availability_confirmed' | 'technical_requirements' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity'>,
+  updates: Pick<AnnualConferenceSession, 'slides_url' | 'availability_confirmed' | 'technical_requirements' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity'>
+    & Partial<Pick<AnnualConferenceSession, 'accessibility_requirements' | 'headshot_url' | 'social_handle'>>,
 ): Promise<AnnualConferenceSession> {
   const payload = { ...updates, logistics_updated_at: now(), updated_at: now() };
 
@@ -818,59 +847,69 @@ export async function rotateAnnualConferenceSpeakerWorkspace(input: {
     return { submission, link, token };
   }
 
-  const previousLinkId = input.submission.selected_intake_link_id;
-  const previousLink = previousLinkId ? await getAnnualConferenceSpeakerIntakeLinkById(previousLinkId) : undefined;
-
-  if (previousLink?.email_status && ['accepted', 'delivered'].includes(previousLink.email_status) && !input.allowAccepted) {
-    throw new Error('The conference speaker workspace email was already accepted by the provider.');
-  }
-  if (previousLink?.email_status === 'pending' && previousLink.email_last_attempt_at
-    && new Date(previousLink.email_last_attempt_at).getTime() > Date.now() - 5 * 60 * 1000) {
-    throw new Error('The conference speaker workspace email is still being sent.');
-  }
-  const revokedByThisAttempt = Boolean(previousLink && !previousLink.revoked_at);
-  let createdLinkId: string | null = null;
+  const release = await acquireSpeakerIntakeSubmissionLock(`annual-conference-workspace:${input.submission.id}`);
 
   try {
-    if (previousLinkId && revokedByThisAttempt) await closeAnnualConferenceSpeakerIntakeLink(previousLinkId);
-    const created = await createAnnualConferenceSpeakerIntakeLink({
-      edition_id: input.submission.edition_id,
-      speaker_submission_id: input.submission.id,
-      speaker_name: input.submission.speaker_name,
-      speaker_email: input.submission.speaker_email,
-      talk_title: input.submission.title,
-      expires_at: input.deadline,
-      workspace_session_id: input.submission.selected_session_id,
-      tokenSecret: input.tokenSecret,
-    });
+    const current = await getAnnualConferenceSpeakerSubmission(input.submission.id);
 
-    createdLinkId = created.link.id;
-    const link = await updateAnnualConferenceSpeakerIntakeLink(created.link.id, {
-      email_status: 'pending',
-      email_recipient: input.emailRecipient ?? input.submission.decision_email_recipient ?? input.submission.speaker_email,
-      email_idempotency_key: `conference-speaker-accepted-${created.link.id}`,
-    });
-    const submission = await updateAnnualConferenceSpeakerSubmission(input.submission.id, {
-      selected_intake_link_id: created.link.id,
-      decision_email_status: 'pending',
-      decision_email_recipient: link.email_recipient,
-      decision_email_provider_id: null,
-      decision_email_idempotency_key: link.email_idempotency_key,
-      decision_email_sent_at: null,
-      decision_email_delivered_at: null,
-      decision_email_last_attempt_at: null,
-      decision_email_last_event_at: null,
-      decision_email_last_error: null,
-      decision_email_attempt_count: 0,
-      decision_email_retryable: true,
-    });
+    if (!current || current.status !== 'selected' || current.selected_intake_link_id !== input.submission.selected_intake_link_id
+      || current.selected_session_id !== input.submission.selected_session_id) throw new Error('The speaker workspace changed. Refresh and try again.');
+    const previousLinkId = input.submission.selected_intake_link_id;
+    const previousLink = previousLinkId ? await getAnnualConferenceSpeakerIntakeLinkById(previousLinkId) : undefined;
 
-    return { submission, link, token: created.token };
-  } catch (error) {
-    if (createdLinkId) await deleteAnnualConferenceSpeakerIntakeLink(createdLinkId).catch(() => undefined);
-    if (previousLinkId && revokedByThisAttempt) await updateAnnualConferenceSpeakerIntakeLink(previousLinkId, { revoked_at: null }).catch(() => undefined);
+    if (previousLink?.email_status && ['accepted', 'delivered'].includes(previousLink.email_status) && !input.allowAccepted) {
+      throw new Error('The conference speaker workspace email was already accepted by the provider.');
+    }
+    if (previousLink?.email_status === 'pending' && previousLink.email_last_attempt_at
+      && new Date(previousLink.email_last_attempt_at).getTime() > Date.now() - 5 * 60 * 1000) {
+      throw new Error('The conference speaker workspace email is still being sent.');
+    }
+    const revokedByThisAttempt = Boolean(previousLink && !previousLink.revoked_at);
+    let createdLinkId: string | null = null;
 
-    throw error;
+    try {
+      if (previousLinkId && revokedByThisAttempt) await closeAnnualConferenceSpeakerIntakeLink(previousLinkId);
+      const created = await createAnnualConferenceSpeakerIntakeLink({
+        edition_id: input.submission.edition_id,
+        speaker_submission_id: input.submission.id,
+        speaker_name: input.submission.speaker_name,
+        speaker_email: input.submission.speaker_email,
+        talk_title: input.submission.title,
+        expires_at: input.deadline,
+        workspace_session_id: input.submission.selected_session_id,
+        tokenSecret: input.tokenSecret,
+      });
+
+      createdLinkId = created.link.id;
+      const link = await updateAnnualConferenceSpeakerIntakeLink(created.link.id, {
+        email_status: 'pending',
+        email_recipient: input.emailRecipient ?? input.submission.decision_email_recipient ?? input.submission.speaker_email,
+        email_idempotency_key: `conference-speaker-accepted-${created.link.id}`,
+      });
+      const submission = await updateAnnualConferenceSpeakerSubmission(input.submission.id, {
+        selected_intake_link_id: created.link.id,
+        decision_email_status: 'pending',
+        decision_email_recipient: link.email_recipient,
+        decision_email_provider_id: null,
+        decision_email_idempotency_key: link.email_idempotency_key,
+        decision_email_sent_at: null,
+        decision_email_delivered_at: null,
+        decision_email_last_attempt_at: null,
+        decision_email_last_event_at: null,
+        decision_email_last_error: null,
+        decision_email_attempt_count: 0,
+        decision_email_retryable: true,
+      });
+
+      return { submission, link, token: created.token };
+    } catch (error) {
+      if (createdLinkId) await deleteAnnualConferenceSpeakerIntakeLink(createdLinkId).catch(() => undefined);
+      if (previousLinkId && revokedByThisAttempt) await updateAnnualConferenceSpeakerIntakeLink(previousLinkId, { revoked_at: null }).catch(() => undefined);
+
+      throw error;
+    }
+  } finally {
+    release();
   }
 }
 
@@ -996,6 +1035,28 @@ export async function applyAnnualConferenceDecisionEmailProviderEvent(input: {
   }
 
   return true;
+}
+
+export async function revokeAnnualConferenceSpeakerWorkspace(editionId: string, submissionId: string): Promise<boolean> {
+  if (isSupabaseRuntimeEnabled()) {
+    const { data, error } = await getSupabaseAdminClient().rpc('revoke_annual_conference_speaker_workspace' as never, { p_edition_id: editionId, p_submission_id: submissionId } as never);
+
+    if (error) throw new Error('Unable to revoke the speaker workspace.');
+
+    return data === true;
+  }
+  const release = await acquireSpeakerIntakeSubmissionLock(`annual-conference-workspace:${submissionId}`);
+
+  try {
+    const submission = await getAnnualConferenceSpeakerSubmission(submissionId);
+
+    if (!submission || submission.edition_id !== editionId || submission.status !== 'selected' || !submission.selected_intake_link_id) return false;
+    await closeAnnualConferenceSpeakerIntakeLink(submission.selected_intake_link_id);
+
+    return true;
+  } finally {
+    release();
+  }
 }
 
 export async function closeAnnualConferenceSpeakerIntakeLink(id: string): Promise<void> {

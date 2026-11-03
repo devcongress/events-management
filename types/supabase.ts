@@ -755,6 +755,9 @@ export interface Database {
           slides_url: string | null;
           availability_confirmed: boolean | null;
           technical_requirements: string | null;
+          accessibility_requirements: string | null;
+          headshot_url: string | null;
+          social_handle: string | null;
           workshop_prerequisites: string | null;
           required_software_equipment: string | null;
           participants_need_laptops: boolean | null;

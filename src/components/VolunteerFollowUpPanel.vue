@@ -1148,7 +1148,7 @@ onUnmounted(() => {
                       <div class="follow-up-preview-links">
                         <button
                           type="button"
-                          class="follow-up-preview-link"
+                          class="follow-up-preview-link text-action"
                           :disabled="previewLoading"
                           @click="openPreview"
                         >
@@ -1156,7 +1156,7 @@ onUnmounted(() => {
                         </button>
                         <a
                           href="/volunteer/follow-up/test"
-                          class="follow-up-preview-link"
+                          class="follow-up-preview-link text-action"
                           target="_blank"
                           rel="noopener noreferrer"
                         >
@@ -1164,7 +1164,7 @@ onUnmounted(() => {
                         </a>
                         <button
                           type="button"
-                          class="follow-up-preview-link"
+                          class="follow-up-preview-link text-action"
                           :disabled="testLinkBusy"
                           @click="copyTestFormLink"
                         >
@@ -1209,7 +1209,7 @@ onUnmounted(() => {
                           campaign.status === 'running' || campaign.status === 'paused'
                         "
                         type="button"
-                        class="follow-up-text-button"
+                        class="follow-up-text-button text-action"
                         :disabled="busy"
                         @click="pendingAction = 'close'"
                       >
@@ -1600,7 +1600,7 @@ onUnmounted(() => {
                 <p>{{ previewError }}</p>
                 <button
                   type="button"
-                  class="follow-up-text-button"
+                  class="follow-up-text-button text-action"
                   @click="openPreview"
                 >
                   Try again
@@ -2935,6 +2935,8 @@ onUnmounted(() => {
   .follow-up-preview-link:hover:not(:disabled),
   .follow-up-text-button:hover {
     color: #71083a;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
   }
   .follow-up-recipient:hover .follow-up-recipient-chevron {
     transform: translateX(0.12rem);

@@ -565,7 +565,7 @@ describe("Volunteer follow-up workspace UI", () => {
       controlsStart,
     );
 
-    expect(previewActions).toContain('class="follow-up-preview-link"');
+    expect(previewActions).toMatch(/class="[^"]*\bfollow-up-preview-link\b[^"]*"/);
     expect(previewActions).toContain(
       'Preview <span aria-hidden="true">↗</span>',
     );

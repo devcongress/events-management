@@ -41,7 +41,20 @@ describe('migration contract inventory', () => {
   it('covers the current files with an honest legacy exemption and reviewed contracts', () => {
     expect(validateInventory(contract, sources)).toEqual([]);
     expect(Object.keys(contract.legacyInventory)).toHaveLength(92);
-    expect(contract.verified).toHaveLength(50);
+    expect(contract.verified).toHaveLength(52);
+  });
+
+  it('checks superseded functions against their final definition in every migration', () => {
+    const functions = contract.verified.flatMap((migration) => migration.checks.filter((check) => check.kind === 'function'));
+    const digests = new Map<string, string>();
+
+    for (const check of functions) {
+      const key = `${check.schema}.${check.name}(${check.argumentTypes})`;
+      const previous = digests.get(key);
+
+      if (previous) expect(check.bodySha256, key).toBe(previous);
+      digests.set(key, check.bodySha256);
+    }
   });
 
   it('rejects unregistered SQL, changed legacy SQL, missing files and new version collisions', () => {
@@ -82,7 +95,7 @@ describe('migration contract inventory', () => {
 
 describe('read-only schema verification', () => {
   it('passes a complete synthetic catalog without requiring or inventing ledger history', () => {
-    expect(evaluateCatalog(contract, fixtureCatalog()).every((result) => result.status === 'verified')).toBe(true);
+    expect(evaluateCatalog(contract, fixtureCatalog()).filter((result) => result.status !== 'verified')).toEqual([]);
     expect(() => catalogSchema.parse({ ...fixtureCatalog(), readOnly: 'off' })).toThrow();
     expect(CATALOG_SQL).toContain('BEGIN READ ONLY;');
     expect(CATALOG_SQL).toContain('ROLLBACK;');

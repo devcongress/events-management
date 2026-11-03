@@ -195,7 +195,7 @@ onBeforeUnmount(() => {
           <div class="programme-time-head">
             <strong>Session time</strong>
             <div>
-              <button type="button" @click="draft.clear = !draft.clear; dirty = true">{{ draft.clear ? 'Choose time' : 'Set TBD' }}</button>
+              <button class="text-action" type="button" @click="draft.clear = !draft.clear; dirty = true">{{ draft.clear ? 'Choose time' : 'Set TBD' }}</button>
               <button data-time-close type="button" aria-label="Close time picker" @click="close(true)">×</button>
             </div>
           </div>
@@ -234,7 +234,7 @@ onBeforeUnmount(() => {
           <div class="programme-time-footer">
             <span v-if="!draft.clear" class="programme-time-end">Ends at <strong>{{ endLabel }}</strong></span>
             <span v-else />
-            <div><button type="button" @click="close(true)">Cancel</button><button class="programme-time-apply" type="button" :disabled="invalid || missingDuration" @click="apply">Apply</button></div>
+            <div><button class="text-action" type="button" @click="close(true)">Cancel</button><button class="programme-time-apply" type="button" :disabled="invalid || missingDuration" @click="apply">Apply</button></div>
           </div>
         </div>
       </div>

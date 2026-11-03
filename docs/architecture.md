@@ -147,7 +147,7 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/annual-conference/[year]/phases` — edition planning-owner phase creation, editing, ordering, and deletion
 - `/api/annual-conference/[year]/access-grants` — owner-only edition responsibility directory and per-member grant mutation
 - `/api/annual-conference/[year]/speakers` — organizer conference-only proposal inbox with independently decided proposals and accepted-session logistics state
-- `/api/annual-conference/[year]/speakers/logistics-deadline` — capability-gated edition deadline for private speaker workspace edits
+- `/api/annual-conference/[year]/speakers/logistics-deadline` — capability-gated logistics due date; accepted speakers retain workspace access afterward until their link is revoked or acceptance ends
 - `/api/annual-conference/[year]/speaker-submissions/[submissionId]` — final per-proposal acceptance/rejection; acceptance creates the session and automatically attempts its private-workspace email
 - `/api/annual-conference/[year]/speaker-submissions/[submissionId]/resend-workspace-email` — retries failed acceptance delivery with the same deterministic private capability
 - `/api/annual-conference/[year]/speaker-submissions/[submissionId]/decision-email-recipient` and `/replace-workspace-email` — confirmed organizer recovery paths for address correction and deliberate capability rotation

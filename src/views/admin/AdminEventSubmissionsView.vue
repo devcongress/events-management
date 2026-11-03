@@ -725,7 +725,7 @@ function replyPresentation(reply: EventSubmissionReply) {
                     <div class="submission-amendment-actions">
                       <button
                         type="button"
-                        class="submission-amendment-decline motion-press"
+                        class="submission-amendment-decline motion-press text-action"
                         :disabled="amendmentReviewMutation.isPending.value"
                         @click="amendmentReviewMutation.mutate({ amendmentId: selectedSubmittedAmendment.id, approve: false })"
                       >
@@ -995,7 +995,7 @@ function replyPresentation(reply: EventSubmissionReply) {
                     class="submission-review-action submission-review-action--primary motion-press"
                     @click="copyManagementLink(selectedSubmission.id)"
                   />
-                  <button v-if="selectedSubmission.review_status === 'approved' && !withdrawing" type="button" class="submission-review-action submission-review-action--quiet motion-press" @click="withdrawing = true">Remove listing</button>
+                  <button v-if="selectedSubmission.review_status === 'approved' && !withdrawing" type="button" class="submission-review-action submission-review-action--quiet motion-press text-action" @click="withdrawing = true">Remove listing</button>
                 </div>
               </div>
               <div v-if="selectedSubmission.review_status === 'approved' && withdrawing" class="mt-4 rounded-md border border-red-200 bg-red-50 p-4">

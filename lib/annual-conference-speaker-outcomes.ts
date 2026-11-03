@@ -13,9 +13,19 @@ export type SpeakerOutcomeMessage = {
 
 const FILE = 'annual-conference-speaker-outcome-messages';
 
+export function isLegacyDefaultAcceptance(message: SpeakerOutcomeMessage): boolean {
+  if (message.kind === 'acceptance'
+    && message.subject === 'You’re in! Your DevCon {year} proposal has been accepted'
+    && message.message === 'Hi {first_name},\n\nCongratulations! Your proposal “{talk_title}” has been accepted for DevCon {year}, the DevCongress annual conference. We’re excited to have you present.\n\nYour session\nFormat: {session_format}\nDuration: {session_duration}\nDate: {conference_date}\nVenue: {conference_venue}\n\nPlease confirm your participation and share your materials using your private speaker form by {deadline}:\n{workspace_url}\n\nYou can also share an optional headshot link and social handle in the form, and let us know about any equipment or accessibility support you need. You can return to the form to update your details. Please keep your private link to yourself.\n\nIf you have questions, reply to this email.\n\nWarmly,\nDevCon {year} organizing team\nDevCongress\nhttps://devcongress.org\nevents@devcongress.org') return true;
+
+  return message.kind === 'acceptance'
+    && message.subject === 'Your {edition} proposal has been accepted'
+    && message.message === 'Hi {first_name},\n\nGreat news! Your proposal “{talk_title}” has been accepted for {edition}.\n\nPlease use your private workspace to keep your logistics up to date by {deadline}:\n{workspace_url}\n\nPlease do not forward this private link.';
+}
+
 export function defaultSpeakerOutcomeMessage(editionId: string, kind: AnnualConferenceEmailKind): SpeakerOutcomeMessage {
   return kind === 'acceptance'
-    ? { edition_id: editionId, kind, version: 0, subject: 'Your {edition} proposal has been accepted', message: 'Hi {first_name},\n\nGreat news! Your proposal “{talk_title}” has been accepted for {edition}.\n\nPlease use your private workspace to keep your logistics up to date by {deadline}:\n{workspace_url}\n\nPlease do not forward this private link.' }
+    ? { edition_id: editionId, kind, version: 0, subject: 'You’re in! Your DevCon {year} proposal has been accepted', message: 'Hi {first_name},\n\nCongratulations! Your proposal “{talk_title}” has been accepted for DevCon {year}, the DevCongress annual conference. We’re excited to have you present.\n\nYour session\nFormat: {session_format}\nDuration: {session_duration}\nDate: {conference_date}\nVenue: {conference_venue}\n\nUse your private link to confirm your availability, upload your slides or share a resource link, and tell us about any equipment or accessibility needs. Please send your details by {deadline}.\n{workspace_url}\n\nYou can also add a headshot link and social handle. Keep this link private and use it again whenever you need to update your details.\n\nIf you have questions, reply to this email.\n\nWarmly,\nDevCon {year} organizing team\nDevCongress\nhttps://devcongress.org\nevents@devcongress.org' }
     : { edition_id: editionId, kind, version: 0, subject: 'An update on your {edition} proposal', message: 'Hi {first_name},\n\nThank you for submitting “{talk_title}” for {edition}. After reviewing the programme, we will not be moving forward with this proposal.\n\nWe appreciate the time and thought you put into it and hope you will submit another idea for a future event.' };
 }
 
@@ -69,6 +79,11 @@ export function renderSpeakerOutcomeMessage(input: {
   edition: string;
   deadline: string;
   workspaceUrl: string;
+  year?: string;
+  sessionFormat?: string;
+  sessionDuration?: string;
+  conferenceDate?: string;
+  conferenceVenue?: string;
 }): { subject: string; html: string; text: string } {
   const values: Record<string, string> = {
     first_name: input.speakerName.trim().split(/\s+/)[0] || 'there',
@@ -76,17 +91,43 @@ export function renderSpeakerOutcomeMessage(input: {
     edition: input.edition,
     deadline: input.deadline,
     workspace_url: input.workspaceUrl,
+    year: input.year ?? '',
+    session_format: input.sessionFormat ?? 'To be confirmed',
+    session_duration: input.sessionDuration ?? 'To be confirmed',
+    conference_date: input.conferenceDate ?? 'To be confirmed',
+    conference_venue: input.conferenceVenue ?? 'To be confirmed',
   };
-  const personalize = (value: string) => value.replace(/\{(first_name|talk_title|edition|deadline|workspace_url)\}/g, (_, key: string) => values[key]);
+  const personalize = (value: string) => value.replace(/\{(first_name|talk_title|edition|deadline|workspace_url|year|session_format|session_duration|conference_date|conference_venue)\}/g, (_, key: string) => values[key]);
   const subject = personalize(input.template.subject).replace(/[\r\n]+/g, ' ');
   const text = personalize(input.template.message);
-  const contentHtml = text.split('\n\n').map((paragraph) => {
-    const safe = escapeHtml(paragraph);
-    const linked = input.workspaceUrl
-      ? safe.replaceAll(escapeHtml(input.workspaceUrl), `<a href="${escapeHtml(input.workspaceUrl)}">Open your private speaker workspace</a>`)
-      : safe;
+  const primaryButton = input.workspaceUrl
+    ? `<a href="${escapeHtml(input.workspaceUrl)}" style="display:inline-block;white-space:nowrap;margin:8px 0 2px;padding:12px 18px;background-color:#F5E642;border:1px solid #111111;border-radius:8px;color:#111111;-webkit-text-fill-color:#111111;font-weight:700;line-height:20px;text-decoration:none;">Open private link &rarr;</a>`
+    : '';
+  const contactButtons: Record<string, [string, string]> = {
+    'https://devcongress.org': ['https://devcongress.org', 'Website'],
+    'events@devcongress.org': ['mailto:events@devcongress.org', 'Email organizers'],
+  };
+  const contentHtml = text.replaceAll('\r\n', '\n').split('\n\n').map((paragraph) => {
+    const lines = paragraph.split('\n');
+    const content = lines.map((line, index) => {
+      const contact = Object.hasOwn(contactButtons, line.trim()) && contactButtons[line.trim()];
 
-    return `<p class="email-copy" style="margin:0 0 20px;color:#444;font-size:16px;line-height:1.65;white-space:pre-line;">${linked}</p>`;
+      if (contact) {
+        return `<a href="${contact[0]}" class="email-copy" style="display:inline-block;white-space:nowrap;margin:4px 4px 4px 0;padding:9px 14px;border:1px solid #888888;border-radius:6px;color:#444444;font-size:14px;font-weight:600;text-decoration:none;">${contact[1]}</a>`;
+      }
+      if (index === 0 && line === 'Your session') return '<strong>Your session</strong>';
+
+      const safe = escapeHtml(line);
+
+      return input.workspaceUrl ? safe.split(escapeHtml(input.workspaceUrl)).join(primaryButton) : safe;
+    }).map((html, index) => {
+      if (!index) return html;
+      const adjacentContacts = Object.hasOwn(contactButtons, lines[index - 1].trim()) && Object.hasOwn(contactButtons, lines[index].trim());
+
+      return (adjacentContacts ? '' : '<br>') + html;
+    }).join('');
+
+    return `<p class="email-copy" style="margin:0 0 20px;color:#444;font-size:16px;line-height:1.65;overflow-wrap:anywhere;">${content}</p>`;
   }).join('');
 
   return {
@@ -110,6 +151,25 @@ export async function saveSpeakerOutcomePreview(preview: OutcomePreview): Promis
   await updateData<OutcomePreview, void>('annual-conference-speaker-outcome-previews', (records) => ({
     data: [...records.filter((record) => new Date(record.expires_at).getTime() > Date.now() && !record.used_at), preview], result: undefined,
   }));
+}
+
+export async function getSpeakerOutcomePreviewRecipient(id: string, editionId: string, actorId: string, recipientId: string): Promise<PreviewRecipient | undefined> {
+  let preview: OutcomePreview | undefined;
+
+  if (isSupabaseRuntimeEnabled()) {
+    const result = await getSupabaseAdminClient().from('annual_conference_speaker_outcome_previews' as never).select('*').eq('id', id).eq('edition_id', editionId).eq('actor_id', actorId).maybeSingle() as unknown as { data: OutcomePreview | null; error: unknown };
+
+    if (result.error) throw new Error('Unable to load the outcome preview.');
+    preview = result.data ?? undefined;
+  } else {
+    const records = await readData<OutcomePreview>('annual-conference-speaker-outcome-previews');
+
+    preview = records.find((record) => record.id === id && record.edition_id === editionId && record.actor_id === actorId);
+  }
+
+  if (!preview || preview.used_at || new Date(preview.expires_at).getTime() <= Date.now()) return undefined;
+
+  return preview.recipients.find((recipient) => recipient.id === recipientId);
 }
 
 export async function queueSpeakerOutcomePreview(id: string, editionId: string, actorId: string): Promise<number> {
@@ -139,9 +199,9 @@ export async function queueSpeakerOutcomePreview(id: string, editionId: string, 
       const link = links.find((candidate) => candidate.id === item.link_id);
 
       if (!edition?.speaker_logistics_deadline || edition.speaker_logistics_deadline !== item.deadline
-        || new Date(edition.speaker_logistics_deadline).getTime() <= Date.now() || !link || link.revoked_at
+        || !link || link.revoked_at
         || link.edition_id !== editionId || link.speaker_submission_id !== item.id || link.expires_at !== item.link_expires_at
-        || new Date(link.expires_at).getTime() <= Date.now()) throw new Error('The preview expired or its audience changed. Preview again.');
+) throw new Error('The preview expired or its audience changed. Preview again.');
     }
     const count = await updateData<import('@/lib/annual-conference-speakers').AnnualConferenceSpeakerSubmission, number>('annual-conference-speaker-submissions', (submissions) => {
       for (const item of preview.recipients) {

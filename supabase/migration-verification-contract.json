@@ -5211,7 +5211,7 @@
           "argumentTypes": "uuid, text, integer, timestamp with time zone, boolean, jsonb",
           "result": "boolean",
           "language": "plpgsql",
-          "bodySha256": "8529fccdc516e469ed46165ffac0c6de9d1fde78af936fdbca6045db3ccb141f",
+          "bodySha256": "961912af9c3310b0ff8220be8d091dc98f440682023c7742f86b985a1aeab72f",
           "securityDefiner": true,
           "searchPath": "\"\"",
           "private": true,
@@ -5237,7 +5237,7 @@
           "argumentTypes": "uuid, uuid, text",
           "result": "integer",
           "language": "plpgsql",
-          "bodySha256": "17bbfa393756ef951fb6f75f004a588db0e977c52b42c4e5354b06baf0b68ed4",
+          "bodySha256": "c959dabfc2ba43c1fa592c0b74969508cbb3cd0c5bbe5f2dff9e7c8a9972e2d7",
           "securityDefiner": true,
           "searchPath": "\"\"",
           "private": true,
@@ -5390,6 +5390,84 @@
           "schema": "public",
           "table": "annual_conference_speaker_profiles",
           "name": "programme_photo_path",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        }
+      ]
+    },
+    {
+      "file": "20261103120000_speaker_logistics_due_date.sql",
+      "sha256": "ca98904d59b76b69bb4268dfb1657f576347ec0f26d46ac97453533637efb21a",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_annual_conference_speaker_email_payload",
+          "argumentTypes": "uuid, text, integer, timestamp with time zone, boolean, jsonb",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "961912af9c3310b0ff8220be8d091dc98f440682023c7742f86b985a1aeab72f",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "queue_annual_conference_speaker_outcome_preview",
+          "argumentTypes": "uuid, uuid, text",
+          "result": "integer",
+          "language": "plpgsql",
+          "bodySha256": "c959dabfc2ba43c1fa592c0b74969508cbb3cd0c5bbe5f2dff9e7c8a9972e2d7",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "revoke_annual_conference_speaker_workspace",
+          "argumentTypes": "uuid, uuid",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "52a46ef8c2c25171e583954952ed00885f3e6d6b0b648c72ae17a88dbe449f55",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261103130000_speaker_private_details.sql",
+      "sha256": "34812d6abf467497a0249eefc7bb1b9468246b2ebafe1c6b4298ccb92733f02f",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "accessibility_requirements",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "headshot_url",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "social_handle",
           "type": "text",
           "notNull": false,
           "defaultExpression": null

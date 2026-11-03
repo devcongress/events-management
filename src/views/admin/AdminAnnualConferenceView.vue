@@ -160,7 +160,7 @@ onUnmounted(() => {
             <button
               ref="factsTrigger"
               type="button"
-              class="conference-notes__trigger motion-press"
+              class="conference-notes__trigger motion-press text-action"
               :aria-expanded="factsOpen"
               aria-controls="annual-conference-edition-facts"
               @click="factsOpen = !factsOpen"
@@ -290,7 +290,7 @@ onUnmounted(() => {
             </div>
             <RouterLink
               :to="annualConferencePath('work-plan', year)"
-              class="conference-dependencies__action motion-press"
+              class="conference-dependencies__action motion-press text-action"
             >
               Manage dependencies <span aria-hidden="true">→</span>
             </RouterLink>
@@ -1217,7 +1217,8 @@ onUnmounted(() => {
   .conference-notes__trigger:hover,
   .conference-dependencies__action:hover {
     color: #111111;
-    border-bottom-color: #111111;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
   }
 
   .conference-brief__primary-action:hover {

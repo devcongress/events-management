@@ -1,5 +1,56 @@
 # Changelog
 
+## 2026-11-03 — Speaker list pagination
+
+- Proposals, Participation, and Delivery use a single neutral frame and show six entries per page. Each section keeps its own page within the edition.
+
+## 2026-11-03 — Speaker drawer by section
+
+- Keep the selected-state color on its label and use neutral dividers for speaker logistics, badges, and files.
+
+- Show the speaker name and availability in each Participation row. Open the drawer for the talk title, slides, and logistics.
+
+- Participation opens the selected speaker’s logistics and materials. Delivery opens the decision email status, recipient, attempt count, timestamps, and available recovery actions.
+
+## 2026-11-03 — Compact speaker delivery rows
+
+- Keep the speaker badge ZIP download in Participation and remove the duplicate above the Proposals queue.
+
+- Read each delivery on one line under shared speaker, recipient, status, attempt count, timestamp, and error headings. Narrow screens scroll the table horizontally. The talk title is available in the drawer. Pointer hover uses a soft gray fill, and keyboard focus retains its outline. Open the row for attempts, retry timing, and error details.
+
+## 2026-11-03 — Speaker outcome preview and test
+
+- Explain availability, uploads, and support requests before the Open private link button. Keep website and contact buttons together on phones and protect the header label against Gmail dark-mode inversion.
+
+- Use the published DevCon26 date and venue in speaker acceptance emails: 19 December 2026 at Ghana Digital Center, Accra.
+
+- Review personalized speaker outcome emails in a responsive drawer and send an exact frozen preview to a chosen test address without queueing a speaker decision.
+
+## 2026-11-03 — Speaker logistics due date
+
+- Keep accepted speakers’ workspace, file uploads, and badge available after the logistics due date; organizers can revoke the private link explicitly.
+
+## 2026-11-03 — Speaker outcome message editing
+
+- Offer a personalized acceptance template with session details and the configured logistics due date, while preserving customized messages and requiring review and save before sending.
+- Remove the suggested-template replacement control from the message editor.
+
+- Give outcome messages a six-line starting field that grows with the message up to a viewport-aware limit, then scrolls internally.
+- Use thinner, lighter scrollbars in the message field and ready-to-send recipient list.
+
+## 2026-11-03 — Text action hover
+
+- Keep hover outlines on boxed controls while text-like actions use their text cues, including the access request and volunteer follow-up actions. Keyboard focus remains visible.
+
+
+## 2026-11-03 — Private speaker details
+
+- Let accepted speakers share optional accessibility support, a headshot HTTPS link, and a social handle in their private workspace. Authorized speaker viewers can review these details in the proposal drawer; they are not published automatically. The new private-details migration must be applied and verified before deployment.
+
+## 2026-11-03 — Speaker workspace sections
+
+- Split speaker proposals, participation, delivery, and outcome messages into URL-backed sections with icons, preserving message drafts when switching sections. Participation shows recorded availability and resource links; owner-only delivery shows provider status, attempts, and retry timing. Keep call controls and the logistics deadline visible while scrolling, with space below the sticky tabs.
+
 ## 2026-11-02 — Community submission rejection form
 
 - Keep rejection actions visible while the review form scrolls, grow the organizer message as it is edited, and collapse the email preview with its subject visible.

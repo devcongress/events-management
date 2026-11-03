@@ -1528,6 +1528,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
                     <button
                       v-if="hasMobileVolunteerFilters"
                       type="button"
+                      class="text-action"
                       @click="clearMobileVolunteerFilters"
                     >
                       Clear filters

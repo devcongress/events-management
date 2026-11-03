@@ -85,7 +85,7 @@ Sign out is a quiet secondary control with a thin warm-gray border, 6px corners,
 a cap-height exit icon, and a white hover surface without positional movement.
 Keep its 44px target and focus outline.
 
-**Button hover:** Action buttons use a subtle inset outline on fine-pointer hover. Form fields, dropdown triggers and options retain their own control styles. In Programme, underline only the description and resource disclosure label. Keep the preview plain and preserve keyboard focus.
+**Button hover:** Boxed action buttons may use a subtle inset outline on fine-pointer hover. Text-like actions use text cues such as an underline without a surrounding box. Form fields, dropdown triggers and options retain their own control styles. In Programme, underline only the description and resource disclosure label. Keep the preview plain and preserve keyboard focus.
 
 **Forms:** Use `AppDropdown.vue` for single choice and `AppMultiSelectDropdown.vue`
 for multiple choice, including loading fixtures. Native select menus are
@@ -121,6 +121,12 @@ The work-plan phase controls sit below both breadcrumbs and the conference
 header at their full measured height; board column headings sit below those
 controls. On pages with subsection navigation, only breadcrumbs remain sticky;
 expanded edition forms scroll normally.
+The Speakers workspace keeps its call heading, actions, logistics deadline, and
+subsection navigation sticky beneath the breadcrumbs on desktop and the app
+header on phones. On very short or narrow screens, place the call controls and
+deadline in a keyboard-accessible disclosure so content remains visible.
+Proposals, Participation, and Delivery use a single thin neutral border, flat
+row dividers, and the shared pagination controls at six entries per page.
 
 **Phones:** Keep Ticketing on its existing responsive route. Its Mobile Conference
 entry follows existing role/capability rules. Orders use cards below the desktop

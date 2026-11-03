@@ -891,7 +891,7 @@ onBeforeUnmount(() => {
                       <span class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-ink">Required</span>
                     </label>
                     <span class="h-6 w-px bg-dc-border" aria-hidden="true" />
-                    <button type="button" class="feedback-remove-action motion-press min-h-9 rounded px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-wide" @click="removeQuestion(question.id)">Remove</button>
+                    <button type="button" class="feedback-remove-action text-action motion-press min-h-9 rounded px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-wide" @click="removeQuestion(question.id)">Remove</button>
                   </div>
                 </div>
                 <div class="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
@@ -912,7 +912,7 @@ onBeforeUnmount(() => {
                     <input v-model="question.options[optionIndex]" class="editorial-input" type="text" :placeholder="`Option ${optionIndex + 1}`" />
                     <button type="button" class="editorial-secondary-action px-3" @click="removeOption(question, optionIndex)">x</button>
                   </div>
-                  <button type="button" class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-pink" @click="addOption(question)">Add option</button>
+                  <button type="button" class="text-action font-mono text-xs font-semibold uppercase tracking-wide text-dc-pink" @click="addOption(question)">Add option</button>
                 </div>
               </div>
               </TransitionGroup>

@@ -38,6 +38,7 @@ try {
       decision_email_last_error text, updated_at timestamptz default now()
     );`);
   await run(join(bindir, 'psql'), [...args, '-f', join(process.cwd(), 'supabase/migrations/20261101180000_speaker_outcome_messages.sql')]);
+  await run(join(bindir, 'psql'), [...args, '-f', join(process.cwd(), 'supabase/migrations/20261103120000_speaker_logistics_due_date.sql')]);
   const edition = randomUUID();
   const first = randomUUID();
   const second = randomUUID();
@@ -87,15 +88,14 @@ try {
   }
   const expiredDate = '2020-01-01T00:00:00Z';
 
-  await sql(`update public.annual_conference_speaker_intake_links set expires_at='${expiredDate}' where id='${link}'`);
-  const expiredLinkSnapshot = await preview([{ ...item(first, 'first'), link_expires_at: expiredDate }]);
+  await sql(`update public.annual_conference_speaker_intake_links set expires_at='${expiredDate}' where id='${link}'; update public.annual_conference_editions set speaker_logistics_deadline='${expiredDate}' where id='${edition}'`);
+  const overdue = await preview([{ ...item(first, 'first'), deadline: expiredDate, link_expires_at: expiredDate }]);
 
-  await assert.rejects(() => queue(expiredLinkSnapshot), /speaker_preview_changed/, 'matching but expired link is rejected');
-  await sql(`update public.annual_conference_speaker_intake_links set expires_at='${linkExpiry}' where id='${link}'; update public.annual_conference_editions set speaker_logistics_deadline='${expiredDate}' where id='${edition}'`);
-  const expiredDeadlineSnapshot = await preview([{ ...item(first, 'first'), deadline: expiredDate }]);
+  assert.equal(await queue(overdue), '1', 'matching overdue due date can queue');
+  const overduePayload = JSON.parse(await sql(`select decision_email_payload::text from public.annual_conference_speaker_submissions where id='${first}'`));
 
-  await assert.rejects(() => queue(expiredDeadlineSnapshot), /speaker_preview_changed/, 'matching but expired deadline is rejected');
-  await sql(`update public.annual_conference_editions set speaker_logistics_deadline='${deadline}' where id='${edition}'`);
+  assert.equal(await sql(`set role service_role; select public.claim_annual_conference_speaker_email_payload('${first}','first',0,now(),false,${sqlJson(overduePayload)})`), 't', 'matching overdue due date can claim');
+  await sql(`update public.annual_conference_speaker_submissions set decision_email_queued_at=null, decision_email_payload=null, decision_email_attempt_count=0, decision_email_payload_started_at=null where id='${first}'; update public.annual_conference_speaker_intake_links set expires_at='${linkExpiry}', email_attempt_count=0 where id='${link}'; update public.annual_conference_editions set speaker_logistics_deadline='${deadline}' where id='${edition}'`);
   const duplicate = await preview([item(first, 'first'), item(first, 'first')]);
 
   await assert.rejects(() => queue(duplicate), /speaker_preview_changed|speaker_preview_unavailable/, 'duplicate recipients must not queue twice');
@@ -136,6 +136,12 @@ try {
   assert.equal(await stop(oldQueue), 'f', 'stale worker cannot clear newer queued delivery');
   assert.equal(await sql(`select decision_email_status='pending' and decision_email_payload is not null and decision_email_queued_at is not null from public.annual_conference_speaker_submissions where id='${second}'`), 't');
   await assert.rejects(() => sql(`set role authenticated; select public.queue_annual_conference_speaker_outcome_preview('${expired}','${edition}','owner')`), /permission denied/);
+  await assert.rejects(() => sql(`set role authenticated; select public.revoke_annual_conference_speaker_workspace('${edition}','${first}')`), /permission denied/);
+  assert.equal(await sql(`set role service_role; select public.revoke_annual_conference_speaker_workspace('${edition}','${first}')`), 't');
+  assert.equal(await sql(`select revoked_at is not null from public.annual_conference_speaker_intake_links where id='${link}'`), 't', 'explicit revoke disables current link');
+  assert.equal(await sql(`set role service_role; select public.claim_annual_conference_speaker_email_payload('${first}','first',1,now(),false,${sqlJson(payload)})`), 'f', 'revocation blocks retry claim');
+  await sql(`update public.annual_conference_speaker_intake_links set revoked_at=null where id='${link}'; update public.annual_conference_speaker_submissions set selected_intake_link_id='${randomUUID()}' where id='${first}'`);
+  assert.equal(await sql(`set role service_role; select public.claim_annual_conference_speaker_email_payload('${first}','first',1,now(),false,${sqlJson(payload)})`), 'f', 'rotation blocks retry claim');
   await sql(`update public.annual_conference_speaker_submissions set decision_email_idempotency_key='replacement' where id='${first}'`);
   assert.equal(await sql(`select decision_email_payload is null and decision_email_queued_at is null and decision_email_payload_started_at is null from public.annual_conference_speaker_submissions where id='${first}'`), 't', 'new delivery key clears frozen payload');
   console.log('Speaker outcome queue: actor, expiry, link and deadline snapshots, atomic stale batches, duplicate and replay protection, concurrent confirmation and claim, frozen payload, first-send recovery, role boundary and reset passed.');

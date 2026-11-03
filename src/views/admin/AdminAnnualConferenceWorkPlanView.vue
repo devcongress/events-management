@@ -834,9 +834,9 @@ onBeforeUnmount(() => {
                 <button
                   v-if="!isConferenceVolunteer || filtersActive"
                   type="button"
-                  class="min-h-10 rounded-md border border-transparent px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
+                  class="text-action min-h-10 px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
                   :class="filtersActive
-                    ? 'text-dc-pink hover:border-dc-pink'
+                    ? 'text-dc-pink'
                     : 'cursor-not-allowed text-dc-gray/45'"
                   :disabled="!filtersActive"
                   :aria-disabled="!filtersActive"

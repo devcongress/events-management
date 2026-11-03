@@ -36,7 +36,7 @@ async function resolveCard(c: Context<AppBindings>, organizer: boolean) {
 
     if (!token || token.length > 200) return null;
     link = await getAnnualConferenceSpeakerIntakeLink(edition.id, token);
-    if (!link || link.revoked_at || !link.speaker_submission_id || !link.workspace_session_id || new Date(edition.speaker_logistics_deadline ?? link.expires_at).getTime() <= Date.now()) return null;
+    if (!link || link.revoked_at || !link.speaker_submission_id || !link.workspace_session_id) return null;
     sessionId = link.workspace_session_id;
   }
   if (!sessionId) return null;

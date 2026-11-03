@@ -431,6 +431,7 @@ function routeViewKey(routeForKey: typeof route) {
     routeForKey.name === "admin-reports"
     || routeForKey.name === "admin-annual-conference-registrations"
     || routeForKey.name === 'admin-annual-conference-ticketing'
+    || routeForKey.name === 'admin-annual-conference-speakers'
     || routeForKey.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
   ) {
     return routeForKey.path;

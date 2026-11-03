@@ -232,7 +232,7 @@ describe('Five-row test checkout activity table', () => {
     for (const label of ['Checkout', 'Pass / coupon', 'Amount', 'Status', 'Details', 'Team of 3', '3 seats', 'TEST-LONG-COMMUNITY-CODE']) {
       expect(html).toContain(label);
     }
-    expect(table).toContain('<button type="button" class="motion-press min-h-11');
+    expect(table).toMatch(/<button type="button" class="[^"]*\bmin-h-11\b[^"]*"[^>]*>Details<\/button>/);
     expect(table).toContain('Open private sandbox checkout details from');
     expect(source).toContain('@click="openCheckoutDetails(checkout, $event)"');
     expect(table).not.toContain('Test purchaser 1');

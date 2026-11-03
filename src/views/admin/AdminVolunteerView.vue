@@ -599,7 +599,7 @@ function clearVolunteerFilters() {
                   <button
                     v-if="hasVolunteerFilters"
                     type="button"
-                    class="motion-press text-xs font-semibold text-dc-pink underline decoration-dc-pink/40 underline-offset-4"
+                    class="text-action motion-press text-xs font-semibold text-dc-pink underline decoration-dc-pink/40 underline-offset-4"
                     @click="clearVolunteerFilters"
                   >
                     Clear filters
@@ -727,7 +727,7 @@ function clearVolunteerFilters() {
                       >
                         <button
                           type="button"
-                          class="motion-press text-left underline decoration-dc-border underline-offset-4 hover:decoration-dc-pink focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dc-pink"
+                          class="text-action motion-press text-left underline decoration-dc-border underline-offset-4 hover:decoration-dc-pink focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dc-pink"
                           aria-haspopup="dialog"
                           :aria-label="`Open details for ${row.name}`"
                           @click="selectedVolunteer = row"

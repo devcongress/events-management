@@ -764,7 +764,7 @@ onUnmounted(() => {
           <BoneyardPageSkeleton v-if="accessRequestsQuery.isPending.value" name="admin-access-requests" label="admin access requests" :show-header="false" />
           <div v-else-if="accessRequestsQuery.isError.value" class="p-5" role="alert">
             <p class="text-sm text-red-700">Unable to load access requests.</p>
-            <button type="button" class="mt-2 min-h-11 text-sm font-semibold text-dc-pink" @click="accessRequestsQuery.refetch()">Try again</button>
+            <button type="button" class="text-action mt-2 min-h-11 text-sm font-semibold text-dc-pink" @click="accessRequestsQuery.refetch()">Try again</button>
           </div>
           <p v-else-if="!accessRequests.length" class="p-5 text-sm text-dc-gray">You’re all caught up. New requests will appear here.</p>
           <p v-else-if="!filteredAccessRequests.length" class="p-5 text-sm text-dc-gray" role="status">No requests match your search.</p>

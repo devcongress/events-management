@@ -30,7 +30,7 @@ const remaining = computed(() => {
         <button class="organizer-session-pause__primary motion-press" type="button" :disabled="busy" @click="emit('stay')">
           {{ busy ? 'Checking session…' : 'Stay signed in' }}
         </button>
-        <button class="organizer-session-pause__secondary" type="button" :disabled="busy" @click="emit('signOut')">Sign out now</button>
+        <button class="organizer-session-pause__secondary text-action" type="button" :disabled="busy" @click="emit('signOut')">Sign out now</button>
       </div>
     </div>
   </section>

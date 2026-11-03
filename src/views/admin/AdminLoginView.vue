@@ -334,7 +334,7 @@ onMounted(async () => {
             <button
               v-if="!props.managed && authResolved && authConfigured"
               type="button"
-              class="login-secondary"
+              class="login-secondary text-action"
               :disabled="loading"
               @click="login"
             >
@@ -351,7 +351,7 @@ onMounted(async () => {
             <button
               v-if="props.managed && props.secondaryActionLabel"
               type="button"
-              class="login-secondary"
+              class="login-secondary text-action"
               @click="emit('secondary')"
             >
               {{ props.secondaryActionLabel }}

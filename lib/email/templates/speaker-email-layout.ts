@@ -48,6 +48,8 @@ export function renderSpeakerEmailLayout(input: SpeakerEmailLayoutInput): string
     <meta name="supported-color-schemes" content="light dark">
     <title>${escapeHtml(input.subject)}</title>
     <style>
+      u + .email-body .gmail-brand-screen { background:#000; mix-blend-mode:screen; }
+      u + .email-body .gmail-brand-difference { background:#000; mix-blend-mode:difference; }
       @font-face { font-family:'Inter'; font-style:normal; font-weight:400; font-display:swap; src: url('${safeInter400Url}') format('woff2'); }
       @font-face { font-family:'Inter'; font-style:normal; font-weight:600; font-display:swap; src: url('${safeInter600Url}') format('woff2'); }
       @font-face { font-family:'Inter'; font-style:normal; font-weight:700; font-display:swap; src: url('${safeInter700Url}') format('woff2'); }
@@ -118,7 +120,7 @@ export function renderSpeakerEmailLayout(input: SpeakerEmailLayoutInput): string
                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                     <tr>
                       <td valign="middle"><img src="${safeLogoUrl}" width="224" alt="DevCongress" class="email-logo" style="display:block;width:224px;max-width:100%;height:auto;border:0;color:#FFFFFF;font-size:18px;font-weight:700;"></td>
-                      <td align="right" valign="middle" class="email-brand-meta" style="padding-left:16px;color:#FFFFFF;-webkit-text-fill-color:#FFFFFF;font-family:'IBM Plex Mono','Courier New',monospace;font-size:10px;font-weight:700;line-height:1.5;letter-spacing:.14em;text-transform:uppercase;">${escapeHtml(input.brandMeta[0])}<br>${escapeHtml(input.brandMeta[1])}</td>
+                      <td align="right" valign="middle" class="email-brand-meta" style="padding-left:16px;color:#FFFFFF;-webkit-text-fill-color:#FFFFFF;font-family:'IBM Plex Mono','Courier New',monospace;font-size:10px;font-weight:700;line-height:1.5;letter-spacing:.14em;text-transform:uppercase;"><div class="gmail-brand-screen"><div class="gmail-brand-difference">${escapeHtml(input.brandMeta[0])}<br>${escapeHtml(input.brandMeta[1])}</div></div></td>
                     </tr>
                   </table>
                 </td>

@@ -249,8 +249,8 @@ export async function retryAnnualConferenceDecisionEmails(c: Context): Promise<{
         continue;
       }
       deadline = edition.speaker_logistics_deadline ?? null;
-      if (!deadline || new Date(deadline).getTime() <= Date.now()) {
-        await stopAnnualConferenceDecisionEmailRetry(candidate, 'Set a future speaker logistics deadline before retrying this email.');
+      if (!deadline) {
+        await stopAnnualConferenceDecisionEmailRetry(candidate, 'Set a speaker logistics due date before retrying this email.');
         failed.push(candidate.id);
         continue;
       }
@@ -260,7 +260,6 @@ export async function retryAnnualConferenceDecisionEmails(c: Context): Promise<{
 
       if (!currentLink || currentLink.revoked_at || currentLink.edition_id !== candidate.edition_id
         || currentLink.speaker_submission_id !== candidate.id || currentLink.workspace_session_id !== candidate.selected_session_id
-        || new Date(currentLink.expires_at).getTime() <= Date.now()
         || !annualConferenceSpeakerWorkspaceTokenMatches(currentLink, configured.tokenSecret)) {
         await stopAnnualConferenceDecisionEmailRetry(candidate, 'The original speaker workspace link is unavailable. Review the delivery before replacing it.');
         failed.push(candidate.id);

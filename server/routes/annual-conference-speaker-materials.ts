@@ -85,7 +85,7 @@ async function workspace(c: Context<AppBindings>) {
   if (!edition) return null;
   const link = await getAnnualConferenceSpeakerIntakeLink(edition.id, c.req.param('token') ?? '');
 
-  if (!link || link.revoked_at || new Date(edition.speaker_logistics_deadline ?? link.expires_at).getTime() <= Date.now() || !link.speaker_submission_id || !link.workspace_session_id) return null;
+  if (!link || link.revoked_at || !link.speaker_submission_id || !link.workspace_session_id) return null;
   const [submission, session] = await Promise.all([
     getAnnualConferenceSpeakerSubmission(link.speaker_submission_id),
     getAnnualConferenceSession(link.workspace_session_id),
