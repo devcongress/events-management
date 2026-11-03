@@ -1,14 +1,27 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
+import ConfirmDialog from './ui/ConfirmDialog.vue';
+import { uploadMultipart } from '../lib/upload-multipart';
 import { canvasPng, loadSpeakerBadge, renderSpeakerBadge, saveBadgeFile, type SpeakerBadge } from '../lib/speaker-badge';
 
 const props = defineProps<{ year: number; token: string }>();
 const path = computed(() => `/api/conferences/${props.year}/speaker-intake/${encodeURIComponent(props.token)}/badge`);
 const canvas = ref<HTMLCanvasElement | null>(null);
+const previewCanvas = ref<HTMLCanvasElement | null>(null);
+const previewDialog = ref<HTMLDialogElement | null>(null);
+const previewTrigger = ref<HTMLButtonElement | null>(null);
+const photoInput = ref<HTMLInputElement | null>(null);
+const photoAction = ref<HTMLButtonElement | null>(null);
+const confirmPhotoRemoval = ref(false);
+const removingPhoto = ref(false);
+const uploadProgress = ref<number | null>(null);
+const uploading = ref(false);
 const card = ref<SpeakerBadge | null>(null);
 const photo = ref<File | null>(null);
 const error = ref('');
 const message = ref('');
+const photoError = ref('');
+const photoMessage = ref('');
 const busy = ref(false);
 const savedCard = ref('');
 const hasUnsavedChanges = computed(() => busy.value || (card.value !== null && savedCard.value !== badgeFields(card.value)));
@@ -27,6 +40,9 @@ function draw() {
   renderQueue = renderQueue.catch(() => {}).then(async () => {
     await nextTick();
     if (canvas.value && currentCard) await renderSpeakerBadge(canvas.value, currentCard, currentPhoto);
+    if (previewDialog.value?.open && previewCanvas.value && currentCard) {
+      await renderSpeakerBadge(previewCanvas.value, currentCard, currentPhoto);
+    }
   });
 
   return renderQueue;
@@ -76,34 +92,125 @@ async function save() {
   }
 }
 
+async function openPreview() {
+  previewDialog.value?.showModal();
+  await nextTick();
+  try {
+    await draw();
+  } catch (reason) {
+    previewDialog.value?.close();
+    error.value = reason instanceof Error ? reason.message : 'Unable to preview badge.';
+  }
+}
+
+function closePreview() {
+  previewDialog.value?.close();
+}
+
+function restorePreviewFocus() {
+  previewTrigger.value?.focus();
+}
+
+function updatePhotoCard(updated: SpeakerBadge) {
+  const currentCard = card.value;
+  const hadUnsavedChanges = currentCard !== null && badgeFields(currentCard) !== savedCard.value;
+
+  card.value = hadUnsavedChanges && currentCard
+    ? { ...updated, display_name: currentCard.display_name, crop: { ...currentCard.crop } }
+    : updated;
+  savedCard.value = badgeFields(updated);
+}
+
+async function removePhoto() {
+  if (busy.value || !card.value?.photo_available) return;
+  busy.value = true;
+  removingPhoto.value = true;
+  photoError.value = '';
+  photoMessage.value = '';
+  try {
+    if (!card.value.photo_version) {
+      throw new Error('The saved photo may have changed. Save your other edits and reload this page before removing it.');
+    }
+
+    const result = await fetch(`${path.value}/photo`, {
+      method: 'DELETE',
+      headers: { 'X-Badge-Photo-Version': card.value.photo_version },
+    });
+    const body = await result.json().catch(() => ({}));
+
+    if (result.status === 409) {
+      throw new Error('The photo changed in another session. Save your other edits and reload this page to see the latest photo.');
+    }
+    if (!result.ok) throw new Error(body.error || 'Unable to remove photo.');
+    updatePhotoCard(body.card);
+    photo.value = null;
+    confirmPhotoRemoval.value = false;
+    photoMessage.value = 'Photo removed.';
+    refreshPreview();
+  } catch (reason) {
+    confirmPhotoRemoval.value = false;
+    photoError.value = reason instanceof Error ? reason.message : 'Unable to remove photo.';
+  } finally {
+    removingPhoto.value = false;
+    busy.value = false;
+    await nextTick();
+    photoAction.value?.focus();
+  }
+}
+
 async function upload(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
 
-  if (!file) return;
+  if (!file || busy.value) return;
+  photoError.value = '';
+  photoMessage.value = '';
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/avif'].includes(file.type)) {
+    photoError.value = 'Choose a JPEG, PNG, WebP or AVIF photo.';
+    input.value = '';
+
+    return;
+  }
+  if (file.size < 1 || file.size > 5 * 1024 * 1024) {
+    photoError.value = 'Choose a non-empty photo that is 5 MB or smaller.';
+    input.value = '';
+
+    return;
+  }
+
   busy.value = true;
-  error.value = '';
+  uploading.value = true;
+  uploadProgress.value = null;
   try {
+    const objectUrl = URL.createObjectURL(file);
+
+    try {
+      const image = new Image();
+
+      image.src = objectUrl;
+      await image.decode();
+    } catch {
+      throw new Error('This photo could not be opened. Choose another image and try again.');
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+
     const data = new FormData();
 
     data.set('photo', file);
-    const result = await fetch(`${path.value}/photo`, { method: 'POST', body: data });
-    const body = await result.json();
+    const body = await uploadMultipart<{ card: SpeakerBadge }>(`${path.value}/photo`, data, {
+      onProgress: percent => { uploadProgress.value = percent; },
+    });
 
-    if (!result.ok) throw new Error(body.error || 'Unable to save photo.');
-    const currentCard = card.value;
-    const hadUnsavedChanges = currentCard !== null && badgeFields(currentCard) !== savedCard.value;
-
-    card.value = hadUnsavedChanges && currentCard
-      ? { ...body.card, display_name: currentCard.display_name, crop: { ...currentCard.crop } }
-      : body.card;
-    savedCard.value = badgeFields(body.card);
+    updatePhotoCard(body.card);
     photo.value = file;
-    await draw();
-    message.value = 'Photo saved.';
+    photoMessage.value = 'Photo saved.';
+    refreshPreview();
   } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : 'Unable to save photo.';
+    photoError.value = reason instanceof Error ? reason.message : 'Unable to save photo.';
   } finally {
+    uploading.value = false;
+    uploadProgress.value = null;
     busy.value = false;
     input.value = '';
   }
@@ -129,19 +236,37 @@ onMounted(load);
   <section class="speaker-badge" aria-labelledby="speaker-badge-title">
     <header class="speaker-badge__heading">
       <h2 id="speaker-badge-title">Your speaker badge</h2>
-      <p>Save your display name and photo position here, then download your badge to share.</p>
+      <p>Photos save when uploaded. Save your display name and photo position before leaving.</p>
     </header>
     <p v-if="error" role="alert" class="speaker-badge__feedback">{{ error }}</p>
     <p v-if="message" role="status" class="speaker-badge__feedback">{{ message }}</p>
     <div v-if="card" class="speaker-badge__layout">
       <div class="speaker-badge__preview-wrap">
-        <canvas ref="canvas" class="speaker-badge__preview" aria-label="Speaker badge preview" />
+        <button ref="previewTrigger" type="button" class="speaker-badge__preview-button" aria-label="View a larger badge preview" @click="openPreview">
+          <canvas ref="canvas" class="speaker-badge__preview" aria-label="Speaker badge preview" />
+          <span>Preview badge</span>
+        </button>
       </div>
       <div class="speaker-badge__fields">
         <div class="speaker-badge__identity">
           <label>Display name <input v-model="card.display_name" class="editorial-input" maxlength="120" @keydown.enter.prevent="save" @input="refreshPreview"></label>
-          <label>Photo <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" :disabled="busy" @change="upload"></label>
-          <p>JPEG, PNG, WebP or AVIF, up to 5 MB.</p>
+          <div class="speaker-badge__photo">
+            <p class="speaker-badge__photo-label">Photo</p>
+            <p>{{ card.photo_available ? 'Photo saved to your badge' : 'No photo added' }}</p>
+            <div class="speaker-badge__photo-actions">
+              <button ref="photoAction" type="button" :disabled="busy" @click="photoInput?.click()">{{ card.photo_available ? 'Replace photo' : 'Add photo' }}</button>
+              <button v-if="card.photo_available" type="button" :disabled="busy" @click="confirmPhotoRemoval = true">Remove photo</button>
+            </div>
+            <input ref="photoInput" type="file" hidden accept="image/jpeg,image/png,image/webp,image/avif" :disabled="busy" @change="upload">
+            <p>JPEG, PNG, WebP or AVIF, up to 5 MB. Changes save immediately.</p>
+          </div>
+          <p v-if="photoError" class="speaker-badge__photo-error" role="alert">{{ photoError }}</p>
+          <p v-if="photoMessage" role="status">{{ photoMessage }}</p>
+          <div v-if="uploading" class="speaker-badge__progress" role="status" aria-live="polite">
+            <span>{{ uploadProgress === 100 ? 'Saving photo…' : uploadProgress === null ? 'Uploading photo…' : `Uploading photo… ${uploadProgress}%` }}</span>
+            <progress v-if="uploadProgress !== null" :value="uploadProgress" max="100" aria-label="Photo upload progress" />
+            <progress v-else aria-label="Photo upload progress" />
+          </div>
         </div>
         <div class="speaker-badge__adjustments">
           <p class="speaker-badge__adjustments-title">Adjust photo</p>
@@ -155,6 +280,27 @@ onMounted(load);
         </div>
       </div>
     </div>
+    <ConfirmDialog
+      :open="confirmPhotoRemoval"
+      title="Remove badge photo?"
+      message="Your photo will be removed from your speaker badge. You can add another photo later."
+      confirm-label="Remove photo"
+      busy-label="Removing…"
+      :busy="removingPhoto"
+      danger
+      mobile-sheet
+      @cancel="confirmPhotoRemoval = false"
+      @confirm="removePhoto"
+    />
+    <Teleport to="body">
+      <dialog ref="previewDialog" class="speaker-badge-dialog" aria-labelledby="speaker-badge-preview-title" @close="restorePreviewFocus">
+        <header class="speaker-badge-dialog__header">
+          <h2 id="speaker-badge-preview-title">Badge preview</h2>
+          <button type="button" autofocus @click="closePreview">Close</button>
+        </header>
+        <canvas ref="previewCanvas" class="speaker-badge-dialog__canvas" aria-label="Larger speaker badge preview" />
+      </dialog>
+    </Teleport>
   </section>
 </template>
 
@@ -190,6 +336,27 @@ onMounted(load);
 
 .speaker-badge__preview-wrap {
   min-width: 0;
+}
+
+.speaker-badge__preview-button {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  width: 100%;
+  color: #555;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.speaker-badge__preview-button span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.speaker-badge__preview-button:focus-visible {
+  outline: 2px solid #e8117f;
+  outline-offset: 4px;
 }
 
 .speaker-badge__preview {
@@ -228,6 +395,52 @@ onMounted(load);
   font-size: 0.875rem;
 }
 
+.speaker-badge__photo {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.speaker-badge__photo .speaker-badge__photo-label {
+  margin: 0;
+  color: #111;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.speaker-badge__photo p {
+  margin: 0;
+}
+
+.speaker-badge__photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.speaker-badge__photo-actions button {
+  min-height: 44px;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid #aaa;
+  border-radius: 6px;
+}
+
+.speaker-badge__photo-error {
+  color: #b91c1c !important;
+}
+
+.speaker-badge__progress {
+  display: grid;
+  gap: 0.375rem;
+  color: #555;
+  font-size: 0.875rem;
+}
+
+.speaker-badge__progress progress {
+  width: 100%;
+  height: 0.5rem;
+  accent-color: #e8117f;
+}
+
 .speaker-badge__adjustments-title {
   font-weight: 600;
 }
@@ -251,6 +464,49 @@ onMounted(load);
   color: white;
 }
 
+.speaker-badge-dialog {
+  margin: auto;
+  width: min(28rem, calc(100% - 2rem));
+  max-height: min(90dvh, 48rem);
+  padding: 1.25rem;
+  border: 1px solid #e0ddd4;
+  border-radius: 12px;
+  background: white;
+}
+
+.speaker-badge-dialog::backdrop {
+  background: rgb(17 17 17 / 45%);
+}
+
+.speaker-badge-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.speaker-badge-dialog__header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.speaker-badge-dialog__header button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.5rem;
+  color: #555;
+  text-decoration: underline;
+}
+
+.speaker-badge-dialog__canvas {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: calc(90dvh - 7rem);
+  margin: 0 auto;
+}
+
 @media (min-width: 64rem) {
   .speaker-badge__fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -263,6 +519,15 @@ onMounted(load);
 }
 
 @media (max-width: 600px) {
+  .speaker-badge-dialog {
+    inset: auto 0 0;
+    width: 100%;
+    max-height: 90dvh;
+    margin: 0;
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+    border-radius: 12px 12px 0 0;
+  }
+
   .speaker-badge__layout {
     grid-template-columns: 1fr;
   }

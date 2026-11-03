@@ -28,11 +28,11 @@ const answers = [{ value: '', label: 'Choose an answer' }];
         <h2 class="text-xl font-semibold">Your speaker badge</h2>
         <p>Personalize your badge and download it to share. Your changes are saved privately.</p>
         <div class="mt-6 grid gap-6 sm:grid-cols-[220px_minmax(0,1fr)]">
-          <div class="aspect-[4/5] w-full max-w-[220px] rounded-md bg-dc-cream" />
+          <div><div class="aspect-[4/5] w-full max-w-[220px] rounded-md bg-dc-cream" /><button type="button" disabled>Preview badge</button></div>
           <div class="grid content-start gap-4 lg:grid-cols-2">
             <div class="grid content-start gap-4">
               <label class="block">Display name<input class="editorial-input" disabled /></label>
-              <label class="block">Photo<input type="file" class="editorial-input" disabled /></label>
+              <div><p>Photo</p><p>No photo added</p><button type="button" disabled>Add photo</button></div>
               <p class="text-sm">JPEG, PNG, WebP or AVIF, up to 5 MB.</p>
             </div>
             <div class="grid content-start gap-4">
@@ -59,11 +59,11 @@ const answers = [{ value: '', label: 'Choose an answer' }];
         <div class="space-y-2">
           <p class="editorial-label">Upload slides or supporting file (optional)</p>
           <p class="text-sm">PDF, PPT, or PPTX, up to 5 MB per file and five files total.</p>
-          <input type="file" class="block w-full text-sm" disabled />
+          <input type="file" class="speaker-upload-input block w-full text-sm" disabled />
           <button type="button" disabled>Upload file</button>
         </div>
         <label class="block"><span class="editorial-label">Technical and setup requirements</span><textarea class="editorial-input resize-none" rows="4" disabled /></label>
-        <label class="block"><span class="editorial-label">Accessibility support (optional)</span><textarea class="editorial-input" rows="3" disabled /></label>
+        <label class="block"><span class="editorial-label">Accessibility support (optional)</span><textarea class="editorial-input" rows="4" disabled /></label>
         <label class="block"><span class="editorial-label">Headshot link (optional)</span><input class="editorial-input" disabled /></label>
         <label class="block"><span class="editorial-label">Social handle (optional)</span><input class="editorial-input" disabled /></label>
         <p class="lg:col-span-2">These details are shared privately with organizers.</p>

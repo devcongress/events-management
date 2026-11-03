@@ -1,18 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
+import { createHash } from 'crypto';
 import type { AppBindings } from '@/server/http/app-bindings';
 
 const mocks = vi.hoisted(() => ({
-  link: vi.fn(), session: vi.fn(), submission: vi.fn(), ensure: vi.fn(), update: vi.fn(), capability: vi.fn(),
+  link: vi.fn(), session: vi.fn(), submission: vi.fn(), ensure: vi.fn(), update: vi.fn(), remove: vi.fn(), capability: vi.fn(),
 }));
 
 vi.mock('@/lib/annual-conference-speakers', () => ({ getAnnualConferenceSpeakerIntakeLink: mocks.link, getAnnualConferenceSession: mocks.session, getAnnualConferenceSpeakerSubmission: mocks.submission }));
-vi.mock('@/lib/supabase/annual-conference-social-cards', () => ({ ensureSpeakerSocialCard: mocks.ensure, updateSupabaseAnnualConferenceSocialCard: mocks.update, uploadSupabaseAnnualConferenceSocialCardPhoto: vi.fn() }));
+vi.mock('@/lib/supabase/annual-conference-social-cards', () => ({ ensureSpeakerSocialCard: mocks.ensure, removeSpeakerSocialCardPhoto: mocks.remove, updateSupabaseAnnualConferenceSocialCard: mocks.update, uploadSupabaseAnnualConferenceSocialCardPhoto: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: vi.fn() }));
 vi.mock('@/server/annual-conference-request', () => ({ getAnnualConferenceEditionByYear: vi.fn().mockResolvedValue({ id: 'edition', speaker_logistics_deadline: null }), requireAnnualConferenceCapability: mocks.capability }));
 vi.mock('@/server/http/public-intake-protection', () => ({ enforcePublicRateLimit: vi.fn().mockResolvedValue(null), publicClientKey: vi.fn().mockReturnValue('client') }));
 
 import { registerAnnualConferenceSpeakerBadgeRoutes } from './annual-conference-speaker-badges';
+
+const photoVersion = createHash('sha256').update('cards/card/original.jpg').digest('base64url');
 
 function app() {
   const instance = new Hono<AppBindings>();
@@ -82,4 +85,47 @@ describe('speaker badge access', () => {
     expect(result.status).toBe(400);
     expect(mocks.update).not.toHaveBeenCalled();
   });
+
+  it('removes only the authorized workspace photo', async () => {
+    mocks.ensure.mockResolvedValueOnce({ id: 'card', display_name: 'Speaker', crop_x: 0.5, crop_y: 0.5, crop_scale: 1, photo_path: 'cards/card/original.jpg', revoked_at: null });
+    mocks.remove.mockResolvedValueOnce({ display_name: 'Speaker', crop_x: 0.5, crop_y: 0.5, crop_scale: 1, photo_path: null });
+    const result = await app().request('/api/conferences/2026/speaker-intake/token/badge/photo', { method: 'DELETE', headers: { 'X-Badge-Photo-Version': photoVersion } });
+
+    expect(result.status).toBe(200);
+    expect(result.headers.get('cache-control')).toBe('no-store');
+    expect(await result.json()).toMatchObject({ card: { display_name: 'Speaker', photo_available: false } });
+    expect(mocks.remove).toHaveBeenCalledWith('card', 'cards/card/original.jpg', expect.anything());
+  });
+
+  it('does not delete for a revoked or replaced private link', async () => {
+    mocks.link.mockResolvedValueOnce({ id: 'link', revoked_at: '2026-01-01', speaker_submission_id: 'submission', workspace_session_id: 'session' });
+    const result = await app().request('/api/conferences/2026/speaker-intake/token/badge/photo', { method: 'DELETE', headers: { 'X-Badge-Photo-Version': photoVersion } });
+
+    expect(result.status).toBe(404);
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
+  it('reports conflict when the photo is replaced during removal', async () => {
+    mocks.ensure.mockResolvedValueOnce({ id: 'card', photo_path: 'cards/card/original.jpg', revoked_at: null });
+    mocks.remove.mockResolvedValueOnce(null);
+    const result = await app().request('/api/conferences/2026/speaker-intake/token/badge/photo', { method: 'DELETE', headers: { 'X-Badge-Photo-Version': photoVersion } });
+
+    expect(result.status).toBe(409);
+  });
+
+  it('reports storage failures and supports already-absent photos', async () => {
+    mocks.ensure.mockResolvedValueOnce({ id: 'card', photo_path: 'cards/card/original.jpg', revoked_at: null });
+    mocks.remove.mockRejectedValueOnce(new Error('storage unavailable'));
+    expect((await app().request('/api/conferences/2026/speaker-intake/token/badge/photo', { method: 'DELETE', headers: { 'X-Badge-Photo-Version': photoVersion } })).status).toBe(503);
+    expect((await app().request('/api/conferences/2026/speaker-intake/token/badge/photo', { method: 'DELETE' })).status).toBe(200);
+  });
+
+  it('rejects a stale photo version without touching a replacement', async () => {
+    mocks.ensure.mockResolvedValueOnce({ id: 'card', photo_path: 'cards/card/replacement.jpg', revoked_at: null });
+    const result = await app().request('/api/conferences/2026/speaker-intake/token/badge/photo', { method: 'DELETE', headers: { 'X-Badge-Photo-Version': photoVersion } });
+
+    expect(result.status).toBe(409);
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
 });

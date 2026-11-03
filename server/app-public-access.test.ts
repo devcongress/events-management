@@ -34,6 +34,14 @@ afterEach(() => {
 });
 
 describe('public API access policy', () => {
+  it('allows a private speaker link to remove only its badge photo', () => {
+    const badge = '/api/conferences/2026/speaker-intake/sample/badge';
+
+    expect(isUnauthenticatedApiRequest(badge + '/photo', 'DELETE')).toBe(true);
+    expect(isUnauthenticatedApiRequest(badge, 'DELETE')).toBe(false);
+    expect(isUnauthenticatedApiRequest('/api/annual-conference/2026/speaker-badges/sample/photo', 'DELETE')).toBe(false);
+  });
+
   it('opens only read access to the programme and applies the website CORS allowlist', async () => {
     vi.stubEnv('PUBLIC_API_CORS_ORIGINS', 'https://devcongress.org');
     const path = '/api/public/annual-conference/2026/programme';

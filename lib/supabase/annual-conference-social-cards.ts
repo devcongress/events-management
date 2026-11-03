@@ -280,6 +280,41 @@ export async function uploadSupabaseAnnualConferenceSocialCardPhoto(cardId: stri
   return path;
 }
 
+/**
+ * Detach only the photo observed by the caller before deleting its unique storage
+ * object. A concurrent replacement is left untouched.
+ */
+export async function removeSpeakerSocialCardPhoto(id: string, photoPath: string, c?: Context): Promise<AnnualConferenceSocialCard | null> {
+  if (!isSupabaseRuntimeEnabled(c)) throw new Error('Social-card media storage is not configured.');
+  const client = getSupabaseAdminClient(c);
+  const detached = await client.from('annual_conference_social_cards' as never)
+    .update({ photo_path: null } as never)
+    .eq('id', id)
+    .eq('photo_path', photoPath)
+    .is('revoked_at', null)
+    .select('*')
+    .maybeSingle() as unknown as { data: Record<string, unknown> | null; error: { message: string } | null };
+
+  if (detached.error) throw new Error(detached.error.message);
+  if (!detached.data) return null;
+  try {
+    const removed = await client.storage.from(DEVCON26_SOCIAL_CARD_BUCKET).remove([photoPath]);
+
+    if (removed.error) throw new Error(removed.error.message);
+  } catch {
+    // Restore the reference only if another request has not already replaced it.
+    await client.from('annual_conference_social_cards' as never)
+      .update({ photo_path: photoPath } as never)
+      .eq('id', id)
+      .is('photo_path', null)
+      .is('revoked_at', null);
+
+    throw new Error('Unable to remove the badge photo from storage.');
+  }
+
+  return mapCard(detached.data);
+}
+
 /** Creates a private card once per accepted session without rotating existing links. */
 export async function ensureSpeakerSocialCard(input: { editionId: string; sessionId: string; name: string }, c?: Context): Promise<AnnualConferenceSocialCard | null> {
   if (!isSupabaseRuntimeEnabled(c)) return null;

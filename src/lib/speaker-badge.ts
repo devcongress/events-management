@@ -1,6 +1,6 @@
 import { paintDigitalBadge } from './devcon26-digital-badge';
 
-export type SpeakerBadge = { display_name: string; role: 'speaker'; crop: { x: number; y: number; scale: number }; photo_available: boolean };
+export type SpeakerBadge = { display_name: string; role: 'speaker'; crop: { x: number; y: number; scale: number }; photo_available: boolean; photo_version: string | null };
 
 export async function loadSpeakerBadge(path: string): Promise<{ card: SpeakerBadge; photo: File | null }> {
   const result = await fetch(path, { cache: 'no-store' });

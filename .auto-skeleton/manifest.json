@@ -3292,7 +3292,7 @@
     },
     "speaker-talk-intake-conference": {
       "status": "completed",
-      "inputFingerprint": "7e828a3f3262e26055055f32b7a5724b3b68d27cc354463ca81e29d05228a881",
+      "inputFingerprint": "ebc10365bc8c16f9a72b8c79bbfa0f3b12dd78e5878b2851e7a6cb2c46fab79d",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3343,7 +3343,7 @@
         "src/bones/speaker-talk-intake-conference.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/speaker-talk-intake-conference.bones.json": "0205958e47ded3ad9eee5ea50d978ac8f267e9456cc466d6a489619702ac7e83"
+        "src/bones/speaker-talk-intake-conference.bones.json": "0b55d5ac2ffdd5b2c597a0713df8a4ae49b3609a60400d4f287212fe2b048e5c"
       },
       "captureConfig": {
         "breakpoints": [

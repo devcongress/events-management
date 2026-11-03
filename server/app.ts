@@ -1183,6 +1183,7 @@ function isPublicCfpEventRequest(path: string, method: string): boolean {
 }
 
 function isSpeakerTalkIntakeRequest(path: string, method: string): boolean {
+  if (method === 'DELETE' && /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+\/badge\/photo$/.test(path)) return true;
   if (['GET', 'POST', 'PATCH'].includes(method) && /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+\/badge(?:\/photo)?$/.test(path)) return true;
 
   return (method === 'GET' || method === 'POST') && (
@@ -1635,7 +1636,7 @@ app.use('/api/public/*', async (c, next) => {
 const credentialedApiCors = cors({
   origin: corsOrigin,
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type'],
+  allowHeaders: ['Content-Type', 'X-Badge-Photo-Version'],
   credentials: true,
   maxAge: 86400,
 });

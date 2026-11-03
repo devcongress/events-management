@@ -417,7 +417,7 @@ function formatEventDay(): string {
           </label>
           <label class="block">
             <span class="editorial-label">Accessibility support (optional)</span>
-            <textarea v-model="form.accessibility_requirements" maxlength="2000" rows="3" class="editorial-input resize-none" placeholder="Tell the organizers about any support you need." />
+            <textarea v-model="form.accessibility_requirements" maxlength="2000" rows="4" class="editorial-input resize-none" placeholder="Tell the organizers about any support you need." />
           </label>
           <label class="block">
             <span class="editorial-label">Headshot link (optional)</span>
