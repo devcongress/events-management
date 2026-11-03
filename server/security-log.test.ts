@@ -11,6 +11,7 @@ describe('security log redaction', () => {
   it('redacts conference workspace and material tokens', () => {
     expect(securitySafeRequestPath('/api/conferences/2026/speaker-intake/secret/badge/photo')).toBe('/api/conferences/2026/speaker-intake/[redacted]/badge/photo');
     expect(securitySafeRequestPath('/api/conference-speaker-materials/2026/secret')).toBe('/api/conference-speaker-materials/2026/[redacted]');
+    expect(securitySafeRequestPath('/api/conference-speaker-materials/2026/secret/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')).toBe('/api/conference-speaker-materials/2026/[redacted]/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
   });
 
   it('removes event-management capabilities from API and page paths', () => {

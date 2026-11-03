@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-03 — Speaker upload feedback and file removal
+
+- Reserve space for pink progress and save feedback when uploading a badge photo or supporting file. Speakers can clear selected files and remove uploaded materials from their private workspace.
+
 ## 2026-11-03 — Speaker photo storage and loading placeholders
 
 - Add a visible gap between adjacent placeholders in shared skeleton loaders.

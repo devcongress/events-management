@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { uploadMultipart } from '@/src/lib/upload-multipart';
+import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
+import SpeakerUploadStatus from '@/src/components/SpeakerUploadStatus.vue';
 
 const props = defineProps<{ year: string; token: string }>();
 
@@ -11,9 +13,11 @@ const materialsLoaded = ref(false);
 const error = ref('');
 const message = ref('');
 const uploading = ref(false);
+const removingId = ref<string | null>(null);
+const removalTarget = ref<Material | null>(null);
 const selectedFile = ref<File | null>(null);
 const progress = ref<number | null>(null);
-const hasUnsavedChanges = computed(() => selectedFile.value !== null || uploading.value);
+const hasUnsavedChanges = computed(() => selectedFile.value !== null || uploading.value || removingId.value !== null);
 
 defineExpose({ hasUnsavedChanges });
 
@@ -44,6 +48,43 @@ function selectFile(event: Event) {
   selectedFile.value = file;
   error.value = '';
   message.value = '';
+}
+
+function clearFile() {
+  selectedFile.value = null;
+  if (input.value) input.value.value = '';
+  error.value = '';
+  message.value = '';
+}
+
+async function removeMaterial() {
+  const material = removalTarget.value;
+
+  if (!material || removingId.value || uploading.value) return;
+  removingId.value = material.id;
+  error.value = '';
+  message.value = '';
+  let removed = false;
+
+  try {
+    const response = await fetch(`${endpoint}/${encodeURIComponent(material.id)}`, { method: 'DELETE' });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) throw new Error(data.error || 'Unable to remove this file.');
+    materials.value = materials.value.filter((item) => item.id !== material.id);
+    removalTarget.value = null;
+    message.value = 'File removed.';
+    removed = true;
+  } catch (cause) {
+    removalTarget.value = null;
+    error.value = cause instanceof Error ? cause.message : 'Unable to remove this file.';
+  } finally {
+    removingId.value = null;
+    if (removed) {
+      await nextTick();
+      input.value?.focus();
+    }
+  }
 }
 
 async function loadMaterials() {
@@ -99,23 +140,41 @@ onMounted(loadMaterials);
     <p class="speaker-materials__hint">PDF, PPT or PPTX · up to 5 MB each<span v-if="materialsLoaded"> · {{ materials.length }} of 5 files uploaded</span></p>
     <p class="speaker-materials__hint">Files are shared privately with conference organizers.</p>
     <div class="speaker-materials__controls">
-      <input id="speaker-material-file" ref="input" class="speaker-upload-input" type="file" accept=".pdf,.ppt,.pptx" :disabled="uploading || !materialsLoaded || materials.length >= 5" @change="selectFile" />
-      <button type="button" :disabled="uploading || !materialsLoaded || !selectedFile || Boolean(validationError) || materials.length >= 5" @click="upload">
-        {{ uploading ? 'Uploading…' : 'Upload file' }}
+      <input id="speaker-material-file" ref="input" class="speaker-upload-input" type="file" accept=".pdf,.ppt,.pptx" :disabled="uploading || Boolean(removingId) || !materialsLoaded || materials.length >= 5" @change="selectFile" />
+      <button type="button" :disabled="uploading || Boolean(removingId) || !materialsLoaded || !selectedFile || Boolean(validationError) || materials.length >= 5" @click="upload">
+        Upload file
       </button>
+      <button v-if="selectedFile" type="button" :disabled="uploading || Boolean(removingId)" @click="clearFile">Clear selection</button>
     </div>
-    <div v-if="uploading" class="speaker-materials__progress" role="status" aria-live="polite">
-      <span>{{ progress === 100 ? 'Upload complete. Saving file…' : progress === null ? 'Uploading file…' : `Uploading file… ${progress}%` }}</span>
-      <progress :value="progress === null ? undefined : progress" max="100" aria-label="File upload progress" />
-    </div>
+    <p v-if="validationError && (message || error)" role="alert" class="text-sm text-red-700">{{ validationError }}</p>
+    <SpeakerUploadStatus
+      label="File upload progress"
+      :busy="uploading"
+      :progress="progress"
+      :status="uploading ? (progress === 100 ? 'Saving file…' : 'Uploading file…') : message"
+      :error="error || (message ? '' : validationError)"
+    />
     <p v-if="loadingMaterials" class="speaker-materials__hint" role="status">Loading uploaded files…</p>
     <button v-else-if="!materialsLoaded" type="button" class="speaker-materials__retry" @click="loadMaterials">Retry loading files</button>
     <p v-if="materials.length >= 5" class="speaker-materials__hint">You have reached the five-file limit.</p>
-    <p v-if="validationError || error" role="alert" class="speaker-materials__error">{{ validationError || error }}</p>
-    <p v-if="message" role="status" class="speaker-materials__message">{{ message }}</p>
     <ul v-if="materials.length" aria-label="Uploaded files" class="speaker-materials__list">
-      <li v-for="material in materials" :key="material.id">{{ material.file_name }}</li>
+      <li v-for="material in materials" :key="material.id">
+        <span>{{ material.file_name }}</span>
+        <button type="button" :disabled="uploading || Boolean(removingId)" :aria-label="`Remove ${material.file_name}`" @click="removalTarget = material">Remove</button>
+      </li>
     </ul>
+    <ConfirmDialog
+      :open="Boolean(removalTarget)"
+      title="Remove uploaded file?"
+      :message="`Remove ${removalTarget?.file_name || 'this file'} from your speaker workspace? The organizers will no longer have access to it.`"
+      confirm-label="Remove file"
+      busy-label="Removing…"
+      :busy="Boolean(removingId)"
+      danger
+      mobile-sheet
+      @cancel="removalTarget = null"
+      @confirm="removeMaterial"
+    />
   </div>
 </template>
 
@@ -158,38 +217,35 @@ onMounted(loadMaterials);
   opacity: 0.5;
 }
 
-.speaker-materials__progress {
-  display: grid;
-  gap: 0.25rem;
-  max-width: 22rem;
-  margin-top: 0.75rem;
-  font-size: 0.875rem;
-}
-
-.speaker-materials__progress progress {
-  width: 100%;
-  accent-color: #e8117f;
-}
-
-.speaker-materials__error,
-.speaker-materials__message {
-  margin-top: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.speaker-materials__error {
-  color: #b91c1c;
-}
-
-.speaker-materials__message {
-  color: #166534;
-}
-
 .speaker-materials__list {
   display: grid;
   gap: 0.25rem;
   margin-top: 0.75rem;
   font-size: 0.875rem;
   overflow-wrap: anywhere;
+}
+
+.speaker-materials__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.speaker-materials__list li span {
+  min-width: 0;
+}
+
+.speaker-materials__list button {
+  min-height: 44px;
+  flex-shrink: 0;
+  color: #b91c1c;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.speaker-materials__list button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 </style>

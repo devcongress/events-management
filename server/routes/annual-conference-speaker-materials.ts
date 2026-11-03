@@ -91,7 +91,7 @@ async function workspace(c: Context<AppBindings>) {
     getAnnualConferenceSession(link.workspace_session_id),
   ]);
 
-  if (!submission || !session || submission.edition_id !== edition.id || session.edition_id !== edition.id || session.speaker_submission_id !== submission.id || submission.status !== 'selected' || submission.selected_intake_link_id !== link.id || submission.selected_session_id !== session.id) return null;
+  if (!submission || !session || submission.edition_id !== edition.id || session.edition_id !== edition.id || session.status !== 'confirmed' || session.speaker_submission_id !== submission.id || submission.status !== 'selected' || submission.selected_intake_link_id !== link.id || submission.selected_session_id !== session.id) return null;
 
   return { edition, session };
 }
@@ -159,6 +159,49 @@ export function registerAnnualConferenceSpeakerMaterialRoutes(app: Hono<AppBindi
       return c.json({ material: publicMaterial(result.data) }, 201);
     } catch (error) {
       return internalErrorResponse(c, 'speaker_material_upload_failed', error, 'Unable to upload the file. Please try again.');
+    }
+  });
+
+  app.delete(`${privatePath}/:materialId`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const rateLimit = await enforcePublicRateLimit(c, { action: 'conference_speaker_material_delete', clientKey: publicClientKey(c), maxAttempts: 30, windowSeconds: 3600 }, 'Too many requests. Please try again later.');
+
+    if (rateLimit) return rateLimit;
+    try {
+      const access = await workspace(c);
+
+      if (!access) return c.json({ error: 'This presenter link is no longer available.' }, 410);
+      if (!isSupabaseServerConfigured(c)) return c.json({ error: 'File removal is temporarily unavailable.' }, 503);
+      const materialId = c.req.param('materialId');
+
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(materialId)) return c.json({ error: 'File not found.' }, 404);
+      const client = getSupabaseAdminClient(c);
+      const result = await client.from('annual_conference_speaker_materials' as never)
+        .select('*')
+        .eq('id', materialId)
+        .eq('edition_id', access.edition.id)
+        .eq('session_id', access.session.id)
+        .maybeSingle() as unknown as { data: Material | null; error: unknown };
+
+      if (result.error) throw result.error;
+      if (!result.data) return c.json({ ok: true });
+      const removed = await client.storage.from(BUCKET).remove([result.data.storage_path]);
+
+      if (removed.error) throw removed.error;
+      // Keep the row and quota occupied until storage removal succeeds. Unique
+      // object paths and scoped filters keep concurrent replacements untouched.
+      const deleted = await client.from('annual_conference_speaker_materials' as never)
+        .delete()
+        .eq('id', materialId)
+        .eq('edition_id', access.edition.id)
+        .eq('session_id', access.session.id)
+        .eq('storage_path', result.data.storage_path);
+
+      if (deleted.error) throw deleted.error;
+
+      return c.json({ ok: true });
+    } catch {
+      return c.json({ error: 'Unable to remove the file. Please try again.' }, 503);
     }
   });
 

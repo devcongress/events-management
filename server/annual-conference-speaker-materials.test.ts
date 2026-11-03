@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({ revoked: false, expired: false, token: 'valid'
 vi.mock('@/lib/annual-conference-speakers', () => ({
   getAnnualConferenceSpeakerIntakeLink: async (_edition: string, token: string) => token === state.token ? { id: 'link', speaker_submission_id: 'submission', workspace_session_id: 'session', revoked_at: state.revoked ? 'now' : null, expires_at: state.expired ? '2020-01-01' : '2100-01-01' } : null,
   getAnnualConferenceSpeakerSubmission: async () => ({ id: 'submission', edition_id: state.submissionEdition, status: 'selected', selected_intake_link_id: 'link', selected_session_id: 'session' }),
-  getAnnualConferenceSession: async () => ({ id: 'session', edition_id: 'edition', speaker_submission_id: 'submission' }),
+  getAnnualConferenceSession: async () => ({ id: 'session', edition_id: 'edition', speaker_submission_id: 'submission', status: 'confirmed' }),
 }));
 vi.mock('@/server/annual-conference-request', () => ({
   getAnnualConferenceEditionByYear: async () => ({ id: 'edition', speaker_logistics_deadline: null }),
