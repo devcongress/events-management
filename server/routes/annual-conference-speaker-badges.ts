@@ -57,6 +57,36 @@ async function resolveCard(c: Context<AppBindings>, organizer: boolean) {
 }
 
 export function registerAnnualConferenceSpeakerBadgeRoutes(app: Hono<AppBindings>) {
+  app.get('/api/annual-conference/:year/speakers/storage', async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const year = c.req.param('year');
+
+    if (year !== '2026') return c.json({ error: 'Speaker badge storage is unavailable for this edition.' }, 404);
+    const denied = await requireAnnualConferenceCapability(c, Number(year), 'speakers.view');
+
+    if (denied) return denied;
+    try {
+      const edition = await getAnnualConferenceEditionByYear(Number(year), c);
+
+      if (!edition) return c.json({ error: 'Conference edition not found.' }, 404);
+      const result = await getSupabaseAdminClient(c).rpc('annual_conference_speaker_badge_storage_usage' as never, { p_edition_id: edition.id } as never);
+      const row = Array.isArray(result.data) ? result.data[0] as Record<string, unknown> | undefined : undefined;
+      const keys = ['speaker_photo_count', 'speaker_photo_bytes', 'shared_bucket_bytes'] as const;
+
+      if (result.error || !row || keys.some(key => row[key] === null || !Number.isSafeInteger(Number(row[key])) || Number(row[key]) < 0)) {
+        return c.json({ error: 'Speaker badge storage usage is unavailable.' }, 503);
+      }
+
+      return c.json({
+        speaker_photo_count: Number(row.speaker_photo_count),
+        speaker_photo_bytes: Number(row.speaker_photo_bytes),
+        shared_bucket_bytes: Number(row.shared_bucket_bytes),
+      });
+    } catch {
+      return c.json({ error: 'Speaker badge storage usage is unavailable.' }, 503);
+    }
+  });
+
   for (const [path, organizer] of [[workspace, false], [admin, true]] as const) {
     app.get(path, async (c) => {
       c.header('Cache-Control', 'no-store');

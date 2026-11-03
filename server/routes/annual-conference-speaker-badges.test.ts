@@ -4,12 +4,12 @@ import { createHash } from 'crypto';
 import type { AppBindings } from '@/server/http/app-bindings';
 
 const mocks = vi.hoisted(() => ({
-  link: vi.fn(), session: vi.fn(), submission: vi.fn(), ensure: vi.fn(), update: vi.fn(), remove: vi.fn(), capability: vi.fn(),
+  link: vi.fn(), session: vi.fn(), submission: vi.fn(), ensure: vi.fn(), update: vi.fn(), remove: vi.fn(), capability: vi.fn(), rpc: vi.fn(),
 }));
 
 vi.mock('@/lib/annual-conference-speakers', () => ({ getAnnualConferenceSpeakerIntakeLink: mocks.link, getAnnualConferenceSession: mocks.session, getAnnualConferenceSpeakerSubmission: mocks.submission }));
 vi.mock('@/lib/supabase/annual-conference-social-cards', () => ({ ensureSpeakerSocialCard: mocks.ensure, removeSpeakerSocialCardPhoto: mocks.remove, updateSupabaseAnnualConferenceSocialCard: mocks.update, uploadSupabaseAnnualConferenceSocialCardPhoto: vi.fn() }));
-vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: vi.fn() }));
+vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/server/annual-conference-request', () => ({ getAnnualConferenceEditionByYear: vi.fn().mockResolvedValue({ id: 'edition', speaker_logistics_deadline: null }), requireAnnualConferenceCapability: mocks.capability }));
 vi.mock('@/server/http/public-intake-protection', () => ({ enforcePublicRateLimit: vi.fn().mockResolvedValue(null), publicClientKey: vi.fn().mockReturnValue('client') }));
 
@@ -126,6 +126,31 @@ describe('speaker badge access', () => {
 
     expect(result.status).toBe(409);
     expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
+  it('returns authorized aggregate storage usage without object paths', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: [{ speaker_photo_count: 2, speaker_photo_bytes: 1000, shared_bucket_bytes: 5000, name: 'private' }], error: null });
+    const result = await app().request('/api/annual-conference/2026/speakers/storage');
+
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual({ speaker_photo_count: 2, speaker_photo_bytes: 1000, shared_bucket_bytes: 5000 });
+    expect(mocks.capability).toHaveBeenCalledWith(expect.anything(), 2026, 'speakers.view');
+    expect(mocks.rpc).toHaveBeenCalledWith('annual_conference_speaker_badge_storage_usage', { p_edition_id: 'edition' });
+  });
+
+  it('requires speaker capability before accessing aggregate storage', async () => {
+    mocks.capability.mockResolvedValueOnce(new Response('Forbidden', { status: 403 }));
+    const result = await app().request('/api/annual-conference/2026/speakers/storage');
+
+    expect(result.status).toBe(403);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('does not report zero when storage metadata or migration is unavailable', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: [{ speaker_photo_count: 1, speaker_photo_bytes: null, shared_bucket_bytes: 100 }], error: null });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'not found' } });
+    expect((await app().request('/api/annual-conference/2026/speakers/storage')).status).toBe(503);
+    expect((await app().request('/api/annual-conference/2026/speakers/storage')).status).toBe(503);
   });
 
 });

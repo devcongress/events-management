@@ -147,6 +147,12 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
+/* Leave a gutter even when adjacent captured boxes share an edge. */
+.ems-loading-measured :deep([data-boneyard-bone]),
+.ems-loading-fallback :deep(:is(h1, h2, h3, h4, h5, h6, p, span, strong, small)) {
+  clip-path: inset(min(3px, 12%) min(2px, 8%) round 5px);
+}
+
 .ems-loading-fallback {
   color: transparent;
   opacity: 0.5;
