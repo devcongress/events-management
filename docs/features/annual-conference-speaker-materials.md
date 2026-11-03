@@ -2,7 +2,7 @@
 
 Participation opens the selected speaker’s logistics and materials. Delivery opens the decision email status, recipient, attempt count, timestamps, and available recovery actions.
 
-Selected speakers can upload optional PDF, PPT, and PPTX files in their private workspace. Uploading a file is separate from saving the optional slides or resource URL and session logistics. The workspace permits five files per accepted session, each at most 5 MiB. Files are uploaded immediately and do not require saving the rest of the form. The current workspace does not offer file removal; organizers can download submitted versions from the proposal drawer.
+Selected speakers can upload optional PDF, PPT, and PPTX files in their private workspace. Uploading a file is separate from saving the optional slides or resource URL and session logistics. The workspace permits five files per accepted session, each at most 5 MiB. Selecting a file stages it; **Upload file** saves it independently of logistics and badge edits. Leaving with a staged file or unsaved changes triggers a warning. The current workspace does not offer file removal; organizers can download submitted versions from the proposal drawer.
 
 The same private form lets speakers confirm availability and provide technical and equipment needs, plus optional accessibility support, an HTTPS headshot link, and a social handle. Authorized speaker viewers can review these answers in the proposal drawer. These details are not automatically published; the separate speaker badge and public programme photo flows retain their own controls. The headshot field accepts a link, not an image upload.
 

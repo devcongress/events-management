@@ -83,3 +83,10 @@
 
 /* Popover choices wrap instead of silently losing the distinguishing words. */
 .app-dropdown-menu [role='option'] > span:last-child { white-space: normal; overflow-wrap: anywhere; }
+
+.app-form-control-range {
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  accent-color: var(--form-focus);
+}

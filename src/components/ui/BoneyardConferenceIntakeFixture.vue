@@ -24,15 +24,51 @@ const answers = [{ value: '', label: 'Choose an answer' }];
         </ol>
         <p class="mt-4 border-t border-dc-border pt-4 text-xs font-semibold">Updates close on the agreed organizer deadline.</p>
       </section>
+      <section class="rounded-lg border border-dc-border bg-white p-5 sm:p-8">
+        <h2 class="text-xl font-semibold">Your speaker badge</h2>
+        <p>Personalize your badge and download it to share. Your changes are saved privately.</p>
+        <div class="mt-6 grid gap-6 sm:grid-cols-[220px_minmax(0,1fr)]">
+          <div class="aspect-[4/5] w-full max-w-[220px] rounded-md bg-dc-cream" />
+          <div class="grid content-start gap-4 lg:grid-cols-2">
+            <div class="grid content-start gap-4">
+              <label class="block">Display name<input class="editorial-input" disabled /></label>
+              <label class="block">Photo<input type="file" class="editorial-input" disabled /></label>
+              <p class="text-sm">JPEG, PNG, WebP or AVIF, up to 5 MB.</p>
+            </div>
+            <div class="grid content-start gap-4">
+              <p class="font-semibold">Adjust photo</p>
+              <label class="block">Zoom<input type="range" class="app-form-control-range" disabled /></label>
+              <label class="block">Horizontal position<input type="range" class="app-form-control-range" disabled /></label>
+              <label class="block">Vertical position<input type="range" class="app-form-control-range" disabled /></label>
+            </div>
+            <div class="flex gap-2 lg:col-span-2">
+              <button type="button" disabled>Save badge</button>
+              <button type="button" disabled>Download PNG</button>
+            </div>
+          </div>
+        </div>
+      </section>
       <section class="app-form-section space-y-5">
         <h2 class="app-form-section-title">Session logistics</h2>
-        <div class="grid gap-4 sm:grid-cols-2">
+        <div class="grid gap-5 lg:grid-cols-2">
+        <div class="grid gap-4 sm:grid-cols-2 lg:col-span-2">
           <AppDropdown model-value="" label="Availability confirmation" :options="answers" disabled />
           <AppDropdown model-value="" label="Do participants need laptops?" :options="answers" disabled />
         </div>
         <label class="block"><span class="editorial-label">Slides or supporting-resource link</span><input type="url" class="editorial-input" disabled /></label>
+        <div class="space-y-2">
+          <p class="editorial-label">Upload slides or supporting file (optional)</p>
+          <p class="text-sm">PDF, PPT, or PPTX, up to 5 MB per file and five files total.</p>
+          <input type="file" class="block w-full text-sm" disabled />
+          <button type="button" disabled>Upload file</button>
+        </div>
         <label class="block"><span class="editorial-label">Technical and setup requirements</span><textarea class="editorial-input resize-none" rows="4" disabled /></label>
+        <label class="block"><span class="editorial-label">Accessibility support (optional)</span><textarea class="editorial-input" rows="3" disabled /></label>
+        <label class="block"><span class="editorial-label">Headshot link (optional)</span><input class="editorial-input" disabled /></label>
+        <label class="block"><span class="editorial-label">Social handle (optional)</span><input class="editorial-input" disabled /></label>
+        <p class="lg:col-span-2">These details are shared privately with organizers.</p>
         <label class="block"><span class="editorial-label">Required software or equipment</span><textarea class="editorial-input resize-none" rows="3" disabled /></label>
+        </div>
       </section>
       <div class="flex justify-end"><button type="button" class="w-full rounded-lg border border-dc-ink bg-dc-pink px-5 py-3 text-sm font-semibold uppercase sm:w-auto sm:min-w-56" disabled>Save details</button></div>
     </div>

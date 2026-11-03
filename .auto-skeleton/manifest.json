@@ -3292,7 +3292,7 @@
     },
     "speaker-talk-intake-conference": {
       "status": "completed",
-      "inputFingerprint": "b42d71fe2c84e14233e09be5a2abdadadbbf59c7a75a7b14fbf90f173efe6fdd",
+      "inputFingerprint": "7e828a3f3262e26055055f32b7a5724b3b68d27cc354463ca81e29d05228a881",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3343,7 +3343,7 @@
         "src/bones/speaker-talk-intake-conference.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/speaker-talk-intake-conference.bones.json": "3cdfc04fe306423d982fdcb54c60b323fc8c0383eded2e9ecd69bad99cc6b408"
+        "src/bones/speaker-talk-intake-conference.bones.json": "0205958e47ded3ad9eee5ea50d978ac8f267e9456cc466d6a489619702ac7e83"
       },
       "captureConfig": {
         "breakpoints": [
@@ -3357,7 +3357,7 @@
         "viewportHeight": 1000,
         "fixture": "speaker-talk-intake-conference",
         "layout": {
-          "maxWidth": 1152,
+          "maxWidth": 3840,
           "padding": 32,
           "context": "page",
           "topOffset": 24,

@@ -79,7 +79,7 @@ createApp({
     ]);
 
     if (capture.publicFormFrame) {
-      return h(PublicFormRouteFrame, { centerContent: capture.publicFormFrame === 'center' }, { default: () => fixture });
+      return h(PublicFormRouteFrame, { centerContent: capture.publicFormFrame === 'center', fullWidth: section.id === 'speaker-talk-intake-conference' }, { default: () => fixture });
     }
 
     return fixture;

@@ -538,7 +538,7 @@ export const generalSections: SkeletonSection[] = [
       "src/views/SpeakerTalkIntakeView.vue"
     ],
     "capture": {
-      "maxWidth": 1152,
+      "maxWidth": 3840,
       "padding": 32,
       "context": "page",
       "topOffset": 24,
