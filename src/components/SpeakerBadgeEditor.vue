@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
+import SpeakerUploadStatus from './SpeakerUploadStatus.vue';
 import ConfirmDialog from './ui/ConfirmDialog.vue';
 import { uploadMultipart } from '../lib/upload-multipart';
 import { canvasPng, loadSpeakerBadge, renderSpeakerBadge, saveBadgeFile, type SpeakerBadge } from '../lib/speaker-badge';
@@ -22,6 +23,12 @@ const error = ref('');
 const message = ref('');
 const photoError = ref('');
 const photoMessage = ref('');
+const photoStatus = computed(() => {
+  if (uploading.value) return uploadProgress.value === 100 ? 'Saving photo…' : 'Uploading photo…';
+  if (photoMessage.value) return photoMessage.value;
+
+  return card.value?.photo_available ? 'Photo saved to your badge' : 'No photo added';
+});
 const busy = ref(false);
 const savedCard = ref('');
 const hasUnsavedChanges = computed(() => busy.value || (card.value !== null && savedCard.value !== badgeFields(card.value)));
@@ -252,7 +259,7 @@ onMounted(load);
           <label>Display name <input v-model="card.display_name" class="editorial-input" maxlength="120" @keydown.enter.prevent="save" @input="refreshPreview"></label>
           <div class="speaker-badge__photo">
             <p class="speaker-badge__photo-label">Photo</p>
-            <p>{{ card.photo_available ? 'Photo saved to your badge' : 'No photo added' }}</p>
+            <SpeakerUploadStatus :busy="uploading" :progress="uploadProgress" :error="photoError" :status="photoStatus" label="Photo upload progress" />
             <div class="speaker-badge__photo-actions">
               <button ref="photoAction" type="button" :disabled="busy" @click="photoInput?.click()">{{ card.photo_available ? 'Replace photo' : 'Add photo' }}</button>
               <button v-if="card.photo_available" type="button" :disabled="busy" @click="confirmPhotoRemoval = true">Remove photo</button>
@@ -260,13 +267,7 @@ onMounted(load);
             <input ref="photoInput" type="file" hidden accept="image/jpeg,image/png,image/webp,image/avif" :disabled="busy" @change="upload">
             <p>JPEG, PNG, WebP or AVIF, up to 5 MB. Changes save immediately.</p>
           </div>
-          <p v-if="photoError" class="speaker-badge__photo-error" role="alert">{{ photoError }}</p>
-          <p v-if="photoMessage" role="status">{{ photoMessage }}</p>
-          <div v-if="uploading" class="speaker-badge__progress" role="status" aria-live="polite">
-            <span>{{ uploadProgress === 100 ? 'Saving photo…' : uploadProgress === null ? 'Uploading photo…' : `Uploading photo… ${uploadProgress}%` }}</span>
-            <progress v-if="uploadProgress !== null" :value="uploadProgress" max="100" aria-label="Photo upload progress" />
-            <progress v-else aria-label="Photo upload progress" />
-          </div>
+
         </div>
         <div class="speaker-badge__adjustments">
           <p class="speaker-badge__adjustments-title">Adjust photo</p>
@@ -426,23 +427,6 @@ onMounted(load);
   padding: 0.5rem 0.875rem;
   border: 1px solid #aaa;
   border-radius: 6px;
-}
-
-.speaker-badge__photo-error {
-  color: #b91c1c !important;
-}
-
-.speaker-badge__progress {
-  display: grid;
-  gap: 0.375rem;
-  color: #555;
-  font-size: 0.875rem;
-}
-
-.speaker-badge__progress progress {
-  width: 100%;
-  height: 0.5rem;
-  accent-color: #e8117f;
 }
 
 .speaker-badge__adjustments-title {

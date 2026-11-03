@@ -1183,6 +1183,7 @@ function isPublicCfpEventRequest(path: string, method: string): boolean {
 }
 
 function isSpeakerTalkIntakeRequest(path: string, method: string): boolean {
+  if (method === 'DELETE' && /^\/api\/conference-speaker-materials\/\d{4}\/[^/]+\/[0-9a-f-]+$/i.test(path)) return true;
   if (method === 'DELETE' && /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+\/badge\/photo$/.test(path)) return true;
   if (['GET', 'POST', 'PATCH'].includes(method) && /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+\/badge(?:\/photo)?$/.test(path)) return true;
 
