@@ -1,8 +1,9 @@
+import { createHash } from 'crypto';
 import type { Context, Hono } from 'hono';
 import { z } from 'zod';
 import { getAnnualConferenceSession, getAnnualConferenceSpeakerIntakeLink, getAnnualConferenceSpeakerSubmission } from '@/lib/annual-conference-speakers';
 import { DEVCON26_SOCIAL_CARD_BUCKET, normalizeDevcon26SocialCardName, validateDevcon26SocialCardCrop, validateDevcon26SocialCardImage } from '@/lib/annual-conference-social-cards';
-import { ensureSpeakerSocialCard, updateSupabaseAnnualConferenceSocialCard, uploadSupabaseAnnualConferenceSocialCardPhoto, type AnnualConferenceSocialCard } from '@/lib/supabase/annual-conference-social-cards';
+import { ensureSpeakerSocialCard, removeSpeakerSocialCardPhoto, updateSupabaseAnnualConferenceSocialCard, uploadSupabaseAnnualConferenceSocialCardPhoto, type AnnualConferenceSocialCard } from '@/lib/supabase/annual-conference-social-cards';
 import { getSupabaseAdminClient } from '@/lib/supabase/server';
 import { getAnnualConferenceEditionByYear, requireAnnualConferenceCapability } from '@/server/annual-conference-request';
 import { enforcePublicRateLimit, publicClientKey } from '@/server/http/public-intake-protection';
@@ -12,8 +13,12 @@ const workspace = '/api/conferences/:year/speaker-intake/:token/badge';
 const admin = '/api/annual-conference/:year/speaker-badges/:sessionId';
 const updateSchema = z.object({ display_name: z.string().trim().min(1).max(120), crop: z.object({ x: z.number(), y: z.number(), scale: z.number() }) }).strict();
 
+function photoVersion(path: string) {
+  return createHash('sha256').update(path).digest('base64url');
+}
+
 function response(card: AnnualConferenceSocialCard) {
-  return { display_name: card.display_name, role: 'speaker', crop: { x: card.crop_x, y: card.crop_y, scale: card.crop_scale }, photo_available: Boolean(card.photo_path) };
+  return { display_name: card.display_name, role: 'speaker', crop: { x: card.crop_x, y: card.crop_y, scale: card.crop_scale }, photo_available: Boolean(card.photo_path), photo_version: card.photo_path ? photoVersion(card.photo_path) : null };
 }
 
 async function resolveCard(c: Context<AppBindings>, organizer: boolean) {
@@ -119,4 +124,30 @@ export function registerAnnualConferenceSpeakerBadgeRoutes(app: Hono<AppBindings
 
     return c.json({ card: response(updated) });
   });
+
+  app.delete(`${workspace}/photo`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const limited = await enforcePublicRateLimit(c, { action: 'speaker_badge_photo', clientKey: publicClientKey(c), maxAttempts: 12, windowSeconds: 3600 }, 'Too many attempts. Please try again later.');
+
+    if (limited) return limited;
+    const card = await resolveCard(c, false);
+
+    if (card instanceof Response) return card;
+    if (!card || card.revoked_at) return c.json({ error: 'This speaker badge is unavailable.' }, 404);
+    if (!card.photo_path) return c.json({ card: response(card) });
+    if (c.req.header('X-Badge-Photo-Version') !== photoVersion(card.photo_path)) {
+      return c.json({ error: 'The badge photo changed. Refresh and try again.' }, 409);
+    }
+
+    try {
+      const updated = await removeSpeakerSocialCardPhoto(card.id, card.photo_path, c);
+
+      if (!updated) return c.json({ error: 'The badge photo changed. Refresh and try again.' }, 409);
+
+      return c.json({ card: response(updated) });
+    } catch {
+      return c.json({ error: 'Unable to remove the badge photo. Please try again.' }, 503);
+    }
+  });
+
 }

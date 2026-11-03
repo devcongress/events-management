@@ -90,3 +90,32 @@
   min-height: 24px;
   accent-color: var(--form-focus);
 }
+
+.speaker-upload-input {
+  max-width: 100%;
+  min-width: 0;
+  color: var(--color-dc-gray, #555);
+  font: inherit;
+}
+
+.speaker-upload-input::file-selector-button {
+  min-height: 44px;
+  margin-inline-end: 0.75rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--form-border);
+  border-radius: 6px;
+  background: white;
+  color: #111;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.speaker-upload-input:focus-visible {
+  outline: 2px solid var(--form-focus);
+  outline-offset: 2px;
+}
+
+.speaker-upload-input:disabled::file-selector-button {
+  cursor: default;
+}

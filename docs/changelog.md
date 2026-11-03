@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-03 — Speaker uploads and badge preview
+
+- Show upload progress, file limits, and confirmation for badge photos and session materials. Speakers can see, replace, or remove their saved badge photo and enlarge the current badge in a desktop dialog or phone bottom drawer.
+- Align the technical requirements and accessibility text areas on desktop.
+
 ## 2026-11-03 — Speaker workspace readability
 
 - Use the available desktop width for badge and logistics controls. Warn before leaving with unsaved edits or a selected file awaiting upload.
