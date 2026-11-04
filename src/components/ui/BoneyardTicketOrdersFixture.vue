@@ -7,11 +7,11 @@ withDefaults(defineProps<{ rows?: number; panel?: boolean }>(), { rows: 5 });
     <template v-if="panel">
       <header class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-dc-border px-5 py-4">
         <h2 class="text-xl font-semibold text-dc-ink">Ticket orders</h2>
-        <button type="button" class="row-span-2 min-h-11 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray" disabled>Refresh</button>
-        <p class="mt-1 text-sm leading-6 text-dc-gray">Confirmed live payments, including refunded orders.</p>
+        <button type="button" class="min-h-11 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray sm:row-span-2" disabled>Refresh</button>
+        <p class="col-span-2 mt-1 text-sm leading-6 text-dc-gray sm:col-span-1 sm:col-start-1">Confirmed payments and refunds.</p>
       </header>
       <div class="flex flex-wrap gap-1.5 border-b border-dc-border px-3 py-3 sm:px-5">
-        <button v-for="(label, index) in ['Paid orders', 'Checkout attempts', 'Test orders']" :key="label" type="button" class="min-h-11 whitespace-nowrap rounded-md border px-2.5 py-2 text-sm font-semibold sm:px-3" :class="index === 0 ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray'" disabled>{{ label }}</button>
+        <button v-for="(label, index) in ['Paid orders', 'Checkout attempts', 'Test orders']" :key="label" type="button" class="min-h-11 whitespace-nowrap rounded-md border px-2 py-2 text-sm font-semibold sm:px-3" :class="index === 0 ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray'" disabled>{{ label }}</button>
       </div>
     </template>
     <ul class="ticket-order-cards md:hidden">

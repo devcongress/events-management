@@ -6785,7 +6785,7 @@
     },
     "annual-conference-ticket-orders": {
       "status": "completed",
-      "inputFingerprint": "a9369973d42b4037ea09f58edd9dd4825d3d2424a3312cb747c13100cfb779a8",
+      "inputFingerprint": "53f716f29fe35057318b32c78013703c18ec413f0b468279c37a4de442962c7d",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7818,7 +7818,7 @@
     },
     "annual-conference-ticketing-orders": {
       "status": "completed",
-      "inputFingerprint": "4b8f1e243c0431805739b41ba623e5847db093c214008a16bcdf5ffb8ed784d4",
+      "inputFingerprint": "784a2ec98b9d3bbb8c21244c8c4eff1b33286783ce878c6af83786299b09dd47",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -7869,7 +7869,7 @@
         "src/bones/annual-conference-ticketing-orders.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/annual-conference-ticketing-orders.bones.json": "93648e7605f70ff6b09458b9836677d57984a4ad383d8db8a7aef2544372f933"
+        "src/bones/annual-conference-ticketing-orders.bones.json": "a3c14b3f516c04cbd7f9176b442d522880e0364596510a2e049efb3cbef1d6d2"
       },
       "captureConfig": {
         "breakpoints": [

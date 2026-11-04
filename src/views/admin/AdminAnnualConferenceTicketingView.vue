@@ -62,7 +62,7 @@ const selectedOrder = ref<AnnualConferenceTicketOrderOverview | null>(null);
 const ticketOrderPage = ref(1);
 const ticketOrderView = ref<Exclude<AnnualConferenceTicketOrderView, 'all'>>('paid');
 const orderViews = [
-  { value: 'paid', label: 'Paid orders', description: 'Confirmed live payments, including refunded orders.' },
+  { value: 'paid', label: 'Paid orders', description: 'Confirmed payments and refunds.' },
   { value: 'attempts', label: 'Checkout attempts', description: 'Live checkouts without a confirmed payment.' },
   { value: 'test', label: 'Test orders', description: 'Test payments only. No money was collected.' },
 ] as const;
@@ -711,12 +711,12 @@ onUnmounted(() => {
         <section v-if="activeSection === 'orders'" class="rounded-lg border border-dc-border bg-dc-paper" aria-labelledby="ticket-orders-title">
           <header class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-dc-border px-5 py-4">
             <h2 id="ticket-orders-title" class="text-xl font-semibold text-dc-ink">Ticket orders</h2>
-            <button type="button" class="motion-press row-span-2 min-h-11 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-50" :disabled="ticketOrderQuery.isFetching.value" @click="ticketOrderQuery.refetch()">Refresh</button>
-            <p class="mt-1 text-sm leading-6 text-dc-gray">{{ currentOrderView.description }}</p>
+            <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray sm:row-span-2 hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-50" :disabled="ticketOrderQuery.isFetching.value" @click="ticketOrderQuery.refetch()">Refresh</button>
+            <p class="col-span-2 mt-1 text-sm leading-6 text-dc-gray sm:col-span-1 sm:col-start-1">{{ currentOrderView.description }}</p>
           </header>
 
           <div class="flex flex-wrap gap-1.5 border-b border-dc-border px-3 py-3 sm:px-5" role="group" aria-label="Order views">
-            <button v-for="view in orderViews" :key="view.value" type="button" class="min-h-11 whitespace-nowrap rounded-md border px-2.5 py-2 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-dc-pink focus-visible:ring-offset-2 sm:px-3" :class="ticketOrderView === view.value ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray'" :aria-pressed="ticketOrderView === view.value" @click="ticketOrderView = view.value">{{ view.label }}</button>
+            <button v-for="view in orderViews" :key="view.value" type="button" class="min-h-11 whitespace-nowrap rounded-md border px-2 py-2 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-dc-pink focus-visible:ring-offset-2 sm:px-3" :class="ticketOrderView === view.value ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray'" :aria-pressed="ticketOrderView === view.value" @click="ticketOrderView = view.value">{{ view.label }}</button>
           </div>
 
           <div class="overflow-x-auto">

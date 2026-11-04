@@ -111,16 +111,26 @@ async function orderElementBounds(region, element, textOnly = false) {
     range.selectNodeContents(item);
     const bounds = useText ? range.getBoundingClientRect() : item.getBoundingClientRect();
 
-    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, w: bounds.width };
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, w: bounds.width, h: bounds.height };
   }, textOnly);
   const origin = await region.boundingBox();
 
-  return { x: rect.x - origin.x, y: rect.y - origin.y, w: rect.w };
+  return { x: rect.x - origin.x, y: rect.y - origin.y, w: rect.w, h: rect.h };
 }
 
-function hasOrderBone(bones, center, tolerance) {
-  return bones.some((bone) => bone.w > 8 && bone.h >= 8 && bone.h <= 48
-    && Math.abs(center.x - bone.x) <= tolerance && Math.abs(center.y - bone.y) <= 5 && Math.abs(center.w - bone.w) <= 10);
+function assertOrderPlaceholder(bones, field, label, { textOffset = 0 } = {}) {
+  const closest = bones.filter((bone) => bone.w > 8 && bone.h >= 8 && bone.h <= 48)
+    .sort((a, b) => Math.hypot(a.x - field.x, a.y - field.y) - Math.hypot(b.x - field.x, b.y - field.y))[0];
+
+  assert.ok(closest, `Missing placeholder for ${label}`);
+  // Bones scale as percentages of the available panel width. Real buttons keep
+  // their intrinsic size when a platform scrollbar narrows the panel.
+  const xTolerance = Math.max(Math.min(16, field.w * 0.2), textOffset);
+  const yTolerance = Math.max(5, field.h * 0.15);
+
+  assert.ok(Math.abs(field.x - closest.x) <= xTolerance && Math.abs(field.y - closest.y) <= yTolerance
+    && Math.abs(field.w - closest.w) <= 10,
+  `Misaligned ${label}: field ${JSON.stringify(field)}, nearest bone ${JSON.stringify(closest)}`);
 }
 
 async function assertUnderlineTabGeometry(page, selector) {
@@ -4206,7 +4216,7 @@ try {
         for (const control of await controls.all()) {
           const center = await orderElementBounds(panel, control);
 
-          assert.ok(hasOrderBone(panelBones, center, 5), `Missing control placeholder for ${await control.innerText()} at ${width}px`);
+          assertOrderPlaceholder(panelBones, center, `${await control.innerText()} at ${width}px`);
         }
 
         const bounds = await rows.boundingBox();
@@ -4224,7 +4234,7 @@ try {
         await status.waitFor();
         const center = await orderElementBounds(content, status, true);
 
-        assert.ok(hasOrderBone(rowBones, center, width < 768 ? 12 : 24), `Missing delivery text placeholder at ${width}px`);
+        assertOrderPlaceholder(rowBones, center, `Delivery text at ${width}px`, { textOffset: width < 768 ? 12 : 24 });
         if (width === 390 || width === 1280) {
           await panel.screenshot({ path: `${artifacts}/annual-ticketing-orders-loaded-${width}.png` });
         }
