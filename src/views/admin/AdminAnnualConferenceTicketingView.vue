@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppPagination from "@/src/components/AppPagination.vue";
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
@@ -20,11 +21,14 @@ import {
   type AnnualConferenceTicketEmailDelivery,
   type AnnualConferenceTicketEmailDeliveryStatus,
   type AnnualConferenceTicketOrderOverview,
+  type AnnualConferenceTicketOrderView,
   updateAnnualConferenceTicketingCapacity,
   updateAnnualConferenceTicketPrices,
   type AnnualConferenceSponsorAllocation,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
+import { useTicketOrderExpiry } from '@/src/lib/ticket-order-expiry';
+import { ticketOrderPageAfterResponse } from '@/src/lib/ticket-order-pagination';
 import { resolveTicketingSection, ticketingSectionLocation, ticketingSections } from '@/src/ticketing-navigation';
 
 type SponsorFormField = 'sponsor_name' | 'contact_name' | 'contact_email' | 'quantity';
@@ -56,6 +60,13 @@ const orderDrawerPanel = ref<HTMLElement | null>(null);
 const orderDrawerCloseButton = ref<HTMLButtonElement | null>(null);
 const selectedOrder = ref<AnnualConferenceTicketOrderOverview | null>(null);
 const ticketOrderPage = ref(1);
+const ticketOrderView = ref<Exclude<AnnualConferenceTicketOrderView, 'all'>>('paid');
+const orderViews = [
+  { value: 'paid', label: 'Paid orders', description: 'Confirmed live payments, including refunded orders.' },
+  { value: 'attempts', label: 'Checkout attempts', description: 'Live checkouts without a confirmed payment.' },
+  { value: 'test', label: 'Test orders', description: 'Test payments only. No money was collected.' },
+] as const;
+const currentOrderView = computed(() => orderViews.find(({ value }) => value === ticketOrderView.value)!);
 const sponsorStatus = ref('');
 const sponsorFormErrors = reactive<Partial<Record<SponsorFormField, string>>>({});
 const sponsorForm = reactive({ sponsor_name: '', contact_name: '', contact_email: '', quantity: 1 });
@@ -101,13 +112,30 @@ const emailDeliveryQuery = useQuery({
   enabled: computed(() => activeSection.value === 'delivery'),
 });
 const ticketOrderQuery = useQuery({
-  queryKey: computed(() => queryKeys.annualConferenceTicketOrders(year.value, ticketOrderPage.value)),
-  queryFn: () => fetchAnnualConferenceTicketOrders(year.value, ticketOrderPage.value),
-  enabled: computed(() => activeSection.value === 'orders' || (year.value !== '2026' && activeSection.value === 'overview')),
+  queryKey: computed(() => queryKeys.annualConferenceTicketOrders(year.value, ticketOrderPage.value, ticketOrderView.value)),
+  queryFn: async ({ queryKey }) => {
+    const [, requestYear, requestPage, requestView] = queryKey;
+    const result = await fetchAnnualConferenceTicketOrders(requestYear, requestPage, requestView);
+
+    ticketOrderPage.value = ticketOrderPageAfterResponse(
+      { year: year.value, page: ticketOrderPage.value, view: ticketOrderView.value },
+      { year: requestYear, page: requestPage, view: requestView },
+      result.total,
+      result.page_size,
+    );
+
+    return result;
+  },
+  enabled: computed(() => activeSection.value === 'orders'),
+});
+const allOrdersQuery = useQuery({
+  queryKey: computed(() => queryKeys.annualConferenceTicketOrders(year.value, 1)),
+  queryFn: () => fetchAnnualConferenceTicketOrders(year.value, 1),
+  enabled: computed(() => year.value !== '2026' && activeSection.value === 'overview'),
 });
 const regularTier = computed(() => ticketing.value?.settings.ticket_tiers.find((tier) => tier.key === 'regular'));
 const pricingIsEditable = computed(() => (
-  year.value !== '2026' && ticketOrderQuery.data.value?.total === 0 && (
+  year.value !== '2026' && allOrdersQuery.data.value?.total === 0 && (
     ticketing.value?.settings.ticket_sales_status === 'draft'
     || (ticketing.value?.settings.ticket_sales_status === 'closed' && ticketing.value.settings.public_mode === 'free')
   )
@@ -157,6 +185,10 @@ const emailDeliverySummary = computed(() => {
 });
 const emailDeliveryPageCount = computed(() => Math.max(1, Math.ceil((emailDeliveryQuery.data.value?.total ?? 0) / 8)));
 const ticketOrderPageCount = computed(() => Math.max(1, Math.ceil((ticketOrderQuery.data.value?.total ?? 0) / 5)));
+const orderExpiryClock = useTicketOrderExpiry(computed(() => [
+  ...(activeSection.value === 'orders' ? ticketOrderQuery.data.value?.orders ?? [] : []),
+  ...(selectedOrder.value ? [selectedOrder.value] : []),
+]));
 
 watch([() => route.query.section, year], ([value]) => {
   if (value === undefined || value === activeSection.value) return;
@@ -171,6 +203,10 @@ watch([activeSection, year], ([section]) => {
 
 watch([emailDeliveryStatus, year], () => {
   emailDeliveryPage.value = 1;
+});
+
+watch(ticketOrderView, () => {
+  ticketOrderPage.value = 1;
 });
 
 watch(year, () => {
@@ -376,8 +412,18 @@ function formatTicketDate(value: string | null) {
   }).format(new Date(value));
 }
 
-function ticketOrderCheckInCount(order: AnnualConferenceTicketOrderOverview) {
-  return order.seats.filter((seat) => seat.status === 'checked_in').length;
+function orderEmailStatus(order: AnnualConferenceTicketOrderOverview) {
+  const status = order.delivery_status;
+
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Not queued';
+}
+
+function orderAmount(order: AnnualConferenceTicketOrderOverview) {
+  if (order.payment_mode === 'test') return 'GH₵0 charged · test';
+  if (order.amount_paid_minor != null) return formatTicketMoney(order.amount_paid_minor);
+  if (order.status === 'paid' || order.status === 'refunded' || order.paid_at || order.refund_status) return 'Paid amount unavailable';
+
+  return `${formatTicketMoney(order.quoted_gross_amount_minor ?? order.amount_minor)} quoted`;
 }
 
 async function openTicketOrder(order: AnnualConferenceTicketOrderOverview, event: Event) {
@@ -509,6 +555,23 @@ function setEmailDeliveryStatus(value: string | number) {
   emailDeliveryStatus.value = filter.value;
 }
 
+function paymentStatus(order: AnnualConferenceTicketOrderOverview): string {
+  if (order.refund_status) {
+    return { required: 'Refund required', processing: 'Refund processing', refunded: 'Refunded', failed: 'Refund failed', needs_attention: 'Refund needs attention' }[order.refund_status];
+  }
+
+  if (order.refunded_seat_count && order.status !== 'refunded') return 'Partially refunded';
+  if (order.status === 'expired' && order.paid_at) return order.payment_mode === 'test' ? 'Test payment confirmed · unfulfilled' : 'Payment confirmed · unfulfilled';
+
+  if (order.status === 'pending_payment') {
+    const expiresAt = order.expires_at ? Date.parse(order.expires_at) : NaN;
+
+    return Number.isFinite(expiresAt) && expiresAt <= orderExpiryClock.value ? 'Checkout expired' : 'Awaiting payment';
+  }
+
+  return { paid: 'Paid', refunded: 'Refunded', expired: 'Checkout expired', cancelled: 'Cancelled' }[order.status];
+}
+
 function sponsorContactLabel(allocation: AnnualConferenceSponsorAllocation) {
   return `${allocation.contact_name}, ${allocation.contact_email}`;
 }
@@ -527,7 +590,7 @@ onUnmounted(() => {
       <header class="border-b-2 border-dc-ink pb-5">
           <p class="editorial-eyebrow">DevCon{{ year.slice(-2) }} · paid tickets</p>
           <h1 class="mt-2 text-3xl font-semibold tracking-tight text-dc-ink">Ticketing</h1>
-          <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Manage seat inventory and sponsor reservations while public checkout remains deliberately inactive.</p>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Review purchases, track ticket emails, and manage available seats.</p>
         </header>
 
       <WorkspaceSectionNav class="mb-6" :active="activeSection" label="Ticketing sections" :items="sectionLinks">
@@ -646,14 +709,15 @@ onUnmounted(() => {
         </div>
 
         <section v-if="activeSection === 'orders'" class="rounded-lg border border-dc-border bg-dc-paper" aria-labelledby="ticket-orders-title">
-          <header class="flex flex-wrap items-start justify-between gap-4 border-b border-dc-border px-5 py-4">
-            <div>
-              <p class="editorial-eyebrow">Admissions operations</p>
-              <h2 id="ticket-orders-title" class="mt-1 text-xl font-semibold text-dc-ink">Ticket orders</h2>
-              <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">Paid orders, delivery state, and check-in progress. Select an order for the private purchaser and seat details.</p>
-            </div>
-            <button type="button" class="motion-press min-h-11 shrink-0 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-50" :disabled="ticketOrderQuery.isFetching.value" @click="ticketOrderQuery.refetch()">Refresh</button>
+          <header class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-dc-border px-5 py-4">
+            <h2 id="ticket-orders-title" class="text-xl font-semibold text-dc-ink">Ticket orders</h2>
+            <button type="button" class="motion-press row-span-2 min-h-11 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-50" :disabled="ticketOrderQuery.isFetching.value" @click="ticketOrderQuery.refetch()">Refresh</button>
+            <p class="mt-1 text-sm leading-6 text-dc-gray">{{ currentOrderView.description }}</p>
           </header>
+
+          <div class="flex flex-wrap gap-1.5 border-b border-dc-border px-3 py-3 sm:px-5" role="group" aria-label="Order views">
+            <button v-for="view in orderViews" :key="view.value" type="button" class="min-h-11 whitespace-nowrap rounded-md border px-2.5 py-2 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-dc-pink focus-visible:ring-offset-2 sm:px-3" :class="ticketOrderView === view.value ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray'" :aria-pressed="ticketOrderView === view.value" @click="ticketOrderView = view.value">{{ view.label }}</button>
+          </div>
 
           <div class="overflow-x-auto">
             <BoneyardPageSkeleton
@@ -668,7 +732,7 @@ onUnmounted(() => {
               <p class="text-sm text-dc-pink" role="alert">Ticket orders could not be loaded.</p>
               <button type="button" class="motion-press rounded-md border border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase" @click="ticketOrderQuery.refetch()">Try again</button>
             </div>
-            <p v-else-if="!ticketOrderQuery.data.value?.orders.length" class="px-5 py-5 text-sm text-dc-gray">No real ticket orders yet. Test checkout activity remains in its separate sandbox section.</p>
+            <p v-else-if="!ticketOrderQuery.data.value?.orders.length" class="px-5 py-5 text-sm text-dc-gray">{{ ticketOrderView === 'paid' ? 'No paid orders yet.' : ticketOrderView === 'attempts' ? 'No checkout attempts yet.' : 'No test orders yet.' }}</p>
             <template v-else>
             <ul class="ticket-order-cards md:hidden" aria-label="Ticket orders">
               <li v-for="order in ticketOrderQuery.data.value?.orders" :key="order.id" class="ticket-order-card">
@@ -679,24 +743,24 @@ onUnmounted(() => {
                 </header>
                 <dl class="ticket-order-card__facts">
                   <div><dt>Pass</dt><dd>{{ ticketTierLabel(order.tier_key) }}<span class="ticket-order-card__note">{{ order.quantity }} {{ order.quantity === 1 ? 'seat' : 'seats' }}</span></dd></div>
-                  <div><dt>Amount</dt><dd>{{ formatTicketMoney(order.amount_minor) }}</dd></div>
-                  <div><dt>Delivery</dt><dd><span class="ticket-order-card__status">{{ order.delivery_status ?? 'Not queued' }}</span></dd></div>
-                  <div><dt>Check-in</dt><dd>{{ ticketOrderCheckInCount(order) }} / {{ order.quantity }}</dd></div>
+                  <div><dt>Payment</dt><dd>{{ orderAmount(order) }}<span class="ticket-order-card__note">{{ paymentStatus(order) }}</span></dd></div>
+                  <div v-if="ticketOrderView === 'attempts'"><dt>Started</dt><dd>{{ formatTicketDate(order.created_at) }}</dd></div>
+                  <div v-else><dt>Latest order email</dt><dd>{{ orderEmailStatus(order) }}</dd></div>
                 </dl>
                 <button type="button" class="ticket-order-card__open motion-press" :aria-label="`View order from ${order.purchaser_name}`" @click="openTicketOrder(order, $event)">View order <span aria-hidden="true">→</span></button>
               </li>
             </ul>
             <table class="hidden w-full min-w-[720px] text-left text-sm md:table">
               <thead class="border-b border-dc-border font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">
-                <tr><th class="px-5 py-3 pr-4">Purchaser</th><th class="px-4 py-3">Pass</th><th class="px-4 py-3 text-right">Amount</th><th class="px-4 py-3">Delivery</th><th class="px-4 py-3">Check-in</th><th class="px-5 py-3 pl-4 text-right"><span class="sr-only">Open details</span></th></tr>
+                <tr><th class="px-5 py-3 pr-4">Purchaser</th><th class="px-4 py-3">Pass</th><th class="px-4 py-3 text-right">Payment</th><th class="px-4 py-3" :class="{ 'text-center': ticketOrderView !== 'attempts' }">{{ ticketOrderView === 'attempts' ? 'Started' : 'Latest order email' }}</th><th class="px-5 py-3 pl-4 text-right"><span class="sr-only">Open details</span></th></tr>
               </thead>
               <tbody class="divide-y divide-dc-border">
                 <tr v-for="order in ticketOrderQuery.data.value?.orders" :key="order.id" class="group">
                   <th scope="row" class="px-5 py-4 pr-4 font-normal"><p class="font-semibold text-dc-ink">{{ order.purchaser_name }} <span v-if="order.payment_mode === 'test'" class="text-xs font-normal text-dc-gray">· TEST PAYMENT</span></p><p class="mt-1 max-w-[16rem] truncate text-xs text-dc-gray">{{ order.purchaser_email }}</p></th>
                   <td class="px-4 py-4"><p class="font-semibold text-dc-ink">{{ ticketTierLabel(order.tier_key) }}</p><p class="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-dc-gray">{{ order.quantity }} {{ order.quantity === 1 ? 'seat' : 'seats' }}</p></td>
-                  <td class="px-4 py-4 text-right font-semibold text-dc-ink">{{ formatTicketMoney(order.amount_minor) }}<span v-if="order.payment_mode === 'test'" class="block text-xs font-normal">Simulated · GH₵0 charged</span></td>
-                  <td class="px-4 py-4"><span class="rounded-full border border-dc-border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase text-dc-ink">{{ order.delivery_status ?? 'Not queued' }}</span></td>
-                  <td class="px-4 py-4 font-mono text-xs font-semibold text-dc-ink">{{ ticketOrderCheckInCount(order) }} / {{ order.quantity }}</td>
+                  <td class="px-4 py-4 text-right font-semibold text-dc-ink">{{ orderAmount(order) }}<span class="block text-xs font-normal">{{ paymentStatus(order) }}</span></td>
+                  <td v-if="ticketOrderView === 'attempts'" class="px-4 py-4 text-dc-gray">{{ formatTicketDate(order.created_at) }}</td>
+                  <td v-else class="px-4 py-4 text-center text-dc-ink">{{ orderEmailStatus(order) }}</td>
                   <td class="px-5 py-4 pl-4 text-right"><button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray hover:border-dc-ink hover:text-dc-ink" @click="openTicketOrder(order, $event)">Details</button></td>
                 </tr>
               </tbody>
@@ -704,13 +768,7 @@ onUnmounted(() => {
             </template>
           </div>
 
-          <footer v-if="(ticketOrderQuery.data.value?.total ?? 0) > 0" class="flex items-center justify-between gap-3 border-t border-dc-border px-5 py-3">
-            <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Page {{ ticketOrderPage }} of {{ ticketOrderPageCount }} · 5 per page</p>
-            <div class="flex gap-2">
-              <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray disabled:cursor-not-allowed disabled:opacity-50" :disabled="ticketOrderPage <= 1 || ticketOrderQuery.isFetching.value" @click="ticketOrderPage -= 1">Previous</button>
-              <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray disabled:cursor-not-allowed disabled:opacity-50" :disabled="ticketOrderPage >= ticketOrderPageCount || ticketOrderQuery.isFetching.value" @click="ticketOrderPage += 1">Next</button>
-            </div>
-          </footer>
+          <AppPagination v-model:page="ticketOrderPage" :page-count="ticketOrderPageCount" :total="ticketOrderQuery.data.value?.total ?? 0" :range-start="(ticketOrderPage - 1) * 5 + 1" :range-end="Math.min(ticketOrderPage * 5, ticketOrderQuery.data.value?.total ?? 0)" :disabled="ticketOrderQuery.isFetching.value" item-label="orders" aria-label="Order pagination" />
         </section>
 
         <section v-if="activeSection === 'delivery'" class="rounded-lg border border-dc-border bg-dc-paper" aria-labelledby="email-delivery-title">
@@ -877,20 +935,13 @@ onUnmounted(() => {
             <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
               <dl class="grid gap-1">
                 <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Pass</dt><dd class="text-right font-semibold text-dc-ink">{{ ticketTierLabel(selectedOrder.tier_key) }} · {{ selectedOrder.quantity }} {{ selectedOrder.quantity === 1 ? 'seat' : 'seats' }}</dd></div>
-                <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">{{ selectedOrder.payment_mode === 'test' ? 'Simulated amount (GH₵0 charged)' : 'Paid amount' }}</dt><dd class="font-semibold text-dc-ink">{{ formatTicketMoney(selectedOrder.amount_minor) }}</dd></div>
-                <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Purchased</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ formatTicketDate(selectedOrder.created_at) }}</dd></div>
+                <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">{{ selectedOrder.payment_mode !== 'test' && selectedOrder.amount_paid_minor != null ? 'Amount received' : 'Payment' }}</dt><dd class="text-right font-semibold text-dc-ink">{{ orderAmount(selectedOrder) }}</dd></div>
+                <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Payment status</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ paymentStatus(selectedOrder) }}</dd></div>
+                <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Created</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ formatTicketDate(selectedOrder.created_at) }}</dd></div>
                 <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Payment reference</dt><dd class="max-w-[16rem] break-all text-right font-mono text-xs font-semibold text-dc-ink">{{ selectedOrder.payment_reference ?? 'Not available' }}</dd></div>
-                <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Delivery</dt><dd class="font-mono text-xs font-semibold uppercase text-dc-ink">{{ selectedOrder.delivery_status ?? 'Not queued' }}</dd></div>
+                <div v-if="selectedOrder.delivery_status || selectedOrder.status === 'paid'" class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Latest order email</dt><dd class="text-sm font-semibold text-dc-ink">{{ orderEmailStatus(selectedOrder) }}</dd></div>
               </dl>
 
-              <section class="mt-7" aria-labelledby="order-seats-title">
-                <p class="editorial-eyebrow">Admission seats</p>
-                <h3 id="order-seats-title" class="mt-1 text-lg font-semibold text-dc-ink">Check-in progress</h3>
-                <p class="mt-2 text-sm leading-6 text-dc-gray">Each seat will carry its own bearer ticket and can be scanned independently. QR credentials are never exposed in this organizer view.</p>
-                <ol class="mt-4 divide-y divide-dc-border">
-                  <li v-for="seat in selectedOrder.seats" :key="seat.id" class="flex items-center justify-between gap-4 py-3"><div><p class="font-semibold text-dc-ink">Seat {{ seat.order_seat_number ?? '—' }}</p><p class="mt-1 text-xs text-dc-gray">{{ seat.checked_in_at ? `Checked in ${formatTicketDate(seat.checked_in_at)}` : seat.issued_at ? `Issued ${formatTicketDate(seat.issued_at)}` : 'Awaiting ticket issue' }}</p></div><span class="rounded-full border border-dc-border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase text-dc-ink">{{ seat.status }}</span></li>
-                </ol>
-              </section>
             </div>
           </aside>
         </div>

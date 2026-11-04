@@ -41,7 +41,8 @@ import {
   verifyPaystackWebhookSignature,
 } from '@/lib/annual-conference-ticket-payments';
 import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
-import { requireAnnualConferenceCapability } from '@/server/annual-conference-request';
+import { getAnnualConferenceEditionByYear, requireAnnualConferenceCapability } from '@/server/annual-conference-request';
+import { CONFERENCE_CHECK_IN_UNAVAILABLE, isAnnualConferenceCheckInOpen } from '@/lib/annual-conference-check-in';
 import { envValue } from '@/server/env';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
@@ -96,6 +97,7 @@ const emailDeliveryIdSchema = z.string().uuid('Email delivery id is invalid.');
 const ticketOrderQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10_000).default(1),
   page_size: z.coerce.number().int().min(1).max(25).default(5),
+  view: z.enum(['paid', 'attempts', 'test', 'all']).default('all'),
 }).strict();
 const ticketCheckInSchema = z.object({
   qr_token: z.string().regex(/^[0-9a-f]{64}$/, 'Ticket code is invalid.'),
@@ -629,6 +631,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
         editionId: ticketing.settings.edition_id,
         page: query.data.page,
         pageSize: query.data.page_size,
+        view: query.data.view,
       }, c);
 
       if (result === null) return ticketingUnavailable(c);
@@ -668,6 +671,10 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
       const session = c.get('adminSession') ?? await getAdminSession(c);
 
       if (!session.authenticated || !session.email) return c.json({ error: 'Conference ticketing access required.' }, 403);
+      const edition = await getAnnualConferenceEditionByYear(Number(year.data), c);
+
+      if (!edition || edition.id !== ticketing.settings.edition_id) return c.json({ error: 'Conference not found.' }, 404);
+      if (!isAnnualConferenceCheckInOpen(edition.provisional_date)) return c.json({ error: CONFERENCE_CHECK_IN_UNAVAILABLE }, 409);
       const result = await checkInSupabaseAnnualConferenceBearerTicket({
         editionId: ticketing.settings.edition_id,
         qrToken: body.data.qr_token,

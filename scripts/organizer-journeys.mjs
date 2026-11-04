@@ -4082,17 +4082,34 @@ try {
 
   await journey("annual-ticketing-sections", async ({ page, responses, requests }) => {
     const base = "/organizer-console/annual-conference/2026/ticketing";
-    const inventory = { public_capacity: 150, paid_seats: 1, sponsor_seats_held: 0, checkout_seats_held: 0, remaining_public_seats: 149, reduction_floor: 1 };
+    const inventory = { public_capacity: 150, paid_seats: 1, sponsor_seats_held: 1, checkout_seats_held: 1, remaining_public_seats: 147, reduction_floor: 3 };
     const tiers = [
       { key: "regular", label: "Regular pass", quantity: 1, price_minor: 15000, public: true },
       { key: "team_3", label: "Team of 3", quantity: 3, price_minor: 45000, public: true },
       { key: "team_5", label: "Team of 5", quantity: 5, price_minor: 75000, public: true },
     ];
     const order = {
-      id: "ticketing-order", purchaser_name: "Ticketing Fixture", purchaser_email: "ticketing@example.test",
+      id: "ticketing-order", purchaser_name: "Abena Mensah", purchaser_email: "abena@example.test",
       tier_key: "regular", quantity: 1, amount_minor: 15000, currency: "GHS", status: "paid", payment_mode: "live",
       payment_reference: "fixture-reference", paid_at: "2026-10-16T10:00:00Z", created_at: "2026-10-16T10:00:00Z",
-      delivery_status: "delivered", seats: [],
+      amount_paid_minor: 15299, quoted_gross_amount_minor: 15299,
+      delivery_status: "delivered", seats: [{ id: "issued-1", order_seat_number: 1, status: "issued", issued_at: "2026-10-16T10:00:00Z", checked_in_at: null }],
+    };
+
+    const attempts = ["Esi Boateng", "Kwame Asare"].map((name, index) => ({
+      ...order, id: `checkout-${index}`, purchaser_name: name, purchaser_email: `${name.split(" ")[0].toLowerCase()}@example.test`,
+      status: index === 0 ? "pending_payment" : "expired", amount_paid_minor: null, paid_at: null,
+      created_at: index === 0 ? "2026-11-04T10:28:00Z" : "2026-11-04T01:10:00Z",
+      expires_at: index === 0 ? "2026-11-04T10:43:00Z" : "2026-11-04T01:25:00Z",
+      delivery_status: null, payment_reference: null, seats: [],
+    }));
+    const ordersForView = (request, year) => {
+      const params = new URL(request.url()).searchParams;
+      const view = params.get("view");
+      const pageNumber = Number(params.get("page") ?? 1);
+      const orders = year !== 2026 ? [] : view === "attempts" ? attempts : view === "test" ? [] : view === "all" ? [order, ...attempts] : [order];
+
+      return { body: { orders: orders.slice((pageNumber - 1) * 5, pageNumber * 5), total: orders.length, page: pageNumber, page_size: 5 } };
     };
 
     responses.set("/api/annual-conference/editions", { body: { editions: [edition, { ...edition, year: 2027, label: "December 2027" }] } });
@@ -4103,7 +4120,7 @@ try {
       responses.set(`/api/annual-conference/${year}/ticketing`, {
         body: { settings: { public_capacity: 150, ticket_sales_status: "draft", public_mode: "free", currency: "GHS", ticket_tiers: tiers }, inventory },
       });
-      responses.set(`/api/annual-conference/${year}/ticketing/orders`, { body: { orders: year === 2026 ? [order] : [], total: year === 2026 ? 1 : 0, page: 1, page_size: 5 } });
+      responses.set(`/api/annual-conference/${year}/ticketing/orders`, request => ordersForView(request, year));
       responses.set(`/api/annual-conference/${year}/ticketing/sponsor-allocations`, { body: { allocations: [] } });
       responses.set(`/api/annual-conference/${year}/ticketing/email-deliveries`, { body: {
         deliveries: [], total: 0, page: 1, page_size: 8,
@@ -4123,10 +4140,10 @@ try {
     let releaseOrders;
     const ordersHeld = new Promise(resolve => { releaseOrders = resolve; });
 
-    responses.set(ordersPath, async () => {
+    responses.set(ordersPath, async (request) => {
       await ordersHeld;
 
-      return ordersResponse;
+      return ordersResponse(request);
     });
     await page.setViewportSize({ width: 320, height: 667 });
 
@@ -4166,7 +4183,48 @@ try {
     await page.goto(`${origin}${base}?section=orders&retained=yes`);
     const nav = page.getByRole("navigation", { name: "Ticketing sections", exact: true });
 
-    await page.getByRole("rowheader").getByText("Ticketing Fixture", { exact: true }).waitFor();
+    await page.getByRole("rowheader").getByText("Abena Mensah", { exact: true }).waitFor();
+    await page.getByRole("row").filter({ hasText: "Abena Mensah" }).getByText("Paid", { exact: true }).waitFor();
+    const ordersPanel = page.locator('[aria-labelledby="ticket-orders-title"]');
+    const filter = (name) => ordersPanel.getByRole("button", { name, exact: true });
+
+    assert.equal(await filter("Paid orders").getAttribute("aria-pressed"), "true");
+    assert.match(await ordersPanel.getByRole("table").innerText(), /152\.99/i);
+    assert.doesNotMatch(await ordersPanel.getByRole("table").innerText(), /152\.99 received/i);
+    assert.equal(await filter("Paid orders").evaluate((button) => getComputedStyle(button).backgroundColor), "rgb(245, 230, 66)");
+    await ordersPanel.screenshot({ path: `${artifacts}/annual-orders-paid-desktop.png` });
+    await filter("Paid orders").focus();
+    await page.keyboard.press("Tab");
+    assert.equal(await filter("Checkout attempts").evaluate((button) => button.matches(":focus-visible")), true);
+    assert.notEqual(await filter("Checkout attempts").evaluate((button) => getComputedStyle(button).boxShadow), "none");
+    const deliveredCell = ordersPanel.getByRole("row").filter({ hasText: "Abena Mensah" }).getByRole("cell").filter({ hasText: "Delivered" });
+
+    assert.equal(await deliveredCell.evaluate((cell) => getComputedStyle(cell).textAlign), "center");
+    assert.equal(await deliveredCell.locator("span").count(), 0);
+    assert.doesNotMatch(await ordersPanel.getByRole("table").innerText(), /Esi Boateng|Kwame Asare|check.in/i);
+    await filter("Checkout attempts").click();
+    await ordersPanel.getByRole("rowheader", { name: /Kwame Asare/ }).waitFor();
+    const attemptsTable = await ordersPanel.getByRole("table").innerText();
+
+    assert.match(attemptsTable, /Esi Boateng/);
+    assert.match(attemptsTable, /152\.99 quoted/i);
+    assert.match(attemptsTable, /started/i);
+    assert.doesNotMatch(attemptsTable, /Not queued|Abena Mensah|Check.in/i);
+    await ordersPanel.screenshot({ path: `${artifacts}/annual-orders-attempts-desktop.png` });
+    for (const name of ["Adwoa", "Nii", "Kweku", "Akosua"]) {
+      attempts.push({ ...attempts[0], id: `checkout-${name}`, purchaser_name: name, purchaser_email: `${name.toLowerCase()}@example.test` });
+    }
+    await filter("Refresh").click();
+    await ordersPanel.getByRole("button", { name: "Next page" }).click();
+    await ordersPanel.getByRole("rowheader", { name: /Akosua/ }).waitFor();
+    attempts.pop();
+    await filter("Refresh").click();
+    await ordersPanel.getByRole("rowheader", { name: /Esi Boateng/ }).waitFor();
+    assert.equal(await ordersPanel.getByRole("rowheader").count(), 5);
+    await filter("Test orders").click();
+    await ordersPanel.getByText("No test orders yet.").waitFor();
+    await filter("Paid orders").click();
+    await ordersPanel.getByRole("rowheader", { name: /Abena Mensah/ }).waitFor();
     await assertUnderlineTabGeometry(page, '[aria-label="Ticketing sections"]');
     assert.deepEqual(await nav.getByRole("link").allTextContents().then(items => items.map(item => item.trim())), ["Overview", "Orders", "Delivery", "Sponsors", "Testing"]);
     assert.equal(await nav.locator('[aria-current="page"]').innerText(), "Orders");
@@ -4176,7 +4234,7 @@ try {
     assert.equal(new URL(page.url()).searchParams.get("retained"), "yes");
     await nav.getByRole("link", { name: "Orders", exact: true }).click();
     await page.getByRole("button", { name: "Details", exact: true }).click();
-    await page.getByRole("dialog", { name: "Ticketing Fixture", exact: true }).waitFor();
+    await page.getByRole("dialog", { name: "Abena Mensah", exact: true }).waitFor();
     assert.equal(await page.locator("#app").getAttribute("inert"), "");
     await page.goBack();
     await page.getByLabel("Sponsor", { exact: true }).waitFor();
@@ -4220,19 +4278,23 @@ try {
     await page.setViewportSize({ width: 390, height: 844 });
     await nav.getByRole("link", { name: "Orders", exact: true }).click();
     const phoneOrders = page.getByRole("list", { name: "Ticket orders", exact: true });
-    const viewOrder = phoneOrders.getByRole("button", { name: "View order from Ticketing Fixture", exact: true });
+    const viewOrder = phoneOrders.getByRole("button", { name: "View order from Abena Mensah", exact: true });
 
     await phoneOrders.waitFor();
     assert.equal(await page.locator('[aria-labelledby="ticket-orders-title"] table').isVisible(), false);
-    for (const label of ["Pass", "Amount", "Delivery", "Check-in"]) await phoneOrders.getByText(label, { exact: true }).waitFor();
+    for (const label of ["Pass", "Payment", "Latest order email"]) await phoneOrders.getByText(label, { exact: true }).waitFor();
+    assert.doesNotMatch(await phoneOrders.innerText(), /check.in/i);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     const orderButton = await viewOrder.boundingBox();
 
     assert.ok(orderButton && orderButton.height >= 44 && orderButton.x >= 0 && orderButton.x + orderButton.width <= 390);
     await page.screenshot({ path: `${artifacts}/annual-ticketing-orders-mobile.png` });
+    await ordersPanel.screenshot({ path: `${artifacts}/annual-orders-paid-phone.png` });
     await viewOrder.click();
-    const phoneDrawer = page.getByRole("dialog", { name: "Ticketing Fixture", exact: true });
+    const phoneDrawer = page.getByRole("dialog", { name: "Abena Mensah", exact: true });
 
     await phoneDrawer.waitFor();
+    assert.doesNotMatch(await phoneDrawer.innerText(), /check.in/i);
     const closeOrder = phoneDrawer.getByRole("button", { name: "Close ticket order details", exact: true });
     const closeBounds = await closeOrder.boundingBox();
 
@@ -4267,7 +4329,7 @@ try {
     assert.equal(await page.locator("#app").getAttribute("inert"), null);
     assert.equal(await page.evaluate(() => document.documentElement.style.overflow), "");
     assert.equal(requests.filter(request => request.method !== "GET").length, 0, "Section browsing and retained drafts send no mutations");
-  }, { role: "owner" });
+  }, { role: "owner", date: "2026-11-04T11:25:00Z" });
 
   await journey("annual-paid-payment-mode", async ({ page, responses, requests }) => {
     const paymentPath = "/api/annual-conference/2026/registrations/payment-mode";
@@ -4519,7 +4581,7 @@ try {
     await page.getByText("Recovered as a new registration", { exact: true }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Recover registration", exact: true }).count(), 0);
     assert.equal(requests.filter((item) => item.path.endsWith("/guest-0/recover")).length, 2);
-  }, { role: "owner" });
+  }, { role: "owner", date: "2026-12-19T10:00:00Z" });
 
   await journey("annual-check-in-list-first", async ({ page, responses, requests }) => {
     const attendees = [
@@ -4587,6 +4649,21 @@ try {
     await page.waitForURL(/\/annual-conference\/2026\/check-in$/);
     await page.goto(`${origin}/organizer-console/annual-conference/2026/check-in`);
     await page.getByText("Adjoa Mensah", { exact: true }).waitFor();
+    await page.getByText("Check-in opens at midnight Accra time on 19 December 2026.", { exact: true }).waitFor();
+    await page.getByRole("region", { name: "Conference attendee check-in" }).screenshot({ path: `${artifacts}/annual-guests-locked.png` });
+    const activeGuestFilter = page.getByRole("button", { name: "All", exact: true });
+
+    assert.equal(await activeGuestFilter.evaluate((button) => getComputedStyle(button).backgroundColor), "rgb(245, 230, 66)");
+    const admitButton = page.getByRole("button", { name: "Check in", exact: true }).first();
+
+    assert.equal(await admitButton.isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Scan with camera" }).isDisabled(), true);
+    await page.getByLabel("Search guests").fill("Kofi");
+    await page.getByText("Kofi Mensah", { exact: true }).waitFor();
+    await page.getByLabel("Search guests").fill("");
+    assert.equal(requests.some(({ method, path }) => method === "POST" && /\/check-in(\/admit)?$/.test(path)), false);
+    await page.clock.fastForward(15_000);
+    await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent.trim() === "Check in" && !button.disabled));
     assert.equal(
       requests.some((request) => request.path.endsWith("/check-in/attendees")),
       true,
@@ -4658,7 +4735,7 @@ try {
       await page.evaluate(() => sessionStorage.getItem("fixture-camera-requests")),
       "1",
     );
-  }, { role: "volunteer" });
+  }, { role: "volunteer", date: "2026-12-18T23:59:45Z", useFakeClock: true });
 
   for (const [name, date, allowed] of [
     ["check-in-before", "2026-09-25T12:00:00Z", false],

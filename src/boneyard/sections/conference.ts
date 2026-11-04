@@ -868,9 +868,12 @@ export const conferenceSections: SkeletonSection[] = [
       {
         "kind": "heading",
         "title": "Ticket orders",
-        "description": "Paid orders, delivery state, and check-in progress.",
-        "eyebrow": "Admissions operations",
+        "description": "Confirmed live payments, including refunded orders.",
         "level": "section"
+      },
+      {
+        "kind": "toolbar",
+        "filters": ["Paid orders", "Checkout attempts", "Test orders"]
       },
       {
         "kind": "ticket-orders",

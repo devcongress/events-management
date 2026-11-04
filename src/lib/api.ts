@@ -448,13 +448,18 @@ export interface AnnualConferenceTicketOrderOverview {
   tier_key: string;
   quantity: number;
   amount_minor: number;
+  quoted_gross_amount_minor?: number | null;
+  amount_paid_minor?: number | null;
   currency: string;
   status: AnnualConferenceTicketOrderStatus;
   payment_reference: string | null;
   paid_at: string | null;
+  expires_at?: string | null;
   created_at: string;
   seats: AnnualConferenceTicketOrderSeat[];
   delivery_status: AnnualConferenceTicketEmailDeliveryStatus | null;
+  refund_status?: 'required' | 'processing' | 'refunded' | 'failed' | 'needs_attention' | null;
+  refunded_seat_count?: number;
 }
 export interface AnnualConferenceTicketOrdersResponse {
   orders: AnnualConferenceTicketOrderOverview[];
@@ -547,7 +552,7 @@ export const queryKeys = {
   annualConferenceWorkPlan: (year: string) => ['annual-conference-work-plan', year] as const,
   annualConferenceFinance: (year: string) => ['annual-conference-finance', year] as const,
   annualConferenceTicketing: (year: string) => ['annual-conference-ticketing', year] as const,
-  annualConferenceTicketOrders: (year: string, page: number) => ['annual-conference-ticket-orders', year, page] as const,
+  annualConferenceTicketOrders: (year: string, page: number, view: AnnualConferenceTicketOrderView = 'all') => ['annual-conference-ticket-orders', year, page, view] as const,
   annualConferenceEditions: ['annual-conference-editions'] as const,
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
@@ -657,12 +662,15 @@ export function fetchAnnualConferenceTicketing(year: string) {
   });
 }
 
+export type AnnualConferenceTicketOrderView = 'paid' | 'attempts' | 'test' | 'all';
+
 export const ANNUAL_CONFERENCE_TICKET_ORDER_PAGE_SIZE = 5;
 
-export function fetchAnnualConferenceTicketOrders(year: string, page: number) {
+export function fetchAnnualConferenceTicketOrders(year: string, page: number, view: AnnualConferenceTicketOrderView = 'all') {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(ANNUAL_CONFERENCE_TICKET_ORDER_PAGE_SIZE),
+    view,
   });
 
   return fetchJson<AnnualConferenceTicketOrdersResponse>(`/api/annual-conference/${year}/ticketing/orders?${params}`, {

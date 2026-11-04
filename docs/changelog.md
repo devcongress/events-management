@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-04 — Ticket orders and conference check-in
+
+- Open Orders on live paid purchases. Separate checkout attempts and test orders, distinguish quoted prices from money received, and show when an unpaid checkout started.
+- Keep attendance in Registration. Guests remain searchable before the event, but named and QR admissions open only at midnight on the conference date in Accra. The lock notice shows the date or explains when it is unavailable.
+- Use yellow selected filters and pink keyboard focus in Orders and Guests; show order email statuses as plain text.
+
 ## 2026-11-04 — Recover missed Paystack confirmations
 
 - The canonical Worker now checks unconfirmed managed orders even with legacy preview checkout enabled, and drains the ticket emails queued by recovery. Preview deployments do not claim this work.

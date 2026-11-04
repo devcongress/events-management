@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AppPagination from '@/src/components/AppPagination.vue';
@@ -16,6 +16,7 @@ import {
 } from '@/src/lib/registration-checkin';
 import { conferenceQrToken } from '@/src/lib/conference-qr';
 import { conferenceGuestRows, conferenceGuestMatchesStatus, type ConferenceRegistrationGuest, type ConferenceAdmission } from '@/src/lib/conference-guests';
+import { annualConferenceCheckInNotice, isAnnualConferenceCheckInOpen } from '@/lib/annual-conference-check-in';
 
 const props = defineProps<{
   registrations?: ConferenceRegistrationGuest[];
@@ -52,6 +53,21 @@ const workPlan = useQuery({
 const capabilities = computed(() => workPlan.data.value?.permissions.capabilities ?? []);
 const canManageRegistration = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage']) && props.registrations !== undefined);
 const canCheckIn = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in', 'ticketing.manage']));
+const now = ref(new Date());
+const checkInOpen = computed(() => isAnnualConferenceCheckInOpen(workPlan.data.value?.edition.provisional_date, now.value));
+const checkInNotice = computed(() => annualConferenceCheckInNotice(workPlan.data.value?.edition.provisional_date));
+let clockTimer: ReturnType<typeof setTimeout> | undefined;
+
+function refreshClock() {
+  clearTimeout(clockTimer);
+  now.value = new Date();
+  clockTimer = setTimeout(refreshClock, 60_000 - Date.now() % 60_000);
+}
+
+onMounted(() => {
+  refreshClock();
+  document.addEventListener('visibilitychange', refreshClock);
+});
 const video = ref<HTMLVideoElement | null>(null);
 const scannerOpen = ref(false);
 const scanning = ref(false);
@@ -139,6 +155,7 @@ function stopCamera() {
 }
 
 function selectAttendee(attendee: AttendeeRecord) {
+  if (!checkInOpen.value) return;
   stopCamera();
   scannerOpen.value = false;
   error.value = '';
@@ -237,7 +254,7 @@ async function refreshAfterAdmission() {
 async function admitSelected() {
   const attendee = selected.value;
 
-  if (!attendee || !attendee.attendee_name || busy.value || rosterError.value) return;
+  if (!checkInOpen.value || !attendee || !attendee.attendee_name || busy.value || rosterError.value) return;
   busy.value = true;
   error.value = '';
   const request = requestGeneration;
@@ -263,7 +280,7 @@ async function admitSelected() {
 }
 
 async function submitCode(value: string) {
-  if (busy.value) return;
+  if (!checkInOpen.value || busy.value) return;
   const token = conferenceQrToken(value);
 
   stopCamera();
@@ -300,6 +317,7 @@ async function submitCode(value: string) {
 }
 
 async function openScanner() {
+  if (!checkInOpen.value) return;
   scannerOpen.value = true;
   await nextTick();
   await startCamera();
@@ -311,6 +329,7 @@ function closeScanner() {
 }
 
 async function startCamera() {
+  if (!checkInOpen.value) return;
   stopCamera();
   outcome.value = null;
   error.value = '';
@@ -383,6 +402,12 @@ async function startCamera() {
 watch([search, selectedInitial, selectedStatus], () => {
   page.value = 1;
 });
+watch(checkInOpen, (open) => {
+  if (open) return;
+  stopCamera();
+  scannerOpen.value = false;
+  selected.value = null;
+});
 watch(search, () => {
   emailLookupGeneration += 1;
   emailLookupLoading.value = false;
@@ -414,6 +439,8 @@ watch([year, canCheckIn], () => {
   if (canCheckIn.value) void loadRoster();
 }, { immediate: true });
 onBeforeUnmount(() => {
+  clearTimeout(clockTimer);
+  document.removeEventListener('visibilitychange', refreshClock);
   requestGeneration += 1;
   rosterRequestGeneration += 1;
   stopCamera();
@@ -425,10 +452,11 @@ onBeforeUnmount(() => {
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-dc-border px-4 py-4">
         <p class="text-sm font-semibold text-dc-gray" aria-live="polite">{{ checkedInCount }} / {{ attendees.length }} checked in</p>
         <div class="flex flex-wrap gap-2">
-          <button type="button" class="editorial-action" :disabled="rosterLoading" @click="refreshAfterAdmission">{{ rosterLoading ? 'Refreshing…' : 'Refresh' }}</button>
-          <button type="button" class="editorial-action" :disabled="busy || managementBusy" @click="scannerOpen ? closeScanner() : openScanner()">{{ scannerOpen ? 'Close scanner' : 'Scan with camera' }}</button>
+          <button type="button" class="check-in-text-button" :disabled="rosterLoading" @click="refreshAfterAdmission">{{ rosterLoading ? 'Refreshing…' : 'Refresh' }}</button>
+          <button type="button" class="check-in-scan-button" :disabled="busy || managementBusy || (!checkInOpen && !scannerOpen)" @click="scannerOpen ? closeScanner() : openScanner()">{{ scannerOpen ? 'Close scanner' : 'Scan with camera' }}</button>
         </div>
       </div>
+      <p v-if="!checkInOpen" class="check-in-safety-note" role="status">{{ checkInNotice }}</p>
 
       <section v-if="scannerOpen" class="check-in-scanner" aria-label="Optional QR scanner">
         <div class="check-in-scanner-heading">
@@ -440,13 +468,13 @@ onBeforeUnmount(() => {
         </div>
         <video ref="video" muted playsinline aria-label="Live camera preview" />
         <button v-if="scanning" type="button" class="check-in-scan-button" @click="stopCamera">Stop camera</button>
-        <button v-else type="button" class="check-in-scan-button" :disabled="busy" @click="startCamera">{{ error ? 'Try camera again' : 'Open camera' }}</button>
+        <button v-else type="button" class="check-in-scan-button" :disabled="busy || !checkInOpen" @click="startCamera">{{ error ? 'Try camera again' : 'Open camera' }}</button>
         <details class="check-in-code-entry">
           <summary>Use an admission code instead</summary>
           <form @submit.prevent="submitCode(pastedCode)">
             <label for="admission-code">Paste the code or admission link</label>
             <input id="admission-code" v-model="pastedCode" class="editorial-input" autocomplete="off" spellcheck="false" maxlength="512" required>
-            <button type="submit" class="check-in-manual-submit" :disabled="busy || !pastedCode.trim()">Check admission</button>
+            <button type="submit" class="check-in-manual-submit" :disabled="busy || !checkInOpen || !pastedCode.trim()">Check admission</button>
           </form>
         </details>
       </section>
@@ -526,7 +554,7 @@ onBeforeUnmount(() => {
                 v-if="guest.admission?.status === 'issued' && guest.admission.attendee_name"
                 type="button"
                 class="check-in-admit-button"
-                :disabled="busy || managementBusy || rosterLoading || Boolean(rosterError)"
+                :disabled="busy || managementBusy || rosterLoading || Boolean(rosterError) || !checkInOpen"
                 @click="selectAttendee(guest.admission)"
               >Check in</button>
               <span v-else-if="guest.admission?.status === 'checked_in'" class="check-in-checked-label" aria-label="Already checked in">Done</span>
@@ -566,6 +594,7 @@ onBeforeUnmount(() => {
       busy-label="Checking in…"
       cancel-label="Cancel"
       :busy="busy"
+      :confirm-disabled="!checkInOpen"
       mobile-sheet
       @cancel="selected = null"
       @confirm="admitSelected"
@@ -666,10 +695,9 @@ onBeforeUnmount(() => {
 }
 
 .check-in-safety-note {
-  padding: 16px 20px;
-  border-top: 1px solid #d6d2c8;
-  color: #6f6c65;
-  font-size: 12px;
+  padding: 10px 16px;
+  @apply border-b border-dc-border bg-dc-paper-warm text-dc-gray;
+  font-size: 14px;
 }
 
 .check-in-scanner {
@@ -725,9 +753,16 @@ onBeforeUnmount(() => {
 }
 
 .guest-status-filter--active {
-  border-color: #e8117f;
-  background: #e8117f;
-  color: white;
+  @apply border-dc-ink bg-dc-yellow text-dc-ink;
+}
+
+.check-in-admit-button, .check-in-scan-button, .check-in-manual-submit {
+  @apply border-dc-ink bg-dc-yellow;
+}
+
+.check-in-scan-button:focus-visible, .check-in-manual-submit:focus-visible, .check-in-admit-button:focus-visible, .check-in-email-search:focus-visible, .check-in-text-button:focus-visible, .guest-status-filter:focus-visible {
+  @apply outline-2 outline-offset-2 outline-dc-pink;
+  outline-style: solid;
 }
 
 button:disabled {
