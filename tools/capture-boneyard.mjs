@@ -67,6 +67,12 @@ export function validateCatalog(sections) {
       throw new Error(`Boneyard section ${section.id} is missing its route, sources, or capture dimensions.`);
     }
 
+    const widths = section.capture.breakpoints;
+
+    if (widths && (!Array.isArray(widths) || !widths.length || widths.some((width, index) => !Number.isInteger(width) || width < 1 || (index > 0 && width <= widths[index - 1])))) {
+      throw new Error(`Invalid Boneyard breakpoints for ${section.id}.`);
+    }
+
     ids.add(section.id);
   }
 
@@ -265,7 +271,7 @@ async function sourceFingerprint(root, section) {
     'package.json',
     'pnpm-lock.yaml',
   ])].sort();
-  const parts = [JSON.stringify(section), JSON.stringify(breakpoints)];
+  const parts = [JSON.stringify(section), JSON.stringify(section.capture.breakpoints ?? breakpoints)];
 
   for (const source of sources) parts.push(source, await readFile(appPath(root, source)));
 
@@ -560,7 +566,7 @@ async function withFixturePage(browser, options, verify) {
 async function verifyRuntime(browser, captureUrl, captures, allowlist) {
   for (const id of allowlist) {
     await withFixturePage(browser, {}, async (page) => {
-      for (const width of breakpoints) {
+      for (const width of Object.keys(captures[id].breakpoints).map(Number)) {
         await page.setViewportSize({ width, height: 1000 });
         await openFixture(page, captureUrl, id, width);
 
@@ -699,9 +705,10 @@ async function capture(root, sections, allowlist, manifest, fingerprints, preser
 
     for (const id of allowlist) {
       captures[id] = { breakpoints: {} };
+      const widths = sections.find((entry) => entry.id === id).capture.breakpoints ?? breakpoints;
 
       await withFixturePage(browser, { build: true }, async (page) => {
-        for (const width of breakpoints) {
+        for (const width of widths) {
           await page.setViewportSize({ width, height: 1000 });
           await openFixture(page, captureUrl, id, width, true);
 
@@ -709,7 +716,7 @@ async function capture(root, sections, allowlist, manifest, fingerprints, preser
         }
       });
 
-      console.log(`Captured ${id} at ${breakpoints.length} viewport widths.`);
+      console.log(`Captured ${id} at ${widths.length} viewport widths.`);
     }
 
     await assertInputsUnchanged(root, sections, allowlist, fingerprints);
@@ -721,6 +728,7 @@ async function capture(root, sections, allowlist, manifest, fingerprints, preser
 
     for (const id of allowlist) {
       const section = sections.find((entry) => entry.id === id);
+      const widths = section.capture.breakpoints ?? breakpoints;
       const artifact = `src/bones/${id}.bones.json`;
       const contents = `${JSON.stringify(captures[id], null, 2)}\n`;
 
@@ -728,9 +736,9 @@ async function capture(root, sections, allowlist, manifest, fingerprints, preser
       nextManifest.sections[id] = {
         status: 'completed', ...fingerprints.get(id), route: section.route, fixture: id,
         artifactPaths: [artifact], artifactHashes: { [artifact]: hashBytes(contents) },
-        captureConfig: { breakpoints, viewportHeight: 1000, fixture: id, layout: section.capture, generatorVersion: 'boneyard-js@1.9.0', fonts: 'src/main.ts',
+        captureConfig: { breakpoints: widths, viewportHeight: 1000, fixture: id, layout: section.capture, generatorVersion: 'boneyard-js@1.9.0', fonts: 'src/main.ts',
           ...(phoneSections.includes(id) ? { phoneViewportHeights: phoneHeights, phoneViewportWidth: 390 } : {}) },
-        verification: `Isolated fixture and runtime loading overlay verified at ${breakpoints.join(', ')}px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.`,
+        verification: `Isolated fixture and runtime loading overlay verified at ${widths.join(', ')}px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.`,
       };
     }
 

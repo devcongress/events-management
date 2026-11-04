@@ -48,7 +48,11 @@ const viewport = ref(0);
 let observer: ResizeObserver | undefined;
 const section = computed(() => getSkeletonSection(props.name));
 const bounded = computed(() => ['page', 'phone', 'standalone'].includes(section.value?.capture.context ?? 'page'));
-const viewportBand = computed(() => [390, 640, 768, 960, 1024, 1280].filter((width) => width <= viewport.value).at(-1) ?? 390);
+const viewportBand = computed(() => {
+  const widths = section.value?.capture.breakpoints ?? [390, 640, 768, 960, 1024, 1280];
+
+  return widths.filter((width) => width <= viewport.value).at(-1) ?? widths[0];
+});
 
 function measureViewport() {
   if (typeof window === 'undefined') return;

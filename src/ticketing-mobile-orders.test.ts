@@ -106,6 +106,18 @@ describe('Ticket orders on phones', () => {
     expect(paid).not.toContain('Check-in');
   });
 
+  it('renders page-level order controls with real buttons and no visible action heading', async () => {
+    const html = await renderToString(createSSRApp(BoneyardTicketOrdersFixture, { rows: 1, panel: true }));
+    const nested = await renderToString(createSSRApp(BoneyardTicketOrdersFixture, { rows: 1 }));
+
+    for (const value of ['Ticket orders', 'Refresh', 'Paid orders', 'Checkout attempts', 'Test orders']) {
+      expect(html).toContain(value);
+    }
+    expect(html).not.toContain('⌄');
+    expect(html).toMatch(/<span class="sr-only"[^>]*>Open details<\/span>/);
+    expect(nested).not.toContain('Checkout attempts');
+  });
+
   it('uses the same card geometry for loading and loaded content without inventing avatars', async () => {
     const html = await renderToString(createSSRApp(BoneyardTicketOrdersFixture, { rows: 1 }));
     const source = readFileSync(new URL('./views/admin/AdminAnnualConferenceTicketingView.vue', import.meta.url), 'utf8');

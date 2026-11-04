@@ -89,6 +89,40 @@ async function waitForRouteTransition(page) {
   );
 }
 
+async function orderSkeletonBones(loader) {
+  await loader.locator("[data-boneyard-bone]").first().waitFor({ state: "attached" });
+  await loader.evaluate(() => document.fonts.ready);
+
+  return loader.evaluate((element) => {
+    const origin = element.getBoundingClientRect();
+
+    return [...element.querySelectorAll("[data-boneyard-bone]")].map((bone) => {
+      const rect = bone.getBoundingClientRect();
+
+      return { x: rect.x + rect.width / 2 - origin.x, y: rect.y + rect.height / 2 - origin.y, w: rect.width, h: rect.height };
+    });
+  });
+}
+
+async function orderElementBounds(region, element, textOnly = false) {
+  const rect = await element.evaluate((item, useText) => {
+    const range = document.createRange();
+
+    range.selectNodeContents(item);
+    const bounds = useText ? range.getBoundingClientRect() : item.getBoundingClientRect();
+
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, w: bounds.width };
+  }, textOnly);
+  const origin = await region.boundingBox();
+
+  return { x: rect.x - origin.x, y: rect.y - origin.y, w: rect.w };
+}
+
+function hasOrderBone(bones, center, tolerance) {
+  return bones.some((bone) => bone.w > 8 && bone.h >= 8 && bone.h <= 48
+    && Math.abs(center.x - bone.x) <= tolerance && Math.abs(center.y - bone.y) <= 5 && Math.abs(center.w - bone.w) <= 10);
+}
+
 async function assertUnderlineTabGeometry(page, selector) {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForFunction(rowSelector => {
@@ -4135,48 +4169,71 @@ try {
         expires_at: "2026-10-16T10:15:00Z", verified_at: "2026-10-16T10:00:00Z", created_at: "2026-10-16T10:00:00Z",
       }], checkout_total: 1, checkout_page: 1, checkout_page_size: 5,
     } });
-    const ordersPath = "/api/annual-conference/2026/ticketing/orders";
+    const ticketingPath = "/api/annual-conference/2026/ticketing";
+    const ordersPath = ticketingPath + "/orders";
+    const ticketingResponse = responses.get(ticketingPath);
     const ordersResponse = responses.get(ordersPath);
-    let releaseOrders;
-    const ordersHeld = new Promise(resolve => { releaseOrders = resolve; });
 
-    responses.set(ordersPath, async (request) => {
-      await ordersHeld;
+    for (const width of [320, 390, 768, 1280]) {
+      const ticketingGate = createSaveGate();
+      const ordersGate = createSaveGate();
+      const height = width === 320 ? 667 : width === 390 ? 844 : 1000;
 
-      return ordersResponse(request);
-    });
-    await page.setViewportSize({ width: 320, height: 667 });
+      responses.set(ticketingPath, async () => {
+        await ticketingGate.response;
 
-    try {
-      await page.goto(`${origin}${base}?section=orders&retained=yes`);
-      const loading = page.locator('[data-loading-section="annual-conference-ticket-orders"]');
-
-      await loading.waitFor();
-      await page.waitForFunction(() => {
-        const loading = document.querySelector('[data-loading-section="annual-conference-ticket-orders"]');
-        const height = loading?.getBoundingClientRect().height ?? 0;
-
-        return height >= 200 && height <= 401;
+        return ticketingResponse;
       });
-      await loading.scrollIntoViewIfNeeded();
-      await page.waitForFunction(() => {
-        const loading = document.querySelector('[data-loading-section="annual-conference-ticket-orders"]');
-        const region = loading?.getBoundingClientRect();
+      responses.set(ordersPath, async (request) => {
+        await ordersGate.response;
 
-        if (!loading || !region) return false;
-
-        return [...loading.querySelectorAll('[data-boneyard-bone]')].filter(bone => {
-          const bounds = bone.getBoundingClientRect();
-
-          return bounds.height > 0 && bounds.height < 50 && bounds.width < region.width * 0.9
-            && bounds.top >= region.top && bounds.bottom <= Math.min(region.bottom, innerHeight)
-            && bounds.left >= 0 && bounds.right <= innerWidth;
-        }).length >= 6;
+        return ordersResponse(request);
       });
-      await page.screenshot({ path: `${artifacts}/annual-ticketing-orders-loading-mobile.png` });
-    } finally {
-      responses.set(ordersPath, ordersResponse);
-      releaseOrders();
+      try {
+        await page.setViewportSize({ width, height });
+        await page.goto(`${origin}${base}?section=orders&retained=yes`);
+        const outer = page.locator('[data-loading-section="annual-conference-ticketing-orders"]');
+        const panelBones = await orderSkeletonBones(outer);
+
+        ticketingGate.release();
+        const panel = page.locator('[aria-labelledby="ticket-orders-title"]');
+        const rows = panel.locator('[data-loading-section="annual-conference-ticket-orders"]');
+        const rowBones = await orderSkeletonBones(rows);
+
+        await rows.scrollIntoViewIfNeeded();
+        const controls = panel.locator('header button, [aria-label="Order views"] button');
+
+        for (const control of await controls.all()) {
+          const center = await orderElementBounds(panel, control);
+
+          assert.ok(hasOrderBone(panelBones, center, 5), `Missing control placeholder for ${await control.innerText()} at ${width}px`);
+        }
+
+        const bounds = await rows.boundingBox();
+
+        assert.ok(bounds && bounds.height >= 200 && bounds.height <= 401);
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        if (width === 390 || width === 1280) {
+          await panel.screenshot({ path: `${artifacts}/annual-ticketing-orders-loading-${width}.png` });
+        }
+
+        ordersGate.release();
+        const content = panel.locator(width < 768 ? ".ticket-order-cards" : "table");
+        const status = content.getByText("Delivered", { exact: true }).first();
+
+        await status.waitFor();
+        const center = await orderElementBounds(content, status, true);
+
+        assert.ok(hasOrderBone(rowBones, center, width < 768 ? 12 : 24), `Missing delivery text placeholder at ${width}px`);
+        if (width === 390 || width === 1280) {
+          await panel.screenshot({ path: `${artifacts}/annual-ticketing-orders-loaded-${width}.png` });
+        }
+      } finally {
+        ticketingGate.release();
+        ordersGate.release();
+        responses.set(ticketingPath, ticketingResponse);
+        responses.set(ordersPath, ordersResponse);
+      }
     }
 
     await page.setViewportSize({ width: 1440, height: 1000 });

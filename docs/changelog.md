@@ -5,6 +5,7 @@
 - Open Orders on live paid purchases. Separate checkout attempts and test orders, distinguish quoted prices from money received, and show when an unpaid checkout started.
 - Keep attendance in Registration. Guests remain searchable before the event, but named and QR admissions open only at midnight on the conference date in Accra. The lock notice shows the date or explains when it is unavailable.
 - Use yellow selected filters and pink keyboard focus in Orders and Guests; show order email statuses as plain text.
+- Match the Orders loading placeholders to the filter row, desktop table, and phone cards, including the plain delivery status and the Details action.
 
 ## 2026-11-04 — Recover missed Paystack confirmations
 
