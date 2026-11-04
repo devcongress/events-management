@@ -71,7 +71,7 @@ beforeEach(() => {
     order_id: orderId, provider: 'paystack', payment_reference: reference,
   });
   vi.mocked(storage.confirmSupabaseAnnualConferenceTicketPayment).mockResolvedValue({
-    id: orderId, status: 'paid', quantity: 2, amount_minor: 30_000, currency: 'GHS',
+    id: orderId, status: 'paid', quantity: 2, amount_minor: 30_000, amount_paid_minor: 30_000, payment_reference: reference, currency: 'GHS',
   });
   vi.mocked(storage.getSupabaseAnnualConferencePaidOrderSummary).mockResolvedValue({
     status: 'paid', tier_key: 'regular_flexible', quantity: 2,

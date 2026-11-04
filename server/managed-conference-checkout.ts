@@ -109,9 +109,12 @@ export async function confirmManagedCheckout(c: Context, order: z.infer<typeof s
   }, c);
 
   if (!confirmed) throw new Error('Payment confirmation unavailable.');
+  if ((confirmed.status === 'paid' || confirmed.status === 'expired')
+    && (confirmed.amount_paid_minor !== charge.amountMinor || confirmed.currency !== charge.currency
+      || confirmed.payment_reference !== reference)) throw new Error('Payment confirmation mismatch.');
 
   if (confirmed.status === 'expired') {
-    return { status: order.payment_mode === 'test' ? 'failed' : 'refund_required' };
+    return { status: order.payment_mode === 'test' ? 'expired' : 'refund_required' };
   }
 
   return { status: confirmed.status === 'paid' ? 'verified' : 'pending' };

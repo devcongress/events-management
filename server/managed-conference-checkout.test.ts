@@ -283,9 +283,46 @@ function webhook(mode: 'test' | 'live', signingKey: string, route = MANAGED_PAYM
 describe('managed Paystack webhook mode binding', () => {
   it('accepts an old test callback with its original key independently of current mode', async () => {
     mocks.settings.mockResolvedValue({ ...catalogSettings, payment_mode: 'live' });
-    expect((await webhook('test', 'sk_test_fixture')).status).toBe(204);
+    expect((await webhook('test', 'sk_test_fixture')).status).toBe(200);
     expect(mocks.confirm).toHaveBeenCalledWith(expect.anything(), storedOrder, managedPaymentReference(orderId, 'test'));
     expect(mocks.settings).not.toHaveBeenCalled();
+  });
+
+  it.each(['pending', 'failed'])('retries an unconfirmed %s result without dispatching', async (status) => {
+    mocks.confirm.mockResolvedValue({ status });
+
+    expect((await webhook('test', 'sk_test_fixture')).status).toBe(503);
+    expect(mocks.dispatch).not.toHaveBeenCalled();
+  });
+
+  it.each(['refund_required', 'expired'])('acknowledges a durable %s result without dispatching', async (status) => {
+    mocks.confirm.mockResolvedValue({ status });
+
+    expect((await webhook('test', 'sk_test_fixture')).status).toBe(200);
+    expect(mocks.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges a signed unrelated event without confirmation', async () => {
+    const body = JSON.stringify({ event: 'transfer.success', data: { reference: 'other' } });
+    const signature = crypto.createHmac('sha512', 'sk_test_fixture').update(body).digest('hex');
+    const response = await app.request(MANAGED_PAYMENT_WEBHOOK_PATH, { method: 'POST', body, headers: { 'x-paystack-signature': signature } });
+
+    expect(response.status).toBe(200);
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
+
+  it('retries a missing managed order', async () => {
+    mocks.order.mockResolvedValue(null);
+
+    expect((await webhook('test', 'sk_test_fixture')).status).toBe(503);
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
+
+  it('retries provider or database errors without dispatching', async () => {
+    mocks.confirm.mockRejectedValue(new Error('unavailable'));
+
+    expect((await webhook('test', 'sk_test_fixture')).status).toBe(503);
+    expect(mocks.dispatch).not.toHaveBeenCalled();
   });
 
   it('does not let the test key confirm a live order', async () => {
@@ -295,6 +332,16 @@ describe('managed Paystack webhook mode binding', () => {
     expect(response.status).toBe(401);
     expect(mocks.confirm).not.toHaveBeenCalled();
     expect(mocks.dispatch).not.toHaveBeenCalled();
+  });
+
+  it.each([MANAGED_PAYMENT_WEBHOOK_PATH, ...historicalWebhookPaths])('routes minimal signed managed charge envelopes through %s', async (route) => {
+    const reference = managedPaymentReference(orderId, 'test');
+    const body = JSON.stringify({ event: 'charge.success', data: { reference, metadata: null } });
+    const signature = crypto.createHmac('sha512', 'sk_test_fixture').update(body).digest('hex');
+    const response = await app.request(route, { method: 'POST', body, headers: { 'x-paystack-signature': signature } });
+
+    expect(response.status).toBe(200);
+    expect(mocks.confirm).toHaveBeenCalledWith(expect.anything(), storedOrder, reference);
   });
 
   it('rejects a forged signature before order reconciliation', async () => {
@@ -311,7 +358,7 @@ describe('managed Paystack webhook mode binding', () => {
   });
 
   it.each(historicalWebhookPaths)('reconciles managed payments through the existing Paystack URL %s', async (route) => {
-    expect((await webhook('test', 'sk_test_fixture', route)).status).toBe(204);
+    expect((await webhook('test', 'sk_test_fixture', route)).status).toBe(200);
     expect(mocks.confirm).toHaveBeenCalledWith(expect.anything(), storedOrder, managedPaymentReference(orderId, 'test'));
   });
 

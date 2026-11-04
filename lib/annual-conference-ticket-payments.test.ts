@@ -64,6 +64,15 @@ describe('annual conference ticket payment adapter', () => {
     });
   });
 
+  it.each(['', null])('accepts verified transport responses with metadata %s', async (metadata) => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ status: true, data: {
+      id: 123, reference: 'devcon26_fixture', amount: 19_999, currency: 'GHS', status: 'success', domain: 'live', metadata,
+    } })));
+
+    await expect(inspectPaystackLiveTransaction({ secretKey: 'sk_live_fixture', paymentReference: 'devcon26_fixture', fetcher: fetcher as unknown as typeof fetch }))
+      .resolves.toMatchObject({ status: 'success', charge: { paymentReference: 'devcon26_fixture', amountMinor: 19_999, currency: 'GHS' } });
+  });
+
   it.each([
     ['pending', 'pending'],
     ['failed', 'failed'],

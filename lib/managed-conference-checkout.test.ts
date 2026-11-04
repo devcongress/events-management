@@ -63,7 +63,7 @@ beforeEach(() => {
   };
   mocks.admission.mockReturnValue({ ready: true });
   mocks.badge.mockReturnValue({ enabled: true });
-  mocks.confirm.mockResolvedValue({ id: orderId, status: 'paid' });
+  mocks.confirm.mockImplementation(async (input) => ({ id: orderId, status: 'paid', amount_paid_minor: input.amountMinor, currency: input.currency, payment_reference: input.paymentReference }));
   mocks.testPayment.mockResolvedValue({
     status: 'verified', providerEventId: 'charge:123', paymentReference: managedPaymentReference(orderId, 'test'),
     amountMinor: 15000, currency: 'GHS',
@@ -260,13 +260,13 @@ describe('managed checkout server reconciliation', () => {
   });
 
   it('reports an expired simulated payment without offering a real refund', async () => {
-    mocks.confirm.mockResolvedValue({ id: orderId, status: 'expired' });
+    mocks.confirm.mockImplementation(async (input) => ({ id: orderId, status: 'expired', amount_paid_minor: input.amountMinor, currency: input.currency, payment_reference: input.paymentReference }));
 
-    await expect(confirmManagedCheckout(context, storedOrder, managedPaymentReference(orderId, 'test'))).resolves.toEqual({ status: 'failed' });
+    await expect(confirmManagedCheckout(context, storedOrder, managedPaymentReference(orderId, 'test'))).resolves.toEqual({ status: 'expired' });
   });
 
   it('keeps an expired real payment in the refund-required outcome', async () => {
-    mocks.confirm.mockResolvedValue({ id: orderId, status: 'expired' });
+    mocks.confirm.mockImplementation(async (input) => ({ id: orderId, status: 'expired', amount_paid_minor: input.amountMinor, currency: input.currency, payment_reference: input.paymentReference }));
 
     await expect(confirmManagedCheckout(context, { ...storedOrder, payment_mode: 'live', checkout_origin: null }, managedPaymentReference(orderId, 'live'))).resolves.toEqual({ status: 'refund_required' });
   });

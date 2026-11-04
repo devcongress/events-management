@@ -30,7 +30,7 @@ beforeEach(() => {
   mocks.environment = { PAYSTACK_TEST_SECRET_KEY: 'sk_test_fixture', PAYSTACK_SECRET_KEY: 'sk_live_fixture' };
   mocks.testPayment.mockResolvedValue({ status: 'verified', ...charge });
   mocks.livePayment.mockResolvedValue({ status: 'success', charge });
-  mocks.confirm.mockResolvedValue({ status: 'paid' });
+  mocks.confirm.mockImplementation(async (input) => ({ status: 'paid', amount_paid_minor: input.amountMinor, currency: input.currency, payment_reference: input.paymentReference }));
 });
 
 describe('managed checkout stored-order confirmation', () => {
@@ -75,11 +75,22 @@ describe('managed checkout stored-order confirmation', () => {
   });
 
   it.each([
-    ['test', 'failed'], ['live', 'refund_required'],
+    ['test', 'expired'], ['live', 'refund_required'],
   ] as const)('maps an expired %s order to %s without inventing a test refund', async (mode, status) => {
-    mocks.confirm.mockResolvedValue({ status: 'expired' });
+    mocks.confirm.mockResolvedValue({ status: 'expired', amount_paid_minor: 15000, currency: 'GHS', payment_reference: 'reference' });
 
     expect(await confirmManagedCheckout(context, { ...order, payment_mode: mode }, 'reference')).toEqual({ status });
+  });
+
+  it.each([
+    { status: 'expired', amount_paid_minor: null, currency: 'GHS', payment_reference: null },
+    { status: 'paid', amount_paid_minor: 999, currency: 'GHS', payment_reference: 'reference' },
+    { status: 'paid', amount_paid_minor: 15000, currency: 'USD', payment_reference: 'reference' },
+    { status: 'paid', amount_paid_minor: 15000, currency: 'GHS', payment_reference: 'other' },
+  ])('rejects terminal confirmation without matching recorded payment facts', async (stored) => {
+    mocks.confirm.mockResolvedValue(stored);
+
+    await expect(confirmManagedCheckout(context, order, 'reference')).rejects.toThrow('Payment confirmation mismatch.');
   });
 
   it.each(['test', 'live'] as const)('fails closed when the %s key is missing even when the opposite key exists', async (mode) => {

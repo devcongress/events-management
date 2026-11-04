@@ -150,6 +150,7 @@ it('continues admission draining only after productive work', async () => {
 
   appFetch.mockResolvedValueOnce(Response.json({ admissions: { accepted: 3 } }));
   await worker.queue({ messages: [{ body: { kind: 'admission-recovery' } }] }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
+  expect(new URL(appFetch.mock.calls.at(-1)![0].url).pathname).toBe('/api/internal/managed-admission-emails/retry');
   expect(send).toHaveBeenCalledWith({ kind: 'admission-recovery' }, { delaySeconds: 1 });
   send.mockClear();
   appFetch.mockResolvedValueOnce(Response.json({ admissions: { accepted: 0 } }));

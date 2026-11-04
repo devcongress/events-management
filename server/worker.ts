@@ -1,4 +1,5 @@
 import app from './app';
+import { managedRecoveryQueueRequest } from './managed-recovery-request';
 import type { ExecutionContext } from 'hono';
 import { secureSharedSecret } from '@/lib/security/shared-secret';
 import type { BlastPreparationMessage, CheckoutRecoveryMessage, EventBlastPreparationQueue } from '@/lib/event-blast-preparation';
@@ -82,11 +83,9 @@ export default {
     for (const message of batch.messages) {
       if (message.body.kind === 'admission-recovery' || message.body.kind === 'payment-recovery') {
         const path = message.body.kind === 'admission-recovery'
-          ? '/api/internal/annual-conference-admission-emails/retry'
+          ? '/api/internal/managed-admission-emails/retry'
           : '/api/internal/managed-payments/reconcile';
-        const response = await app.fetch(new Request(`https://events-management.internal${path}`, {
-          method: 'POST', headers: { 'x-scheduled-job-secret': secret },
-        }), env, ctx);
+        const response = await app.fetch(managedRecoveryQueueRequest(`https://events-management.internal${path}`, secret), env, ctx);
 
         if (!response.ok) throw new Error('Checkout recovery job failed.');
         const result = await response.json() as { admissions?: { accepted?: number } };
