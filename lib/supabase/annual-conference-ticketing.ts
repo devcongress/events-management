@@ -464,16 +464,21 @@ export interface AnnualConferenceTicketOrderOverview {
   tier_key: string;
   quantity: number;
   amount_minor: number;
+  quoted_gross_amount_minor: number | null;
+  amount_paid_minor: number | null;
   currency: string;
   status: AnnualConferenceTicketOrderStatus;
   payment_reference: string | null;
   paid_at: string | null;
+  expires_at?: string | null;
   created_at: string;
   seats: AnnualConferenceTicketOrderSeat[];
   delivery_status: AnnualConferenceTicketEmailDeliveryStatus | null;
+  refund_status: 'required' | 'processing' | 'refunded' | 'failed' | 'needs_attention' | null;
+  refunded_seat_count: number;
 }
 
-type AnnualConferenceTicketOrderRow = Omit<AnnualConferenceTicketOrderOverview, 'seats' | 'delivery_status'>;
+type AnnualConferenceTicketOrderRow = Omit<AnnualConferenceTicketOrderOverview, 'seats' | 'delivery_status' | 'refund_status' | 'refunded_seat_count'>;
 
 /**
  * Operator order reads deliberately omit QR hashes, email payloads, provider
@@ -484,17 +489,29 @@ export async function listSupabaseAnnualConferenceTicketOrders(input: {
   editionId: string;
   page: number;
   pageSize: number;
+  view?: 'paid' | 'attempts' | 'test' | 'all';
 }, c?: Context): Promise<{ orders: AnnualConferenceTicketOrderOverview[]; total: number } | null> {
   if (!isSupabaseRuntimeEnabled(c)) return null;
 
   const from = (input.page - 1) * input.pageSize;
   const to = from + input.pageSize - 1;
   const client = getSupabaseAdminClient(c);
-  const orderResult = await client
+  let orderQuery = client
     .from('annual_conference_ticket_orders')
-    .select('id, purchaser_name, purchaser_email, tier_key, quantity, amount_minor, currency, status, payment_reference, paid_at, created_at, payment_mode', { count: 'exact' })
-    .eq('edition_id', input.editionId)
+    .select('id, purchaser_name, purchaser_email, tier_key, quantity, amount_minor, quoted_gross_amount_minor, amount_paid_minor, currency, status, payment_reference, paid_at, expires_at, created_at, payment_mode', { count: 'exact' })
+    .eq('edition_id', input.editionId);
+
+  if (input.view === 'paid') {
+    orderQuery = orderQuery.eq('payment_mode', 'live').or('status.in.(paid,refunded),paid_at.not.is.null');
+  } else if (input.view === 'attempts') {
+    orderQuery = orderQuery.eq('payment_mode', 'live').is('paid_at', null).not('status', 'in', '(paid,refunded)');
+  } else if (input.view === 'test') {
+    orderQuery = orderQuery.eq('payment_mode', 'test');
+  }
+
+  const orderResult = await orderQuery
     .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
     .range(from, to);
 
   if (orderResult.error) throw new Error(orderResult.error.message);
@@ -504,7 +521,7 @@ export async function listSupabaseAnnualConferenceTicketOrders(input: {
 
   if (!orderIds.length) return { orders: [], total: orderResult.count ?? 0 };
 
-  const [seatsResult, deliveriesResult] = await Promise.all([
+  const [seatsResult, deliveriesResult, refundsResult, flexibleRefundsResult] = await Promise.all([
     client
       .from('annual_conference_tickets')
       .select('id, order_id, order_seat_number, status, issued_at, checked_in_at')
@@ -515,10 +532,21 @@ export async function listSupabaseAnnualConferenceTicketOrders(input: {
       .select('order_id, status, created_at')
       .in('order_id', orderIds)
       .order('created_at', { ascending: false }),
+    client
+      .from('annual_conference_ticket_refunds')
+      .select('order_id, status')
+      .in('order_id', orderIds),
+    client
+      .from('annual_conference_flexible_ticket_refunds')
+      .select('order_id')
+      .in('order_id', orderIds)
+      .eq('status', 'refunded'),
   ]);
 
   if (seatsResult.error) throw new Error(seatsResult.error.message);
   if (deliveriesResult.error) throw new Error(deliveriesResult.error.message);
+  if (refundsResult.error) throw new Error(refundsResult.error.message);
+  if (flexibleRefundsResult.error) throw new Error(flexibleRefundsResult.error.message);
 
   const seatsByOrder = new Map<string, AnnualConferenceTicketOrderSeat[]>();
 
@@ -546,11 +574,25 @@ export async function listSupabaseAnnualConferenceTicketOrders(input: {
     }
   }
 
+  const refundStatusByOrder = new Map((refundsResult.data ?? []).map((refund) => [
+    String(refund.order_id), refund.status as AnnualConferenceTicketOrderOverview['refund_status'],
+  ]));
+
+  const refundedSeatCounts = new Map<string, number>();
+
+  for (const refund of (flexibleRefundsResult.data ?? []) as unknown as Array<{ order_id: string }>) {
+    const orderId = String(refund.order_id);
+
+    refundedSeatCounts.set(orderId, (refundedSeatCounts.get(orderId) ?? 0) + 1);
+  }
+
   return {
     orders: orderRows.map((order) => ({
       ...order,
       seats: seatsByOrder.get(order.id) ?? [],
       delivery_status: deliveryStatusByOrder.get(order.id) ?? null,
+      refund_status: refundStatusByOrder.get(order.id) ?? null,
+      refunded_seat_count: refundedSeatCounts.get(order.id) ?? 0,
     })),
     total: orderResult.count ?? 0,
   };

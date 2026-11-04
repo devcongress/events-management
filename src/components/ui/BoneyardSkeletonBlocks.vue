@@ -27,7 +27,7 @@ function cellValue(column: SkeletonColumn, row: number) {
   <div class="ems-loading-blocks">
     <template v-for="(block, index) in blocks" :key="index">
       <BoneyardWorkPlanFixture v-if="block.kind === 'work-plan'" :view="block.view" :assigned="block.assigned" />
-      <BoneyardTicketOrdersFixture v-else-if="block.kind === 'ticket-orders'" :rows="block.rows" />
+      <BoneyardTicketOrdersFixture v-else-if="block.kind === 'ticket-orders'" :rows="block.rows" :panel="block.panel" />
       <BoneyardConferenceIntakeFixture v-else-if="block.kind === 'speaker-conference-intake'" />
       <BoneyardLearningLobbyFixture v-else-if="block.kind === 'learning-lobby'" />
       <BoneyardOperationsFixture v-else-if="block.kind === 'operations-directory'" :view="block.view" :owner="block.owner" />

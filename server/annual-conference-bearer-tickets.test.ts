@@ -53,13 +53,12 @@ describe('annual conference bearer ticket operations', () => {
     expect(adapterSource).toContain("'check_in_annual_conference_bearer_ticket'");
   });
 
-  it('keeps real order operations distinct from test checkout and opens five-row pages in a right drawer', () => {
-    expect(viewSource).toContain('Admissions operations');
+  it('opens order details in a drawer and retains five-row pages', () => {
     expect(viewSource).toContain('Ticket orders');
-    expect(viewSource).toContain('Test checkout activity remains in its separate sandbox section.');
     expect(apiSource).toContain('ANNUAL_CONFERENCE_TICKET_ORDER_PAGE_SIZE = 5');
     expect(viewSource).toContain('openTicketOrder');
     expect(viewSource).toContain('ticket-order-drawer-title');
-    expect(viewSource).toContain('5 per page');
+    expect(viewSource).toContain(':page-count="ticketOrderPageCount"');
+    expect(viewSource).toContain('Math.ceil((ticketOrderQuery.data.value?.total ?? 0) / 5)');
   });
 });

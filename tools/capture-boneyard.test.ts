@@ -52,6 +52,9 @@ describe('Boneyard capture safety', () => {
     expect(validateCatalog([section])).toEqual([section]);
     expect(() => validateCatalog([section, section])).toThrow('duplicate');
     expect(() => validateCatalog([{ ...section, id: '../outside' }])).toThrow('Unsafe');
+    expect(validateCatalog([{ ...section, capture: { maxWidth: 1280, breakpoints: [320, ...breakpoints] } }])).toHaveLength(1);
+    expect(() => validateCatalog([{ ...section, capture: { maxWidth: 1280, breakpoints: [390, 320] } }])).toThrow('Invalid Boneyard breakpoints');
+    expect(() => validateCatalog([{ ...section, capture: { maxWidth: 1280, breakpoints: [] } }])).toThrow('Invalid Boneyard breakpoints');
   });
 
   it('serializes supported compact tuples without changing geometry or container flags', () => {

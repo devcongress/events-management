@@ -859,6 +859,7 @@ export const conferenceSections: SkeletonSection[] = [
     ],
     "capture": {
       "maxWidth": 1280,
+      "breakpoints": [320, 390, 640, 768, 960, 1024, 1280],
       "padding": 32,
       "context": "page",
       "gap": 24,
@@ -866,15 +867,9 @@ export const conferenceSections: SkeletonSection[] = [
     },
     "blocks": [
       {
-        "kind": "heading",
-        "title": "Ticket orders",
-        "description": "Paid orders, delivery state, and check-in progress.",
-        "eyebrow": "Admissions operations",
-        "level": "section"
-      },
-      {
         "kind": "ticket-orders",
-        "rows": 5
+        "rows": 5,
+        "panel": true
       }
     ]
   },
@@ -1764,7 +1759,9 @@ export const conferenceSections: SkeletonSection[] = [
     ],
     "capture": {
       "maxWidth": 1280,
+      "breakpoints": [320, 390, 640, 768, 960, 1024, 1280],
       "padding": 32,
+      "innerPadding": 1,
       "context": "panel",
       "gap": 24,
       "showHeader": false

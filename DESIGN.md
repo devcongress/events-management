@@ -128,9 +128,13 @@ deadline in a keyboard-accessible disclosure so content remains visible.
 Proposals, Participation, and Delivery use a single thin neutral border, flat
 row dividers, and the shared pagination controls at six entries per page.
 
+**Ticketing and Guests:** Use yellow for the selected order or guest-status filter and pink for keyboard focus. The pre-event check-in notice is compact and shows the conference date in Accra time; a missing or invalid date has a clear unavailable state.
+
 **Phones:** Keep Ticketing on its existing responsive route. Its Mobile Conference
 entry follows existing role/capability rules. Orders use cards below the desktop
-table breakpoint. Forms stack, drawer Close controls remain visible, safe areas
+table breakpoint and the same Paid orders, Checkout attempts, and Test orders
+filters at each size. Show when an unpaid checkout started; attendance belongs
+in Registration. Forms stack, drawer Close controls remain visible, safe areas
 are respected, and scrolling stays in the intended region.
 
 **Loading:** Resolve by the stable section ID in `src/boneyard/sections/`. Match

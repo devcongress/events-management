@@ -5,6 +5,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/server';
 import { getAnnualConferenceEditionByYear, requireAnnualConferenceCapability } from '@/server/annual-conference-request';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import type { AppBindings } from '@/server/http/app-bindings';
+import { CONFERENCE_CHECK_IN_UNAVAILABLE, isAnnualConferenceCheckInOpen } from '@/lib/annual-conference-check-in';
 
 export async function requireConferenceCheckIn(c: Context, year: number) {
   const auth = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
@@ -96,6 +97,7 @@ export function registerAnnualConferenceCheckInRoutes(app: Hono<AppBindings>) {
     const session = await getAdminSession(c);
 
     if (!edition || !session.authenticated) return c.json({ error: 'Conference not found.' }, 404);
+    if (!isAnnualConferenceCheckInOpen(edition.provisional_date)) return c.json({ error: CONFERENCE_CHECK_IN_UNAVAILABLE }, 409);
     const result = await getSupabaseAdminClient(c).rpc('check_in_annual_conference_named_ticket' as never, {
       p_edition_id: edition.id, p_ticket_id: input.data.ticket_id, p_actor: session.email,
     } as never);

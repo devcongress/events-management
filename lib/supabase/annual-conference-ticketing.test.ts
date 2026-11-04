@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getSupabaseAnnualConferenceTicketing } from './annual-conference-ticketing';
+import { getSupabaseAnnualConferenceTicketing, listSupabaseAnnualConferenceTicketOrders } from './annual-conference-ticketing';
 
 const database = vi.hoisted(() => ({ client: {} }));
 
@@ -64,5 +64,48 @@ describe('venue inventory excludes test orders', () => {
     const result = await getSupabaseAnnualConferenceTicketing(2026);
 
     expect(result?.inventory).toMatchObject({ remaining_public_seats: 890, reduction_floor: 10 });
+  });
+});
+
+describe('ticket order views', () => {
+  it.each([
+    ['paid', 'or', 'status.in.(paid,refunded),paid_at.not.is.null'],
+    ['attempts', 'not', 'status'],
+    ['test', 'eq', 'payment_mode'],
+  ] as const)('applies the %s filter before pagination', async (view, method, argument) => {
+    const calls: Array<[string, ...unknown[]]> = [];
+    const query = {
+      select: (...args: unknown[]) => { calls.push(['select', ...args]);
+
+ return query; },
+      eq: (...args: unknown[]) => { calls.push(['eq', ...args]);
+
+ return query; },
+      or: (...args: unknown[]) => { calls.push(['or', ...args]);
+
+ return query; },
+      is: (...args: unknown[]) => { calls.push(['is', ...args]);
+
+ return query; },
+      not: (...args: unknown[]) => { calls.push(['not', ...args]);
+
+ return query; },
+      order: (...args: unknown[]) => { calls.push(['order', ...args]);
+
+ return query; },
+      range: async (...args: unknown[]) => { calls.push(['range', ...args]);
+
+ return { data: [], count: 0, error: null }; },
+    };
+
+    database.client = { from: () => query };
+    await listSupabaseAnnualConferenceTicketOrders({ editionId: 'edition', page: 2, pageSize: 5, view });
+    const filterIndex = calls.findIndex((call) => call[0] === method && call[1] === argument);
+    const rangeIndex = calls.findIndex((call) => call[0] === 'range');
+
+    expect(filterIndex).toBeGreaterThan(-1);
+    expect(filterIndex).toBeLessThan(rangeIndex);
+    expect(calls).toContainEqual(['range', 5, 9]);
+    expect(calls).toContainEqual(['order', 'id', { ascending: false }]);
   });
 });

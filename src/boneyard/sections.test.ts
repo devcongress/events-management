@@ -360,3 +360,15 @@ describe('first loading and refresh state contracts', () => {
     expect(await renderedBranch(file, 'annual-conference-community-purchases', state)).toContain('No paid community purchases yet.');
   });
 });
+
+describe('order skeleton phone breakpoints', () => {
+  it('adds 320px only for both order sections', () => {
+    const custom = sections.filter((section) => section.capture.breakpoints?.includes(320));
+
+    expect(custom.map((section) => section.id).sort()).toEqual([
+      'annual-conference-ticket-orders',
+      'annual-conference-ticketing-orders',
+    ]);
+    expect(custom.every((section) => section.capture.breakpoints?.join(',') === '320,390,640,768,960,1024,1280')).toBe(true);
+  });
+});

@@ -4,6 +4,7 @@ import { computed } from 'vue';
 const props = withDefaults(defineProps<{
   page: number;
   pageCount: number;
+  disabled?: boolean;
   total: number;
   rangeStart: number;
   rangeEnd: number;
@@ -23,6 +24,8 @@ const currentPage = computed(() => Math.min(pageCount.value, Math.max(1, props.p
 const summary = computed(() => `Showing ${props.rangeStart}-${props.rangeEnd} of ${props.total} ${props.itemLabel}`);
 
 function goToPage(nextPage: number) {
+  if (props.disabled) return;
+
   emit('update:page', Math.min(pageCount.value, Math.max(1, nextPage)));
 }
 </script>
@@ -37,7 +40,7 @@ function goToPage(nextPage: number) {
     <button
       type="button"
       class="app-pagination__button motion-press justify-self-start"
-      :disabled="currentPage === 1"
+      :disabled="disabled || currentPage === 1"
       aria-label="Previous page"
       @click="goToPage(currentPage - 1)"
     >
@@ -48,7 +51,7 @@ function goToPage(nextPage: number) {
     <button
       type="button"
       class="app-pagination__button motion-press justify-self-end"
-      :disabled="currentPage === pageCount"
+      :disabled="disabled || currentPage === pageCount"
       aria-label="Next page"
       @click="goToPage(currentPage + 1)"
     >

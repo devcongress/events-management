@@ -14,6 +14,7 @@ export type SkeletonBlock =
   | {
       kind: 'ticket-orders';
       rows?: number;
+      panel?: boolean;
     }
   | {
       kind: 'speaker-conference-intake';
@@ -145,6 +146,7 @@ export type SkeletonSection = {
   sourcePaths: string[];
   capture: {
     maxWidth: number;
+    breakpoints?: number[];
     padding?: number;
     innerPadding?: number;
     context?: 'page' | 'panel' | 'drawer' | 'sidebar' | 'phone' | 'standalone';
