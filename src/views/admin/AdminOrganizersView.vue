@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { protectedFetch } from '@/src/lib/admin-session-signal';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
@@ -280,7 +281,7 @@ function notifyActionError(caught: unknown, fallback: string) {
 const decideAccessRequestMutation = useMutation({
   mutationFn: async ({ request, approve }: { request: AdminAccessRequest; approve: boolean }) => {
     const suffix = approve ? 'approve' : 'decline';
-    const response = await fetch(`/api/admin/access-requests/${request.id}/${suffix}`, {
+    const response = await protectedFetch(`/api/admin/access-requests/${request.id}/${suffix}`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -324,7 +325,7 @@ function confirmAccessRequestApproval() {
 const addOrganizerMutation = useMutation({
   mutationFn: async () => {
     const parsed = addOrganizerSchema.parse(form);
-    const response = await fetch('/api/admin/organizers', {
+    const response = await protectedFetch('/api/admin/organizers', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -355,7 +356,7 @@ const addOrganizerMutation = useMutation({
 
 const updateOrganizerRoleMutation = useMutation({
   mutationFn: async ({ organizerId, role }: { organizerId: string; role: 'organizer' | 'volunteer' }) => {
-    const response = await fetch(`/api/admin/organizers/${organizerId}/role`, {
+    const response = await protectedFetch(`/api/admin/organizers/${organizerId}/role`, {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -446,7 +447,7 @@ const updateResponsibilityMutation = useMutation({
 
 const disableOrganizerMutation = useMutation({
   mutationFn: async (organizerId: string) => {
-    const response = await fetch(`/api/admin/organizers/${organizerId}`, {
+    const response = await protectedFetch(`/api/admin/organizers/${organizerId}`, {
       method: 'DELETE',
       credentials: 'include',
     });
@@ -485,7 +486,7 @@ const disableOrganizerMutation = useMutation({
 
 const enableOrganizerMutation = useMutation({
   mutationFn: async (organizerId: string) => {
-    const response = await fetch(`/api/admin/organizers/${organizerId}/enable`, {
+    const response = await protectedFetch(`/api/admin/organizers/${organizerId}/enable`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -510,7 +511,7 @@ const enableOrganizerMutation = useMutation({
 
 const removeOrganizerMutation = useMutation({
   mutationFn: async (organizerId: string) => {
-    const response = await fetch(`/api/admin/organizers/${organizerId}/permanent`, {
+    const response = await protectedFetch(`/api/admin/organizers/${organizerId}/permanent`, {
       method: 'DELETE',
       credentials: 'include',
     });

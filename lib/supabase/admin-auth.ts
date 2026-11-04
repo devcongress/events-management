@@ -22,6 +22,7 @@ export interface AdminSession {
   authenticated: true;
   mode: 'supabase';
   expires_at: string;
+  session_instance_id?: string;
   user_id: string | null;
   membership_id: string | null;
   email: string | null;
@@ -269,7 +270,7 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
   if (!token) return { authenticated: false };
 
   if (!isSupabaseAdminAuthConfigured(c)) {
-    return { authenticated: false };
+    throw new Error('Organizer session service is unavailable');
   }
 
   const { data, error } = await getSupabaseAdminClient(c)
@@ -279,7 +280,9 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
     .is('revoked_at', null)
     .maybeSingle();
 
-  if (error || !data || new Date(data.expires_at).getTime() <= Date.now()) {
+  if (error) throw new Error('Organizer session service is unavailable');
+
+  if (!data || !Number.isFinite(new Date(data.expires_at).getTime()) || new Date(data.expires_at).getTime() <= Date.now()) {
     return { authenticated: false };
   }
 
@@ -307,12 +310,30 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
     authenticated: true,
     mode: 'supabase',
     expires_at: data.expires_at,
+    session_instance_id: data.id,
     user_id: data.user_id,
     membership_id: data.membership_id,
     email: data.email,
     display_name: membership.display_name,
     role: membership.role,
   };
+}
+
+/** Revoke only the cookie session observed by this tab; never alter the cookie. */
+export async function expireObservedAdminSession(c: Context, sessionInstanceId: string): Promise<void> {
+  const token = getCookie(c, sessionCookieName(c));
+
+  if (!token) return;
+  if (!isSupabaseAdminAuthConfigured(c)) throw new Error('Organizer session service is unavailable');
+
+  const { error } = await getSupabaseAdminClient(c)
+    .from('admin_sessions')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('id', sessionInstanceId)
+    .eq('token_hash', await sessionTokenHash(token))
+    .is('revoked_at', null);
+
+  if (error) throw new Error('Unable to expire organizer session');
 }
 
 export async function revokeAdminSession(c: Context): Promise<void> {
@@ -424,7 +445,7 @@ export async function requireAdmin(c: Context, roles: AdminRole[] = ['owner', 'o
       path: securitySafeRequestPath(c.req.path),
     }));
 
-    return c.json({ error: 'Admin session required' }, 401);
+    return c.json({ error: 'Admin session required', code: 'ADMIN_SESSION_REQUIRED' }, 401);
   }
 
   const originError = assertAdminOrigin(c);

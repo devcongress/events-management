@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { protectedFetch } from '@/src/lib/admin-session-signal';
 import { useQueryClient } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
@@ -535,7 +536,7 @@ async function publishEvent() {
   publishError.value = null;
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(publishPayload),
@@ -597,7 +598,7 @@ async function saveDescription() {
   descriptionError.value = null;
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ description: nextDescription }),
@@ -711,7 +712,7 @@ async function saveSharedLinks() {
   sharedLinksError.value = null;
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ schedule }),
@@ -912,7 +913,7 @@ async function saveOutline() {
   outlineError.value = null;
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ schedule }),
@@ -945,7 +946,7 @@ async function saveEventProfile() {
   seriesTypeError.value = null;
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -977,7 +978,7 @@ async function toggleChecklistItem(item: EventChecklistItem) {
 
   checklistSavingId.value = item.id;
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/checklist/${item.id}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/checklist/${item.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ completed: !item.completed }),
@@ -1027,7 +1028,7 @@ async function setChecklistItemDisabled(item: EventChecklistItem, disabled: bool
 
   checklistDisablingId.value = item.id;
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/checklist/${item.id}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/checklist/${item.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ disabled }),
@@ -1078,7 +1079,7 @@ async function savePhotos(photos: NonNullable<CommunityEvent['photos']>, success
   photoError.value = null;
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ photos }),

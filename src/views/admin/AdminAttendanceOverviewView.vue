@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { protectedFetch } from '@/src/lib/admin-session-signal';
 import { computed, onMounted, ref, watch } from 'vue';
 import { adminPath } from '@/src/admin-routes';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
@@ -204,7 +205,7 @@ async function fetchAttendanceLedger() {
   loading.value = true;
   error.value = '';
 
-  const response = await fetch('/api/attendance/monthly');
+  const response = await protectedFetch('/api/attendance/monthly');
 
   if (response.ok) {
     const payload = await response.json() as { ledger: AttendanceLedgerMonth[]; insights: AttendanceMonthlyInsights };

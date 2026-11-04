@@ -62,3 +62,28 @@ export function adminAuthFailureCopy(reason: AdminAuthFailureReason): AdminAuthF
       };
   }
 }
+
+export const ADMIN_RECOVERY_OUTCOME_STORAGE_KEY = 'organizer-session-recovery-result';
+export type AdminRecoveryOutcome = 'cancelled' | 'access_denied' | 'service_unavailable';
+
+export function saveAdminRecoveryOutcome(outcome: AdminRecoveryOutcome): void {
+  try {
+    window.sessionStorage.setItem(ADMIN_RECOVERY_OUTCOME_STORAGE_KEY, outcome);
+  } catch {
+    // The lock remains active if storage is unavailable.
+  }
+}
+
+export function takeAdminRecoveryOutcome(): AdminRecoveryOutcome | null {
+  try {
+    const outcome = window.sessionStorage.getItem(ADMIN_RECOVERY_OUTCOME_STORAGE_KEY);
+
+    window.sessionStorage.removeItem(ADMIN_RECOVERY_OUTCOME_STORAGE_KEY);
+
+    return outcome === 'cancelled' || outcome === 'access_denied' || outcome === 'service_unavailable'
+      ? outcome
+      : null;
+  } catch {
+    return null;
+  }
+}

@@ -1,3 +1,4 @@
+import { protectedFetch } from './admin-session-signal';
 import type {
   Event,
   EventSubmission,
@@ -146,6 +147,7 @@ export interface AdminSessionResponse {
   auth_mode: 'supabase';
   auth_configured: boolean;
   expires_at?: string;
+  session_instance_id?: string;
   user?: {
     email: string | null;
     display_name: string | null;
@@ -576,7 +578,7 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit)
   let response: Response;
 
   try {
-    response = await fetch(input, {
+    response = await protectedFetch(input, {
       ...init,
       ...(controller ? { signal: controller.signal } : {}),
     });

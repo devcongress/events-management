@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { protectedFetch } from '@/src/lib/admin-session-signal';
 import { onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
@@ -15,8 +16,8 @@ const speakerAccessPaused = true;
 
 async function fetchAll() {
   const [eventResponse, speakersResponse] = await Promise.all([
-    fetch(`/api/events/${route.params.eventId}`),
-    fetch(`/api/events/${route.params.eventId}/speakers`),
+    protectedFetch(`/api/events/${route.params.eventId}`),
+    protectedFetch(`/api/events/${route.params.eventId}/speakers`),
   ]);
 
   if (eventResponse.ok) event.value = await eventResponse.json();
@@ -27,7 +28,7 @@ async function fetchAll() {
 async function addNewSpeaker() {
   adding.value = true;
   error.value = null;
-  const response = await fetch(`/api/events/${route.params.eventId}/speakers`, {
+  const response = await protectedFetch(`/api/events/${route.params.eventId}/speakers`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(form),
@@ -46,7 +47,7 @@ async function addNewSpeaker() {
 }
 
 async function removeExistingSpeaker(speakerId: string) {
-  const response = await fetch(`/api/events/${route.params.eventId}/speakers/${speakerId}`, { method: 'DELETE' });
+  const response = await protectedFetch(`/api/events/${route.params.eventId}/speakers/${speakerId}`, { method: 'DELETE' });
 
   if (response.ok) await fetchAll();
 }

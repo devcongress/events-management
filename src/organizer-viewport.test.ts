@@ -424,3 +424,16 @@ describe("organizer viewport policy", () => {
     ).toBeNull();
   });
 });
+
+describe("volunteer viewport context", () => {
+  it("preserves valid workspace and campaign tabs across desktop and phone", () => {
+    const query = { volunteerView: "campaign", campaignTab: "outcomes" };
+    const phone = organizerViewportRedirect({ authenticated: true, isAdminRoute: true, isPhone: true, routeName: "admin-annual-conference-volunteers", conferenceYear: "2026", query });
+    const desktop = organizerViewportRedirect({ authenticated: true, isAdminRoute: true, isPhone: false, routeName: ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME, conferenceYear: "2026", query: { section: "volunteers", ...query } });
+
+    expect(phone?.query).toEqual({ section: "volunteers", ...query });
+    expect(desktop?.query).toEqual(query);
+    expect(organizerConferenceContextQuery({ section: "volunteers", volunteerView: ["campaign"], campaignTab: "unknown" })).toEqual({ section: "volunteers" });
+    expect(organizerConferenceContextQuery({ section: "tasks", ...query })).toEqual({ section: "tasks" });
+  });
+});

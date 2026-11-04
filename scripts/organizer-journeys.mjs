@@ -2533,7 +2533,8 @@ try {
         fullPage: true,
       });
       await page.setViewportSize({ width: 1280, height: 1000 });
-      await page.waitForURL("**/organizer-console/annual-conference/2026/volunteers");
+      await page.waitForURL(url => url.pathname === "/organizer-console/annual-conference/2026/volunteers"
+        && url.searchParams.get("volunteerView") === "campaign" && url.searchParams.get("campaignTab") === "settings");
       await waitForRouteTransition(page);
       await mobileConference.waitFor({ state: "detached" });
       await page.getByRole("tab", { name: "Campaign", exact: true }).click();
@@ -2669,7 +2670,8 @@ try {
       await mobileDeliveries.screenshot({ style: ".conference-mobile__header { position: static !important; }", path: `${artifacts}/outcome-delivery-not-selected-mobile.png` });
 
       await page.setViewportSize({ width: 1280, height: 1000 });
-      await page.waitForURL("**/organizer-console/annual-conference/2026/volunteers");
+      await page.waitForURL(url => url.pathname === "/organizer-console/annual-conference/2026/volunteers"
+        && url.searchParams.get("volunteerView") === "campaign" && url.searchParams.get("campaignTab") === "outcomes");
       await waitForRouteTransition(page);
       await page.locator("#admin-volunteers-campaign-tab").click();
       await selectCampaignSection(campaignSections, "Outcome emails");
@@ -2781,6 +2783,9 @@ try {
         .getByRole("button", { name: "Close applicant details", exact: true })
         .click();
       await selectedDrawer.waitFor({ state: "detached" });
+      // The scheduler result ages while the organizer continues working.
+      await page.clock.setSystemTime(new Date("2026-09-26T12:15:00.000Z"));
+      await selectCampaignSection(campaignSections, "Settings");
       await page.clock.setSystemTime(new Date("2026-09-26T12:31:00.000Z"));
       await page.clock.runFor(30_001);
       await selectCampaignSection(campaignSections, "Settings");
@@ -4123,6 +4128,208 @@ try {
       .getByRole("heading", { name: "Thanks, Fixture Volunteer." })
       .waitFor();
   });
+
+  for (const mobile of [false, true]) {
+    await journey(`organizer-session-recovery-volunteers${mobile ? "-phone" : ""}`, async ({ page, responses, requests }) => {
+      const path = mobile
+        ? "/organizer-console/mobile/annual-conference/2026?section=volunteers"
+        : "/organizer-console/annual-conference/2026/volunteers";
+      const pathname = path.split("?")[0];
+      const capabilities = ["volunteers.view_team", "volunteers.review_applications", "volunteers.share_intake"];
+      let authenticated = true;
+      const observedSession = "10000000-0000-4000-8000-000000000001";
+      const activeUser = { email: "organizer@example.test", display_name: "Conference Organizer", role: "owner" };
+
+      responses.set("/api/auth/session", () => ({
+        body: { authenticated, auth_configured: true, auth_mode: "supabase", ...(authenticated ? { user: activeUser, session_instance_id: observedSession } : {}) },
+      }));
+      responses.set("/api/auth/admin/session/expire", (request) => {
+        assert.deepEqual(request.postDataJSON(), { session_instance_id: observedSession });
+        authenticated = false;
+
+        return { body: { ok: true } };
+      });
+      responses.set("/api/auth/logout", () => {
+        authenticated = false;
+
+        return { body: { ok: true } };
+      });
+      responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+      responses.set("/api/annual-conference/2026/work-plan", {
+        body: { ...workspace, permissions: { ...workspace.permissions, capabilities } },
+      });
+      responses.set("/api/annual-conference/2026/team", { body: { members: [] } });
+      responses.set("/api/admin/short-links/ensure", { body: { short_url: origin + "/r/demo" } });
+      responses.set("/api/annual-conference/2026/volunteer-applications", { body: {
+        applications: ["Ama Mensah", "Kwesi Asare", "Esi Boateng", "Adwoa Owusu", "Kojo Mensah", "Abena Ofori"].map((name, index) => ({
+          id: "fixture-" + index, membership_id: null, name, email: "volunteer" + index + "@example.test",
+          x_handle: null, slack_name: null, created_at: "2026-09-26T12:00:00Z", status: index < 3 ? "active" : "applicant",
+        })),
+      } });
+
+      await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1680, height: 1030 });
+      await page.goto(origin + path);
+      await page.getByText("Ama Mensah", { exact: true }).waitFor();
+      await page.evaluate(() => document.fonts.ready);
+      if (!mobile) await page.screenshot({ path: artifacts + "/organizer-session-volunteers-before.png" });
+
+      await page.clock.fastForward(28 * 60_000 + 100);
+      const dialog = page.getByRole("dialog");
+      const warningTitle = dialog.getByRole("heading", { name: "Still working?", exact: true });
+
+      await warningTitle.waitFor();
+      assert.equal(await warningTitle.evaluate(element => element === document.activeElement), true);
+      await page.clock.fastForward(2 * 60_000);
+      const signIn = dialog.getByRole("button", { name: "Sign in again", exact: true });
+      const signOut = dialog.getByRole("button", { name: "Sign out", exact: true });
+
+      await signIn.waitFor();
+      await page.clock.runFor(350);
+      assert.equal(requests.some(({ path }) => path === "/api/auth/logout"), false);
+      assert.equal(requests.filter(({ path }) => path === "/api/auth/admin/session/expire").length, 1);
+      assert.equal(new URL(page.url()).pathname, pathname);
+      if (mobile) assert.equal(new URL(page.url()).searchParams.get("section"), "volunteers");
+      assert.equal(await page.getByText("Ama Mensah", { exact: true }).count(), 0);
+      assert.equal(await page.getByText("volunteer0@example.test", { exact: true }).count(), 0);
+      await page.screenshot({ path: artifacts + (mobile ? "/organizer-session-volunteers-phone.png" : "/organizer-session-volunteers-locked.png") });
+      if (!mobile) await dialog.screenshot({ path: artifacts + "/organizer-session-modal-detail.png" });
+
+      const restingBackground = await signIn.evaluate(element => getComputedStyle(element).backgroundColor);
+
+      await page.keyboard.press("Tab");
+      assert.equal(await signIn.evaluate(element => element === document.activeElement && element.matches(":focus-visible")), true);
+      await page.clock.runFor(300);
+      assert.notEqual(await signIn.evaluate(element => getComputedStyle(element).backgroundColor), restingBackground);
+      for (const button of [signIn, signOut]) {
+        const style = await button.evaluate(element => {
+          const rect = element.getBoundingClientRect();
+          const computed = getComputedStyle(element);
+
+          return { height: rect.height, width: rect.width, border: computed.borderStyle, decoration: computed.textDecorationLine };
+        });
+
+        assert.ok(style.height >= 44 && style.width >= 44);
+        assert.equal(style.border, "none");
+        assert.equal(style.decoration, "none");
+        await button.hover();
+        assert.equal(await button.evaluate(element => getComputedStyle(element).borderStyle), "none");
+        assert.equal(await button.evaluate(element => getComputedStyle(element).textDecorationLine), "none");
+      }
+      assert.equal(await signOut.evaluate(element => element !== document.activeElement && getComputedStyle(element).outlineStyle === "none"), true);
+
+      const requestsBeforeActivity = requests.length;
+
+      await page.mouse.move(420, 710);
+      await page.keyboard.press("Escape");
+      assert.equal(await signIn.isVisible(), true);
+      assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"],dialog'))), true);
+      assert.equal(requests.slice(requestsBeforeActivity).some(({ path }) => path.endsWith("/volunteer-applications")), false);
+      if (mobile) {
+        await page.setViewportSize({ width: 320, height: 844 });
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+        for (const button of [signIn, signOut]) {
+          const rect = await button.boundingBox();
+
+          assert.ok(rect && rect.width >= 44 && rect.height >= 44 && rect.x >= 0 && rect.x + rect.width <= 320);
+        }
+      }
+
+      const signOutGate = createSaveGate();
+
+      responses.set("/api/auth/logout", async () => {
+        signOutGate.markEntered();
+        await signOutGate.response;
+
+        return { body: { ok: true } };
+      });
+      const signOutRequestStart = requests.length;
+
+      try {
+        await page.getByRole("dialog").getByRole("button", { name: "Sign out", exact: true }).click();
+        await waitForSaveGate(signOutGate, "explicit sign out");
+        assert.equal(await page.getByText("Ama Mensah", { exact: true }).count(), 0);
+        assert.equal(requests.slice(signOutRequestStart).some(({ path }) => path.endsWith("/volunteer-applications")), false);
+      } finally {
+        signOutGate.release();
+      }
+      await page.waitForURL(url => url.pathname === "/organizer-console/login");
+    }, { role: "owner", useFakeClock: true });
+  }
+
+  await journey("organizer-session-recovery-resume", async ({ page, responses, requests }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const path = "/organizer-console/events";
+    let unavailable = false;
+    const user = { email: "organizer@example.test", display_name: "Fixture Organizer", role: "owner" };
+
+    responses.set("/api/auth/session", () => unavailable
+      ? { status: 503, body: { error: "Temporarily unavailable" } }
+      : { body: { authenticated: true, auth_configured: true, user } });
+    responses.set("/api/auth/logout", { body: { ok: true } });
+    await page.goto(origin + path);
+    await page.getByText("Fixture Meetup", { exact: true }).first().waitFor();
+    unavailable = true;
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await page.clock.runFor(2200);
+    await page.getByRole("button", { name: "Try again", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Sign in again" }).count(), 0);
+    assert.equal(requests.some(request => request.path === "/api/auth/logout"), false);
+
+    unavailable = false;
+    await page.getByRole("button", { name: "Try again" }).click();
+    await page.getByText("Fixture Meetup", { exact: true }).first().waitFor();
+    assert.equal(new URL(page.url()).pathname, path);
+
+    // A sleeping tab can resume with overdue timers still suspended.
+    const current = await page.evaluate(() => Date.now());
+
+    await page.clock.setSystemTime(current + 31 * 60_000);
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await page.getByRole("button", { name: "Sign in again" }).waitFor();
+    assert.equal(await page.getByText("Fixture Meetup", { exact: true }).count(), 0);
+    const requestsAtLock = requests.length;
+
+    await page.reload();
+    await page.getByRole("button", { name: "Sign in again" }).waitFor();
+    assert.equal(new URL(page.url()).pathname, path);
+    assert.equal(requests.slice(requestsAtLock).some(request => request.path === "/api/events"), false);
+  }, { role: "owner", useFakeClock: true });
+
+  await journey("organizer-session-recovery-route-guard", async ({ page, responses, requests }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const path = "/organizer-console/annual-conference/2026/ticketing";
+    const target = path + "?section=orders";
+
+    responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+    responses.set("/api/annual-conference/2026/work-plan", {
+      body: { ...workspace, permissions: { ...workspace.permissions, capabilities: ["ticketing.manage"] } },
+    });
+    responses.set("/api/annual-conference/2026/ticketing", {
+      body: { settings: { public_capacity: 150, ticket_tiers: [] }, inventory: { paid_seats: 0, sponsor_seats_held: 0, checkout_seats_held: 0, remaining_public_seats: 150 } },
+    });
+    responses.set("/api/annual-conference/2026/ticketing/orders", { body: { orders: [], total: 0, page: 1, page_size: 5 } });
+    await page.goto(origin + target);
+    await page.getByRole("heading", { name: "Ticket orders" }).waitFor();
+    await page.clock.fastForward(30 * 60_000 + 100);
+    const signIn = page.getByRole("button", { name: "Sign in again" });
+
+    await signIn.waitFor();
+    const offset = requests.length;
+
+    await page.goto(origin + "/organizer-console/events");
+    await page.waitForURL(origin + target);
+    await signIn.waitFor();
+    await page.reload();
+    await signIn.waitFor();
+    assert.equal(new URL(page.url()).searchParams.get("section"), "orders");
+    assert.equal(requests.slice(offset).some(({ path }) => path.includes("/annual-conference/") || path === "/api/events"), false);
+
+    await page.goto(origin + "/organizer-console/auth/callback?error=oauth_failed");
+    await page.waitForURL(origin + target);
+    await signIn.waitFor();
+    await page.getByRole("dialog").getByRole("alert").filter({ hasText: "Google sign-in was not completed" }).waitFor();
+    assert.equal(requests.slice(offset).some(({ path }) => path.includes("/annual-conference/") || path === "/api/events"), false);
+  }, { role: "owner", useFakeClock: true });
 
   await journey("annual-ticketing-sections", async ({ page, responses, requests }) => {
     const base = "/organizer-console/annual-conference/2026/ticketing";

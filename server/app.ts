@@ -127,7 +127,7 @@ import {
   listAnnualConferenceVolunteerTeam,
   setAnnualConferenceAccessGrant,
 } from '@/lib/supabase/annual-conference-access-grants';
-import { assertAdminOrigin, completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership } from '@/lib/supabase/admin-auth';
+import { assertAdminOrigin, completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, expireObservedAdminSession, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership } from '@/lib/supabase/admin-auth';
 import { getAccessRequestSession } from '@/lib/supabase/admin-access-requests';
 import {
   archiveSupabaseCommunityEvent,
@@ -1283,6 +1283,7 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
       || path === '/api/public/email-preflight'
       || path === '/api/cfp'
       || path === '/api/feedback'
+      || path === '/api/auth/admin/session/expire'
       || path === '/api/auth/admin/exchange'
       || path === '/api/auth/admin/access-request'
       || path === '/api/volunteer-applications'
@@ -4418,6 +4419,7 @@ app.get('/api/auth/session', async (c) => {
     auth_mode: session.mode,
     auth_configured: true,
     expires_at: session.expires_at,
+    session_instance_id: session.session_instance_id,
     user: {
       email: session.email,
       display_name: session.display_name,
@@ -5778,11 +5780,9 @@ app.get('/api/auth/admin/callback', async (c) => {
   }
 
   if (!code) {
-    const loginUrl = new URL(`${basePath}/login`, clientOrigin);
+    clientCallback.searchParams.set('error', 'oauth_failed');
 
-    loginUrl.searchParams.set('error', 'Google organizer sign-in did not return a code. Please try again.');
-
-    return c.redirect(loginUrl.toString());
+    return c.redirect(clientCallback.toString());
   }
 
   clientCallback.searchParams.set('code', code);
@@ -5904,6 +5904,18 @@ app.post('/api/admin/access-requests/:requestId/decline', async (c) => {
   if (error) return c.json({ error: 'Unable to decline access request.' }, 400);
 
   return c.json({ request: data });
+});
+
+app.post('/api/auth/admin/session/expire', async (c) => {
+  const originError = assertAdminOrigin(c);
+
+  if (originError) return originError;
+  const parsed = z.object({ session_instance_id: z.string().uuid() }).strict().safeParse(await c.req.json().catch(() => null));
+
+  if (!parsed.success) return c.json({ error: 'Invalid session reference.' }, 400);
+  await expireObservedAdminSession(c, parsed.data.session_instance_id);
+
+  return c.json({ ok: true });
 });
 
 app.post('/api/auth/logout', async (c) => {

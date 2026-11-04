@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-04 — Resume an expired organizer session
+
+- Lock the open workspace at session expiry and offer Google sign-in from the same page. Restore the authorized page and tab on success, and offer a retry when the session service is unavailable.
+- Present recovery actions as labeled icon buttons in a desktop dialog or a phone bottom sheet, with visible keyboard focus.
+
 ## 2026-11-04 — Ticket orders and conference check-in
 
 - Open Orders on live paid purchases. Separate checkout attempts and test orders, distinguish quoted prices from money received, and show when an unpaid checkout started.

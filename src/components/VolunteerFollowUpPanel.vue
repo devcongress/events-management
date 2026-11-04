@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from "vue";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
+import { useRoute, useRouter } from "vue-router";
+import { resolveVolunteerCampaignTab } from "@/src/lib/volunteer-navigation";
 import ConfirmDialog from "@/src/components/ui/ConfirmDialog.vue";
 import AppDropdown from "@/src/components/AppDropdown.vue";
 import AppDatePicker from "@/src/components/ui/AppDatePicker.vue";
@@ -116,8 +118,10 @@ type CampaignTab = (typeof campaignTabs)[number]["id"];
 
 const campaignId = useId();
 const campaignTablist = ref<HTMLElement | null>(null);
-const activeCampaignTab = ref<CampaignTab>("updates");
-const visitedCampaignTabs = ref(new Set<CampaignTab>(["updates"]));
+const route = useRoute();
+const router = useRouter();
+const activeCampaignTab = computed(() => resolveVolunteerCampaignTab(route.query.campaignTab));
+const visitedCampaignTabs = ref(new Set<CampaignTab>([activeCampaignTab.value]));
 const campaignTabDirection = ref("forward");
 
 const pageSize = 10;
@@ -289,15 +293,19 @@ async function selectCampaignTab(tab: CampaignTab): Promise<void> {
   const nextIndex = campaignTabs.findIndex((item) => item.id === tab);
 
   if (activeCampaignTab.value !== tab) {
-    selectedId.value = null;
     campaignTabDirection.value = nextIndex > currentIndex ? "forward" : "backward";
-    visitedCampaignTabs.value = new Set([...visitedCampaignTabs.value, tab]);
-    activeCampaignTab.value = tab;
+    await router.push({ path: route.path, query: { ...route.query, campaignTab: tab } });
   }
 
   await nextTick();
   campaignTablist.value?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus();
 }
+
+watch(activeCampaignTab, (tab, previous) => {
+  selectedId.value = null;
+  campaignTabDirection.value = campaignTabs.findIndex((item) => item.id === tab) > campaignTabs.findIndex((item) => item.id === previous) ? "forward" : "backward";
+  visitedCampaignTabs.value = new Set([...visitedCampaignTabs.value, tab]);
+});
 
 function handleCampaignTabKeydown(event: KeyboardEvent, tab: CampaignTab): void {
   const index = campaignTabs.findIndex((item) => item.id === tab);
@@ -366,7 +374,6 @@ watch(
     selectedId.value = null;
     previewOpen.value = false;
     pendingAction.value = null;
-    activeCampaignTab.value = "updates";
     visitedCampaignTabs.value = new Set(["updates"]);
     queryClient.removeQueries({
       queryKey: ["annual-conference", "2026", "volunteer-follow-up", "owner"],

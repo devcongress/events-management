@@ -22,6 +22,7 @@ import {
 } from "./lib/api";
 import { isCommunitySubmissionEvent } from "./lib/community-submission-event";
 import { queryClient } from "./lib/query";
+import { readOrganizerSessionLock } from "./lib/organizer-session-continuation";
 import {
   SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME,
   systemDesignParticipantRoute,
@@ -144,6 +145,8 @@ function storedAdminOAuthRedirect(): string {
 async function redirectCommunitySubmissionWorkspace(to: {
   params: Record<string, unknown>;
 }) {
+  if (readOrganizerSessionLock()) return true;
+
   const eventId =
     typeof to.params.eventId === "string" ? to.params.eventId : "";
 
@@ -168,6 +171,8 @@ async function redirectCommunitySubmissionWorkspace(to: {
 async function redirectCommunitySubmissionEvent(to: {
   params: Record<string, unknown>;
 }) {
+  if (readOrganizerSessionLock()) return true;
+
   const eventId =
     typeof to.params.eventId === "string" ? to.params.eventId : "";
 
@@ -374,6 +379,8 @@ export const router = createRouter({
       name: "admin-annual-conference-registrations",
       component: () => import("./views/admin/AdminAnnualConferenceRegistrationsView.vue"),
       beforeEnter: async (to) => {
+        if (readOrganizerSessionLock()) return true;
+
         const year = String(to.params.year);
         const target = await annualConferenceRegistrationRouteTarget(year);
 
@@ -385,6 +392,8 @@ export const router = createRouter({
       name: "admin-annual-conference-check-in",
       component: () => import("./views/admin/AdminAnnualConferenceCheckInView.vue"),
       beforeEnter: async (to) => {
+        if (readOrganizerSessionLock()) return true;
+
         const year = String(to.params.year);
         const target = await annualConferenceRegistrationRouteTarget(year);
 
@@ -439,6 +448,8 @@ export const router = createRouter({
       name: "admin-annual-conference-ticketing",
       component: () => import("./views/admin/AdminAnnualConferenceTicketingView.vue"),
       beforeEnter: async (to) => {
+        if (readOrganizerSessionLock()) return true;
+
         const year = String(to.params.year);
 
         return await canOpenAnnualConferenceTicketingRoute(year)
@@ -642,6 +653,15 @@ router.beforeEach(async (to, from) => {
     };
   }
 
+  const lockedPath = readOrganizerSessionLock();
+
+  if (lockedPath && (isAdminPath(to.path) || to.meta.requiresOrganizer === true) && to.path !== adminPath("auth/callback") && to.path !== adminPath("login")) {
+    if (to.fullPath === lockedPath) return true;
+    const lockedRoute = router.resolve(lockedPath);
+
+    return { path: lockedRoute.path, query: lockedRoute.query, hash: lockedRoute.hash, replace: true };
+  }
+
   const requiresOrganizer =
     isAdminPath(to.path) || to.meta.requiresOrganizer === true;
 
@@ -658,15 +678,6 @@ router.beforeEach(async (to, from) => {
   );
 
   if (cachedSession?.authenticated) {
-    // Background revalidation on navigation, deduped by the default 30s
-    // staleTime so tab-hopping within an event doesn't fire a request per click.
-    void queryClient
-      .fetchQuery({
-        queryKey: queryKeys.adminSession,
-        queryFn: fetchAdminSession,
-      })
-      .catch(() => undefined);
-
     const isPhone = matchesOrganizerPhoneViewport();
     const viewportRedirect = organizerViewportRedirect({
       authenticated: true,

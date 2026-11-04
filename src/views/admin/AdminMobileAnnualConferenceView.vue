@@ -64,6 +64,7 @@ import {
   organizerConferenceContextQuery,
   organizerMobileConferenceSection,
 } from "@/src/organizer-viewport";
+import { useVolunteerView, type VolunteerView } from "@/src/lib/volunteer-navigation";
 import {
   hasAnyAnnualConferenceCapability,
   hasAnnualConferenceCapability,
@@ -101,21 +102,6 @@ const volunteerLinkCopyState = ref<"idle" | "copying" | "copied">("idle");
 let volunteerLinkCopyResetTimer: number | undefined;
 const volunteerShortLinkUrl = ref<string | null>(null);
 const selectedVolunteer = ref<VolunteerDirectoryRow | null>(null);
-const mobileVolunteerView = ref<"directory" | "reviews" | "campaign">(
-  "directory",
-);
-const visitedMobileVolunteerViews = ref(
-  new Set<"directory" | "reviews" | "campaign">(["directory"]),
-);
-
-watch(mobileVolunteerView, (view) => {
-  if (visitedMobileVolunteerViews.value.has(view)) return;
-
-  visitedMobileVolunteerViews.value = new Set([
-    ...visitedMobileVolunteerViews.value,
-    view,
-  ]);
-});
 
 const editionForm = reactive({
   year: Number(year.value) + 1,
@@ -215,6 +201,14 @@ const canViewVolunteerCampaign = computed(
     canViewVolunteerReviews.value &&
     sessionQuery.data.value?.user?.role === "owner",
 );
+const mobileVolunteerView = useVolunteerView(canViewVolunteerReviews, canViewVolunteerCampaign);
+const visitedMobileVolunteerViews = ref(new Set<VolunteerView>(["directory"]));
+
+watch(mobileVolunteerView, (view) => {
+  if (visitedMobileVolunteerViews.value.has(view)) return;
+
+  visitedMobileVolunteerViews.value = new Set([...visitedMobileVolunteerViews.value, view]);
+}, { immediate: true });
 
 watch(
   () => sessionQuery.data.value?.user?.role,
@@ -325,7 +319,6 @@ const ownerDirectory = computed(() =>
 );
 
 watch(year, () => {
-  mobileVolunteerView.value = "directory";
   mobileVolunteerSearch.value = "";
   mobileVolunteerStatusFilter.value = "all";
   selectedVolunteer.value = null;
@@ -756,6 +749,8 @@ function mobileConferenceQuery(
   return organizerConferenceContextQuery(
     {
       section,
+      volunteerView: route.query.volunteerView,
+      campaignTab: route.query.campaignTab,
       ...(statusFilter.value !== "all" ? { status: statusFilter.value } : {}),
       phase: phaseFilterValue.value,
       ...(workstreamFilter.value !== "all"

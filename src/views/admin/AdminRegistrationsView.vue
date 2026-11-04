@@ -2,7 +2,8 @@
 import { useCheckInDay } from "@/src/composables/useCheckInDay";
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
-import { RouterLink, useRoute } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
+import { resolveRegistrationSection, type RegistrationWorkspaceTab } from '@/src/lib/organizer-workspace-sections';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
@@ -58,13 +59,13 @@ import {
 } from '@/src/lib/registration-workspace';
 import type { EventBlast, EventRegistration } from '@/types';
 
-type RegistrationWorkspaceTab = 'summary' | 'guests' | 'form' | 'emails' | 'blasts';
 type RegistrationOverviewPhase = 'before' | 'live' | 'after';
 const REGISTRATION_GUEST_PAGE_SIZE = 8;
 const REGISTRATION_EMAIL_PAGE_SIZE = 8;
 const BLAST_ACTIVITY_PAGE_SIZE = 10;
 
 const route = useRoute();
+const router = useRouter();
 const queryClient = useQueryClient();
 const eventId = computed(() => String(route.params.eventId ?? ''));
 const checkInDay = useCheckInDay(() => data.value?.event);
@@ -124,7 +125,7 @@ const savedPageDetails = ref<RegistrationPageDetailsDraft | null>(null);
 const pageLocationPlaceId = ref('');
 const pageDetailsSaving = ref(false);
 const pageDetailsExpanded = ref(false);
-const activeWorkspaceTab = ref<RegistrationWorkspaceTab>('summary');
+const activeWorkspaceTab = computed(() => resolveRegistrationSection(route.query.section));
 const workspacePanelTransition = ref('registration-panel-forward');
 const search = ref('');
 const selectedInitial = ref(ALL_REGISTRATION_INITIALS);
@@ -738,7 +739,7 @@ function selectWorkspaceTab(tab: RegistrationWorkspaceTab) {
   workspacePanelTransition.value = nextIndex >= currentIndex
     ? 'registration-panel-forward'
     : 'registration-panel-backward';
-  activeWorkspaceTab.value = tab;
+  void router.push({ path: route.path, query: { ...route.query, section: tab } });
 }
 
 function openBlastPreview() {
