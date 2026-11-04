@@ -108,7 +108,8 @@ There is no shared-password fallback. When Supabase organizer auth is incomplete
 ## Security Notes
 
 - Admin cookies are `HttpOnly`, path-scoped to `/`, and have a 12-hour absolute lifetime. Hosted cookies are also `Secure` and use the `__Host-` prefix.
-- Organizer sessions also expire after 30 minutes without authenticated activity. The organizer workspace gives a two-minute pause warning, revalidates when the tab regains focus, and clears cached organizer data when it locks; the server remains authoritative.
+- Organizer sessions expire after 30 minutes of inactivity or 12 hours from sign-in. An open workspace warns at 28 minutes. At expiry EMS clears private content, locks the current route, and offers **Sign in again**. Returning from a sleeping tab checks the deadline before recording new activity.
+- Recovery uses the existing Google callback and a tab-scoped return path containing approved navigation values. The freshly verified session and current permissions determine what the organizer can open. A cancelled sign-in can be retried from the lock. Session-service outages offer **Try again**. An idle tab can expire only the session instance it previously observed. Its expiry request cannot clear or revoke a newer login in a different tab. Deliberate sign-out clears the return path. Unsaved form data is not retained.
 - Cookies always use `SameSite=Lax`. The supported hosted design proxies `/api/*` through the Pages origin; direct cross-origin cookie authentication is intentionally unsupported.
 - State-changing admin requests require an `Origin` header and reject origins outside the configured app/frontend allowlist.
 - Organizer management requires `owner` role.

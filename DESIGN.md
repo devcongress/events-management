@@ -85,6 +85,8 @@ Sign out is a quiet secondary control with a thin warm-gray border, 6px corners,
 a cap-height exit icon, and a white hover surface without positional movement.
 Keep its 44px target and focus outline.
 
+**Session recovery:** On desktop, center a paper dialog over the private workspace’s blurred layout. On phones, use a bottom sheet with safe-area spacing. Keep private records out of the backdrop. Use a filled pink primary button and a quiet, filled **Sign out** button, each with an icon and a label. Both are borderless at rest and on hover; keyboard focus stays visible. An expired session offers **Sign in again**; a temporary session-check failure offers **Try again**.
+
 **Button hover:** Boxed action buttons may use a subtle inset outline on fine-pointer hover. Text-like actions use text cues such as an underline without a surrounding box. Form fields, dropdown triggers and options retain their own control styles. In Programme, underline only the description and resource disclosure label. Keep the preview plain and preserve keyboard focus.
 
 **Forms:** Use `AppDropdown.vue` for single choice and `AppMultiSelectDropdown.vue`

@@ -42,6 +42,7 @@ import {
   type VolunteerDirectoryRow,
   type VolunteerDirectoryStatusFilter,
 } from "@/src/lib/volunteer-directory";
+import { useVolunteerView, type VolunteerView } from "@/src/lib/volunteer-navigation";
 import { hasAnnualConferenceCapability } from "@/lib/annual-conference-capabilities";
 
 const route = useRoute();
@@ -96,16 +97,16 @@ watch(
     }
   },
 );
-const volunteerView = ref<"directory" | "reviews" | "campaign">("directory");
+const volunteerView = useVolunteerView(canViewReviews, canViewCampaign);
 const visitedVolunteerViews = ref(
-  new Set<"directory" | "reviews" | "campaign">(["directory"]),
+  new Set<VolunteerView>(["directory"]),
 );
 
 watch(volunteerView, (view) => {
   if (visitedVolunteerViews.value.has(view)) return;
 
   visitedVolunteerViews.value = new Set([...visitedVolunteerViews.value, view]);
-});
+}, { immediate: true });
 
 const teamQuery = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceVolunteerTeam(year.value)),
@@ -190,7 +191,6 @@ const selectedVolunteerActions = computed(() =>
 );
 
 watch(year, () => {
-  volunteerView.value = "directory";
   volunteerSearch.value = "";
   volunteerStatusFilter.value = "all";
   volunteerPage.value = 1;

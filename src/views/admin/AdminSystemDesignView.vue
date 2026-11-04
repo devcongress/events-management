@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { protectedFetch } from '@/src/lib/admin-session-signal';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { findSystemDesignSource, isSystemDesignSessionItem, systemDesignDisplayTitle } from '@/lib/system-design';
@@ -244,7 +245,7 @@ async function fetchEvent() {
   error.value = '';
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}`);
+    const response = await protectedFetch(`/api/events/${route.params.eventId}`);
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -313,7 +314,7 @@ async function generateDraftFromPrompt(draft: SystemDesignDraft, index: number) 
       return;
     }
 
-    const response = await fetch(`/api/events/${route.params.eventId}/system-design/draft`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/system-design/draft`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -364,7 +365,7 @@ async function saveSystemDesign(successMessage = 'System design notes saved'): P
   saveError.value = '';
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ schedule: mergeSystemDesignSchedule(systemDesignItems) }),
@@ -412,7 +413,7 @@ async function confirmSavedScenarioRemoval() {
 
   try {
     const remainingItems = systemDesignSessions.value.filter((_, itemIndex) => itemIndex !== index);
-    const response = await fetch(`/api/events/${route.params.eventId}/system-design`, { method: 'DELETE' });
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/system-design`, { method: 'DELETE' });
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {

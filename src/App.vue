@@ -11,6 +11,8 @@ import {
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import OrganizerSessionPause from "./components/OrganizerSessionPause.vue";
+import OrganizerSessionBackdrop from "./components/OrganizerSessionBackdrop.vue";
+import { captureFrozenGeometry, type FrozenGeometry } from "./lib/organizer-session-backdrop";
 import OrganizerRoleBadge from "./components/OrganizerRoleBadge.vue";
 import PublicFormRouteFrame from "./components/PublicFormRouteFrame.vue";
 import AppToaster from "./components/ui/AppToaster.vue";
@@ -33,7 +35,17 @@ import {
   type AdminSessionResponse,
 } from "./lib/api";
 import { notify } from "./lib/notify";
-import { shouldRedirectUnauthenticatedOrganizer } from "./lib/organizer-session-continuation";
+import {
+  clearOrganizerSessionLock,
+  organizerDeadlineState,
+  matchesObservedOrganizerSession,
+  readOrganizerSessionLock,
+  saveOrganizerSessionLock,
+  shouldRedirectUnauthenticatedOrganizer,
+} from "./lib/organizer-session-continuation";
+import { startAdminGoogleSignIn } from "./lib/admin-google-sign-in";
+import { ADMIN_SESSION_REQUIRED_EVENT, setCurrentAdminSessionInstanceId, type AdminSessionRequiredDetail } from "./lib/admin-session-signal";
+import { takeAdminRecoveryOutcome, type AdminRecoveryOutcome } from "./lib/admin-auth-flow";
 import { shouldShowAuthenticatedAppHeader } from "./lib/app-shell";
 import { queryClient } from "./lib/query";
 import { isPublicFormRouteName } from "./public-form-routes";
@@ -46,6 +58,7 @@ import {
   ORGANIZER_PHONE_ROUTE_NAME,
   ORGANIZER_PHONE_ROUTE_PATH,
   isOrganizerPhoneRouteName,
+  organizerMobileConferenceSection,
   organizerViewportRedirect,
 } from "./organizer-viewport";
 import {
@@ -110,10 +123,65 @@ const logoSrc = "/brand/dev-con-logo.png";
 const ORGANIZER_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const ORGANIZER_IDLE_WARNING_MS = 2 * 60 * 1000;
 const ORGANIZER_SESSION_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-const organizerSessionPauseState = ref<"warning" | null>(null);
+const organizerSessionPauseState = ref<"warning" | "locked" | "offline" | "signing-out" | null>(
+  readOrganizerSessionLock() ? "locked" : null,
+);
+const organizerLocked = computed(() => organizerSessionPauseState.value === "locked" || organizerSessionPauseState.value === "offline" || organizerSessionPauseState.value === "signing-out");
+const frozenWorkspaceTitle = computed(() => {
+  const path = route.path;
+
+  if (route.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME && organizerMobileConferenceSection(route.query) === "volunteers") return "Volunteers";
+  if (path.includes("volunteer")) return "Volunteers";
+  if (path.includes("ticketing")) return "Ticketing";
+  if (path.includes("registration")) return "Registration";
+  if (path.includes("speakers")) return "Speakers";
+  if (path.includes("work-plan")) return "Work plan";
+  if (path.includes("annual-conference")) return "Annual Conference";
+  if (path.includes("reports")) return "Reports";
+  if (path.includes("organizers")) return "People & Access";
+  if (path.includes("audit-log")) return "Audit Log";
+  if (path.includes("events")) return "Events";
+
+  return "Organizer workspace";
+});
+
+const frozenGeometry = ref<FrozenGeometry[]>([]);
+
+function freezeOrganizerGeometry() {
+  frozenGeometry.value = captureFrozenGeometry();
+}
+
+function resetFrozenGeometry() {
+  frozenGeometry.value = [];
+}
+
+let organizerRequestEpoch = 0;
+let organizerSessionInstanceId: string | undefined;
+let organizerSessionEmail: string | null | undefined;
+let organizerSessionRole: string | null | undefined;
+let organizerHadAuthenticatedSession = false;
+let organizerLoginHint: string | undefined;
+let organizerAbsoluteExpiryAt: number | null = null;
+let organizerLogoutPending: Promise<unknown> = Promise.resolve();
 const organizerWarningSeconds = ref(120);
 const organizerStayBusy = ref(false);
 const organizerStayError = ref<string | null>(null);
+const organizerRecoveryOutcome = ref<AdminRecoveryOutcome | null>(null);
+
+function readRecoveryOutcome() {
+  const outcome = takeAdminRecoveryOutcome();
+
+  if (!outcome) return;
+  organizerRecoveryOutcome.value = outcome;
+  const messages: Record<AdminRecoveryOutcome, string> = {
+    cancelled: "Google sign-in was not completed. Try again when you're ready.",
+    access_denied: "This Google account no longer has organizer access. Use another account or ask an owner for access.",
+    service_unavailable: "We couldn't check organizer access. Please try again shortly.",
+  };
+
+  organizerStayError.value = organizerRecoveryOutcome.value ? messages[organizerRecoveryOutcome.value] : null;
+}
+
 let keyboardFocusTimer: number | undefined;
 let adminEventTabsResizeObserver: ResizeObserver | undefined;
 let navigationResizeObserver: ResizeObserver | undefined;
@@ -175,7 +243,7 @@ const isLoginRoute = computed(
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
-  enabled: isOrganizerProtectedRoute,
+  enabled: computed(() => isOrganizerProtectedRoute.value && !organizerLocked.value),
 });
 const organizerAccessUnresolved = computed(
   () =>
@@ -429,6 +497,9 @@ function routeViewKey(routeForKey: typeof route) {
 
   if (
     routeForKey.name === "admin-reports"
+    || routeForKey.name === "admin-registrations"
+    || routeForKey.name === "admin-audit-log"
+    || routeForKey.name === "admin-annual-conference-volunteers"
     || routeForKey.name === "admin-annual-conference-registrations"
     || routeForKey.name === 'admin-annual-conference-ticketing'
     || routeForKey.name === 'admin-annual-conference-speakers'
@@ -627,39 +698,126 @@ function clearOrganizerCachedData() {
   });
 }
 
-function clearLocalSupabaseSession() {
-  void import("@/lib/supabase/browser")
-    .then(({ getSupabaseBrowserClient }) =>
-      getSupabaseBrowserClient()?.auth.signOut({ scope: "local" }),
-    )
-    .catch(() => undefined);
+async function clearLocalSupabaseSession() {
+  try {
+    const { getSupabaseBrowserClient } = await import("@/lib/supabase/browser");
+
+    await getSupabaseBrowserClient()?.auth.signOut({ scope: "local" });
+  } catch {
+    // The server session is the authorization boundary.
+  }
+}
+
+function isObservedOrganizerSession(session: AdminSessionResponse) {
+  return matchesObservedOrganizerSession({
+    instanceId: organizerSessionInstanceId,
+    email: organizerSessionEmail,
+    role: organizerSessionRole,
+  }, session);
+}
+
+function isProtectedOrganizerWorkspace() {
+  return isOrganizerProtectedRoute.value && !isLoginRoute.value;
+}
+
+function requestStillRelevant(epoch: number, path: string) {
+  return epoch === organizerRequestEpoch && path === route.fullPath && isProtectedOrganizerWorkspace();
 }
 
 function lockOrganizerSession() {
-  if (organizerSessionEnding) return;
-  const redirectPath = isLoginRoute.value
-    ? adminPath("events")
-    : route.fullPath;
+  if (organizerSessionEnding || organizerLocked.value || !isProtectedOrganizerWorkspace()) return;
 
+  freezeOrganizerGeometry();
+  organizerRequestEpoch += 1;
+  // Latch before clearing the query cache so observers cannot redirect or remount.
   organizerSessionEnding = true;
+  setCurrentAdminSessionInstanceId(null);
+  saveOrganizerSessionLock(route.fullPath);
+  organizerSessionPauseState.value = "locked";
   clearOrganizerSessionTimers();
-  organizerSessionPauseState.value = null;
   organizerStayBusy.value = false;
   organizerStayError.value = null;
+  closeMobileMenu();
+  closeDesktopMenu();
+  void queryClient.cancelQueries();
   clearOrganizerCachedData();
   window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
-  clearLocalSupabaseSession();
-  void fetch("/api/auth/logout", {
-    method: "POST",
-    credentials: "include",
-    keepalive: true,
-  }).catch(() => undefined);
-  if (!isLoginRoute.value) {
-    void router.replace({
-      path: adminPath("login"),
-      query: { redirect: redirectPath },
-    });
+  const sessionInstanceId = organizerSessionInstanceId;
+  const controller = new AbortController();
+  const deadline = window.setTimeout(() => controller.abort(), 5000);
+
+  organizerLogoutPending = sessionInstanceId
+    ? fetch("/api/auth/admin/session/expire", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_instance_id: sessionInstanceId }),
+      signal: controller.signal,
+    }).catch(() => undefined).finally(() => window.clearTimeout(deadline))
+    : Promise.resolve().finally(() => window.clearTimeout(deadline));
+}
+
+async function signInAfterSessionPause() {
+  if (organizerStayBusy.value) return;
+  organizerStayBusy.value = true;
+  organizerStayError.value = null;
+  const chooseAccount = organizerRecoveryOutcome.value === "access_denied";
+
+  try {
+    await organizerLogoutPending;
+    await startAdminGoogleSignIn({ redirectTo: readOrganizerSessionLock() ?? route.fullPath, recovery: true, loginHint: organizerLoginHint, chooseAccount });
+  } catch {
+    organizerStayError.value = "We couldn't start Google sign-in. Check your connection and try again.";
+    organizerStayBusy.value = false;
   }
+}
+
+function coverOrganizerSessionForNetworkError() {
+  if (organizerSessionEnding || organizerLocked.value || !organizerHadAuthenticatedSession || !isProtectedOrganizerWorkspace()) return;
+  freezeOrganizerGeometry();
+  organizerRequestEpoch += 1;
+  organizerSessionEnding = true;
+  organizerSessionPauseState.value = "offline";
+  organizerStayError.value = null;
+  clearOrganizerSessionTimers();
+  void queryClient.cancelQueries();
+  clearOrganizerCachedData();
+}
+
+async function retryOrganizerSession() {
+  if (organizerStayBusy.value) return;
+  organizerStayBusy.value = true;
+  organizerStayError.value = null;
+  const epoch = organizerRequestEpoch;
+  const path = route.fullPath;
+
+  try {
+    const session = await fetchAdminSession();
+
+    if (!requestStillRelevant(epoch, path) || organizerSessionPauseState.value !== "offline") return;
+    if (!isObservedOrganizerSession(session) || organizerDeadlineState(Date.now(), organizerLastActivityAt, organizerAbsoluteExpiryAt) === "expired") {
+      organizerSessionPauseState.value = null;
+      organizerSessionEnding = false;
+      lockOrganizerSession();
+
+      return;
+    }
+    organizerSessionEnding = false;
+    organizerSessionPauseState.value = null;
+    queryClient.setQueryData(queryKeys.adminSession, session);
+  } catch {
+    organizerStayError.value = "We couldn't check your session. Check your connection and try again.";
+  } finally {
+    organizerStayBusy.value = false;
+  }
+}
+
+function handleOrganizerSessionRequired(event: Event) {
+  const detail = (event as CustomEvent<AdminSessionRequiredDetail>).detail;
+  const eventId = detail?.sessionInstanceId ?? null;
+
+  if (eventId !== (organizerSessionInstanceId ?? null)) return;
+  if (organizerHadAuthenticatedSession && isProtectedOrganizerWorkspace()) lockOrganizerSession();
 }
 
 function updateOrganizerWarningCountdown() {
@@ -670,8 +828,13 @@ function updateOrganizerWarningCountdown() {
 }
 
 function showOrganizerIdleWarning() {
-  if (!isOrganizerAuthenticated.value || organizerSessionEnding) return;
-  organizerWarningDeadlineMs = Date.now() + ORGANIZER_IDLE_WARNING_MS;
+  if (!isOrganizerAuthenticated.value || organizerSessionEnding || organizerSessionPauseState.value) return;
+  if (organizerDeadlineState(Date.now(), organizerLastActivityAt, organizerAbsoluteExpiryAt) === "expired") {
+    lockOrganizerSession();
+
+    return;
+  }
+  organizerWarningDeadlineMs = organizerLastActivityAt + ORGANIZER_IDLE_TIMEOUT_MS;
   updateOrganizerWarningCountdown();
   organizerStayBusy.value = false;
   organizerStayError.value = null;
@@ -710,6 +873,8 @@ function scheduleOrganizerAbsoluteExpiry(expiresAt: string | undefined) {
 
   const expiresAtMs = new Date(expiresAt).getTime();
 
+  organizerAbsoluteExpiryAt = Number.isFinite(expiresAtMs) ? expiresAtMs : null;
+
   if (!Number.isFinite(expiresAtMs)) return;
   organizerAbsoluteExpiryTimer = window.setTimeout(
     lockOrganizerSession,
@@ -718,16 +883,17 @@ function scheduleOrganizerAbsoluteExpiry(expiresAt: string | undefined) {
 }
 
 async function revalidateOrganizerSession() {
-  try {
-    const session = await queryClient.fetchQuery({
-      queryKey: queryKeys.adminSession,
-      queryFn: fetchAdminSession,
-      staleTime: 0,
-    });
+  const epoch = organizerRequestEpoch;
+  const path = route.fullPath;
 
-    if (!session.authenticated) lockOrganizerSession();
+  try {
+    const session = await fetchAdminSession();
+
+    if (!requestStillRelevant(epoch, path) || organizerSessionEnding) return;
+    if (!isObservedOrganizerSession(session)) lockOrganizerSession();
+    else queryClient.setQueryData(queryKeys.adminSession, session);
   } catch {
-    // A transient network error must not extend the server-side expiry.
+    if (requestStillRelevant(epoch, path)) coverOrganizerSessionForNetworkError();
   }
 }
 
@@ -735,28 +901,26 @@ async function staySignedIn() {
   if (organizerStayBusy.value) return;
   organizerStayBusy.value = true;
   organizerStayError.value = null;
-  try {
-    const session = await queryClient.fetchQuery({
-      queryKey: queryKeys.adminSession,
-      queryFn: fetchAdminSession,
-      staleTime: 0,
-    });
+  const epoch = organizerRequestEpoch;
+  const path = route.fullPath;
 
-    if (!session.authenticated) {
+  try {
+    const session = await fetchAdminSession();
+
+    if (!requestStillRelevant(epoch, path) || organizerSessionEnding) return;
+    if (!isObservedOrganizerSession(session) || organizerDeadlineState(Date.now(), organizerLastActivityAt, organizerAbsoluteExpiryAt) === "expired") {
       lockOrganizerSession();
 
       return;
     }
-
+    queryClient.setQueryData(queryKeys.adminSession, session);
     organizerSessionPauseState.value = null;
     organizerLastActivityAt = Date.now();
-    organizerNextSessionRefreshAt =
-      organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
+    organizerNextSessionRefreshAt = organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
     scheduleOrganizerIdleExpiry();
     scheduleOrganizerAbsoluteExpiry(session.expires_at);
   } catch {
-    organizerStayError.value =
-      "We could not confirm your session. Check your connection and try again.";
+    if (requestStillRelevant(epoch, path)) coverOrganizerSessionForNetworkError();
   } finally {
     organizerStayBusy.value = false;
   }
@@ -770,6 +934,18 @@ function recordOrganizerActivity(forceRefresh = false) {
   )
     return;
 
+  const deadline = organizerDeadlineState(Date.now(), organizerLastActivityAt, organizerAbsoluteExpiryAt);
+
+  if (deadline === "expired") {
+    lockOrganizerSession();
+
+    return;
+  }
+  if (deadline === "warning") {
+    showOrganizerIdleWarning();
+
+    return;
+  }
   organizerLastActivityAt = Date.now();
   scheduleOrganizerIdleExpiry();
   if (
@@ -956,68 +1132,55 @@ function handleDocumentPointerDown(event: PointerEvent) {
 }
 
 async function logout() {
+  if (organizerSessionPauseState.value === "signing-out") return;
+  const previousState = organizerSessionPauseState.value;
+  const previousEnding = organizerSessionEnding;
+
+  if (!organizerLocked.value) freezeOrganizerGeometry();
+  organizerRequestEpoch += 1;
+  organizerSessionEnding = true;
+  organizerSessionPauseState.value = "signing-out";
+  setCurrentAdminSessionInstanceId(null);
+  clearOrganizerSessionTimers();
   closeMobileMenu();
+  void queryClient.cancelQueries();
   try {
     const response = await fetch("/api/auth/logout", {
       method: "POST",
       credentials: "include",
     });
 
-    if (!response.ok) {
-      notify.error("Sign-out could not be completed. Please try again.");
-
-      return;
-    }
-
-    clearOrganizerSessionTimers();
-    organizerSessionPauseState.value = null;
-    const cachedSession = queryClient.getQueryData<AdminSessionResponse>(
-      queryKeys.adminSession,
-    );
-
-    queryClient.removeQueries({
-      predicate: (query) => query.queryKey[0] !== queryKeys.adminSession[0],
-    });
-    queryClient.setQueryData<AdminSessionResponse>(queryKeys.adminSession, {
-      authenticated: false,
-      auth_mode: cachedSession?.auth_mode ?? "supabase",
-      auth_configured: cachedSession?.auth_configured ?? true,
-    });
+    if (!response.ok) throw new Error("Sign-out failed");
+    organizerHadAuthenticatedSession = false;
+    organizerSessionInstanceId = undefined;
+    clearOrganizerCachedData();
     window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
-
-    // The app session is the authorization boundary, but clearing this
-    // tab-scoped Supabase session prevents a stale OAuth session from
-    // immediately re-establishing browser auth after sign-out.
-    try {
-      const { getSupabaseBrowserClient } =
-        await import("@/lib/supabase/browser");
-      const supabase = getSupabaseBrowserClient();
-
-      if (supabase) {
-        const { error } = await supabase.auth.signOut({ scope: "local" });
-
-        if (error)
-          console.warn(
-            "Unable to clear the local Supabase browser session.",
-            error,
-          );
-      }
-    } catch (error) {
-      // The app-owned session is already revoked above. A best-effort
-      // Supabase cleanup must not strand the organizer in the console.
-      console.warn(
-        "Unable to clear the local Supabase browser session.",
-        error,
-      );
-    }
-
+    await clearLocalSupabaseSession();
     await router.replace(adminPath("login"));
+    clearOrganizerSessionLock();
+    organizerSessionPauseState.value = null;
   } catch {
-    notify.error("Sign-out could not be completed. Please try again.");
+    organizerSessionEnding = previousEnding;
+    organizerSessionPauseState.value = previousState;
+    if (!previousEnding) setCurrentAdminSessionInstanceId(organizerSessionInstanceId ?? null);
+    if (previousState === "locked") {
+      organizerStayError.value = "Sign-out could not be completed. Please try again.";
+    } else {
+      notify.error("Sign-out could not be completed. Please try again.");
+      if (isOrganizerAuthenticated.value) {
+        scheduleOrganizerIdleExpiry();
+        if (previousState === "warning") {
+          updateOrganizerWarningCountdown();
+          organizerWarningTicker = window.setInterval(updateOrganizerWarningCountdown, 1000);
+        }
+        scheduleOrganizerAbsoluteExpiry(adminSessionQuery.data.value?.expires_at);
+      }
+    }
   }
 }
 
 onMounted(() => {
+  if (readOrganizerSessionLock()) readRecoveryOutcome();
   if (typeof ResizeObserver !== "undefined") {
     adminEventTabsResizeObserver = new ResizeObserver(
       updateAdminEventTabsHeight,
@@ -1032,6 +1195,7 @@ onMounted(() => {
   document.addEventListener("keydown", handleNavigationKeydown);
   navigationMedia?.addEventListener("change", syncNavigationViewport);
   window.addEventListener("resize", scheduleNavigationMeasurement);
+  window.addEventListener("resize", resetFrozenGeometry);
   void document.fonts.ready.then(scheduleNavigationMeasurement);
   document.addEventListener("focusin", syncKeyboardDismissVisibility);
   document.addEventListener("focusout", syncKeyboardDismissVisibility);
@@ -1057,6 +1221,7 @@ onMounted(() => {
     "visibilitychange",
     handleOrganizerVisibilityChange,
   );
+  window.addEventListener(ADMIN_SESSION_REQUIRED_EVENT, handleOrganizerSessionRequired);
   syncPhoneViewport();
   void nextTick(syncAdminEventTabsObserver);
   observeNavigationFit();
@@ -1073,9 +1238,21 @@ watch(navigationCollapsed, () => {
   if (hadFocus) void nextTick(focusVisibleNavigation);
 });
 
+watch(() => route.fullPath, () => { organizerRequestEpoch += 1; }, { flush: "sync" });
+
 watch(
   () => route.path,
   (toPath, fromPath) => {
+    if (fromPath === adminPath("auth/callback")) {
+      if (readOrganizerSessionLock()) readRecoveryOutcome();
+      else {
+        organizerSessionEnding = false;
+        organizerHadAuthenticatedSession = false;
+        organizerRecoveryOutcome.value = null;
+        organizerStayError.value = null;
+        organizerSessionPauseState.value = null;
+      }
+    }
     closeMobileMenu();
     closeDesktopMenu();
     dismissMobileKeyboard();
@@ -1100,6 +1277,16 @@ watch(
       return;
     }
 
+    if (organizerLocked.value || readOrganizerSessionLock()) {
+      if (!organizerLocked.value) organizerSessionPauseState.value = "locked";
+
+      return;
+    }
+    if (authenticated === false && organizerHadAuthenticatedSession) {
+      lockOrganizerSession();
+
+      return;
+    }
     if (
       shouldRedirectUnauthenticatedOrganizer({
         authenticated,
@@ -1123,15 +1310,29 @@ watch(
   () => ({
     authenticated: isOrganizerAuthenticated.value,
     expiresAt: adminSessionQuery.data.value?.expires_at,
+    locked: organizerLocked.value,
+    protectedWorkspace: isProtectedOrganizerWorkspace(),
   }),
-  ({ authenticated, expiresAt }) => {
-    if (!authenticated) {
+  ({ authenticated, expiresAt, locked, protectedWorkspace }) => {
+    if (!authenticated || locked || organizerSessionEnding || !protectedWorkspace) {
       clearOrganizerSessionTimers();
 
       return;
     }
 
-    organizerSessionEnding = false;
+    const session = adminSessionQuery.data.value;
+
+    if (organizerHadAuthenticatedSession && session && !isObservedOrganizerSession(session)) {
+      lockOrganizerSession();
+
+      return;
+    }
+    organizerHadAuthenticatedSession = true;
+    organizerLoginHint = adminSessionQuery.data.value?.user?.email ?? organizerLoginHint;
+    organizerSessionInstanceId = adminSessionQuery.data.value?.session_instance_id;
+    organizerSessionEmail = adminSessionQuery.data.value?.user?.email;
+    organizerSessionRole = adminSessionQuery.data.value?.user?.role;
+    setCurrentAdminSessionInstanceId(organizerSessionInstanceId ?? null);
     organizerLastActivityAt = Date.now();
     organizerNextSessionRefreshAt =
       organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
@@ -1143,11 +1344,13 @@ watch(
 
 onUnmounted(() => {
   window.clearTimeout(keyboardFocusTimer);
+  window.removeEventListener(ADMIN_SESSION_REQUIRED_EVENT, handleOrganizerSessionRequired);
   clearOrganizerSessionTimers();
   adminEventTabsResizeObserver?.disconnect();
   navigationResizeObserver?.disconnect();
   window.cancelAnimationFrame(navigationMeasureFrame ?? 0);
   window.removeEventListener("resize", scheduleNavigationMeasurement);
+  window.removeEventListener("resize", resetFrozenGeometry);
   document.removeEventListener("pointerdown", handleDocumentPointerDown, {
     capture: true,
   });
@@ -1188,6 +1391,7 @@ onUnmounted(() => {
       'app-shell--standalone': isStandaloneRoute,
     }"
   >
+    <template v-if="!organizerLocked || isLoginRoute || !isOrganizerProtectedRoute">
     <header
       v-if="showAppHeader"
       ref="appHeader"
@@ -1424,17 +1628,29 @@ onUnmounted(() => {
     >
       Done
     </button>
+    <AppToaster />
+    </template>
+    <OrganizerSessionBackdrop
+      v-if="organizerLocked && isOrganizerProtectedRoute && !isLoginRoute"
+      :geometry="frozenGeometry"
+      :title="frozenWorkspaceTitle"
+      :logo="logoSrc"
+    />
     <Transition name="organizer-session-pause">
       <OrganizerSessionPause
-        v-if="organizerSessionPauseState"
+        v-if="organizerSessionPauseState && isOrganizerProtectedRoute && !isLoginRoute"
+        :mode="organizerSessionPauseState"
+        :page-name="frozenWorkspaceTitle"
+        :access-denied="organizerRecoveryOutcome === 'access_denied'"
         :remaining-seconds="organizerWarningSeconds"
         :busy="organizerStayBusy"
         :error="organizerStayError"
         @stay="staySignedIn"
+        @sign-in="signInAfterSessionPause"
+        @retry="retryOrganizerSession"
         @sign-out="logout"
       />
     </Transition>
-    <AppToaster />
   </div>
 </template>
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { protectedFetch } from '@/src/lib/admin-session-signal';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, type ComponentPublicInstance } from 'vue';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
@@ -81,7 +82,7 @@ async function loadSpeakers(target: string) {
   current.speakersLoading = true;
   current.speakersError = '';
   try {
-    const response = await fetch(`/api/annual-conference/${target}/programme/speakers`, { credentials: 'include' });
+    const response = await protectedFetch(`/api/annual-conference/${target}/programme/speakers`, { credentials: 'include' });
     const result = await response.json();
 
     if (!response.ok) throw new Error(result.error ?? 'Unable to load accepted proposals.');
@@ -152,7 +153,7 @@ async function updatePhoto(proposal: SpeakerProposal, event?: Event) {
     const body = file ? new FormData() : undefined;
 
     if (file) body?.append('file', file);
-    const response = await fetch(`/api/annual-conference/${target}/programme/speakers/${proposal.speakerId}/photo`, { method: file ? 'PUT' : 'DELETE', credentials: 'include', body });
+    const response = await protectedFetch(`/api/annual-conference/${target}/programme/speakers/${proposal.speakerId}/photo`, { method: file ? 'PUT' : 'DELETE', credentials: 'include', body });
     const result = await response.json();
 
     if (!response.ok) throw new Error(result.error ?? 'Unable to update photo.');
@@ -175,7 +176,7 @@ async function load(target: string, replaceDraft = false) {
   current.loading = true;
   current.error = '';
   try {
-    const response = await fetch(`/api/annual-conference/${target}/programme`, { credentials: 'include' });
+    const response = await protectedFetch(`/api/annual-conference/${target}/programme`, { credentials: 'include' });
     const result = await response.json();
 
     if (!response.ok) throw new Error(result.error ?? 'Unable to load programme.');
@@ -345,7 +346,7 @@ async function save() {
   current.saving = true;
   current.error = '';
   try {
-    const response = await fetch(`/api/annual-conference/${target}/programme`, {
+    const response = await protectedFetch(`/api/annual-conference/${target}/programme`, {
       method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parsed.data),
     });
     const result = await response.json();

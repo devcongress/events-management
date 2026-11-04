@@ -9,6 +9,7 @@ import {
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import {
   adminAuthFailureReasonForStatus,
+  saveAdminRecoveryOutcome,
   type AdminAuthFailureReason,
 } from '@/src/lib/admin-auth-flow';
 import {
@@ -18,6 +19,7 @@ import {
   waitForAdminAuthCallbackStep,
 } from '@/src/lib/admin-auth-callback-timeout';
 import { exchangeAdminToken } from '@/src/lib/admin-auth-callback-exchange';
+import { clearOrganizerSessionLock, readOrganizerSessionLock } from '@/src/lib/organizer-session-continuation';
 import { queryClient } from '@/src/lib/query';
 import {
   beginAdminSessionTransition,
@@ -41,6 +43,17 @@ async function redirectToLogin(
 ) {
   window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
 
+  const recoveryTarget = readOrganizerSessionLock();
+
+  if (recoveryTarget) {
+    saveAdminRecoveryOutcome(reason === 'access_denied' ? 'access_denied' : reason === 'service_unavailable' || reason === 'rate_limited' ? 'service_unavailable' : 'cancelled');
+    const runStep = callbackDeadline?.run ?? waitForAdminAuthCallbackStep;
+
+    await runStep(() => router.replace(recoveryTarget));
+
+    return;
+  }
+
   const query: Record<string, string> = {
     redirect: redirectTo.value,
   };
@@ -56,6 +69,15 @@ async function redirectToLogin(
 }
 
 async function showRecovery() {
+  const recoveryTarget = readOrganizerSessionLock();
+
+  if (recoveryTarget) {
+    saveAdminRecoveryOutcome('service_unavailable');
+    await router.replace(recoveryTarget);
+
+    return;
+  }
+
   recoveryRequired.value = true;
   window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
 
@@ -134,6 +156,7 @@ onMounted(async () => {
       if (exchange.outcome === 'access_request') {
         await callbackDeadline.run(() => beginAdminSessionTransition(queryClient));
         window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
+        clearOrganizerSessionLock();
         await callbackDeadline.run(() => router.replace({ path: '/access-request' }));
 
         return;
@@ -149,7 +172,10 @@ onMounted(async () => {
         return;
       }
 
-      await callbackDeadline.run(() => router.replace(organizerPostAuthLanding(
+      const recoveryTarget = readOrganizerSessionLock();
+
+      if (recoveryTarget) clearOrganizerSessionLock();
+      await callbackDeadline.run(() => router.replace(recoveryTarget ?? organizerPostAuthLanding(
         redirectTo.value,
         session.user?.role,
         matchesOrganizerPhoneViewport(),

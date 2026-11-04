@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { protectedFetch } from '@/src/lib/admin-session-signal';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { resolveEventSeriesType } from '@/lib/event-series';
@@ -154,7 +155,7 @@ async function fetchAttendance() {
   loading.value = true;
   error.value = '';
 
-  const response = await fetch(`/api/events/${route.params.eventId}/attendance`);
+  const response = await protectedFetch(`/api/events/${route.params.eventId}/attendance`);
 
   if (response.ok) {
     const payload = await response.json() as AttendanceResponse;
@@ -301,7 +302,7 @@ async function removeImport() {
   error.value = '';
 
   const removedFileName = attendanceImport.value.source_filename ?? 'Luma CSV';
-  const response = await fetch(`/api/events/${route.params.eventId}/attendance`, {
+  const response = await protectedFetch(`/api/events/${route.params.eventId}/attendance`, {
     method: 'DELETE',
   });
 

@@ -2,6 +2,10 @@
 
 This guide covers the organizer console workflows used to prepare and run DevCongress meetups.
 
+## Resume an expired session
+
+If the workspace pauses while you are away, choose **Sign in again**. EMS opens Google and returns you to the same page and tab if you still have access. For example, leaving the Volunteers directory open brings you back to Directory. Unsaved form edits are discarded. If EMS cannot reach its session service, reconnect and choose **Try again**.
+
 ## Log In
 
 Open the organizer console and continue with Google using an approved organizer account:

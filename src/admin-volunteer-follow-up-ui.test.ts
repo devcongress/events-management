@@ -448,7 +448,7 @@ describe("Volunteer follow-up workspace UI", () => {
   });
 
   it("separates owner campaign tasks and retains drafts in visited tabs", () => {
-    expect(followUpPanelSource).toContain('ref<CampaignTab>("updates")');
+    expect(followUpPanelSource).toContain('resolveVolunteerCampaignTab(route.query.campaignTab)');
     expect(followUpPanelSource).toContain('aria-label="Campaign sections"');
     expect(followUpPanelSource).toContain('label: "Volunteer updates"');
     expect(followUpPanelSource).toContain('label: "Outcome emails"');

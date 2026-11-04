@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { resolveAuditLogSection, type AuditLogSection } from '@/src/lib/organizer-workspace-sections';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
@@ -22,7 +24,6 @@ interface AuditLogGroup {
   logs: AdminAuditLogEntry[];
 }
 
-type AuditLogSection = 'activity' | 'email-delivery' | 'email-previews' | 'short-links' | 'archived-events';
 type DeliveryActivityView = 'messages' | 'blasts';
 type ShortLinkStatusFilter = 'active' | 'revoked';
 interface ShortLinkMenuPosition {
@@ -30,6 +31,8 @@ interface ShortLinkMenuPosition {
   top: number;
 }
 
+const route = useRoute();
+const router = useRouter();
 const filters = reactive({
   action: '',
   target_type: '',
@@ -39,7 +42,7 @@ const page = ref(1);
 const deliveryPage = ref(1);
 const blastDeliveryPage = ref(1);
 const deliveryActivityView = ref<DeliveryActivityView>('messages');
-const activeSection = ref<AuditLogSection>('activity');
+const activeSection = computed(() => resolveAuditLogSection(route.query.section));
 const shortLinkMessage = ref('');
 const copiedShortLinkId = ref<string | null>(null);
 const copyingShortLinkId = ref<string | null>(null);
@@ -448,7 +451,7 @@ function selectSection(section: AuditLogSection) {
   const order: AuditLogSection[] = ['activity', 'email-delivery', 'email-previews', 'short-links', 'archived-events'];
 
   activeSectionTransition.value = order.indexOf(section) > order.indexOf(activeSection.value) ? 'forward' : 'backward';
-  activeSection.value = section;
+  void router.push({ path: route.path, query: { ...route.query, section } });
 }
 
 function shortLinkDestinationLabel(destination: 'monthly_cfp' | 'event_registration' | 'event_feedback' | 'conference_cfp' | 'conference_ticket_purchase' | 'volunteer_intake' | 'volunteer_follow_up_test'): string {

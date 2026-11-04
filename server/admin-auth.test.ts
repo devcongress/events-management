@@ -47,6 +47,29 @@ describe('organizer authentication contract', () => {
     expect(location).not.toContain('user%40example.com');
   });
 
+  it('sends a missing OAuth code through the callback failure path', async () => {
+    const response = await app.request('https://em.devcongress.org/api/auth/admin/callback');
+    const location = response.headers.get('location') ?? '';
+
+    expect(response.status).toBe(302);
+    expect(location).toContain('/organizer-console/auth/callback');
+    expect(location).toContain('error=oauth_failed');
+  });
+
+  it('allows only same-origin, valid conditional expiry requests without setting cookies', async () => {
+    const url = 'https://em.devcongress.org/api/auth/admin/session/expire';
+    const body = JSON.stringify({ session_instance_id: '8f464fd0-5c3d-41ae-9ce0-8bb68b1db216' });
+    const headers = { 'content-type': 'application/json', origin: 'https://em.devcongress.org' };
+    const rejected = await app.request(url, { method: 'POST', headers: { ...headers, origin: 'https://other.example' }, body });
+    const malformed = await app.request(url, { method: 'POST', headers, body: '{}' });
+    const accepted = await app.request(url, { method: 'POST', headers, body });
+
+    expect(rejected.status).toBe(403);
+    expect(malformed.status).toBe(400);
+    expect(accepted.status).toBe(200);
+    expect(accepted.headers.get('set-cookie')).toBeNull();
+  });
+
   it('signs out over HTTPS and expires both secure and local session cookies', async () => {
     const response = await app.request('https://em.devcongress.org/api/auth/logout', {
       method: 'POST',

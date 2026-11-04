@@ -177,6 +177,13 @@ export function organizerConferenceContextQuery(
   const phase = boundedQueryString(query, "phase", 100);
   const owner = boundedQueryString(query, "owner", 254);
   const task = boundedQueryString(query, "task", 100);
+  const volunteerView = queryString(query, "volunteerView");
+  const campaignTab = queryString(query, "campaignTab");
+
+  if (section === "volunteers") {
+    if (volunteerView && ["directory", "reviews", "campaign"].includes(volunteerView)) context.volunteerView = volunteerView;
+    if (campaignTab && ["updates", "outcomes", "invitations", "settings"].includes(campaignTab)) context.campaignTab = campaignTab;
+  }
 
   if (status && CONFERENCE_STATUSES.has(status)) context.status = status;
   if (attention && CONFERENCE_ATTENTION_FILTERS.has(attention))
@@ -353,6 +360,7 @@ export function organizerViewportRedirect({
     if (section === "volunteers")
       return redirectTarget(
         annualConferencePath("volunteers", conferenceYear ?? undefined),
+        targetQuery,
       );
 
     return redirectTarget(

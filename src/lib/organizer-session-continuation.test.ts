@@ -1,58 +1,75 @@
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { shouldRedirectUnauthenticatedOrganizer } from "./organizer-session-continuation";
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  clearOrganizerSessionLock,
+  organizerDeadlineState,
+  matchesObservedOrganizerSession,
+  readOrganizerSessionLock,
+  saveOrganizerSessionLock,
+  shouldRedirectUnauthenticatedOrganizer,
+} from './organizer-session-continuation';
 
-const appSource = readFileSync(new URL("../App.vue", import.meta.url), "utf8");
-const pauseSource = readFileSync(
-  new URL("../components/OrganizerSessionPause.vue", import.meta.url),
-  "utf8",
-);
+function installStorage() {
+  const values = new Map<string, string>();
 
-describe("organizer session continuation routing", () => {
-  it("does not let a revalidation result redirect behind the idle warning", () => {
-    expect(
-      shouldRedirectUnauthenticatedOrganizer({
-        authenticated: false,
-        warningOpen: true,
-        sessionEnding: false,
-      }),
-    ).toBe(false);
+  vi.stubGlobal('window', {
+    sessionStorage: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    },
+  });
+}
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('organizer session continuation', () => {
+  it('keeps a safe protected route and query for this tab only', () => {
+    installStorage();
+    saveOrganizerSessionLock('/organizer-console/annual-conference/2026/volunteers?volunteerView=reviews');
+    expect(readOrganizerSessionLock()).toBe('/organizer-console/annual-conference/2026/volunteers?volunteerView=reviews');
+    saveOrganizerSessionLock('/organizer-console/events?section=attendance&token=secret#private');
+    expect(readOrganizerSessionLock()).toBe('/organizer-console/events?section=attendance');
+    clearOrganizerSessionLock();
+    expect(readOrganizerSessionLock()).toBeNull();
   });
 
-  it("does not race the deliberate expired-session redirect", () => {
-    expect(
-      shouldRedirectUnauthenticatedOrganizer({
-        authenticated: false,
-        warningOpen: false,
-        sessionEnding: true,
-      }),
-    ).toBe(false);
+  it('rejects external, public and login destinations', () => {
+    installStorage();
+    for (const path of ['//evil.example', '/public', '/organizer-console/login', '/organizer-console/auth/callback']) {
+      saveOrganizerSessionLock(path);
+      expect(readOrganizerSessionLock()).toBeNull();
+    }
   });
 
-  it("redirects an ordinarily unauthenticated protected route", () => {
-    expect(
-      shouldRedirectUnauthenticatedOrganizer({
-        authenticated: false,
-        warningOpen: false,
-        sessionEnding: false,
-      }),
-    ).toBe(true);
+  it('checks elapsed time and absolute expiry before recording activity', () => {
+    const minute = 60_000;
+
+    expect(organizerDeadlineState(28 * minute - 1, 0, null)).toBe('active');
+    expect(organizerDeadlineState(28 * minute, 0, null)).toBe('warning');
+    expect(organizerDeadlineState(30 * minute, 0, null)).toBe('expired');
+    expect(organizerDeadlineState(5 * minute, 0, 5 * minute)).toBe('expired');
   });
 
-  it("uses one normal sign-in surface after a genuinely expired session", () => {
-    expect(pauseSource).not.toContain("Welcome back.");
-    expect(pauseSource).not.toContain("signIn: []");
-    expect(appSource).not.toContain('@sign-in="signInAfterSessionPause"');
-    expect(appSource).toContain("query: { redirect: redirectPath }");
+  it('does not resume an expired, different-account, or changed-role session after an outage', () => {
+    const observed = { instanceId: 'old-session', email: 'organizer@example.org', role: 'owner' };
+    const session = {
+      authenticated: true,
+      auth_mode: 'supabase' as const,
+      auth_configured: true,
+      session_instance_id: 'old-session',
+      user: { email: 'organizer@example.org', role: 'owner' as const, display_name: null },
+    };
+
+    expect(matchesObservedOrganizerSession(observed, session)).toBe(true);
+    expect(matchesObservedOrganizerSession(observed, { ...session, authenticated: false })).toBe(false);
+    expect(matchesObservedOrganizerSession(observed, { ...session, session_instance_id: 'new-session' })).toBe(false);
+    expect(matchesObservedOrganizerSession(observed, { ...session, user: { ...session.user, email: 'other@example.org' } })).toBe(false);
+    expect(matchesObservedOrganizerSession(observed, { ...session, user: { ...session.user, role: 'volunteer' } })).toBe(false);
   });
 
-  it("keeps a failed continuation retryable instead of ending the session", () => {
-    expect(appSource).toMatch(
-      /organizerStayError\.value\s*=\s*['"]We could not confirm your session\. Check your connection and try again\.['"]/u,
-    );
-    expect(pauseSource).toContain('role="alert"');
-    expect(pauseSource).toContain(
-      "busy ? 'Checking session…' : 'Stay signed in'",
-    );
+  it('redirects a cold unauthenticated entry but not a warning or lock', () => {
+    expect(shouldRedirectUnauthenticatedOrganizer({ authenticated: false, warningOpen: false, sessionEnding: false })).toBe(true);
+    expect(shouldRedirectUnauthenticatedOrganizer({ authenticated: false, warningOpen: true, sessionEnding: false })).toBe(false);
+    expect(shouldRedirectUnauthenticatedOrganizer({ authenticated: false, warningOpen: false, sessionEnding: true })).toBe(false);
   });
 });

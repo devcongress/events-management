@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { protectedFetch } from '@/src/lib/admin-session-signal';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
@@ -216,7 +217,7 @@ async function fetchCampaign() {
   error.value = '';
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/feedback-campaign`);
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/feedback-campaign`);
 
     if (response.ok) {
       hydrateCampaign(await response.json());
@@ -239,7 +240,7 @@ async function saveCampaign(options: SaveCampaignOptions = {}) {
   const action = options.overrideStatus === 'closed' ? 'close feedback' : 'save the feedback form';
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/feedback-campaign`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/feedback-campaign`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -563,7 +564,7 @@ async function removeFeedbackForm() {
   error.value = '';
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/feedback-campaign`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/feedback-campaign`, {
       method: 'DELETE',
       credentials: 'include',
     });

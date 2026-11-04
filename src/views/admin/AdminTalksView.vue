@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { protectedFetch } from '@/src/lib/admin-session-signal';
 import SpeakerBlastPanel from '@/src/components/SpeakerBlastPanel.vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
@@ -362,7 +363,7 @@ function talkSectionCount(section: TalkSection): number | null {
 }
 
 async function fetchTalks() {
-  const response = await fetch(`/api/events/${route.params.eventId}/talks`);
+  const response = await protectedFetch(`/api/events/${route.params.eventId}/talks`);
 
   if (response.ok) talks.value = await response.json();
 }
@@ -382,7 +383,7 @@ async function prepareCfpShareLink() {
 }
 
 async function fetchSpeakerSubmissions() {
-  const response = await fetch(`/api/events/${route.params.eventId}/speaker-submissions`, { cache: 'no-store' });
+  const response = await protectedFetch(`/api/events/${route.params.eventId}/speaker-submissions`, { cache: 'no-store' });
 
   if (response.ok) {
     const data = await response.json();
@@ -396,7 +397,7 @@ async function fetchSpeakerSubmissions() {
 }
 
 async function fetchSpeakerIntakeLinks() {
-  const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake-links`, { cache: 'no-store' });
+  const response = await protectedFetch(`/api/events/${route.params.eventId}/speaker-intake-links`, { cache: 'no-store' });
 
   if (response.ok) {
     const data = await response.json();
@@ -536,7 +537,7 @@ async function sendMaterialsFollowUp(talk: Talk) {
   sendingMaterialsFollowUp.value = true;
   error.value = null;
   try {
-    const response = await fetch(`/api/talks/${talk.id}/materials-follow-up`, {
+    const response = await protectedFetch(`/api/talks/${talk.id}/materials-follow-up`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requested_fields: materialsFollowUpFields.value }),
@@ -620,7 +621,7 @@ async function sendSpeakerIntakeEmails() {
   error.value = null;
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake-emails`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/speaker-intake-emails`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -663,7 +664,7 @@ async function enableArchiveRequests() {
 
   enablingArchiveRequests.value = true;
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/checklist/${item.id}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/checklist/${item.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ disabled: false }),
@@ -688,7 +689,7 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
   error.value = null;
 
   try {
-    const response = await fetch(`/api/speaker-submissions/${submissionId}`, {
+    const response = await protectedFetch(`/api/speaker-submissions/${submissionId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -734,7 +735,7 @@ async function createOwnerTestSpeakerSubmission() {
   error.value = null;
   try {
     ownerTestSpeakerRequestId.value ??= crypto.randomUUID();
-    const response = await fetch(`/api/events/${route.params.eventId}/speaker-submissions/test`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/speaker-submissions/test`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ request_id: ownerTestSpeakerRequestId.value }),
@@ -765,7 +766,7 @@ async function loadSpeakerRejectionEmailPreview(submissionId: string) {
   speakerRejectionEmailPreviewLoading.value = true;
 
   try {
-    const response = await fetch(`/api/speaker-submissions/${submissionId}/rejection-email/preview`, {
+    const response = await protectedFetch(`/api/speaker-submissions/${submissionId}/rejection-email/preview`, {
       signal: controller.signal,
     });
     const data = await response.json().catch(() => ({}));
@@ -836,7 +837,7 @@ async function previewSelectedSpeakerEmails(submissionId?: string) {
   preparingSelectedSpeakerEmailTarget.value = submissionId ?? 'all';
   error.value = null;
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/selected-speaker-emails/preview`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/selected-speaker-emails/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(submissionId ? { submission_ids: [submissionId] } : {}),
@@ -872,7 +873,7 @@ async function sendSelectedSpeakerEmails() {
   sendingSelectedSpeakerEmails.value = true;
   error.value = null;
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/selected-speaker-emails/send`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/selected-speaker-emails/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -900,7 +901,7 @@ async function sendSelectedSpeakerTestEmail() {
   error.value = null;
   try {
     selectedSpeakerTestRequestId.value ??= crypto.randomUUID();
-    const response = await fetch(`/api/events/${route.params.eventId}/selected-speaker-emails/test`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/selected-speaker-emails/test`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ request_id: selectedSpeakerTestRequestId.value }),
@@ -950,7 +951,7 @@ async function updateCfpStatus(status: Extract<EventStatus, 'cfp_open' | 'cfp_cl
   error.value = null;
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
@@ -1034,7 +1035,7 @@ async function deleteSpeakerIntakeLink(linkId: string) {
   error.value = null;
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake-links/${linkId}`, {
+    const response = await protectedFetch(`/api/events/${route.params.eventId}/speaker-intake-links/${linkId}`, {
       method: 'DELETE',
     });
     const data = await response.json().catch(() => ({}));
@@ -1102,7 +1103,7 @@ async function setStatus(talkId: string, status: TalkStatus) {
   const talk = talks.value.find((item) => item.id === talkId);
 
   try {
-    const response = await fetch(`/api/talks/${talkId}`, {
+    const response = await protectedFetch(`/api/talks/${talkId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
@@ -1134,7 +1135,7 @@ async function setStatus(talkId: string, status: TalkStatus) {
 async function sendReminder(talkId: string) {
   error.value = null;
 
-  const response = await fetch(`/api/talks/${talkId}/reminder`, { method: 'POST' });
+  const response = await protectedFetch(`/api/talks/${talkId}/reminder`, { method: 'POST' });
 
   if (response.ok) {
     notify.success('Reminder logged for presenter follow-up.');

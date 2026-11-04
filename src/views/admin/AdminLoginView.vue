@@ -2,11 +2,10 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  ADMIN_OAUTH_REDIRECT_STORAGE_KEY,
   adminPath,
   safeInternalAppPath,
 } from '@/src/admin-routes';
-import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
+import { startAdminGoogleSignIn } from '@/src/lib/admin-google-sign-in';
 import { fetchAdminSession, queryKeys } from '@/src/lib/api';
 import { queryClient } from '@/src/lib/query';
 import { matchesOrganizerPhoneViewport, organizerPostAuthLanding } from '@/src/organizer-viewport';
@@ -68,7 +67,6 @@ const redirectTo = computed(() => (
   ?? safeInternalAppPath(route.query.next)
   ?? adminPath('events')
 ));
-const LOCAL_GOOGLE_OAUTH_ORIGIN = 'http://localhost:5173';
 const logoSrc = '/brand/dev-con-logo.png';
 
 const failureCopy = computed(() => (
@@ -134,16 +132,6 @@ const surfaceShowGoogleMark = computed(() => (
   props.managed ? props.showGoogleMark : authResolved.value && authConfigured.value
 ));
 
-function isLocalBrowserOrigin(origin: string): boolean {
-  try {
-    const { hostname } = new URL(origin);
-
-    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
-  } catch {
-    return false;
-  }
-}
-
 async function login() {
   if (!authResolved.value || !authConfigured.value) return;
 
@@ -152,40 +140,11 @@ async function login() {
   failureReason.value = null;
 
   try {
-    const supabase = getSupabaseBrowserClient();
-
-    if (!supabase) {
-      internalError.value = 'Google organizer sign-in is not configured yet.';
-
-      return;
-    }
-
-    if (isLocalBrowserOrigin(window.location.origin) && window.location.origin !== LOCAL_GOOGLE_OAUTH_ORIGIN) {
-      internalError.value = `Google sign-in only works on ${LOCAL_GOOGLE_OAUTH_ORIGIN} locally. Restart there.`;
-
-      return;
-    }
-
-    const callbackUrl = new URL('/api/auth/admin/callback', window.location.origin);
-
-    callbackUrl.searchParams.set('next', redirectTo.value);
-
-    window.sessionStorage.setItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY, redirectTo.value);
-
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: callbackUrl.toString(),
-        scopes: 'email profile',
-        queryParams: { prompt: 'select_account' },
-      },
-    });
-
-    if (oauthError) {
-      internalError.value = 'Unable to start Google sign-in. Please try again.';
-    }
-  } catch {
-    internalError.value = 'Unable to sign in. Please check your connection and try again.';
+    await startAdminGoogleSignIn({ redirectTo: redirectTo.value });
+  } catch (error) {
+    internalError.value = error instanceof Error
+      ? error.message
+      : 'Unable to sign in. Please check your connection and try again.';
   } finally {
     loading.value = false;
   }

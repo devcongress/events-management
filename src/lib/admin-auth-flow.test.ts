@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   adminAuthFailureCopy,
   adminAuthFailureReasonForStatus,
@@ -27,5 +27,24 @@ describe('admin auth failure states', () => {
     expect(copy.description).not.toContain('@');
     expect(copy.description).not.toContain('membership');
     expect(copy.actionLabel).toBe('Use another Google account');
+  });
+});
+
+describe('recovery outcome storage', () => {
+  it('consumes a result once and ignores unknown values', async () => {
+    const { saveAdminRecoveryOutcome, takeAdminRecoveryOutcome } = await import('./admin-auth-flow');
+    const values = new Map<string, string>();
+
+    vi.stubGlobal('window', { sessionStorage: {
+      setItem: (key: string, value: string) => values.set(key, value),
+      getItem: (key: string) => values.get(key) ?? null,
+      removeItem: (key: string) => values.delete(key),
+    } });
+    saveAdminRecoveryOutcome('access_denied');
+    expect(takeAdminRecoveryOutcome()).toBe('access_denied');
+    expect(takeAdminRecoveryOutcome()).toBeNull();
+    values.set('organizer-session-recovery-result', 'untrusted');
+    expect(takeAdminRecoveryOutcome()).toBeNull();
+    vi.unstubAllGlobals();
   });
 });
