@@ -27,6 +27,10 @@ const paystackWebhookSchema = z.object({
   }).passthrough(),
 }).passthrough();
 
+const paystackTransactionSchema = paystackWebhookSchema.extend({
+  data: paystackWebhookSchema.shape.data.omit({ metadata: true }),
+});
+
 const paystackInitializationSchema = z.object({
   status: z.literal(true),
   data: z.object({ authorization_url: z.string().url(), reference: z.string() }),
@@ -119,7 +123,7 @@ async function readPaystackTransaction(input: {
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
   const responsePayload = response ? await response.json().catch(() => null) : null;
-  const parsed = paystackWebhookSchema.safeParse({ event: 'charge.success', data: responsePayload?.data });
+  const parsed = paystackTransactionSchema.safeParse({ event: 'charge.success', data: responsePayload?.data });
 
   if (!response?.ok || responsePayload?.status !== true || !parsed.success || parsed.data.data.reference !== input.paymentReference) {
     throw new Error('Paystack could not verify payment.');

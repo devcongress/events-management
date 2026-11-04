@@ -4,7 +4,7 @@ import type { Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
 import { MANAGED_CHECKOUT_PATH as path, MANAGED_PAYMENT_WEBHOOK_PATH, MANAGED_PROCESSING_FEE_POLICY, MANAGED_PROCESSING_FEE_ROUNDING, managedCheckoutInitializeSchema, managedCheckoutMaximumQuantity, managedCheckoutOrigin, managedCheckoutProcessingFeeQuote, managedCheckoutVerifySchema, managedPaymentReference, managedPaymentSecret } from '@/lib/managed-conference-checkout';
-import { createPaystackHostedCheckout, isPaystackCheckoutUrl, parseVerifiedPaystackCharge, verifyPaystackWebhookSignature } from '@/lib/annual-conference-ticket-payments';
+import { createPaystackHostedCheckout, isPaystackCheckoutUrl, verifyPaystackWebhookSignature } from '@/lib/annual-conference-ticket-payments';
 import { devcon26CartAllocationsForStorage, devcon26AvailablePaymentProviders, PAYSTACK_MAX_TRANSACTION_MINOR } from '@/lib/devcon26-ticket-cart';
 import { createDevcon26FlexibleCheckoutGrant, verifyDevcon26FlexibleCheckoutGrant } from '@/lib/devcon26-flexible-checkout-grant';
 import { createAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
@@ -16,6 +16,21 @@ import { registrationTesting } from '@/server/annual-conference-registration-tes
 import { dispatchManagedConferenceEmails } from '@/server/complete-test-immediate-emails';
 import { assessPublicSubmissionEmail, enforcePublicRateLimit, publicClientKey, requirePublicTurnstile } from '@/server/http/public-intake-protection';
 import type { AppBindings } from '@/server/http/app-bindings';
+
+const managedWebhookEnvelope = z.object({
+  event: z.literal('charge.success'),
+  data: z.object({ reference: z.string().regex(/^devcon26-managed-(test|live)-[a-f0-9]{32}$/) }),
+});
+
+function managedWebhookReference(body: string): string | null {
+  try {
+    const event = managedWebhookEnvelope.safeParse(JSON.parse(body));
+
+    return event.success ? event.data.data.reference : null;
+  } catch {
+    return null;
+  }
+}
 
 const holdSchema = z.object({
   id: z.string().uuid(), payment_mode: z.enum(['test', 'live']), amount_minor: z.number().int().positive().safe(),
@@ -213,7 +228,7 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
       if (orderLimit) return orderLimit;
       const confirmation = await confirmManagedCheckout(c, order, input.data.reference);
 
-      if (confirmation.status !== 'verified') return c.json({ mode: order.payment_mode, ...confirmation });
+      if (confirmation.status !== 'verified') return c.json({ mode: order.payment_mode, status: confirmation.status === 'expired' ? 'failed' : confirmation.status });
       await dispatchManagedConferenceEmails(c);
       const summary = await getSupabaseAnnualConferencePaidOrderSummary(order.id, c);
 
@@ -245,19 +260,24 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
     });
 
     if (!signedModes.length) return c.json({ error: 'Invalid signature.' }, 401);
-    const event = parseVerifiedPaystackCharge(body);
+    const reference = managedWebhookReference(body);
 
-    if (!event || !/^devcon26-managed-(test|live)-[a-f0-9]{32}$/.test(event.paymentReference)) return c.body(null, 204);
+    if (!reference) return c.body(null, 200);
 
     try {
-      const order = await managedCheckoutOrder(c, event.paymentReference);
+      const order = await managedCheckoutOrder(c, reference);
 
-      if (!order) return c.body(null, 204);
-      if (!signedModes.includes(order.payment_mode) || managedPaymentReference(order.id, order.payment_mode) !== event.paymentReference) return c.json({ error: 'Invalid payment domain.' }, 401);
-      await confirmManagedCheckout(c, order, event.paymentReference);
-      await dispatchManagedConferenceEmails(c);
+      if (!order) return c.json({ error: 'Payment confirmation is temporarily unavailable.' }, 503);
+      if (!signedModes.includes(order.payment_mode) || managedPaymentReference(order.id, order.payment_mode) !== reference) return c.json({ error: 'Invalid payment domain.' }, 401);
+      const confirmation = await confirmManagedCheckout(c, order, reference);
 
-      return c.body(null, 204);
+      if (confirmation.status === 'verified') {
+        await dispatchManagedConferenceEmails(c);
+      } else if (confirmation.status !== 'refund_required' && confirmation.status !== 'expired') {
+        return c.json({ error: 'Payment confirmation is temporarily unavailable.' }, 503);
+      }
+
+      return c.body(null, 200);
     } catch {
       return c.json({ error: 'Payment confirmation is temporarily unavailable.' }, 503);
     }
@@ -268,9 +288,9 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
   // Existing Paystack dashboards can keep their webhook URL during rollout.
   for (const historicalPath of ['/api/webhooks/paystack', '/api/webhooks/paystack/devcon26-complete-test', '/api/webhooks/paystack/devcon26-test']) {
     app.post(historicalPath, async (c, next) => {
-      const event = parseVerifiedPaystackCharge(await c.req.text());
+      const reference = managedWebhookReference(await c.req.text());
 
-      if (event && /^devcon26-managed-(test|live)-[a-f0-9]{32}$/.test(event.paymentReference)) return processWebhook(c);
+      if (reference) return processWebhook(c);
 
       await next();
     });

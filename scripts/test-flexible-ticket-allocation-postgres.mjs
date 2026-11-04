@@ -26,6 +26,11 @@ do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated; end if;
   if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role; end if;
 end $$;
+-- The common migration catalog also reads Supabase's storage bucket metadata.
+create schema if not exists storage;
+create table if not exists storage.buckets (
+  id text primary key, public boolean, file_size_limit bigint, allowed_mime_types text[]
+);
 create schema if not exists extensions;
 create extension if not exists pgcrypto with schema extensions;
 create function public.set_updated_at() returns trigger language plpgsql as $$

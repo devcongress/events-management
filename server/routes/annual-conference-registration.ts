@@ -1,4 +1,5 @@
 import { reconcileManagedPayments } from '@/server/managed-payment-recovery';
+import { isManagedRecoveryQueueRequest } from '@/server/managed-recovery-request';
 import { completeTestDispatchOrigin } from '@/server/complete-test-dispatch';
 import type { Hono, Context } from 'hono';
 import crypto from 'node:crypto';
@@ -44,12 +45,35 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
 
     if (!expected || !received || Buffer.byteLength(expected) !== Buffer.byteLength(received)
       || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) return c.json({ error: 'Not found.' }, 404);
-    if (completeTestDispatchOrigin(c)) return c.json({ checked: 0 });
+    if (!isManagedRecoveryQueueRequest(c.req.raw)) return c.json({ error: 'Not found.' }, 404);
+    if (envValue('MANAGED_PAYMENT_RECOVERY_OWNER_ENABLED', c) !== 'true') return c.json({ checked: 0 });
 
     try {
-      return c.json(await reconcileManagedPayments(c));
+      const result = await reconcileManagedPayments(c);
+
+      if (result.checked > 0) console.info(JSON.stringify({ event: 'managed_payment_recovery', ...result }));
+
+      return c.json(result);
     } catch {
       return c.json({ error: 'Payment recovery unavailable.' }, 503);
+    }
+  });
+
+  app.post('/api/internal/managed-admission-emails/retry', async (c) => {
+    const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
+    const received = c.req.header('x-scheduled-job-secret')?.trim();
+
+    if (!expected || !received || Buffer.byteLength(expected) !== Buffer.byteLength(received)
+      || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) return c.json({ error: 'Not found.' }, 404);
+    if (!isManagedRecoveryQueueRequest(c.req.raw)) return c.json({ error: 'Not found.' }, 404);
+    if (envValue('MANAGED_PAYMENT_RECOVERY_OWNER_ENABLED', c) !== 'true') return c.json({ admissions: { accepted: 0 } });
+
+    try {
+      const admissions = await retryAnnualConferenceAdmissionEmails(c, { managed: true, scheduled: true });
+
+      return c.json({ admissions });
+    } catch {
+      return c.json({ error: 'Admission email retry could not complete.' }, 503);
     }
   });
 

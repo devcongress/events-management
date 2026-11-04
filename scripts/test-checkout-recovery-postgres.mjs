@@ -34,7 +34,28 @@ assert.equal(initialize(order, newClaim), newClaim);
 sql(`select public.finalize_managed_conference_checkout_initialization('${order}','${newClaim}','https://checkout.paystack.com/synthetic')`);
 sql(`select public.record_managed_initialization_failure('${order}','${newClaim}',true)`);
 assert.equal(sql(`select initialization_claim from public.annual_conference_ticket_payment_attempts where order_id='${order}'`), newClaim);
-sql(`select public.confirm_annual_conference_ticket_payment('${order}','paystack','recovery-charge','charge.success','${reference(order)}',15299,'GHS','synthetic','{"domain":"live","fee_mode":"buyer_pays_processing"}')`);
+// No webhook or browser return: the scheduled job must find this initialized order.
+const recoveryClaim = uuid();
+const leasedReference = sql(`select payment_reference from public.claim_managed_payment_reconciliation('${recoveryClaim}') where order_id='${order}'`);
+
+assert.equal(leasedReference, reference(order));
+const verifiedCharge = `select status from public.confirm_annual_conference_ticket_payment(
+  '${order}', 'paystack', 'managed:live:charge:12345', 'charge.success', '${leasedReference}',
+  15299, 'GHS', 'synthetic', '{"domain":"live","fee_mode":"buyer_pays_processing"}')`;
+const issuedRows = () => JSON.parse(sql(`select json_build_object(
+  'tickets', (select count(*) from public.annual_conference_tickets where order_id='${order}'),
+  'queuedMail', (select count(*) from public.annual_conference_ticket_email_outbox where order_id='${order}' and status='queued')
+)`));
+
+assert.equal(sql(verifiedCharge), 'paid');
+sql(`select public.finish_managed_payment_reconciliation('${order}', '${recoveryClaim}', true, false)`);
+const issued = issuedRows();
+
+assert.equal(issued.tickets, 1);
+assert.ok(issued.queuedMail > 0, 'recovery enqueues the buyer email');
+assert.equal(sql(verifiedCharge), 'paid', 'a delayed webhook replays the same charge');
+assert.deepEqual(issuedRows(), issued, 'replay must not duplicate tickets or queued mail');
+assert.equal(sql(`select count(*) from public.claim_managed_payment_reconciliation('${uuid()}') where order_id='${order}'`), '0');
 const delivery = sql(`select id from public.annual_conference_ticket_email_outbox where order_id='${order}' limit 1`);
 const payload = '{"subject":"frozen","to":["recovery@example.test"]}';
 
@@ -80,7 +101,7 @@ for (const probe of catalog) {
   delete probe.body;
 }
 if (process.env.RECOVERY_CATALOG_OUTPUT) writeFileSync(process.env.RECOVERY_CATALOG_OUTPUT, JSON.stringify(catalog,null,2));
-console.log('PASS recovery: 61-minute outage, frozen payload, 24-hour review, concurrent leases/cooldown, fenced initialization, concurrent payment reconciliation and private RPCs.');
+console.log('PASS recovery: 61-minute outage, frozen payload, 24-hour review, concurrent leases/cooldown, fenced initialization, missed-webhook recovery with idempotent replay, concurrent payment reconciliation and private RPCs.');
 
 execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
   import assert from 'node:assert/strict';

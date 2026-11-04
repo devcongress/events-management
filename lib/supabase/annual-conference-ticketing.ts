@@ -274,6 +274,8 @@ export async function confirmSupabaseAnnualConferenceTicketPayment(input: {
     status: 'pending_payment' | 'paid' | 'refunded' | 'expired' | 'cancelled';
     quantity: number;
     amount_minor: number;
+    amount_paid_minor: number | null;
+    payment_reference: string | null;
     currency: string;
   };
 }

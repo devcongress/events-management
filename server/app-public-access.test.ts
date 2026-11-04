@@ -212,7 +212,7 @@ describe('live Paystack webhook boundary', () => {
     });
 
     const confirmation = vi.spyOn(ticketingStorage, 'confirmSupabaseAnnualConferenceTicketPayment').mockResolvedValue({
-      id: orderId, status: 'paid', quantity: 1, amount_minor: 19_999, currency: 'GHS',
+      id: orderId, status: 'paid', quantity: 1, amount_minor: 19_999, amount_paid_minor: 19_999, payment_reference: paymentReference, currency: 'GHS',
     });
 
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ status: true, data: {

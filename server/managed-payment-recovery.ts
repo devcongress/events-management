@@ -25,7 +25,7 @@ export async function reconcileManagedPayments(c: Context) {
       if (!order || order.id !== candidate.order_id) throw new Error('Stored order unavailable.');
       const result = await confirmManagedCheckout(c, order, candidate.payment_reference);
 
-      resolved = result.status === 'verified' || result.status === 'refund_required';
+      resolved = result.status === 'verified' || result.status === 'refund_required' || result.status === 'expired';
       if (result.status === 'refund_required') console.warn(JSON.stringify({ event: 'managed_payment_refund_required', order_id: order.id }));
     } catch {
       failed = true;

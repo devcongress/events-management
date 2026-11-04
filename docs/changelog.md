@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-04 — Recover missed Paystack confirmations
+
+- The canonical Worker now checks unconfirmed managed orders even with legacy preview checkout enabled, and drains the ticket emails queued by recovery. Preview deployments do not claim this work.
+- Managed Paystack webhooks return HTTP 200 for confirmed payments and recorded late-payment outcomes. Unresolved confirmations remain retryable, and delayed webhooks cannot issue a second ticket.
+
 ## 2026-11-03 — Ticketing tabs and speaker delivery refresh
 
 - Add icons to all five Ticketing tabs. Keep the speaker delivery refresh action in Delivery and remove its duplicate from the proposal review queue.
