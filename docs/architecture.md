@@ -151,6 +151,7 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/annual-conference/[year]/speaker-submissions/[submissionId]` — final per-proposal acceptance/rejection; acceptance creates the session and automatically attempts its private-workspace email
 - `/api/annual-conference/[year]/speaker-submissions/[submissionId]/resend-workspace-email` — retries failed acceptance delivery with the same deterministic private capability
 - `/api/annual-conference/[year]/speaker-submissions/[submissionId]/decision-email-recipient` and `/replace-workspace-email` — confirmed organizer recovery paths for address correction and deliberate capability rotation
+- `/api/annual-conference/:year/speaker-updates` — Owner-only independent follow-up drafts, frozen previews/tests, explicit queues and per-recipient history; original acceptance records stay intact. The existing speaker retry job dispatches activated update queues.
 - `/api/internal/annual-conference-speaker-emails/retry` and `/api/webhooks/resend` — bounded scheduled retries plus signed, timestamp-ordered provider delivery reconciliation
 - `/api/annual-conference/[year]/team`, `/task-members`, `/volunteer-applications` — capability-gated team, task-assignee, and private applicant projections
 - `/api/attendance/monthly` — admin-only monthly attendance ledger, import coverage, and cross-month insights

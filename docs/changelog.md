@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-05 — Separate speaker follow-up updates
+
+- Preserve original speaker acceptance messages and delivery records while composing a separate follow-up with the existing private workspace link.
+- Add versioned drafts, selectable prior acceptance recipients, personalized preview and test controls, and independent delivery history with guarded retries.
+- Reuse scheduled speaker delivery and signed provider receipts; require verified queue migrations and explicit rollout activation before sending updates.
+
 ## 2026-11-04 — Resume an expired organizer session
 
 - Lock the open workspace at session expiry and offer Google sign-in from the same page. Restore the authorized page and tab on success, and offer a retry when the session service is unavailable.

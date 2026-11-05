@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceSpeakerDrawer from '@/src/components/AnnualConferenceSpeakerDrawer.vue';
 import SpeakerOutcomePanel from '@/src/components/SpeakerOutcomePanel.vue';
+import SpeakerUpdatesPanel from '@/src/components/SpeakerUpdatesPanel.vue';
 import WorkspaceSectionNav from '@/src/components/WorkspaceSectionNav.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
@@ -105,6 +106,14 @@ const activeSection = computed(() => {
 
   return 'proposals';
 });
+const messageView = computed(() => route.query.messageView === 'updates' ? 'updates' : 'outcomes');
+const updatesVisited = ref(messageView.value === 'updates');
+
+watch(messageView, (view) => { if (view === 'updates') updatesVisited.value = true; });
+const messageLinks = computed(() => [
+  { key: 'outcomes', label: 'Acceptance and rejection', to: { path: route.path, query: { ...route.query, section: 'outcome-messages', messageView: 'outcomes' }, hash: route.hash } },
+  { key: 'updates', label: 'Speaker updates', to: { path: route.path, query: { ...route.query, section: 'outcome-messages', messageView: 'updates' }, hash: route.hash } },
+]);
 const badgeStorageQuery = useQuery({
   queryKey: computed(() => ['annual-conference-speaker-badge-storage', year.value]),
   queryFn: () => fetchJson<BadgeStorageUsage>(`/api/annual-conference/${year.value}/speakers/storage`, { credentials: 'include' }),
@@ -556,7 +565,11 @@ function toLocalDateTimeInput(value: string): string {
           <AppPagination v-model:page="deliveryPage" :page-count="deliveryPageCount" :total="decidedSubmissions.length" :range-start="deliveryPageStart" :range-end="deliveryPageEnd" item-label="deliveries" aria-label="Speaker delivery pagination" />
         </section>
 
-        <SpeakerOutcomePanel v-if="canSendEmail" v-show="activeSection === 'outcome-messages'" class="speaker-outcome-panel" :year="year" :submissions="submissions" :configured="speakersQuery.data.value.email_delivery.configured" @sent="speakersQuery.refetch()" />
+        <div v-if="canSendEmail" v-show="activeSection === 'outcome-messages'">
+          <WorkspaceSectionNav class="mt-4" label="Speaker message type" :active="messageView" :items="messageLinks" />
+          <SpeakerOutcomePanel v-show="messageView === 'outcomes'" class="speaker-outcome-panel" :year="year" :submissions="submissions" :configured="speakersQuery.data.value.email_delivery.configured" @sent="speakersQuery.refetch()" />
+          <SpeakerUpdatesPanel v-if="updatesVisited" v-show="messageView === 'updates'" :year="year" :configured="speakersQuery.data.value.email_delivery.configured" :active="activeSection === 'outcome-messages' && messageView === 'updates'" />
+        </div>
 
         <section v-show="activeSection === 'proposals'" class="speaker-queue speaker-list-panel mt-2 overflow-hidden" aria-live="polite">
           <div class="flex flex-wrap items-center justify-between gap-4 border-b border-dc-border px-5 py-4 sm:px-6">
