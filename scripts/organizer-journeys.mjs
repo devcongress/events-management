@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { chromium } from "playwright";
 
 // Serve only built static assets: no application server, credentials, or database.
@@ -295,7 +295,7 @@ async function journey(
     timezoneId: "Africa/Accra",
     hasTouch: name === "button-hover-touch" || name === "programme-time-picker-320",
     // Playwright’s service-worker blocker throws in the sandboxed email iframe.
-    serviceWorkers: name.startsWith("speaker-outcome-preview-") ? "allow" : "block",
+    serviceWorkers: name.startsWith("speaker-outcome-preview-") || name.startsWith("speaker-updates-") ? "allow" : "block",
   });
   const page = await context.newPage();
   const errors = [];
@@ -329,6 +329,9 @@ async function journey(
     const request = route.request();
     const url = new URL(request.url());
 
+    if (name.startsWith("speaker-updates-") && url.origin === "https://em.devcongress.org" && (url.pathname === "/brand/dev-con-logo.png" || /^\/fonts\/[a-z0-9-]+\.woff2$/.test(url.pathname))) {
+      return route.fulfill({ path: `public${url.pathname}` });
+    }
     if (url.origin !== origin) return route.abort();
     if (!url.pathname.startsWith("/api/")) return route.continue();
     requests.push({
@@ -3467,6 +3470,86 @@ try {
       );
     }
   }
+  for (const mobile of [false, true]) {
+    await journey(`speaker-updates-${mobile ? "mobile" : "desktop"}`, async ({ page, responses, requests }) => {
+      const base = "/api/annual-conference/2026/speaker-updates";
+      const ids = ["speaker-1", "speaker-2"];
+      const candidates = [
+        { id: ids[0], name: "Ada Example", email: "ada@example.test", eligible: true, reason: null },
+        { id: ids[1], name: "Ama Example", email: "ama@example.test", eligible: false, reason: "Private workspace access is revoked." },
+      ];
+      const fixture = spawnSync(process.execPath, ["--import", "tsx", "scripts/fixtures/speaker-update-preview.ts"], { encoding: "utf8" });
+
+      assert.equal(fixture.status, 0, fixture.stderr);
+      const { rendered, defaultDraft } = JSON.parse(fixture.stdout);
+      let campaign = { id: "update-1", edition_id: "fixture-edition", ...defaultDraft, version: 1, state: "draft", created_at: "2026-11-05T10:00:00Z", updated_at: "2026-11-05T10:00:00Z" };
+      let sendingEnabled = false;
+      const delivery = { id: "delivery-1", submission_id: ids[0], name: candidates[0].name, recipient: candidates[0].email, status: "failed", last_error: "Temporary failure", attempt_count: 1 };
+      const recipient = { id: ids[0], name: candidates[0].name, recipient: candidates[0].email, ...rendered };
+
+      responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+      responses.set("/api/annual-conference/2026/speakers", { body: { edition: { ...edition, name: "DevCongress Annual Conference" }, call: { open: true, public_path: "/speak/c/2026", logistics_deadline: null }, permissions: { can_manage: true, can_send_email: true }, email_delivery: { configured: true, workspace_links_configured: true }, counts: { submitted: 0, selected: 0, not_selected: 0, withdrawn: 0 }, submissions: [] } });
+      responses.set("/api/annual-conference/2026/speaker-outcomes/messages", { body: { messages: [] } });
+      responses.set(base, async () => ({ body: { campaigns: [campaign], candidates, default_draft: defaultDraft, sending_enabled: sendingEnabled, send_unavailable_reason: sendingEnabled ? null : "Speaker update delivery is not enabled." } }));
+      responses.set(`${base}/${campaign.id}`, async (request) => {
+        if (request.method() === "PUT") campaign = { ...campaign, ...JSON.parse(request.postData()), version: campaign.version + 1 };
+
+        return { body: request.method() === "PUT" ? { campaign } : { campaign, deliveries: campaign.state === "draft" ? [] : [delivery] } };
+      });
+      responses.set(`${base}/${campaign.id}/preview`, { body: { preview_id: "preview-1", expires_in_seconds: 600, recipients: [recipient] } });
+      responses.set(`${base}/${campaign.id}/test`, { body: { accepted: true, recipient: "test@example.test" } });
+      responses.set(`${base}/${campaign.id}/send`, async () => { campaign = { ...campaign, state: "queued" };
+
+ return { body: { queued: 1 } }; });
+      await page.setViewportSize({ width: mobile ? 390 : 1440, height: 844 });
+      await page.goto(`${origin}/organizer-console/annual-conference/2026/speakers?section=outcome-messages&messageView=updates`);
+      await page.getByRole("button", { name: /DevCon26 speaker update.*Draft/ }).click();
+      await page.getByLabel("Subject").fill("Updated details");
+      await page.getByRole("button", { name: /DevCon26 speaker update.*Draft/ }).click();
+      assert.equal(await page.getByLabel("Subject").inputValue(), "Updated details");
+      await page.getByText("Save your changes before previewing.").waitFor();
+      await page.getByRole("button", { name: "Save update" }).click();
+      await page.getByLabel(/Ada Example/).check();
+      assert.equal(await page.getByLabel(/Ama Example/).isDisabled(), true);
+      await page.getByText("Private workspace access is revoked.").waitFor();
+      await page.getByRole("heading", { name: "Speaker updates", exact: true }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${artifacts}/speaker-updates-${mobile ? "mobile" : "desktop"}-draft.png`, animations: "disabled" });
+      await page.getByRole("button", { name: "Preview 1 selected" }).click();
+      const drawer = page.getByRole("dialog", { name: "Review speaker updates" });
+
+      await drawer.waitFor();
+      assert.deepEqual(JSON.parse(requests.find((request) => request.path.endsWith("/preview")).body), { ids: [ids[0]], version: 2 });
+      assert.equal(await drawer.locator("iframe").getAttribute("srcdoc"), recipient.html);
+      await page.screenshot({ path: `${artifacts}/speaker-updates-${mobile ? "mobile" : "desktop"}-preview.png`, animations: "disabled" });
+      assert.equal(await drawer.getByRole("button", { name: "Send update to 1 speaker" }).isDisabled(), true);
+      await drawer.getByText("Speaker update delivery is not enabled.").waitFor();
+      sendingEnabled = true;
+      await page.reload();
+      await page.getByRole("button", { name: /Updated details.*Draft/ }).click();
+      await page.getByLabel(/Ada Example/).check();
+      await page.getByRole("button", { name: "Preview 1 selected" }).click();
+      await drawer.waitFor();
+      await drawer.getByRole("button", { name: "Close" }).click();
+      await page.getByLabel("Subject").fill("Unsaved change");
+      assert.equal(await page.getByRole("button", { name: "Preview 1 selected" }).isDisabled(), true);
+      await page.getByLabel("Subject").fill("Updated details");
+      await page.getByRole("button", { name: "Preview 1 selected" }).click();
+      await drawer.waitFor();
+      assert.equal(requests.filter((request) => request.path.endsWith("/preview")).length, 3);
+      await drawer.getByLabel("Test recipient").fill("test@example.test");
+      await drawer.getByRole("button", { name: "Send test email" }).click();
+      await drawer.getByRole("status").waitFor();
+      assert.equal(requests.some((request) => request.path.endsWith("/send")), false);
+      await drawer.getByRole("button", { name: "Send update to 1 speaker" }).click();
+      await drawer.waitFor({ state: "hidden" });
+      await page.getByText("Temporary failure").waitFor();
+      assert.deepEqual(JSON.parse(requests.find((request) => request.path.endsWith("/send")).body), { preview_id: "preview-1", confirmed: true });
+      assert.equal(await page.getByLabel("Subject").isDisabled(), true);
+      assert.equal(await page.getByText("Failed · 1 attempt").count(), 1);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    }, { role: "owner" });
+  }
+
   for (const mobile of [false, true]) {
     await journey(`speaker-outcome-preview-${mobile ? "mobile" : "desktop"}`, async ({ page, responses, requests }) => {
       const ids = ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"];

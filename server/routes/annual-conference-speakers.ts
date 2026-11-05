@@ -66,6 +66,8 @@ import { publicAppOrigin } from '@/server/http/public-app-origin';
 import { verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
 import { applyVolunteerFollowUpProviderEvent } from '@/lib/supabase/volunteer-follow-up';
 import { registerSpeakerOutcomeRoutes } from './annual-conference-speakers/outcomes';
+import { registerSpeakerUpdateRoutes } from './annual-conference-speakers/updates';
+import { retryAnnualConferenceSpeakerUpdates } from '@/server/annual-conference-speaker-update-delivery';
 import {
   annualConferenceDecisionEmailCanBeRetriedManually,
   annualConferenceDecisionEmailCooldownElapsed,
@@ -125,6 +127,7 @@ function scheduledJobAuthorized(c: Context): boolean {
 
 export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): void {
   registerSpeakerOutcomeRoutes(app);
+  registerSpeakerUpdateRoutes(app);
   app.get('/api/annual-conference/:year/speakers', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer']);
 
@@ -767,7 +770,11 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   app.post('/api/internal/annual-conference-speaker-emails/retry', async (c) => {
     if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
     try {
-      return c.json(await retryAnnualConferenceDecisionEmails(c));
+      const decisions = await retryAnnualConferenceDecisionEmails(c);
+
+      await retryAnnualConferenceSpeakerUpdates(c);
+
+      return c.json(decisions);
     } catch (error) {
       return internalErrorResponse(c, 'annual_conference_speaker_email_scheduled_retry_failed', error, 'Unable to retry conference speaker emails.');
     }
@@ -795,6 +802,15 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
     const outcome = annualConferenceWebhookOutcome(parsed.data.type, parsed.data.created_at);
 
     try {
+      if (isSupabaseRuntimeEnabled(c) && envValue('DEVCON26_SPEAKER_UPDATES_ENABLED', c) === 'true') {
+        const update = await getSupabaseAdminClient(c).rpc('apply_annual_conference_speaker_update_event' as never, {
+          p_webhook_id: eventId, p_provider_id: parsed.data.data.email_id,
+          p_type: parsed.data.type, p_at: parsed.data.created_at,
+        } as never);
+
+        if (update.error) throw new Error('Speaker update delivery status unavailable.');
+        if (update.data) return c.body(null, 204);
+      }
       const volunteerMatched = await applyVolunteerFollowUpProviderEvent({
         webhookId: eventId,
         providerEmailId: parsed.data.data.email_id,

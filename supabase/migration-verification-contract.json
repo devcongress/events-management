@@ -5492,6 +5492,686 @@
           "serviceExecute": true
         }
       ]
+    },
+    {
+      "file": "20261105120000_speaker_updates.sql",
+      "sha256": "7bd57a0ecb25603f5486c0e7a743cda2abcf19820ba578f891fccdd6b5df6af4",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_speaker_update_deliveries",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_speaker_update_previews",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_speaker_updates",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": "gen_random_uuid()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "version",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "1"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "state",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": "'draft'::text"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": "gen_random_uuid()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": "'queued'::text"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "attempt_count",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "0"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "next_attempt_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "queued_count",
+          "type": "integer",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "recipient",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "first_attempt_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "edition_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "edition_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "last_error",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "actor_id",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "recipients",
+          "type": "jsonb",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "update_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "provider_id",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "idempotency_key",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "claimed_until",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "name",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "claim_token",
+          "type": "uuid",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "link_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "version",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "provider_payload",
+          "type": "jsonb",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "last_attempt_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "submission_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "subject",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "update_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "link_expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "speaker_email",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "message",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "annual_conference_speaker_update_deliveries_status_check",
+          "contains": [
+            "CHECK ((status = ANY (ARRAY['queued'::text, 'sending'::text, 'accepted'::text, 'delivered'::text, 'failed'::text, 'bounced'::text, 'complained'::text, 'suppressed'::text])))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "annual_conference_speaker_update_deliveries_pkey",
+          "contains": [
+            "PRIMARY KEY (id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "annual_conference_speaker_update_deliveries_idempotency_key_key",
+          "contains": [
+            "UNIQUE (idempotency_key)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "annual_conference_speaker_update_de_update_id_submission_id_key",
+          "contains": [
+            "UNIQUE (update_id, submission_id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "annual_conference_speaker_update_delive_update_id_recipient_key",
+          "contains": [
+            "UNIQUE (update_id, recipient)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "annual_conference_speaker_update_deliveries_update_id_fkey",
+          "contains": [
+            "FOREIGN KEY (update_id) REFERENCES annual_conference_speaker_updates(id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "annual_conference_speaker_update_deliveries_submission_id_fkey",
+          "contains": [
+            "FOREIGN KEY (submission_id) REFERENCES annual_conference_speaker_submissions(id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "annual_conference_speaker_update_deliveries_link_id_fkey",
+          "contains": [
+            "FOREIGN KEY (link_id) REFERENCES annual_conference_speaker_intake_links(id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "annual_conference_speaker_update_previews_pkey",
+          "contains": [
+            "PRIMARY KEY (id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "annual_conference_speaker_update_previews_update_id_fkey",
+          "contains": [
+            "FOREIGN KEY (update_id) REFERENCES annual_conference_speaker_updates(id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_previews",
+          "name": "annual_conference_speaker_update_previews_edition_id_fkey",
+          "contains": [
+            "FOREIGN KEY (edition_id) REFERENCES annual_conference_editions(id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "annual_conference_speaker_updates_version_check",
+          "contains": [
+            "CHECK ((version > 0))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "annual_conference_speaker_updates_state_check",
+          "contains": [
+            "CHECK ((state = ANY (ARRAY['draft'::text, 'queued'::text, 'complete'::text])))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "annual_conference_speaker_updates_pkey",
+          "contains": [
+            "PRIMARY KEY (id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_updates",
+          "name": "annual_conference_speaker_updates_edition_id_fkey",
+          "contains": [
+            "FOREIGN KEY (edition_id) REFERENCES annual_conference_editions(id)"
+          ]
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "speaker_update_delivery_due_idx",
+          "contains": [
+            "CREATE INDEX speaker_update_delivery_due_idx ON public.annual_conference_speaker_update_deliveries USING btree (status, next_attempt_at)"
+          ]
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_deliveries",
+          "name": "speaker_update_provider_id_idx",
+          "contains": [
+            "CREATE UNIQUE INDEX speaker_update_provider_id_idx ON public.annual_conference_speaker_update_deliveries USING btree (provider_id) WHERE (provider_id IS NOT NULL)"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "queue_annual_conference_speaker_update",
+          "argumentTypes": "uuid, uuid, uuid, text",
+          "result": "integer",
+          "language": "plpgsql",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "cf1a1cb92421453bbf4745e31cc0b2c3ae95a5ee737f20e91caa23b713d174f0"
+        }
+      ]
+    },
+    {
+      "file": "20261105121000_speaker_update_dispatch.sql",
+      "sha256": "7394f7a295ccd89cbe84f30e7b7b9f45a78c87fa54658236757b700c47516f7e",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_speaker_update_events",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_events",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_events",
+          "name": "event_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_events",
+          "name": "webhook_id",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_events",
+          "name": "event_type",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_events",
+          "name": "provider_id",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_speaker_update_events",
+          "name": "annual_conference_speaker_update_events_pkey",
+          "contains": [
+            "PRIMARY KEY (webhook_id)"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "reconcile_annual_conference_speaker_updates",
+          "argumentTypes": "uuid",
+          "result": "void",
+          "language": "sql",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "1df82506a9381458904cbae37fa95329bdf71b135503319a06ce0200e36209ef"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "valid_annual_conference_speaker_update",
+          "argumentTypes": "uuid, uuid",
+          "result": "boolean",
+          "language": "sql",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "0dfacf76ba0ca468aeeba48fa20b055c797c53a038ebc2b9a4a9ce61508a5b60"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "retry_annual_conference_speaker_update",
+          "argumentTypes": "uuid, uuid",
+          "result": "boolean",
+          "language": "plpgsql",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "70d25cd9448309a26f4d8184966235ed93c353233e7f4c08fe223c9847268c2d"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_annual_conference_speaker_updates",
+          "argumentTypes": "uuid, integer",
+          "result": "SETOF annual_conference_speaker_update_deliveries",
+          "language": "plpgsql",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "ae8f1fca9d3641223f73156dcba0fbeaec461b44fc3294cdce8db0f8b5aab9b3"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "finish_annual_conference_speaker_update",
+          "argumentTypes": "uuid, uuid, text, text",
+          "result": "boolean",
+          "language": "plpgsql",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "e2435ff078c69520c2713c1fb5bfc54f1452a9b25e5c262018617a24899d19d5"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "apply_annual_conference_speaker_update_event",
+          "argumentTypes": "text, text, text, timestamp with time zone",
+          "result": "boolean",
+          "language": "plpgsql",
+          "securityDefiner": true,
+          "searchPath": "\"\"",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "3e045409cdb4f65e74c6cbbc020a2df01e64ad88c829761e164b717b36fe784f"
+        }
+      ]
     }
   ]
 }

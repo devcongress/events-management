@@ -73,7 +73,7 @@ function escapeHtml(value: string): string {
 }
 
 export function renderSpeakerOutcomeMessage(input: {
-  template: SpeakerOutcomeMessage;
+  template: Pick<SpeakerOutcomeMessage, 'subject' | 'message'>;
   speakerName: string;
   talkTitle: string;
   edition: string;
@@ -84,6 +84,8 @@ export function renderSpeakerOutcomeMessage(input: {
   sessionDuration?: string;
   conferenceDate?: string;
   conferenceVenue?: string;
+  brandMeta?: [string, string];
+  footerCopy?: string;
 }): { subject: string; html: string; text: string } {
   const values: Record<string, string> = {
     first_name: input.speakerName.trim().split(/\s+/)[0] || 'there',
@@ -133,7 +135,7 @@ export function renderSpeakerOutcomeMessage(input: {
   return {
     subject,
     text,
-    html: renderSpeakerEmailLayout({ subject, preheader: subject, brandMeta: ['Annual Conference', 'Speaker outcome'], contentHtml, footerTitle: 'DevCongress Annual Conference', footerCopy: 'Reply to this email if you have a question.' }),
+    html: renderSpeakerEmailLayout({ subject, preheader: subject, brandMeta: input.brandMeta ?? ['Annual Conference', 'Speaker outcome'], contentHtml, footerTitle: 'DevCongress Annual Conference', footerCopy: input.footerCopy ?? 'Reply to this email if you have a question.' }),
   };
 }
 

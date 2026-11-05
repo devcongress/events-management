@@ -1549,3 +1549,13 @@ The private programme outline is stored as an ordered JSON document in a separat
 An organizer can use an accepted proposal as the starting point for a programme row. The row owns its public title and description, so shortening a description or naming a panel does not modify a speaker's submission. Rows can reference several accepted proposals or none. Speaker photos belong to the speaker profile and can be reused across scheduled appearances.
 
 The DevCon26 website reads an allowlisted projection of the saved 2026 programme. The public response contains ordered session details, public speaker IDs, display names, and optional photo URLs. Private submissions, contact information, speaker workspace links, and review notes remain in EMS.
+
+## ADR-128: Keep speaker updates independent of acceptance decisions
+
+**Date:** 2026-11-05
+
+**Decision:** Store conference speaker follow-ups in edition-scoped campaigns with separate frozen recipient deliveries and actor-bound previews. Reuse the existing Speakers email renderer, sender, canonical retry job and signed webhook endpoint. Keep original acceptance templates and decision delivery fields unchanged. Queueing a reviewed snapshot is atomic, and retries retain the same provider payload and idempotency key.
+
+**Why:** A correction must remain distinguishable from the original acceptance, with an independently reviewable audience, message and delivery history. Resetting a decision email would erase that distinction and risk resending an acceptance.
+
+**Trade-offs:** Two forward migrations and an explicit rollout setting are required before sending. Delivery payloads remain private evidence; expired unused previews are purged on subsequent preview creation. Retries stop after five attempts or the conservative 23-hour provider deduplication window. The existing quota reserve is reused; this does not establish provider-account-wide serialization across all mail producers.

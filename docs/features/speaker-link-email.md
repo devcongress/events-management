@@ -484,3 +484,22 @@ Audience revalidation compares recipient and session field values, independent o
 ## Annual conference outcome previews
 
 Owners review each frozen personalized outcome email in a drawer before queueing. A test can send the selected snapshot to a chosen address using the same subject, sender, HTML and text; acceptance messages contain the speaker’s private workspace link. Tests are rate limited and audited, and do not change speaker decisions or queue delivery. Snapshot expiry and ownership are checked before a test. Provider acceptance does not confirm inbox delivery.
+
+
+## Annual conference speaker updates
+
+In **Speakers → Outcome messages → Speaker updates**, Owners can save a separate draft, select speakers who received an acceptance, and review each personalized email before explicitly queueing it. The original acceptance template, frozen message, provider receipt and delivery status remain unchanged. Sent updates are read-only; a further correction starts a new draft. Each update keeps its own recipient statuses and retry controls.
+
+For 2026, the initial draft asks for a headshot **link** and social media handles by November 7, and directs participation confirmation and technical/accessibility details to the existing private workspace. The workspace supports a headshot URL; its separate badge photo upload is unchanged. The message does not change the edition logistics due date. Other years receive a generic draft instead of the 2026 correction.
+
+Previews freeze the sender, recipient, subject, HTML, text and existing link for ten minutes and are bound to the reviewing Owner and saved draft version. Changing the draft invalidates the preview. Tests send the selected frozen message to the entered test address and do not queue live recipients. Queueing rechecks the selected audience and workspace, consumes the snapshot atomically, and returns the same result on repeated confirmation. Email addresses are normalized and deduplicated. Unselected proposals, changed addresses, suppressed recipients and unavailable/revoked links show an eligibility explanation.
+
+The existing canonical scheduled speaker-email job drains the independent update queue. Each delivery retains a frozen provider payload and stable idempotency key, uses a bounded lease, and permits at most five attempts within 23 hours. Immediately before sending, the dispatcher checks the current selected proposal, recipient, workspace and signing secret against the frozen link. An active workspace remains usable after its due date. Signed provider events reconcile early receipts and preserve terminal delivery failures; provider acceptance is distinct from inbox delivery.
+
+Campaigns, previews, deliveries and provider events are service-role-only records. Used previews discard their rendered recipient payload after queueing; expired unused previews are removed when a new preview is prepared. Delivery payloads remain private delivery evidence for retries and history. Private capability URLs are excluded from list responses and audit metadata.
+
+### Activation and verification
+
+Apply `20261105120000_speaker_updates.sql` and `20261105121000_speaker_update_dispatch.sql` through the migration delivery process, verify their contracts, then enable `DEVCON26_SPEAKER_UPDATES_ENABLED=true` in the intended deployment. The existing Speakers sender, reply-to, signing secret, Resend credentials, quotas and canonical scheduler are reused. Sending/retrying stays disabled with an explanation until the delivery gate is configured. The disabled gate also keeps the existing webhook flow independent of the new tables during rollout.
+
+Local verification includes isolated desktop/phone journeys with the production email renderer and synthetic links, focused route/dispatch tests, and executable queue/dispatch regression SQL against a disposable database. These checks do not send email or verify live inbox delivery. The migrations and activation setting require deployment before this workflow is usable in production.
