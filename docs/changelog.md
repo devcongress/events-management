@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-05 — Discoverable speaker update tests
+
+- Offer a direct test-email action for a saved update and selected speaker, including when live update sending is disabled.
+- Simplify the update editor heading and history separator.
+
 ## 2026-11-05 — Separate speaker follow-up updates
 
 - Preserve original speaker acceptance messages and delivery records while composing a separate follow-up with the existing private workspace link.

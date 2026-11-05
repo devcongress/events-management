@@ -20,6 +20,8 @@ const recipients = ref<Recipient[]>([]);
 const previewToken = ref('');
 const previewId = ref('');
 const drawerOpen = ref(false);
+const testMode = ref(false);
+const testEmailInput = ref<HTMLInputElement | null>(null);
 const drawer = ref<HTMLElement | null>(null);
 const closeButton = ref<HTMLButtonElement | null>(null);
 const busy = ref(false);
@@ -94,14 +96,17 @@ watch(drawerOpen, async (open) => {
     document.documentElement.style.overflow = 'hidden';
     document.addEventListener('keydown', onDrawerKeydown);
     await nextTick();
-    if (drawerOpen.value) closeButton.value?.focus();
+    if (drawerOpen.value) (testMode.value ? testEmailInput.value : closeButton.value)?.focus();
   } else {
     document.removeEventListener('keydown', onDrawerKeydown);
     document.body.style.overflow = previousOverflow;
     document.documentElement.style.overflow = previousDocumentOverflow;
     await nextTick();
-    if (!drawerOpen.value && previousFocus?.isConnected) previousFocus.focus();
-    previousFocus = null;
+    if (!drawerOpen.value) {
+      if (previousFocus?.isConnected) previousFocus.focus();
+      previousFocus = null;
+      testMode.value = false;
+    }
   }
 });
 watch([previewId, previewToken], () => { testEmail.value = ''; testFeedback.value = ''; testError.value = ''; });
@@ -188,9 +193,10 @@ async function save() {
   }
 }
 
-async function prepare(event: MouseEvent) {
+async function prepare(event: MouseEvent, mode: 'review' | 'test' = 'review') {
   if (!campaign.value) return;
   previousFocus = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  testMode.value = mode === 'test';
   busy.value = true;
   try {
     const result = await fetchJson<{ preview_id: string; recipients: Recipient[] }>(`${base.value}/${campaign.value.id}/preview`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: selected.value, version: campaign.value.version }) });
@@ -285,8 +291,8 @@ async function retry(delivery: Delivery) {
       </div>
       <p v-else class="mt-4 text-sm text-dc-gray">No speaker updates yet. Create an update to get started.</p>
       <template v-if="campaign">
-        <div class="mt-5 grid gap-3 border-t border-dc-border pt-4">
-          <div class="flex items-center justify-between gap-3"><h3 class="font-bold">{{ campaign.state === 'draft' ? 'Edit update' : 'Update details' }}</h3><span class="text-sm text-dc-gray">{{ campaign.state === 'draft' ? 'Draft' : campaign.state === 'queued' ? 'Queued' : 'Completed' }}</span></div>
+        <div class="mt-5 grid gap-3">
+          <h3 class="font-bold">{{ campaign.state === 'draft' ? 'Edit update' : 'Update details' }}</h3>
           <label class="text-sm font-semibold">Subject<input v-model="campaign.subject" class="app-form-control mt-1 w-full" maxlength="200" :disabled="campaign.state !== 'draft' || busy" @input="clearPreview"></label>
           <label class="text-sm font-semibold">Message<textarea v-model="campaign.message" class="app-form-control update-message mt-1 w-full" rows="7" maxlength="10000" :disabled="campaign.state !== 'draft' || busy" @input="clearPreview" /></label>
           <template v-if="campaign.state === 'draft'">
@@ -305,9 +311,14 @@ async function retry(delivery: Delivery) {
             </label>
           </div>
           <AppPagination v-model:page="page" :page-count="pageCount" :total="candidates.length" :range-start="candidates.length ? (page - 1) * 6 + 1 : 0" :range-end="Math.min(candidates.length, page * 6)" item-label="speakers" aria-label="Speaker update recipients" />
-          <p v-if="dirty" class="mt-3 text-sm text-dc-gray">Save your changes before previewing.</p>
+          <p v-if="dirty" class="mt-3 text-sm text-dc-gray">Save your changes before previewing or testing.</p>
+          <p v-if="!selected.length" class="mt-3 text-sm text-dc-gray">Choose at least one speaker to personalize a preview or test.</p>
+          <p v-if="!configured" class="mt-3 text-sm text-dc-gray">Email delivery is not configured for test emails.</p>
           <p v-if="!sendingEnabled" class="mt-3 text-sm text-dc-gray">{{ sendUnavailableReason || 'Sending speaker updates is unavailable.' }}</p>
-          <button type="button" class="editorial-action update-primary mt-3" :disabled="busy || dirty || !selected.length" @click="prepare">Preview {{ selected.length }} selected</button>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button type="button" class="editorial-action update-primary" :disabled="busy || dirty || !selected.length" @click="prepare($event)">Preview {{ selected.length }} selected</button>
+            <button type="button" class="editorial-action" :disabled="busy || dirty || !selected.length || !configured" @click="prepare($event, 'test')">Send test email</button>
+          </div>
         </div>
         <div v-else class="mt-6 border-t border-dc-border pt-4">
           <h3 class="font-bold">Update delivery</h3>
@@ -327,24 +338,25 @@ async function retry(delivery: Delivery) {
     <Teleport to="body">
       <div v-if="drawerOpen && currentPreview" class="update-backdrop" @click.self="drawerOpen = false">
         <section ref="drawer" class="update-drawer" role="dialog" aria-modal="true" aria-labelledby="update-preview-title" tabindex="-1">
-          <header class="update-drawer-header"><div><p class="text-sm text-dc-gray">Owner preview · 10 minute snapshot</p><h2 id="update-preview-title" class="text-xl font-bold">Review speaker updates</h2></div><button ref="closeButton" type="button" class="editorial-action" @click="drawerOpen = false">Close</button></header>
+          <header class="update-drawer-header"><div><p class="text-sm text-dc-gray">Owner preview · 10 minute snapshot</p><h2 id="update-preview-title" class="text-xl font-bold">{{ testMode ? 'Send test email' : 'Review speaker updates' }}</h2></div><button ref="closeButton" type="button" class="editorial-action" @click="drawerOpen = false">Close</button></header>
           <div class="update-drawer-body">
-            <p class="text-sm text-dc-gray">Choose a speaker to review their frozen email.</p>
+            <p class="text-sm text-dc-gray">Choose the speaker whose frozen email you want to {{ testMode ? 'test' : 'review' }}.</p>
             <div class="mt-2 flex flex-wrap gap-2" role="group" aria-label="Preview recipient"><button v-for="recipient in recipients" :key="recipient.id" type="button" class="editorial-action" :aria-pressed="previewId === recipient.id" @click="previewId = recipient.id">{{ recipient.name }}</button></div>
-            <p class="mt-3 break-words text-sm"><strong>To:</strong> {{ currentPreview.recipient }}<br><strong>Subject:</strong> {{ currentPreview.subject }}</p>
-            <iframe :srcdoc="currentPreview.html" sandbox="" tabindex="-1" title="Personalized speaker update preview" class="mt-3 h-96 w-full border border-dc-border bg-white" />
             <form class="mt-4 grid gap-2" @submit.prevent="sendTest">
               <label for="update-test-email" class="text-sm font-semibold">Test recipient</label>
-              <input id="update-test-email" v-model="testEmail" class="app-form-control w-full" type="email" maxlength="254" required placeholder="you@example.com">
+              <input id="update-test-email" ref="testEmailInput" v-model="testEmail" class="app-form-control w-full" type="email" maxlength="254" :disabled="busy || !configured" required placeholder="you@example.com">
               <p class="text-sm text-dc-gray">The test includes this speaker's private link. It does not change the delivery queue.</p>
-              <div><button type="submit" class="editorial-action" :disabled="busy || !configured">Send test email</button></div>
+              <div><button type="submit" class="editorial-action" :class="{ 'update-primary': testMode }" :disabled="busy || !configured || !testEmail.trim()">Send test email</button></div>
               <p v-if="testFeedback" role="status">{{ testFeedback }}</p><p v-if="testError" role="alert">{{ testError }}</p>
             </form>
+            <p class="mt-3 break-words text-sm"><template v-if="testMode"><strong>Personalized for:</strong> {{ currentPreview.name }} · {{ currentPreview.recipient }}</template><template v-else><strong>To:</strong> {{ currentPreview.recipient }}</template><br><strong>Subject:</strong> {{ currentPreview.subject }}</p>
+            <iframe :srcdoc="currentPreview.html" sandbox="" tabindex="-1" title="Personalized speaker update preview" class="mt-3 h-96 w-full border border-dc-border bg-white" />
+
             <p v-if="!configured" class="mt-3 text-sm text-dc-gray">Email delivery is not configured for test emails.</p>
-            <p v-if="!sendingEnabled" class="mt-3 text-sm text-dc-gray">{{ sendUnavailableReason || 'Sending speaker updates is unavailable.' }}</p>
-            <p class="mt-4 text-sm text-dc-gray">Sending queues this update for {{ recipients.length }} speaker{{ recipients.length === 1 ? '' : 's' }}. Provider acceptance is not confirmation of delivery.</p>
+            <p v-if="!testMode && !sendingEnabled" class="mt-3 text-sm text-dc-gray">{{ sendUnavailableReason || 'Sending speaker updates is unavailable.' }}</p>
+            <p v-if="!testMode" class="mt-4 text-sm text-dc-gray">Sending queues this update for {{ recipients.length }} speaker{{ recipients.length === 1 ? '' : 's' }}. Provider acceptance is not confirmation of delivery.</p>
           </div>
-          <footer class="update-drawer-footer"><button type="button" class="editorial-action update-primary" :disabled="busy || !sendingEnabled" @click="send">Send update to {{ recipients.length }} speaker{{ recipients.length === 1 ? '' : 's' }}</button></footer>
+          <footer v-if="!testMode" class="update-drawer-footer"><button type="button" class="editorial-action update-primary" :disabled="busy || !sendingEnabled" @click="send">Send update to {{ recipients.length }} speaker{{ recipients.length === 1 ? '' : 's' }}</button></footer>
         </section>
       </div>
     </Teleport>

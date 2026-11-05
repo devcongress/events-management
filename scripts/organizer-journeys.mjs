@@ -3507,13 +3507,33 @@ try {
       await page.getByLabel("Subject").fill("Updated details");
       await page.getByRole("button", { name: /DevCon26 speaker update.*Draft/ }).click();
       assert.equal(await page.getByLabel("Subject").inputValue(), "Updated details");
-      await page.getByText("Save your changes before previewing.").waitFor();
+      await page.getByText("Save your changes before previewing or testing.").waitFor();
       await page.getByRole("button", { name: "Save update" }).click();
       await page.getByLabel(/Ada Example/).check();
       assert.equal(await page.getByLabel(/Ama Example/).isDisabled(), true);
       await page.getByText("Private workspace access is revoked.").waitFor();
       await page.getByRole("heading", { name: "Speaker updates", exact: true }).scrollIntoViewIfNeeded();
+      await page.getByRole("button", { name: /Updated details.*Draft/ }).scrollIntoViewIfNeeded();
       await page.screenshot({ path: `${artifacts}/speaker-updates-${mobile ? "mobile" : "desktop"}-draft.png`, animations: "disabled" });
+      const testAction = page.getByRole("button", { name: "Send test email" });
+
+      await testAction.click();
+      const testDrawer = page.getByRole("dialog", { name: "Send test email" });
+
+      await testDrawer.waitFor();
+      assert.equal(await testDrawer.getByLabel("Test recipient").evaluate((input) => document.activeElement === input), true);
+      assert.equal(await testDrawer.getByRole("button", { name: "Send update to 1 speaker" }).count(), 0);
+      await testDrawer.getByText("Choose the speaker whose frozen email you want to test.").waitFor();
+      await testDrawer.getByLabel("Test recipient").fill("test@example.test");
+      await page.screenshot({ path: `${artifacts}/speaker-updates-${mobile ? "mobile" : "desktop"}-test.png`, animations: "disabled" });
+      await testDrawer.getByRole("button", { name: "Send test email" }).click();
+      await testDrawer.getByRole("status").waitFor();
+      const testPayload = JSON.parse(requests.find((request) => request.path.endsWith("/test")).body);
+
+      assert.deepEqual({ ...testPayload, request_id: "uuid" }, { preview_id: "preview-1", recipient_id: ids[0], email: "test@example.test", request_id: "uuid" });
+      assert.equal(requests.some((request) => request.path.endsWith("/send")), false);
+      await testDrawer.getByRole("button", { name: "Close" }).click();
+      assert.equal(await testAction.evaluate((button) => document.activeElement === button), true);
       await page.getByRole("button", { name: "Preview 1 selected" }).click();
       const drawer = page.getByRole("dialog", { name: "Review speaker updates" });
 
@@ -3530,12 +3550,14 @@ try {
       await page.getByRole("button", { name: "Preview 1 selected" }).click();
       await drawer.waitFor();
       await drawer.getByRole("button", { name: "Close" }).click();
+      await drawer.waitFor({ state: "hidden" });
+      await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Preview 1 selected");
       await page.getByLabel("Subject").fill("Unsaved change");
       assert.equal(await page.getByRole("button", { name: "Preview 1 selected" }).isDisabled(), true);
       await page.getByLabel("Subject").fill("Updated details");
       await page.getByRole("button", { name: "Preview 1 selected" }).click();
       await drawer.waitFor();
-      assert.equal(requests.filter((request) => request.path.endsWith("/preview")).length, 3);
+      assert.equal(requests.filter((request) => request.path.endsWith("/preview")).length, 4);
       await drawer.getByLabel("Test recipient").fill("test@example.test");
       await drawer.getByRole("button", { name: "Send test email" }).click();
       await drawer.getByRole("status").waitFor();

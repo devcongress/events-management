@@ -110,6 +110,7 @@ describe('speaker update owner routes', () => {
   });
 
   it('sends a test only to the chosen address using the frozen preview', async () => {
+    mocks.env.mockReturnValue('false');
     const recipient = { id, recipient: 'ama@example.test', provider_payload: { from: 'sender@example.test', reply_to: 'reply@example.test', to: ['ama@example.test'], subject: 'Frozen', html: '<p>Frozen</p>', text: 'Frozen' } };
 
     mocks.preview.mockResolvedValue({ id, version: 1, used_at: null, expires_at: new Date(Date.now() + 60000).toISOString(), recipients: [recipient] });
