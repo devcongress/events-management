@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-06 — Browser journey CI budget
+
+- Allow five minutes for the full browser suite and log each journey’s start and completion time to make CI timeouts easier to diagnose.
+- Run checks in a version-matched Playwright image so CI no longer installs browser dependencies from an apt mirror on each run.
+
 ## 2026-11-06 — Speaker monitoring and action feedback
 
 - Show participation, headshot and social submission statuses before opening a speaker, with explicit missing details in the organizer drawer and optional badge/materials below.
