@@ -38,7 +38,7 @@ function withSecurityHeaders(response, isEmailPreviewDocument = false) {
   if (!isEmailPreviewDocument) headers.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
   headers.set('Cross-Origin-Opener-Policy', 'same-origin');
   headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
-  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  headers.set('Referrer-Policy', isEmailPreviewDocument ? 'no-referrer' : 'strict-origin-when-cross-origin');
   headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('X-Frame-Options', isEmailPreviewDocument ? 'SAMEORIGIN' : 'DENY');
@@ -206,7 +206,8 @@ export default {
     if (url.pathname.startsWith('/api/')) {
       const response = await proxyApiRequest(request);
       const isEmailPreviewDocument = request.method === 'GET'
-        && /^\/api\/admin\/email-previews\/[a-z0-9_]+\/html$/.test(url.pathname)
+        && (/^\/api\/admin\/email-previews\/[a-z0-9_]+\/html$/.test(url.pathname)
+          || /^\/api\/annual-conference\/\d{4}\/speaker-updates\/[0-9a-f-]{36}\/previews\/[0-9a-f-]{36}\/recipients\/[0-9a-f-]{36}\/html$/i.test(url.pathname))
         && response.status === 200
         && (response.headers.get('content-type') ?? '').startsWith('text/html')
         && response.headers.has('content-security-policy');

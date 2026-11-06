@@ -336,7 +336,8 @@ app.use('*', async (c, next) => {
 
   const isEmailPreviewDocument = (
     c.req.method === 'GET'
-    && /^\/api\/admin\/email-previews\/[^/]+\/html$/.test(c.req.path)
+    && (/^\/api\/admin\/email-previews\/[^/]+\/html$/.test(c.req.path)
+      || /^\/api\/annual-conference\/\d{4}\/speaker-updates\/[0-9a-f-]{36}\/previews\/[0-9a-f-]{36}\/recipients\/[0-9a-f-]{36}\/html$/i.test(c.req.path))
     && c.res.status === 200
     && c.res.headers.get('content-type')?.startsWith('text/html')
   );
@@ -346,7 +347,7 @@ app.use('*', async (c, next) => {
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('X-Frame-Options', isEmailPreviewDocument ? 'SAMEORIGIN' : 'DENY');
   c.header('X-Permitted-Cross-Domain-Policies', 'none');
-  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  c.header('Referrer-Policy', isEmailPreviewDocument ? 'no-referrer' : 'strict-origin-when-cross-origin');
   c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
   c.header('Cross-Origin-Opener-Policy', 'same-origin');
   c.header('Content-Security-Policy', isEmailPreviewDocument

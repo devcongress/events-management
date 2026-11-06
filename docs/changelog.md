@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-06 — Speaker update selection and previews
+
+- Add Select all eligible and Clear all across recipient pages, with a selected count and the existing 100-recipient limit.
+- Keep the test-recipient form in the test-email drawer so reviewing a live update does not ask for a test address.
+- Render frozen speaker update previews through a private, Owner-bound HTML endpoint so email styling works under the production security policy. Preserve the separate live-delivery activation gate.
+
 ## 2026-11-06 — DevCon26 volunteer badges and attendance counter
 
 - Volunteers can sign in with their approved Google account, personalize a badge from the conference overview, and download or share the PNG on supported devices.
