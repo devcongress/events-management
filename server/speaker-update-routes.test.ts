@@ -80,6 +80,7 @@ describe('speaker update owner routes', () => {
     expect(body.recipients[0]).toMatchObject({ id, recipient: 'ama@example.test', text: 'Visit https://example.test/conference-speakers/2026/token' });
     const preview = mocks.savePreview.mock.calls[0][0];
 
+    expect(body.recipients[0].preview_url).toBe(`/api/annual-conference/2026/speaker-updates/${id}/previews/${body.preview_id}/recipients/${id}/html`);
     expect(preview.actor_id).toBe('owner');
     expect(preview.recipients[0].provider_payload.to).toEqual(['ama@example.test']);
     expect(body.recipients[0]).not.toHaveProperty('key');
@@ -90,6 +91,57 @@ describe('speaker update owner routes', () => {
     mocks.link.mockResolvedValue(link);
     expect((await request(`/${id}/send`, 'POST', { preview_id: body.preview_id, confirmed: true })).status).toBe(200);
     expect(mocks.queue).toHaveBeenCalledOnce();
+  });
+
+  it('serves only the exact frozen recipient HTML to the owning session', async () => {
+    const html = '<style>p { color: red }</style><p>Frozen workspace link</p>';
+    const preview = { id: id2, update_id: id, edition_id: 'edition', actor_id: 'owner', version: 1, used_at: null, expires_at: new Date(Date.now() + 60000).toISOString(), recipients: [{ id, html }] };
+
+    mocks.preview.mockImplementation(async (previewId, updateId, editionId, actorId) => previewId === preview.id && updateId === preview.update_id && editionId === preview.edition_id && actorId === preview.actor_id ? preview : undefined);
+    const path = `/${id}/previews/${id2}/recipients/${id}/html`;
+    const response = await request(path);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(await response.text()).toBe(html);
+    expect(mocks.preview).toHaveBeenCalledWith(id2, id, 'edition', 'owner');
+    expect(mocks.queue).not.toHaveBeenCalled();
+    expect(mocks.send).not.toHaveBeenCalled();
+
+    mocks.session.mockResolvedValue({ authenticated: true, membership_id: 'other-owner' });
+    expect((await request(path)).status).toBe(409);
+    mocks.session.mockResolvedValue({ authenticated: true, membership_id: 'owner' });
+    mocks.edition.mockResolvedValue({ id: 'other-edition', year: 2026 });
+    expect((await request(path)).status).toBe(409);
+    mocks.edition.mockResolvedValue({ id: 'edition', year: 2026 });
+    mocks.campaign.mockResolvedValue({ ...campaign, id: id2 });
+    expect((await request(path)).status).toBe(409);
+    mocks.campaign.mockResolvedValue(campaign);
+    expect((await request(`/${id}/previews/${id2}/recipients/${id2}/html`)).status).toBe(409);
+    expect((await request(`/invalid/previews/${id2}/recipients/${id}/html`)).status).toBe(404);
+    expect((await request(`/${id}/previews/${id2}/recipients/${id}/wrong`)).status).toBe(404);
+  });
+
+  it('rejects unavailable, expired, used, or stale preview documents', async () => {
+    const path = `/${id}/previews/${id2}/recipients/${id}/html`;
+    const valid = { version: 1, used_at: null, expires_at: new Date(Date.now() + 60000).toISOString(), recipients: [{ id, html: '<p>Frozen</p>' }] };
+
+    for (const preview of [undefined, { ...valid, used_at: new Date().toISOString() }, { ...valid, expires_at: new Date(Date.now() - 1000).toISOString() }, { ...valid, version: 2 }]) {
+      mocks.preview.mockResolvedValue(preview);
+      const response = await request(path);
+
+      expect(response.status).toBe(409);
+      expect(response.headers.get('content-type')).toContain('application/json');
+    }
+    mocks.preview.mockResolvedValue(valid);
+    mocks.campaign.mockResolvedValue({ ...campaign, state: 'queued' });
+    expect((await request(path)).status).toBe(409);
+    mocks.admin.mockResolvedValue(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }));
+    expect((await request(path)).status).toBe(401);
+    mocks.admin.mockResolvedValue(null);
+    mocks.capability.mockResolvedValue(new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 }));
+    expect((await request(path)).status).toBe(403);
   });
 
   it('requires explicit confirmation and rejects stale draft versions', async () => {
@@ -111,16 +163,23 @@ describe('speaker update owner routes', () => {
 
   it('sends a test only to the chosen address using the frozen preview', async () => {
     mocks.env.mockReturnValue('false');
-    const recipient = { id, recipient: 'ama@example.test', provider_payload: { from: 'sender@example.test', reply_to: 'reply@example.test', to: ['ama@example.test'], subject: 'Frozen', html: '<p>Frozen</p>', text: 'Frozen' } };
+    const created = await request(`/${id}/preview`, 'POST', { ids: [id], version: 1 });
+    const body = await created.json();
+    const snapshot = mocks.savePreview.mock.calls[0][0];
 
-    mocks.preview.mockResolvedValue({ id, version: 1, used_at: null, expires_at: new Date(Date.now() + 60000).toISOString(), recipients: [recipient] });
+    mocks.preview.mockResolvedValue(snapshot);
     mocks.rate.mockResolvedValue(null);
     mocks.send.mockResolvedValue({ ids: ['provider'], quota: {} });
-    const response = await request(`/${id}/test`, 'POST', { preview_id: id, recipient_id: id, request_id: id2, email: 'TESTER@example.test' });
+    const document = await request(`/${id}/previews/${body.preview_id}/recipients/${id}/html`);
+    const frozenHtml = await document.text();
+    const response = await request(`/${id}/test`, 'POST', { preview_id: body.preview_id, recipient_id: id, request_id: id2, email: 'TESTER@example.test' });
 
+    expect(created.status).toBe(200);
+    expect(document.status).toBe(200);
     expect(response.status).toBe(200);
-    expect(mocks.preview).toHaveBeenCalledWith(id, id, 'edition', 'owner');
-    expect(mocks.send.mock.calls[0][0].emails).toEqual([{ ...recipient.provider_payload, to: ['tester@example.test'] }]);
+    expect(mocks.preview).toHaveBeenCalledWith(body.preview_id, id, 'edition', 'owner');
+    expect(mocks.send.mock.calls[0][0].emails).toEqual([{ ...snapshot.recipients[0].provider_payload, to: ['tester@example.test'] }]);
+    expect(mocks.send.mock.calls[0][0].emails[0].html).toBe(frozenHtml);
     expect(mocks.queue).not.toHaveBeenCalled();
   });
 });

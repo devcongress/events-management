@@ -7,7 +7,7 @@ import { notify } from '@/src/lib/notify';
 type Campaign = { id: string; subject: string; message: string; version: number; state: 'draft' | 'queued' | 'complete'; created_at: string; updated_at: string };
 type Candidate = { id: string; name: string; email: string; eligible?: boolean; reason?: string | null };
 type Delivery = { id: string; name: string; recipient: string; status: string; last_error: string | null; attempt_count: number; last_attempt_at?: string | null; updated_at?: string | null };
-type Recipient = { id: string; name: string; recipient: string; subject: string; html: string };
+type Recipient = { id: string; name: string; recipient: string; subject: string; preview_url: string };
 
 const props = defineProps<{ year: string; configured: boolean; active: boolean }>();
 const campaigns = ref<Campaign[]>([]);
@@ -43,10 +43,25 @@ let testContextVersion = 0;
 const base = computed(() => `/api/annual-conference/${props.year}/speaker-updates`);
 const currentPreview = computed(() => recipients.value.find((item) => item.id === previewId.value));
 const dirty = computed(() => Boolean(campaign.value && JSON.stringify([campaign.value.subject, campaign.value.message]) !== saved.value));
+const eligibleCandidates = computed(() => candidates.value.filter(item => item.eligible !== false));
+const allEligibleSelected = computed(() => eligibleCandidates.value.length > 0
+  && eligibleCandidates.value.length <= 100
+  && eligibleCandidates.value.every(item => selected.value.includes(item.id)));
+const partiallySelected = computed(() => selected.value.length > 0 && !allEligibleSelected.value);
 const pageCount = computed(() => Math.max(1, Math.ceil(candidates.value.length / 6)));
 const visibleCandidates = computed(() => candidates.value.slice((page.value - 1) * 6, page.value * 6));
 const deliveryPageCount = computed(() => Math.max(1, Math.ceil(deliveries.value.length / 6)));
 const visibleDeliveries = computed(() => deliveries.value.slice((deliveryPage.value - 1) * 6, deliveryPage.value * 6));
+
+function selectEligible(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+
+  selected.value = checked ? eligibleCandidates.value.slice(0, 100).map(item => item.id) : [];
+}
+
+function clearSelection() {
+  selected.value = [];
+}
 
 function deliveryStatus(status: string) {
   const labels: Record<string, string> = { queued: 'Queued', sending: 'Sending', accepted: 'Accepted by provider', delivered: 'Delivered', failed: 'Failed', bounced: 'Bounced', complained: 'Complained', suppressed: 'Suppressed' };
@@ -131,6 +146,11 @@ async function load() {
 
     campaigns.value = result.campaigns;
     candidates.value = result.candidates;
+    const eligibleIds = new Set(result.candidates.filter(item => item.eligible !== false).map(item => item.id));
+    const retained = selected.value.filter(id => eligibleIds.has(id));
+
+    if (retained.length !== selected.value.length) selected.value = retained;
+    page.value = Math.min(page.value, Math.max(1, Math.ceil(result.candidates.length / 6)));
     defaultDraft.value = result.default_draft;
     sendingEnabled.value = result.sending_enabled;
     sendUnavailableReason.value = result.send_unavailable_reason ?? '';
@@ -308,7 +328,15 @@ async function retry(delivery: Delivery) {
           <h3 class="font-bold">Choose recipients</h3>
           <p class="mt-1 text-sm text-dc-gray">Only speakers with a prior acceptance are eligible. Review the personalized update before sending.</p>
           <p v-if="!candidates.length" class="mt-3 text-sm text-dc-gray">No speakers are currently eligible for an update.</p>
-          <div v-else class="mt-2 divide-y divide-dc-border border-y border-dc-border">
+          <div v-if="eligibleCandidates.length" class="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <label class="flex min-h-11 items-center gap-3 text-sm font-semibold">
+              <input type="checkbox" class="accent-dc-pink" :checked="allEligibleSelected" :indeterminate.prop="partiallySelected" :disabled="busy" @change="selectEligible">
+              {{ eligibleCandidates.length > 100 ? 'Select first 100 eligible' : 'Select all eligible' }}
+            </label>
+            <div class="flex items-center gap-3 text-sm"><span aria-live="polite">{{ selected.length }} selected</span><button type="button" class="min-h-11 font-semibold text-dc-pink underline disabled:opacity-50" :disabled="busy || !selected.length" @click="clearSelection">Clear all</button></div>
+          </div>
+          <p v-if="eligibleCandidates.length > 100" class="text-sm text-dc-gray">Up to 100 speakers can be selected per update. Select the first 100 eligible speakers or choose recipients individually.</p>
+          <div v-if="candidates.length" class="mt-2 divide-y divide-dc-border border-y border-dc-border">
             <label v-for="item in visibleCandidates" :key="item.id" class="flex min-h-11 items-center gap-3 py-2 text-sm">
               <input v-model="selected" type="checkbox" class="accent-dc-pink" :value="item.id" :disabled="busy || item.eligible === false || (selected.length >= 100 && !selected.includes(item.id))">
               <span><strong>{{ item.name }}</strong> · {{ item.email }}<span v-if="item.eligible === false" class="block text-red-700">{{ item.reason || 'Not eligible for an update.' }}</span></span>
@@ -346,7 +374,7 @@ async function retry(delivery: Delivery) {
           <div class="update-drawer-body">
             <p class="text-sm text-dc-gray">Choose the speaker whose frozen email you want to {{ testMode ? 'test' : 'review' }}.</p>
             <div class="mt-2 flex flex-wrap gap-2" role="group" aria-label="Preview recipient"><button v-for="recipient in recipients" :key="recipient.id" type="button" class="editorial-action" :aria-pressed="previewId === recipient.id" @click="previewId = recipient.id">{{ recipient.name }}</button></div>
-            <form class="mt-4 grid gap-2" @submit.prevent="sendTest">
+            <form v-if="testMode" class="mt-4 grid gap-2" @submit.prevent="sendTest">
               <label for="update-test-email" class="text-sm font-semibold">Test recipient</label>
               <input id="update-test-email" ref="testEmailInput" v-model="testEmail" class="app-form-control w-full" type="email" maxlength="254" :disabled="busy || !configured" required placeholder="you@example.com">
               <p class="text-sm text-dc-gray">The test includes this speaker's private link. It does not change the delivery queue.</p>
@@ -354,9 +382,9 @@ async function retry(delivery: Delivery) {
               <p v-if="testError" role="alert">{{ testError }}</p>
             </form>
             <p class="mt-3 break-words text-sm"><template v-if="testMode"><strong>Personalized for:</strong> {{ currentPreview.name }} · {{ currentPreview.recipient }}</template><template v-else><strong>To:</strong> {{ currentPreview.recipient }}</template><br><strong>Subject:</strong> {{ currentPreview.subject }}</p>
-            <iframe :srcdoc="currentPreview.html" sandbox="" tabindex="-1" title="Personalized speaker update preview" class="mt-3 h-96 w-full border border-dc-border bg-white" />
+            <iframe :src="currentPreview.preview_url" sandbox="" referrerpolicy="no-referrer" tabindex="-1" title="Personalized speaker update preview" class="mt-3 h-96 w-full border border-dc-border bg-white" />
 
-            <p v-if="!configured" class="mt-3 text-sm text-dc-gray">Email delivery is not configured for test emails.</p>
+            <p v-if="testMode && !configured" class="mt-3 text-sm text-dc-gray">Email delivery is not configured for test emails.</p>
             <p v-if="!testMode && !sendingEnabled" class="mt-3 text-sm text-dc-gray">{{ sendUnavailableReason || 'Sending speaker updates is unavailable.' }}</p>
             <p v-if="!testMode" class="mt-4 text-sm text-dc-gray">Sending queues this update for {{ recipients.length }} speaker{{ recipients.length === 1 ? '' : 's' }}. Provider acceptance is not confirmation of delivery.</p>
           </div>

@@ -135,6 +135,22 @@ describe('HTTP security boundaries', () => {
     expect(response.headers.get('x-request-id')).toBeTruthy();
   });
 
+  it('keeps rejected speaker preview documents under the strict API policy', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const { default: app } = await import('./app');
+    const id = '00000000-0000-4000-8000-000000000001';
+    const path = `/api/annual-conference/2026/speaker-updates/${id}/previews/${id}/recipients/${id}/html`;
+
+    for (const target of [path, `${path}/wrong`]) {
+      const response = await app.request(target);
+
+      expect(response.status).not.toBe(200);
+      expect(response.headers.get('x-frame-options')).toBe('DENY');
+      expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+      expect(response.headers.get('content-security-policy')).toContain("style-src-attr 'none'");
+    }
+  });
+
   it('allows Vite development style and bootstrap injection without weakening production CSP', async () => {
     vi.stubEnv('NODE_ENV', 'development');
     const { default: app } = await import('./app');

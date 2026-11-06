@@ -181,9 +181,40 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
 
       await saveSpeakerUpdatePreview({ id: previewId, update_id: campaign.id, edition_id: edition.id, actor_id: session.membership_id, version: campaign.version, recipients, expires_at: new Date(Date.now() + 600000).toISOString(), used_at: null, queued_count: null });
 
-      return c.json({ preview_id: previewId, expires_in_seconds: 600, recipients: recipients.map(({ id, name, recipient, subject, html, text }) => ({ id, name, recipient, subject, html, text })) });
+      return c.json({ preview_id: previewId, expires_in_seconds: 600, recipients: recipients.map(({ id, name, recipient, subject, html, text }) => ({ id, name, recipient, subject, html, text, preview_url: `/api/annual-conference/${edition.year}/speaker-updates/${campaign.id}/previews/${previewId}/recipients/${id}/html` })) });
     } catch (error) {
       return internalErrorResponse(c, 'speaker_update_preview_failed', error, 'Unable to preview speaker update.');
+    }
+  });
+
+  app.get(`${base}/:id/previews/:previewId/recipients/:recipientId/html`, async (c) => {
+    const denied = await ownerAccess(c);
+
+    if (denied) return denied;
+    const params = z.object({ id: z.string().uuid(), previewId: z.string().uuid(), recipientId: z.string().uuid() }).safeParse(c.req.param());
+
+    if (!params.success) return c.json({ error: 'The preview is unavailable. Preview again.' }, 404);
+    const session = c.get('adminSession') ?? await getAdminSession(c);
+
+    if (!session.authenticated || !session.membership_id) return c.json({ error: 'Owner session identity is unavailable.' }, 403);
+    try {
+      const edition = await getAnnualConferenceEditionByYear(Number(c.req.param('year')), c);
+      const campaign = edition && await getSpeakerUpdate(edition.id, params.data.id);
+
+      if (!edition || !campaign) return c.json({ error: 'Speaker update not found.' }, 404);
+      const preview = await getSpeakerUpdatePreview(params.data.previewId, campaign.id, edition.id, session.membership_id);
+      const item = preview && !preview.used_at && Date.parse(preview.expires_at) > Date.now() && preview.version === campaign.version && campaign.state === 'draft'
+        ? preview.recipients.find((recipient) => recipient.id === params.data.recipientId)
+        : undefined;
+
+      if (!item) return c.json({ error: 'The preview expired or is unavailable. Preview again.' }, 409);
+
+      return c.html(item.html, 200, {
+        'Cache-Control': 'private, no-store',
+        'Content-Disposition': 'inline',
+      });
+    } catch (error) {
+      return internalErrorResponse(c, 'speaker_update_preview_document_failed', error, 'Unable to load speaker update preview.');
     }
   });
 

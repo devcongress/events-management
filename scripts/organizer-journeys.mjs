@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { spawn, spawnSync } from "node:child_process";
 import { chromium } from "playwright";
 
@@ -337,7 +337,18 @@ async function journey(
       return route.fulfill({ path: `public${url.pathname}` });
     }
     if (url.origin !== origin) return route.abort();
-    if (!url.pathname.startsWith("/api/")) return route.continue();
+    if (!url.pathname.startsWith("/api/")) {
+      if (name.startsWith("speaker-updates-") && request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+        const worker = await readFile("public/_worker.js", "utf8");
+        const policySource = worker.match(/const CONTENT_SECURITY_POLICY = \[([\s\S]*?)\]\.join\('; '\);/)[1];
+        const policy = [...policySource.matchAll(/^\s*"([^"]+)"/gm)].map((match) => match[1]).join("; ");
+        const response = await route.fetch();
+
+        return route.fulfill({ response, headers: { ...response.headers(), "content-security-policy": policy } });
+      }
+
+      return route.continue();
+    }
     requests.push({
       path: url.pathname,
       method: request.method(),
@@ -345,10 +356,12 @@ async function journey(
     });
     let body;
     let status = 200;
+    let contentType;
+    let headers;
     const custom = responses.get(url.pathname);
 
     if (custom) {
-      ({ body, status = 200 } =
+      ({ body, status = 200, contentType, headers } =
         typeof custom === "function" ? await custom(request) : custom);
     } else if (url.pathname === "/api/auth/session") {
       body = {
@@ -386,6 +399,7 @@ async function journey(
         json: { error: "Unmocked fixture endpoint" },
       });
     }
+    if (contentType) return route.fulfill({ status, contentType, headers, body });
     await route.fulfill({ status, json: body });
   });
   page.setDefaultTimeout(8000);
@@ -3493,7 +3507,7 @@ try {
   for (const mobile of [false, true]) {
     await journey(`speaker-updates-${mobile ? "mobile" : "desktop"}`, async ({ page, responses, requests }) => {
       const base = "/api/annual-conference/2026/speaker-updates";
-      const ids = ["speaker-1", "speaker-2", "speaker-3"];
+      const ids = ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003"];
       const candidates = [
         { id: ids[0], name: "Ada Example", email: "ada@example.test", eligible: true, reason: null },
         { id: ids[1], name: "Ama Example", email: "ama@example.test", eligible: true, reason: null },
@@ -3503,10 +3517,16 @@ try {
 
       assert.equal(fixture.status, 0, fixture.stderr);
       const { rendered, defaultDraft } = JSON.parse(fixture.stdout);
-      let campaign = { id: "update-1", edition_id: "fixture-edition", ...defaultDraft, version: 1, state: "draft", created_at: "2026-11-05T10:00:00Z", updated_at: "2026-11-05T10:00:00Z" };
+      let campaign = { id: "10000000-0000-4000-8000-000000000001", edition_id: "fixture-edition", ...defaultDraft, version: 1, state: "draft", created_at: "2026-11-05T10:00:00Z", updated_at: "2026-11-05T10:00:00Z" };
       let sendingEnabled = false;
       const delivery = { id: "delivery-1", submission_id: ids[0], name: candidates[0].name, recipient: candidates[0].email, status: "failed", last_error: "Temporary failure", attempt_count: 1 };
-      const recipient = { id: ids[0], name: candidates[0].name, recipient: candidates[0].email, ...rendered };
+      const previewPath = (id) => `${base}/${campaign.id}/previews/20000000-0000-4000-8000-000000000001/recipients/${id}/html`;
+      const recipient = { id: ids[0], name: candidates[0].name, recipient: candidates[0].email, ...rendered, preview_url: previewPath(ids[0]) };
+      const emailCsp = "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'none'; script-src 'none'; style-src 'unsafe-inline'; style-src-attr 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https://devcongress.org https://em.devcongress.org";
+
+      for (const id of ids.slice(0, 2)) {
+        responses.set(previewPath(id), { contentType: "text/html", headers: { "content-security-policy": emailCsp }, body: rendered.html });
+      }
 
       responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
       responses.set("/api/annual-conference/2026/speakers", { body: { edition: { ...edition, name: "DevCongress Annual Conference" }, call: { open: true, public_path: "/speak/c/2026", logistics_deadline: null }, permissions: { can_manage: true, can_send_email: true }, email_delivery: { configured: true, workspace_links_configured: true }, counts: { submitted: 0, selected: 0, not_selected: 0, withdrawn: 0 }, submissions: [] } });
@@ -3517,7 +3537,7 @@ try {
 
         return { body: request.method() === "PUT" ? { campaign } : { campaign, deliveries: campaign.state === "draft" ? [] : [delivery] } };
       });
-      responses.set(`${base}/${campaign.id}/preview`, { body: { preview_id: "preview-1", expires_in_seconds: 600, recipients: [recipient, { ...recipient, id: ids[1], name: "Ama Example", recipient: "ama@example.test" }] } });
+      responses.set(`${base}/${campaign.id}/preview`, { body: { preview_id: "20000000-0000-4000-8000-000000000001", expires_in_seconds: 600, recipients: [recipient, { ...recipient, id: ids[1], name: "Ama Example", recipient: "ama@example.test", preview_url: previewPath(ids[1]) }] } });
       let testAttempt = 0;
       const staleTest = createSaveGate();
 
@@ -3596,7 +3616,7 @@ try {
       const testRequests = requests.filter((request) => request.path.endsWith("/test"));
       const testPayload = JSON.parse(testRequests[0].body);
 
-      assert.deepEqual({ ...testPayload, request_id: "uuid" }, { preview_id: "preview-1", recipient_id: ids[0], email: "test@example.test", request_id: "uuid" });
+      assert.deepEqual({ ...testPayload, request_id: "uuid" }, { preview_id: "20000000-0000-4000-8000-000000000001", recipient_id: ids[0], email: "test@example.test", request_id: "uuid" });
       assert.equal(JSON.parse(testRequests[1].body).request_id, testPayload.request_id);
       assert.equal(requests.some((request) => request.path.endsWith("/send")), false);
       assert.equal(await testAction.evaluate((button) => document.activeElement === button), true);
@@ -3605,7 +3625,31 @@ try {
 
       await drawer.waitFor();
       assert.deepEqual(JSON.parse(requests.find((request) => request.path.endsWith("/preview")).body), { ids: [ids[0], ids[1]], version: 2 });
-      assert.equal(await drawer.locator("iframe").getAttribute("srcdoc"), recipient.html);
+      const previewFrame = drawer.frameLocator('iframe[title="Personalized speaker update preview"]');
+
+      await previewFrame.locator('.email-copy').first().waitFor();
+      const brandColors = await previewFrame.locator('.email-brand-meta').evaluate((element) => ({
+        text: getComputedStyle(element).color,
+        background: getComputedStyle(element.closest('.email-brand')).backgroundColor,
+      }));
+
+      assert.equal(brandColors.text, 'rgb(255, 255, 255)');
+      assert.equal(brandColors.background, 'rgb(17, 17, 17)');
+      const copy = previewFrame.locator('.email-copy').filter({ hasText: 'Hi Ada' });
+
+      await copy.waitFor();
+      const copyStyle = await copy.evaluate(element => ({
+        color: getComputedStyle(element).color,
+        background: getComputedStyle(element.closest('.email-content')).backgroundColor,
+        size: getComputedStyle(element).fontSize,
+        family: getComputedStyle(element).fontFamily,
+      }));
+
+      assert.equal(copyStyle.color, 'rgb(68, 68, 68)');
+      assert.equal(copyStyle.background, 'rgb(255, 255, 255)');
+      assert.equal(copyStyle.size, '16px');
+      assert.match(copyStyle.family, /Inter/i);
+      await drawer.locator('iframe').screenshot({ path: `${artifacts}/speaker-update-rendered-${mobile ? "phone" : "desktop"}.png`, animations: "disabled" });
       await page.screenshot({ path: `${artifacts}/speaker-updates-${mobile ? "mobile" : "desktop"}-preview.png`, animations: "disabled" });
       assert.equal(await drawer.getByRole("button", { name: "Send update to 2 speakers" }).isDisabled(), true);
       await drawer.getByText("Speaker update delivery is not enabled.").waitFor();
@@ -3625,24 +3669,111 @@ try {
       await page.getByRole("button", { name: "Preview 2 selected" }).click();
       await drawer.waitFor();
       assert.equal(requests.filter((request) => request.path.endsWith("/preview")).length, 4);
-      await drawer.getByLabel("Test recipient").fill("test@example.test");
-      await drawer.getByRole("button", { name: "Send test email" }).click();
+      assert.equal(await drawer.getByLabel("Test recipient").count(), 0);
+      await drawer.getByRole("button", { name: "Close" }).click();
+      await testAction.click();
+      await testDrawer.waitFor();
+      await testDrawer.getByLabel("Test recipient").fill("test@example.test");
+      await testDrawer.getByRole("button", { name: "Send test email" }).click();
       await waitForSaveGate(staleTest, "stale speaker update test");
-      await drawer.getByRole("button", { name: "Ama Example" }).click();
-      assert.equal(await drawer.getByLabel("Test recipient").inputValue(), "");
+      await testDrawer.getByRole("button", { name: "Ama Example" }).click();
+      assert.equal(await testDrawer.getByLabel("Test recipient").inputValue(), "");
       const staleResponse = page.waitForResponse((response) => response.url().endsWith("/test"));
 
       staleTest.release();
       await staleResponse;
-      assert.equal(await drawer.isVisible(), true);
-      assert.equal(await drawer.getByLabel("Test recipient").inputValue(), "");
+      assert.equal(await testDrawer.isVisible(), true);
+      assert.equal(await testDrawer.getByLabel("Test recipient").inputValue(), "");
       assert.equal(requests.some((request) => request.path.endsWith("/send")), false);
+      await testDrawer.getByRole("button", { name: "Close" }).click();
+      await page.getByRole("button", { name: "Preview 2 selected" }).click();
+      await drawer.waitFor();
       await drawer.getByRole("button", { name: "Send update to 2 speakers" }).click();
       await drawer.waitFor({ state: "hidden" });
       await page.getByText("Temporary failure").waitFor();
-      assert.deepEqual(JSON.parse(requests.find((request) => request.path.endsWith("/send")).body), { preview_id: "preview-1", confirmed: true });
+      assert.deepEqual(JSON.parse(requests.find((request) => request.path.endsWith("/send")).body), { preview_id: "20000000-0000-4000-8000-000000000001", confirmed: true });
       assert.equal(await page.getByLabel("Subject").isDisabled(), true);
       assert.equal(await page.getByText("Failed · 1 attempt").count(), 1);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    }, { role: "owner" });
+  }
+
+  for (const mobile of [false, true]) {
+    await journey(`speaker-updates-recipient-selection-${mobile ? "mobile" : "desktop"}`, async ({ page, responses, requests }) => {
+      const base = "/api/annual-conference/2026/speaker-updates";
+      const candidates = Array.from({ length: 8 }, (_, index) => ({
+        id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, name: `Speaker ${index + 1}`, email: `speaker${index + 1}@example.test`,
+        eligible: index !== 2, reason: index === 2 ? "Private workspace access is revoked." : null,
+      }));
+      const selectedIds = candidates.filter(item => item.eligible).map(item => item.id);
+      const fixture = spawnSync(process.execPath, ["--import", "tsx", "scripts/fixtures/speaker-update-preview.ts"], { encoding: "utf8" });
+
+      assert.equal(fixture.status, 0, fixture.stderr);
+      const { rendered, defaultDraft } = JSON.parse(fixture.stdout);
+      let campaign = { id: "10000000-0000-4000-8000-000000000001", edition_id: "fixture-edition", ...defaultDraft, version: 1, state: "draft", created_at: "2026-11-05T10:00:00Z", updated_at: "2026-11-05T10:00:00Z" };
+      let sendingEnabled = false;
+      const previewPath = (id) => `${base}/10000000-0000-4000-8000-000000000001/previews/20000000-0000-4000-8000-000000000001/recipients/${id}/html`;
+      const emailCsp = "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'none'; script-src 'none'; style-src 'unsafe-inline'; style-src-attr 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https://devcongress.org https://em.devcongress.org";
+
+      responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+      responses.set("/api/annual-conference/2026/speakers", { body: { edition: { ...edition, name: "DevCongress Annual Conference" }, call: { open: true, public_path: "/speak/c/2026", logistics_deadline: null }, permissions: { can_manage: true, can_send_email: true }, email_delivery: { configured: true, workspace_links_configured: true }, counts: { submitted: 0, selected: 0, not_selected: 0, withdrawn: 0 }, submissions: [] } });
+      responses.set("/api/annual-conference/2026/speaker-outcomes/messages", { body: { messages: [] } });
+      responses.set(base, () => ({ body: { campaigns: [campaign], candidates, default_draft: defaultDraft, sending_enabled: sendingEnabled, send_unavailable_reason: "Speaker update delivery is not enabled." } }));
+      responses.set(`${base}/${campaign.id}`, () => ({ body: { campaign, deliveries: [] } }));
+      responses.set(`${base}/10000000-0000-4000-8000-000000000001/preview`, (request) => {
+        const { ids } = JSON.parse(request.postData());
+
+        return { body: { preview_id: "20000000-0000-4000-8000-000000000001", expires_in_seconds: 600, recipients: ids.map(id => {
+          const candidate = candidates.find(item => item.id === id);
+
+          return { id, name: candidate.name, recipient: candidate.email, ...rendered, preview_url: previewPath(id) };
+        }) } };
+      });
+      for (const candidate of candidates) {
+        responses.set(previewPath(candidate.id), { contentType: "text/html", headers: { "content-security-policy": emailCsp }, body: rendered.html });
+      }
+      responses.set(`${base}/10000000-0000-4000-8000-000000000001/send`, () => {
+        campaign = { ...campaign, state: "queued" };
+
+        return { body: { queued: selectedIds.length } };
+      });
+      await page.setViewportSize({ width: mobile ? 390 : 1440, height: 844 });
+      await page.goto(`${origin}/organizer-console/annual-conference/2026/speakers?section=outcome-messages&messageView=updates`);
+      await page.getByRole("button", { name: /DevCon26 speaker update.*Draft/ }).click();
+      const selectAll = page.getByLabel("Select all eligible");
+      const pagination = page.getByRole("navigation", { name: "Speaker update recipients" });
+
+      await page.getByLabel(/Speaker 1 ·/).check();
+      assert.equal(await selectAll.evaluate(input => input.indeterminate), true);
+      await selectAll.check();
+      await page.getByText("7 selected", { exact: true }).waitFor();
+      assert.equal(await page.getByLabel(/Speaker 3 ·/).isDisabled(), true);
+      await pagination.getByRole("button", { name: "Next page" }).click();
+      assert.equal(await page.getByLabel(/Speaker 7 ·/).isChecked(), true);
+      assert.equal(await page.getByLabel(/Speaker 8 ·/).isChecked(), true);
+      await page.getByRole("button", { name: "Clear all" }).click();
+      assert.equal(await page.getByLabel(/Speaker 7 ·/).isChecked(), false);
+      assert.equal(await selectAll.isChecked(), false);
+      await selectAll.check();
+      await page.getByRole("button", { name: "Preview 7 selected" }).click();
+      const drawer = page.getByRole("dialog", { name: "Review speaker updates" });
+
+      await drawer.waitFor();
+      assert.deepEqual(JSON.parse(requests.find(request => request.path.endsWith("/preview")).body), { ids: selectedIds, version: 1 });
+      assert.equal(await drawer.getByLabel("Test recipient").count(), 0);
+      assert.equal(await drawer.getByRole("button", { name: "Send update to 7 speakers" }).isDisabled(), true);
+      assert.equal(requests.some(request => request.path.endsWith("/send")), false);
+      await drawer.getByRole("button", { name: "Close" }).click();
+      sendingEnabled = true;
+      await page.reload();
+      await page.getByRole("button", { name: /DevCon26 speaker update.*Draft/ }).click();
+      await page.getByLabel("Select all eligible").check();
+      await page.getByRole("button", { name: "Preview 7 selected" }).click();
+      await drawer.waitFor();
+      await drawer.getByRole("button", { name: "Send update to 7 speakers" }).click();
+      await drawer.waitFor({ state: "hidden" });
+      assert.deepEqual(JSON.parse(requests.find(request => request.path.endsWith("/send")).body), { preview_id: "20000000-0000-4000-8000-000000000001", confirmed: true });
+      assert.deepEqual(JSON.parse(requests.filter(request => request.path.endsWith("/preview")).at(-1).body).ids, selectedIds);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     }, { role: "owner" });
   }
