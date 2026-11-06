@@ -360,6 +360,10 @@ async function journey(
           role,
         },
       };
+    } else if (request.method() === "GET" && url.pathname === "/api/public/annual-conference/2026/attendance-counter") {
+      body = { count: null, source: null };
+    } else if (request.method() === "GET" && url.pathname === "/api/annual-conference/2026/attendance-counter" && role === "owner") {
+      body = { count: null, source: null, version: 0 };
     } else if (request.method() === "GET" && [
       "/api/annual-conference/2026/programme/speakers",
       "/api/annual-conference/2027/programme/speakers",
@@ -423,6 +427,115 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   browser = await chromium.launch();
+
+  async function stubBadgeShare(page) {
+    await page.addInitScript(() => {
+      Object.defineProperties(navigator, {
+        canShare: { value: (data) => data.files?.[0]?.type === "image/png" },
+        share: { value: ({ files }) => {
+          window.badgeShared = { name: files[0].name, size: files[0].size, activated: navigator.userActivation.isActive };
+
+          return Promise.resolve();
+        } },
+      });
+    });
+  }
+
+  for (const width of [320, 1440]) {
+    await journey(`devcon26-volunteer-badge-${width}`, async ({ page, responses, requests }) => {
+      responses.set("/api/public/annual-conference/2026/attendance-counter", { body: { count: 21, source: "estimate" } });
+      if (width === 320) await stubBadgeShare(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${origin}/organizer-console/annual-conference/2026`);
+      const editor = page.getByRole("region", { name: "Your volunteer badge" });
+
+      await page.getByText("21 people are attending").waitFor();
+      await editor.getByRole("button", { name: "Create badge" }).click();
+      await editor.getByRole("textbox", { name: "Display name" }).fill("Ama Mensah");
+      const preview = editor.getByRole("img", { name: "DevCon26 volunteer badge preview for Ama Mensah" });
+
+      await preview.waitFor();
+      if (width === 320) {
+        await editor.locator('input[type="file"]').setInputFiles("public/brand/dev-con-logo.png");
+        await editor.getByRole("button", { name: "Remove photo" }).waitFor();
+        await editor.getByRole("button", { name: "Share badge" }).click();
+        const result = await page.evaluate(() => window.badgeShared);
+
+        assert.equal(result.name, "devcon26-volunteer.png");
+        assert.equal(result.activated, true);
+        assert.ok(result.size > 0);
+      }
+      const download = page.waitForEvent("download");
+
+      await editor.getByRole("button", { name: "Download PNG" }).click();
+      const file = await download;
+
+      assert.equal(file.suggestedFilename(), "devcon26-volunteer.png");
+      assert.equal(await file.failure(), null);
+      assert.equal(await preview.evaluate((canvas) => canvas.width), 1080);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      assert.equal(requests.some((request) => request.method !== "GET"), false);
+      assert.equal(requests.some((request) => request.path === "/api/annual-conference/2026/attendance-counter"), false);
+    }, { role: "volunteer" });
+  }
+
+  await journey("devcon26-speaker-badge-share", async ({ page, responses, requests }) => {
+    const token = "fixture-speaker-badge";
+    const endpoint = `/api/conferences/2026/speaker-intake/${token}`;
+
+    responses.set(endpoint, { body: { event, link: { purpose: "conference_speaker_workspace" }, prefill: { title: "Systems in production" } } });
+    responses.set(`${endpoint}/headshot`, { body: {
+      headshot: { source: "none", url: null, revision: 0, photo_available: false },
+      badge_photo: { available: false, version: null },
+    } });
+    responses.set(`${endpoint}/badge`, { body: {
+      card: { display_name: "Ama Mensah", role: "speaker", crop: { x: 0.5, y: 0.18, scale: 1 }, photo_available: false, photo_version: null },
+    } });
+    responses.set(`/api/conference-speaker-materials/2026/${token}`, { body: { materials: [] } });
+    await stubBadgeShare(page);
+    await page.goto(`${origin}/conference-speakers/2026/${token}`);
+    await page.getByRole("button", { name: "Customize badge" }).click();
+    const badge = page.getByRole("region", { name: "Your speaker badge" });
+
+    await badge.getByRole("button", { name: "Share badge" }).click();
+    const result = await page.evaluate(() => window.badgeShared);
+
+    assert.equal(result.name, "devcon26-speaker-badge.png");
+    assert.equal(result.activated, true);
+    assert.ok(result.size > 0);
+    assert.equal(await badge.getByRole("button", { name: "Download PNG" }).isVisible(), true);
+    assert.equal(requests.some((request) => request.method !== "GET"), false);
+  });
+
+  await journey("devcon26-attendance-counter-owner", async ({ page, responses }) => {
+    const ownerPath = "/api/annual-conference/2026/attendance-counter";
+    let state = { count: null, source: null, version: 0 };
+
+    responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+    responses.set("/api/admin/organizers", { body: { organizers: [] } });
+    responses.set(ownerPath, (request) => {
+      if (request.method() === "PATCH") {
+        const body = request.postDataJSON();
+
+        assert.equal(body.confirmed, true);
+        assert.equal(body.version, state.version);
+        state = { count: body.source === "estimate" ? 20 : 12, source: body.source, version: state.version + 1 };
+      }
+
+      return { body: state };
+    });
+    await page.goto(`${origin}/organizer-console/mobile/annual-conference/2026`);
+    const counter = page.getByRole("region", { name: "Attendance counter" });
+
+    await counter.getByRole("button", { name: "Publish estimate" }).click();
+    await counter.getByRole("button", { name: "Confirm" }).click();
+    await counter.getByText("20 people are attending").waitFor();
+    await counter.getByText("Estimated turnout").waitFor();
+    await counter.getByRole("button", { name: "Switch to actual" }).click();
+    await counter.getByRole("button", { name: "Confirm" }).click();
+    await counter.getByText("12 people are attending").waitFor();
+    assert.equal(await counter.getByRole("button", { name: "Switch to actual" }).count(), 0);
+  }, { role: "owner" });
 
   await journey('button-hover-feedback', async ({ page, responses }) => {
     responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });

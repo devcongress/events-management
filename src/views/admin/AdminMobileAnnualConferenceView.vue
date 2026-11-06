@@ -3,6 +3,8 @@ import { taskDetailsSearchText } from "@/lib/annual-conference-task-details";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
+import AnnualConferenceAttendanceCounter from "@/src/components/AnnualConferenceAttendanceCounter.vue";
+import VolunteerBadge from "@/src/components/VolunteerBadge.vue";
 import AppDropdown from "@/src/components/AppDropdown.vue";
 import AnnualConferenceTaskDrawer from "@/src/components/AnnualConferenceTaskDrawer.vue";
 import VolunteerApplicationSheet from "@/src/components/VolunteerApplicationSheet.vue";
@@ -1022,6 +1024,11 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
           key="overview"
           class="conference-view"
         >
+          <VolunteerBadge v-if="year === '2026' && sessionQuery.data.value?.user?.role === 'volunteer'" :display-name="sessionQuery.data.value?.user?.display_name" />
+          <AnnualConferenceAttendanceCounter
+            v-if="year === '2026' && sessionQuery.data.value?.authenticated"
+            :can-manage="sessionQuery.data.value?.user?.role === 'owner'"
+          />
           <div v-if="registrationTarget || canManageTicketing" class="conference-workspace-links">
             <RouterLink v-if="registrationTarget" :to="registrationTarget" class="primary-button">Open Registration →</RouterLink>
             <RouterLink v-if="canManageTicketing" :to="annualConferencePath('ticketing', year)" class="secondary-button">Ticketing →</RouterLink>

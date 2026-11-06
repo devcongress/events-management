@@ -1,5 +1,13 @@
 # Architectural Decisions
 
+## ADR-125: Keep the public attendance counter separate from admissions
+
+**Date:** 2026-11-06
+
+**Decision:** EMS owns the DevCon26 attendance display and its source. The estimate derives from the saved publication time, uses a fixed two-day cadence, and freezes at the start of the event date in Accra. An Owner can permanently switch the display to actual attendance, which is recomputed from current records. The public contract exposes only the aggregate and its source.
+
+**Why:** Deriving the estimate avoids a scheduled write and keeps both sites on the same value. Keeping the display separate from registration and ticketing protects capacity, payment, and check-in state from promotional changes.
+
 ## ADR-124: Buyer-paid managed checkout fees are immutable order quotes
 
 **Date:** 2026-10-30

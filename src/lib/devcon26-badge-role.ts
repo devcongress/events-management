@@ -10,10 +10,14 @@ const GLYPHS: Record<string, string[]> = {
   S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
   P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
   K: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
+  V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
+  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+  L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+  U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
   R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
 };
 
-export function badgeRoleDots(role: 'attendee' | 'speaker'): Array<{ x: number; y: number; radius: number }> {
+export function badgeRoleDots(role: 'attendee' | 'speaker' | 'volunteer'): Array<{ x: number; y: number; radius: number }> {
   const label = role.toUpperCase();
   const pitch = 7;
   const radius = 2.35;

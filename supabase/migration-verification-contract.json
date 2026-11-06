@@ -6215,6 +6215,45 @@
           ]
         }
       ]
+    },
+    {
+      "file": "20261106120000_annual_conference_attendance_counter.sql",
+      "sha256": "76b3364f646b3ed1a9f1242a51074f55ef6d55867e8ccd3a0d9c6fd7189e4af1",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_attendance_counters",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "read_annual_conference_attendance_counter",
+          "argumentTypes": "integer",
+          "result": "jsonb",
+          "language": "plpgsql",
+          "bodySha256": "f19c3c0091d0466de250e322e7b8e4f748f36398482a6edd6332ecda400601de",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "configure_annual_conference_attendance_counter",
+          "argumentTypes": "integer, text, integer",
+          "result": "jsonb",
+          "language": "plpgsql",
+          "bodySha256": "6dc942f249f16ff7e279a39150ebc22a1302db47757eae686998bd3b47f3fe57",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
     }
   ]
 }

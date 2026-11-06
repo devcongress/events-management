@@ -2,6 +2,16 @@
 
 DevCon26 registration is an annual-conference domain, not a monthly meetup or a zero-price payment. Free website intake uses `/api/public/annual-conference/2026/registration`; paid checkout uses the managed contract below. Public duplicate responses never reveal attendee status or admission capabilities.
 
+## Public attendance counter
+
+On the DevCon26 overview, an Owner can publish an estimate or start directly with actual counts. The estimate begins at 20 and increases by +1, +2, and +3 in a repeating sequence at 48-hour intervals after publication. At midnight in Accra on the conference date, it freezes at the last pre-event value. An Owner can switch to actual counts at any time. The switch is permanent and the displayed value can decrease.
+
+The actual count includes issued and checked-in live admissions, including issued sponsor admissions, and confirmed non-test free registrations. Free registration tickets count through their registration record. Pending, cancelled, refunded, and test tickets, as well as unused sponsor allocations, are excluded. Each distinct confirmed speaker email adds one person when EMS cannot match it to a counted admission.
+
+The website can request `GET /api/public/annual-conference/2026/attendance-counter`. The credential-free response is `{ "count": 20, "source": "estimate" }` when the estimate is active. The source is `actual` after the switch. Both fields are null before publication. Render “X people are attending” with “Estimated turnout” alongside it in estimate mode. Hide the display before publication or when the request fails. The response uses `Cache-Control: no-store` and the existing public API origin allowlist. Fetch at runtime so the site's count follows EMS without a rebuild.
+
+Apply and verify `20261106120000_annual_conference_attendance_counter.sql` before deploying the EMS feature. Publishing the counter is an explicit Owner action.
+
 ## EMS-managed Testing and Live payments (2026-10-28)
 
 For the paid 2026 edition, an Owner uses **Registration → Form & capacity → Payment mode** to choose **Testing** or **Live** and edit approved tester emails. Mode and the normalized exact-email list are reviewed and saved together under a settings-version lock. The existing testing row remains the authority: `enabled=true` means Testing and `enabled=false` means Live. There is no second independently editable payment-mode flag. Free/paid registration and draft/open/closed sales availability remain separate controls; selecting a payment mode does not open sales. Free registration retains its existing Testing settings panel.
