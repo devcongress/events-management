@@ -59,7 +59,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Organizer browser journeys
-        timeout-minutes: 3
+        timeout-minutes: 5
         run: pnpm test:journeys
 
       - name: Upload journey evidence

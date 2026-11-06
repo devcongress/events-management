@@ -287,6 +287,10 @@ async function journey(
 ) {
   if (process.env.ORGANIZER_JOURNEY_FILTER && !name.includes(process.env.ORGANIZER_JOURNEY_FILTER)) return;
 
+  const started = Date.now();
+  let status = "failed";
+
+  console.log(`[journey] start ${name}`);
   const context = await browser.newContext({
     viewport:
       name === "presentation-board" || name === "reports-navigation-desktop"
@@ -380,14 +384,13 @@ async function journey(
     }
     await route.fulfill({ status, json: body });
   });
-  const started = Date.now();
-
   page.setDefaultTimeout(8000);
   try {
     await run({ page, responses, requests });
     assert.deepEqual(errors, []);
     results.push({ name, status: "passed", durationMs: Date.now() - started });
     await context.tracing.stop();
+    status = "passed";
   } catch (error) {
     results.push({
       name,
@@ -403,6 +406,7 @@ async function journey(
     await context.tracing.stop({ path: `${artifacts}/${name}.zip` });
   } finally {
     await context.close();
+    console.log(`[journey] ${status} ${name} ${Date.now() - started}ms`);
   }
 }
 

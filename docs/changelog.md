@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-06 — Browser journey CI budget
+
+- Allow five minutes for the full browser suite and log each journey’s start and completion time to make CI timeouts easier to diagnose.
+
 ## 2026-11-06 — Speaker monitoring and action feedback
 
 - Show participation, headshot and social submission statuses before opening a speaker, with explicit missing details in the organizer drawer and optional badge/materials below.
