@@ -1,3 +1,6 @@
+import { confirmSlackReviewerLink, slackReviewerAllowMe } from '@/server/event-submissions/slack-account-link';
+import { postSubmissionCard, rejectionView, retrySubmissionCards, slackModerationConfig, slackModerator, syncSubmissionCard, verifySlackSignature } from '@/server/event-submissions/slack-moderation';
+import { callSlackWebApi } from '@/lib/email/slack';
 import { registerAnnualConferenceProgrammeRoutes } from '@/server/routes/annual-conference-programme';
 import { TICKET_PURCHASE_PATH } from '@/short-links/ticket-purchase';
 import { eventBlastOutline, eventBlastOutlineSchema } from '@/lib/event-blast-outline';
@@ -443,6 +446,9 @@ for (const publicWritePath of [
   MANAGED_PAYMENT_WEBHOOK_PATH,
   '/api/webhooks/resend/inbound',
   '/api/webhooks/resend',
+  '/api/webhooks/slack/event-submissions',
+  '/api/slack/event-submissions/allow-me',
+  '/api/slack/event-submissions/link/confirm',
 ]) {
   app.use(publicWritePath, bodyLimitForPayloadMethods(PUBLIC_JSON_BODY_MAX_BYTES));
 }
@@ -1297,7 +1303,9 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
     || path === '/api/auth/admin/access-request'
     ))
     || (method === 'POST' && (
-      path === '/api/webhooks/resend/inbound'
+      path === '/api/slack/event-submissions/allow-me'
+      || path === '/api/webhooks/slack/event-submissions'
+      || path === '/api/webhooks/resend/inbound'
       || path === '/api/webhooks/resend'
       || path === '/api/webhooks/paystack'
       || path === '/api/public/email-preflight'
@@ -2932,12 +2940,12 @@ async function checkDueEventPages(c: Context) {
 
 async function notifyEventSubmissionChannel(submission: EventSubmission, c: Context): Promise<void> {
   const webhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+  const config = slackModerationConfig((name) => envValue(name, c));
 
-  if (!webhookUrl) return;
+  if (!webhookUrl && !config) return;
 
   try {
-    await sendEventSubmissionReceivedToSlack({
-      webhookUrl,
+    const input = {
       eventTitle: submission.title,
       summary: boundedSlackExcerpt(submission.summary),
       organizerName: submission.organizer_name,
@@ -2947,7 +2955,10 @@ async function notifyEventSubmissionChannel(submission: EventSubmission, c: Cont
       location: submission.venue_name ?? submission.online_url ?? 'Location to be announced',
       dashboardUrl: eventSubmissionDashboardUrl(submission.id, c),
       coverImageUrl: submission.cover_url ?? 'https://em.devcongress.org/images/event-announcement-fallback.png',
-    });
+    };
+
+    if (config) await postSubmissionCard(c, config, submission.id, input);
+    else if (webhookUrl) await sendEventSubmissionReceivedToSlack({ ...input, webhookUrl });
   } catch (error) {
     console.warn(JSON.stringify({
       event: 'event_submission_slack_notification_failed',
@@ -3618,9 +3629,10 @@ async function dispatchSelectedSpeakerEmails(
  * Hono validation/authentication stays in the routes; related state transitions,
  * audit descriptors, and delivery intent stay together in the lifecycle.
  */
-function eventSubmissionLifecycleForRequest(c: Context) {
+function eventSubmissionLifecycleForRequest(c: Context, slackActor?: { email: string; role: 'owner' | 'organizer' | null; slackUserId: string; teamId: string; channelId: string; reviewedVia: 'slack_ems' | 'slack_only' }) {
   return createEventSubmissionRequestAdapter(c, {
-    audit: (event) => auditAdminAction(c, event),
+    slackActor,
+    audit: (event) => slackActor ? Promise.resolve() : auditAdminAction(c, event),
     queueEmail: ({ submissionId, kind }) => dispatchEventSubmissionEmails(c, {
       submissionId,
       kinds: [kind],
@@ -6384,6 +6396,91 @@ app.delete('/api/admin/organizers/:organizerId/permanent', async (c) => {
   return c.json({ removed: true, id: existingMembership.id });
 });
 
+app.post('/api/slack/event-submissions/allow-me', slackReviewerAllowMe);
+app.post('/api/slack/event-submissions/link/confirm', confirmSlackReviewerLink);
+
+app.post('/api/webhooks/slack/event-submissions', async (c) => {
+  const config = slackModerationConfig((name) => envValue(name, c));
+
+  if (!config) return c.body(null, 404);
+  const raw = await c.req.text();
+  const valid = await verifySlackSignature(raw, c.req.header('x-slack-request-timestamp') ?? '', c.req.header('x-slack-signature') ?? '', config.signingSecret);
+
+  if (!valid) return c.body(null, 401);
+  let payload: Record<string, any>;
+
+  try {
+    payload = JSON.parse(new URLSearchParams(raw).get('payload') ?? '') as Record<string, any>;
+  } catch {
+    return c.body(null, 400);
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.team?.id !== config.teamId || payload.api_app_id !== config.appId || typeof payload.user?.id !== 'string' || !/^[UW][A-Z0-9]{8,31}$/.test(payload.user.id)) return c.body(null, 403);
+  const slackUserId = payload.user.id as string;
+  const action = payload.actions?.[0];
+  const isView = payload.type === 'view_submission' && payload.view?.callback_id === 'submission_rejection';
+
+  if (!isView && payload.type !== 'block_actions') return c.body(null, 400);
+  if (!isView && action?.action_id === 'submission_review' && payload.channel?.id === config.channelId) return c.body(null, 200);
+  let reference: { submissionId: string; channelId: string; messageTs: string };
+
+  try {
+    reference = isView ? JSON.parse(payload.view.private_metadata) : {
+      submissionId: action?.value,
+      channelId: payload.channel?.id,
+      messageTs: payload.message?.ts,
+    };
+  } catch {
+    return c.body(null, 400);
+  }
+  if (!reference || typeof reference !== 'object' || reference.channelId !== config.channelId || typeof reference.submissionId !== 'string' || typeof reference.messageTs !== 'string') return c.body(null, 403);
+  if (!isView && action?.action_id === 'submission_reject') {
+    await callSlackWebApi({ method: 'views.open', botToken: config.botToken, payload: { trigger_id: payload.trigger_id, view: rejectionView(JSON.stringify(reference)) } });
+
+    return c.body(null, 200);
+  }
+  if (!isView && action?.action_id !== 'submission_approve') return c.body(null, 400);
+  const values = payload.view?.state?.values;
+  const rejection = isView ? eventSubmissionRejectSchema.safeParse({
+    category: values?.category?.value?.selected_option?.value,
+    organizer_message: values?.message?.value?.value ?? '',
+    internal_note: values?.note?.value?.value ?? '',
+  }) : null;
+
+  if (isView && !rejection?.success) return c.json({ response_action: 'errors', errors: { category: 'Choose a valid reason.' } });
+  const task = (async () => {
+    const card = await getSupabaseAdminClient(c).from('event_submission_slack_cards').select('submission_id')
+      .eq('submission_id', reference.submissionId).eq('channel_id', reference.channelId).eq('message_ts', reference.messageTs).maybeSingle();
+    const currentActor = await slackModerator(c, config, slackUserId);
+
+    if (card.error || !card.data) throw new Error('Unknown submission card');
+    if (!currentActor) {
+      await callSlackWebApi({ method: 'chat.postEphemeral', botToken: config.botToken, payload: { channel: config.channelId, user: slackUserId, text: 'You cannot moderate this submission yet. Run /allow-me in this channel to check access.' } });
+
+      return;
+    }
+    const result = await eventSubmissionLifecycleForRequest(c, { ...currentActor, slackUserId, teamId: config.teamId, channelId: config.channelId }).review({
+      submissionId: reference.submissionId,
+      actor: { email: currentActor.email, role: currentActor.role },
+      command: rejection?.success
+        ? { kind: 'reject', category: rejection.data.category, organizerMessage: rejection.data.organizer_message, internalNote: rejection.data.internal_note }
+        : { kind: 'approve', publish: true },
+    });
+
+    await syncSubmissionCard(c, config, result.submission.id);
+  })().catch(async () => {
+    console.warn(JSON.stringify({ event: 'event_submission_slack_decision_failed', submission_id: reference.submissionId }));
+    await callSlackWebApi({ method: 'chat.postEphemeral', botToken: config.botToken, payload: { channel: config.channelId, user: slackUserId, text: 'This submission may already have been decided, or the decision could not be completed. Open Review in EMS to check its current status.' } }).catch(() => undefined);
+  });
+
+  try {
+    c.executionCtx.waitUntil(task);
+  } catch {
+    void task;
+  }
+
+  return c.body(null, 200);
+});
+
 app.post('/api/webhooks/resend/inbound', async (c) => {
   try {
     return await handleResendInboundWebhook(c);
@@ -6438,6 +6535,10 @@ app.post('/api/admin/event-submissions/:submissionId/approve', async (c) => {
       command: { kind: 'approve', publish: parsed.data.publish },
     });
 
+    const slackConfig = slackModerationConfig((name) => envValue(name, c));
+
+    if (slackConfig) await syncSubmissionCard(c, slackConfig, result.submission.id).catch(() => undefined);
+
     return c.json({ submission: result.submission, event_id: result.eventId });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {
@@ -6470,6 +6571,10 @@ app.post('/api/admin/event-submissions/:submissionId/reject', async (c) => {
         internalNote: parsed.data.internal_note,
       },
     });
+
+    const slackConfig = slackModerationConfig((name) => envValue(name, c));
+
+    if (slackConfig) await syncSubmissionCard(c, slackConfig, result.submission.id).catch(() => undefined);
 
     return c.json({ submission: result.submission });
   } catch (error) {
@@ -8035,6 +8140,11 @@ app.post('/api/internal/slack-announcements/retry', async (c) => {
   if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
 
   try {
+    const moderationConfig = slackModerationConfig((name) => envValue(name, c));
+
+    if (moderationConfig) await retrySubmissionCards(c, moderationConfig).catch(() => {
+      console.warn(JSON.stringify({ event: 'scheduled_slack_submission_retry_failed' }));
+    });
     const result = await retryEligibleEventSlackAnnouncements(c);
 
     console.info(JSON.stringify({ event: 'scheduled_event_slack_announcement_retry', ...result }));

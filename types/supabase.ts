@@ -176,6 +176,30 @@ export type VolunteerFollowUpOutcomeMessageRow = {
 export interface Database {
   public: {
     Tables: {
+      event_submission_slack_grants: {
+        Row: { team_id: string; channel_id: string; slack_user_id: string; granted_at: string };
+        Insert: { team_id: string; channel_id: string; slack_user_id: string; granted_at?: string };
+        Update: { granted_at?: string };
+        Relationships: [];
+      };
+      event_submission_slack_link_tokens: {
+        Row: { token_hash: string; team_id: string; slack_user_id: string; expires_at: string; created_at: string };
+        Insert: { token_hash: string; team_id: string; slack_user_id: string; expires_at: string; created_at?: string };
+        Update: { expires_at?: string };
+        Relationships: [];
+      };
+      event_submission_slack_cards: {
+        Row: { submission_id: string; channel_id: string; message_ts: string; payload: Json; delivered_status: string; sync_token: string | null; sync_until: string | null; sync_attempted_at: string | null; created_at: string };
+        Insert: { submission_id: string; channel_id: string; message_ts: string; payload: Json; delivered_status?: string; created_at?: string };
+        Update: { delivered_status?: string; sync_token?: string | null; sync_until?: string | null };
+        Relationships: [];
+      };
+      event_submission_slack_identities: {
+        Row: { team_id: string; slack_user_id: string; membership_id: string | null };
+        Insert: { team_id: string; slack_user_id: string; membership_id: string | null };
+        Update: { membership_id?: string | null };
+        Relationships: [];
+      };
       speaker_blasts: {
         Row: { id: string; event_id: string; revision: number; payload: Json; created_at: string };
         Insert: { id: string; event_id: string; revision?: number; payload: Json; created_at?: string };
@@ -1488,6 +1512,7 @@ export interface Database {
           review_status: CommunityEventModerationStatus;
           reviewed_by: string | null;
           reviewed_at: string | null;
+          reviewed_via?: 'slack_ems' | 'slack_only' | null;
           rejection_category: string | null;
           organizer_message: string | null;
           internal_note: string | null;
@@ -2527,6 +2552,14 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      grant_event_submission_slack_reviewer: { Args: { p_team_id: string; p_channel_id: string; p_slack_user_id: string; p_slack_email: string }; Returns: string };
+      consume_event_submission_slack_link: { Args: { p_token_hash: string; p_membership_id: string }; Returns: boolean };
+      claim_event_submission_slack_card: { Args: { p_submission_id: string; p_token: string }; Returns: boolean };
+      pending_event_submission_slack_card_sync: { Args: { p_channel_id: string }; Returns: { submission_id: string }[] };
+      slack_decide_event_submission: {
+        Args: { p_submission_id: string; p_reviewed_by: string; p_approve: boolean; p_category?: string | null; p_organizer_message?: string; p_internal_note?: string; p_team_id: string; p_channel_id: string; p_slack_user_id: string; p_reviewed_via: string };
+        Returns: Database['public']['Tables']['event_submissions']['Row'];
+      };
       claim_devcon26_test_checkout_emails: {
         Args: { p_claim_token: string };
         Returns: Database['public']['Tables']['devcon26_test_checkout_email_outbox']['Row'][];

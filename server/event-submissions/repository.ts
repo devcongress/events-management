@@ -8,6 +8,7 @@ import {
   rejectEventSubmission,
   reviewEventSubmissionAmendment,
   saveEventSubmissionAmendment,
+  slackDecideEventSubmission,
   submitEventSubmissionAmendment,
   withdrawEventSubmission,
 } from '@/lib/supabase/event-submissions';
@@ -19,12 +20,16 @@ import type { EventSubmissionLifecycleRepository } from './lifecycle';
  * free to move to RPC-backed or relational repositories without changing HTTP
  * routes or policy tests.
  */
-export function createEventSubmissionRepository(c: Context): EventSubmissionLifecycleRepository {
+export function createEventSubmissionRepository(c: Context, slackActor?: { teamId: string; channelId: string; slackUserId: string; reviewedVia: 'slack_ems' | 'slack_only' }): EventSubmissionLifecycleRepository {
   return {
     create: (input) => createEventSubmission(input, c),
     list: (status) => listEventSubmissions(status, c),
-    approve: (submissionId, reviewerEmail, publish) => approveEventSubmission(submissionId, reviewerEmail, publish, c),
-    reject: (submissionId, reviewerEmail, input) => rejectEventSubmission(submissionId, reviewerEmail, input, c),
+    approve: (submissionId, reviewerEmail, publish) => slackActor
+      ? slackDecideEventSubmission(submissionId, reviewerEmail, { approve: true, ...slackActor }, c)
+      : approveEventSubmission(submissionId, reviewerEmail, publish, c),
+    reject: (submissionId, reviewerEmail, input) => slackActor
+      ? slackDecideEventSubmission(submissionId, reviewerEmail, { approve: false, category: input.category, organizerMessage: input.organizer_message, internalNote: input.internal_note, ...slackActor }, c)
+      : rejectEventSubmission(submissionId, reviewerEmail, input, c),
     withdraw: (submissionId, reviewerEmail, organizerMessage) => withdrawEventSubmission(submissionId, reviewerEmail, organizerMessage, c),
     management: (linkId) => getEventSubmissionManagement(linkId, c),
     activeManagementLink: (submissionId) => getActiveEventSubmissionManagementLink(submissionId, c),

@@ -204,6 +204,11 @@ export const router = createRouter({
   routes: [
     { path: "/", redirect: adminPath("events") },
     {
+      path: "/slack/event-submissions/link",
+      name: "slack-reviewer-link",
+      component: () => import("./views/SlackReviewerLinkView.vue"),
+    },
+    {
       path: "/feedback/:eventId",
       name: "event-feedback",
       component: FeedbackView,

@@ -268,6 +268,30 @@ export async function rejectEventSubmission(
   return toEventSubmission(data, [], []);
 }
 
+export async function slackDecideEventSubmission(
+  id: string,
+  reviewerEmail: string,
+  input: { approve: boolean; category?: EventSubmissionRejectionCategory; organizerMessage?: string; internalNote?: string; teamId: string; channelId: string; slackUserId: string; reviewedVia: 'slack_ems' | 'slack_only' },
+  c?: Context,
+): Promise<EventSubmission> {
+  const { data, error } = await requireStorage(c).rpc('slack_decide_event_submission', {
+    p_submission_id: id,
+    p_reviewed_by: reviewerEmail,
+    p_approve: input.approve,
+    p_category: input.category ?? null,
+    p_organizer_message: input.organizerMessage ?? '',
+    p_internal_note: input.internalNote ?? '',
+    p_team_id: input.teamId,
+    p_channel_id: input.channelId,
+    p_slack_user_id: input.slackUserId,
+    p_reviewed_via: input.reviewedVia,
+  });
+
+  if (error || !data) throw new EventSubmissionStorageError('Submission is no longer pending.', 'unavailable');
+
+  return toEventSubmission(data, [], []);
+}
+
 export async function getEventSubmissionManagement(linkId: string, c?: Context): Promise<EventSubmissionManagement> {
   const client = requireStorage(c);
   const { data: link, error: linkError } = await client.from('event_submission_management_links')
@@ -732,6 +756,7 @@ function toEventSubmission(
     review_status: row.review_status,
     reviewed_by: row.reviewed_by,
     reviewed_at: row.reviewed_at,
+    reviewed_via: row.reviewed_via ?? null,
     rejection_category: rejectionCategory(row.rejection_category),
     organizer_message: row.organizer_message,
     internal_note: row.internal_note,

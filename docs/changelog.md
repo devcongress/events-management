@@ -149,6 +149,11 @@
 - Badge artwork highlights Accra Digital Center with a pink map pin and dotted trail.
 - The conference overview can show a turnout estimate that starts at 20 and rises every two days until event day. Owners can switch it to valid admissions and confirmed speakers. The website can read the same count from EMS.
 
+## 2026-11-06 — Community event moderation in Slack
+
+- Review pending community events in EMS or approve and reject them from the private Slack card. A decision from either surface updates the card and uses the existing submitter notification workflow.
+- Run `/allow-me` to enable limited Slack moderation for private-channel members or connect an existing EMS account that uses a different email address. EMS records the Slack-only reviewer's profile email and decision time and shows **Not in EMS**.
+
 ## 2026-11-06 — Browser journey CI budget
 
 - Allow five minutes for the full browser suite and log each journey’s start and completion time to make CI timeouts easier to diagnose.
