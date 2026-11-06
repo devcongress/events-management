@@ -1221,10 +1221,6 @@ onUnmounted(() => {
     text-underline-offset: 0.2em;
   }
 
-  .conference-brief__primary-action:hover {
-    transform: translate3d(0, -1px, 0);
-  }
-
   .conference-brief__primary-action:hover .conference-brief__action-arrow,
   .conference-dependencies__action:hover .conference-brief__action-arrow {
     transform: translate3d(3px, 0, 0);

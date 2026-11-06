@@ -4,6 +4,8 @@
 
 DevCon26 social cards let an accepted speaker personalize a badge from their private speaker workspace, and let a paid ticket buyer optionally personalize one card for each issued ticket in their order. Speaker eligibility begins when the proposal is selected and remains tied to its selected session; a speaker availability confirmation is not required. Archived sessions are ineligible. They are separate from ticket QR codes, check-in, payment receipts, and speaker-intake links. A buyer can leave any card untouched and return from the same private email link later; no photo is required.
 
+The speaker workspace leads with publicity details and keeps badge customization in an optional disclosure. A speaker can reuse the saved badge's original photo as their publicity headshot. That operation stores a separate private copy, so changing or removing the badge photo does not change the organizers' headshot. Uploading a headshot or providing a link does not silently replace an existing badge photo or crop.
+
 ## Security and lifecycle
 
 - An Owner issues or rotates a 256-bit management capability through the dedicated social-card delivery command. The raw value is stored only in the dedicated transactional outbox until the provider accepts the email, then it is scrubbed.

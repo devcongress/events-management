@@ -22,6 +22,7 @@ type AnnualConferenceSpeakerSubmissionWithLogistics = AnnualConferenceSpeakerSub
     technical_requirements: string | null;
     accessibility_requirements: string | null;
     headshot_url: string | null;
+    headshot_photo_available: boolean;
     social_handle: string | null;
     workshop_prerequisites: string | null;
     required_software_equipment: string | null;
@@ -62,7 +63,36 @@ const closeButtonRef = ref<HTMLButtonElement | null>(null);
 const correctedEmail = ref('');
 const emailConfirmation = ref<'workspace' | 'decision' | null>(null);
 
-watch(() => props.submission?.id, () => { emailConfirmation.value = null; });
+watch(() => props.submission?.id, () => { emailConfirmation.value = null; headshotError.value = ''; });
+
+const headshotError = ref('');
+const downloadingHeadshot = ref(false);
+
+async function downloadHeadshot() {
+  const sessionId = annualSubmission.value?.selected_session_id;
+
+  if (!props.year || !sessionId || downloadingHeadshot.value) return;
+  downloadingHeadshot.value = true;
+  headshotError.value = '';
+  try {
+    const response = await fetch(`/api/annual-conference/${encodeURIComponent(String(props.year))}/speaker-headshots/${encodeURIComponent(sessionId)}/photo`, { credentials: 'include' });
+
+    if (!response.ok) throw new Error('Unable to download the original headshot.');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif' } as Record<string, string>)[blob.type] || 'image';
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `speaker-headshot.${extension}`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch {
+    headshotError.value = 'Unable to download the original headshot. Please try again.';
+  } finally {
+    downloadingHeadshot.value = false;
+  }
+}
 
 function emailStatusLabel() {
   const submission = annualSubmission.value;
@@ -271,33 +301,43 @@ onUnmounted(() => {
             </template>
 
             <section v-if="mode !== 'delivery' && submission.status === 'selected'" class="mt-6 first:mt-0">
-              <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-[#15803d]">Selected</p>
-              <p v-if="annualSubmission" class="mt-2 text-sm leading-6 text-dc-ink">The proposal is locked in. The logistics deadline is a due date; an active workspace remains available afterward.</p>
-              <p v-else class="mt-2 text-sm leading-6 text-dc-ink">The proposal is locked in.</p>
-              <p v-if="annualSubmission && annualSubmission.workspace_access !== 'active'" class="mt-2 text-sm font-semibold text-dc-ink">Workspace access {{ annualSubmission.workspace_access === 'revoked' ? 'revoked' : 'unavailable' }}.</p>
-              <p v-if="mode !== 'participation' && 'decision_email_status' in submission" class="mt-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">Workspace email: {{ submission.decision_email_status ?? 'pending' }}</p>
-              <div v-if="annualSubmission && canManage && annualSubmission.workspace_access === 'active'" class="mt-3 flex flex-wrap gap-2">
-                <button type="button" class="editorial-action" @click="emit('openWorkspace', annualSubmission)">Open workspace</button>
-                <button type="button" class="editorial-action" @click="emit('copyWorkspace', annualSubmission)">Copy workspace link</button>
-                <button type="button" class="editorial-action" @click="emit('revokeWorkspace', annualSubmission)">Revoke workspace access</button>
-              </div>
-              <dl v-if="'logistics' in submission && submission.logistics" class="mt-4 grid gap-3 border-t border-dc-border pt-4 text-sm sm:grid-cols-2">
-                <div><dt class="text-dc-gray">Availability</dt><dd class="font-semibold">{{ submission.logistics.availability_confirmed === true ? 'Confirmed' : submission.logistics.availability_confirmed === false ? 'Not yet confirmed' : 'Not answered' }}</dd></div>
-                <div><dt class="text-dc-gray">Participant laptops</dt><dd class="font-semibold">{{ submission.logistics.participants_need_laptops === true ? 'Required' : submission.logistics.participants_need_laptops === false ? 'Not required' : 'Not answered' }}</dd></div>
-                <div v-if="submission.logistics.preferred_workshop_capacity"><dt class="text-dc-gray">Workshop capacity</dt><dd class="font-semibold">{{ submission.logistics.preferred_workshop_capacity }}</dd></div>
-                <div v-if="submission.logistics.slides_url"><dt class="text-dc-gray">Slides/resources</dt><dd><a :href="submission.logistics.slides_url" target="_blank" rel="noopener noreferrer nofollow" class="font-semibold text-dc-pink underline">Open link ↗</a></dd></div>
-                <div v-if="submission.logistics.headshot_url"><dt class="text-dc-gray">Headshot</dt><dd><a :href="submission.logistics.headshot_url" target="_blank" rel="noopener noreferrer nofollow" class="font-semibold text-dc-pink underline">Open link ↗</a></dd></div>
-                <div v-if="submission.logistics.social_handle"><dt class="text-dc-gray">Social handle</dt><dd class="whitespace-pre-line">{{ submission.logistics.social_handle }}</dd></div>
-                <div v-if="submission.logistics.accessibility_requirements" class="sm:col-span-2"><dt class="text-dc-gray">Accessibility support</dt><dd class="mt-1 whitespace-pre-line">{{ submission.logistics.accessibility_requirements }}</dd></div>
-                <div v-if="submission.logistics.technical_requirements" class="sm:col-span-2"><dt class="text-dc-gray">Technical/setup requirements</dt><dd class="mt-1 whitespace-pre-line">{{ submission.logistics.technical_requirements }}</dd></div>
-                <div v-if="submission.logistics.workshop_prerequisites" class="sm:col-span-2"><dt class="text-dc-gray">Workshop prerequisites</dt><dd class="mt-1 whitespace-pre-line">{{ submission.logistics.workshop_prerequisites }}</dd></div>
-                <div v-if="submission.logistics.required_software_equipment" class="sm:col-span-2"><dt class="text-dc-gray">Software/equipment</dt><dd class="mt-1 whitespace-pre-line">{{ submission.logistics.required_software_equipment }}</dd></div>
+              <h3 class="text-base font-bold">Speaker information</h3>
+              <dl class="mt-3 grid gap-4 border-t border-dc-border pt-4 text-sm sm:grid-cols-2">
+                <div><dt class="text-dc-gray">Participation</dt><dd class="font-semibold">{{ annualSubmission?.logistics?.availability_confirmed === true ? 'Confirmed' : annualSubmission?.logistics?.availability_confirmed === false ? 'Not yet confirmed' : 'Awaiting response' }}</dd></div>
+                <div>
+                  <dt class="text-dc-gray">Headshot</dt>
+                  <dd class="font-semibold">{{ annualSubmission?.logistics?.headshot_photo_available ? 'Photo uploaded' : annualSubmission?.logistics?.headshot_url?.trim() ? 'Link provided' : 'Missing' }}</dd>
+                  <dd v-if="annualSubmission?.logistics?.headshot_photo_available && annualSubmission.selected_session_id && year"><button type="button" :disabled="downloadingHeadshot" class="text-action font-semibold text-dc-pink underline" @click="downloadHeadshot">{{ downloadingHeadshot ? 'Downloading…' : 'Download original photo' }}</button><p v-if="headshotError" role="alert" class="text-red-700">{{ headshotError }}</p></dd>
+                  <dd v-if="annualSubmission?.logistics?.headshot_url?.trim()"><a :href="annualSubmission.logistics.headshot_url" target="_blank" rel="noopener noreferrer nofollow" class="font-semibold text-dc-pink underline">Open submitted link ↗</a></dd>
+                </div>
+                <div><dt class="text-dc-gray">Social handle</dt><dd class="whitespace-pre-line font-semibold">{{ annualSubmission?.logistics?.social_handle?.trim() || 'Missing' }}</dd></div>
+                <div class="sm:col-span-2"><dt class="text-dc-gray">Technical/setup requirements</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission?.logistics?.technical_requirements?.trim() || 'Not provided' }}</dd></div>
+                <div class="sm:col-span-2"><dt class="text-dc-gray">Accessibility support</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission?.logistics?.accessibility_requirements?.trim() || 'Not provided' }}</dd></div>
+                <div v-if="annualSubmission?.logistics?.workshop_prerequisites" class="sm:col-span-2"><dt class="text-dc-gray">Workshop prerequisites</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission.logistics.workshop_prerequisites }}</dd></div>
+                <div v-if="annualSubmission?.logistics?.required_software_equipment" class="sm:col-span-2"><dt class="text-dc-gray">Software/equipment</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission.logistics.required_software_equipment }}</dd></div>
+                <div v-if="annualSubmission?.logistics"><dt class="text-dc-gray">Participant laptops</dt><dd class="font-semibold">{{ annualSubmission.logistics.participants_need_laptops === true ? 'Required' : annualSubmission.logistics.participants_need_laptops === false ? 'Not required' : 'Not answered' }}</dd></div>
+                <div v-if="annualSubmission?.logistics?.preferred_workshop_capacity"><dt class="text-dc-gray">Workshop capacity</dt><dd class="font-semibold">{{ annualSubmission.logistics.preferred_workshop_capacity }}</dd></div>
+                <div v-if="annualSubmission?.logistics?.slides_url"><dt class="text-dc-gray">Slides/resources</dt><dd><a :href="annualSubmission.logistics.slides_url" target="_blank" rel="noopener noreferrer nofollow" class="font-semibold text-dc-pink underline">Open link ↗</a></dd></div>
               </dl>
-              <div v-if="annualSubmission?.selected_session_id && year === '2026'" class="mt-4 border-t border-dc-border pt-4">
-                <h3 class="mb-3 font-bold">Speaker badge</h3>
-                <SpeakerBadgePreview :key="annualSubmission.selected_session_id" :year="Number(year)" :session-id="annualSubmission.selected_session_id" />
+              <div class="mt-5 border-t border-dc-border pt-4">
+                <h3 class="font-bold">Speaker workspace</h3>
+                <p v-if="annualSubmission && annualSubmission.workspace_access !== 'active'" class="mt-2 text-sm font-semibold text-dc-ink">Workspace access {{ annualSubmission.workspace_access === 'revoked' ? 'revoked' : 'unavailable' }}.</p>
+                <p v-else-if="annualSubmission" class="mt-2 text-sm leading-6 text-dc-gray">The workspace remains available after the logistics due date.</p>
+                <p v-if="mode !== 'participation' && 'decision_email_status' in submission" class="mt-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">Workspace email: {{ submission.decision_email_status ?? 'pending' }}</p>
+                <div v-if="annualSubmission && canManage && annualSubmission.workspace_access === 'active'" class="mt-3 flex flex-wrap gap-2">
+                  <button type="button" class="editorial-action" @click="emit('openWorkspace', annualSubmission)">Open workspace</button>
+                  <button type="button" class="editorial-action editorial-action--neutral" @click="emit('copyWorkspace', annualSubmission)">Copy workspace link</button>
+                  <button type="button" class="text-action min-h-11 px-2 text-sm font-semibold text-red-700 underline" @click="emit('revokeWorkspace', annualSubmission)">Revoke workspace access</button>
+                </div>
               </div>
-              <SpeakerMaterialsOrganizer v-if="annualSubmission && year" :year="year" :submission-id="annualSubmission.id" class="mt-4 border-t border-dc-border pt-4" />
+              <details v-if="annualSubmission && year" class="mt-5 border-t border-dc-border pt-4">
+                <summary class="min-h-11 cursor-pointer font-bold">Badge and materials</summary>
+                <div v-if="annualSubmission.selected_session_id && String(year) === '2026'" class="mt-2">
+                  <h4 class="mb-3 font-bold">Speaker badge</h4>
+                  <SpeakerBadgePreview :key="annualSubmission.selected_session_id" :year="Number(year)" :session-id="annualSubmission.selected_session_id" />
+                </div>
+                <SpeakerMaterialsOrganizer :year="year" :submission-id="annualSubmission.id" class="mt-4 border-t border-dc-border pt-4" />
+              </details>
             </section>
 
             <section v-if="mode !== 'participation' && annualSubmission && annualSubmission.status !== 'submitted'" class="mt-6 rounded-md border border-dc-border bg-dc-paper-warm p-4">

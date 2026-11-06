@@ -87,7 +87,7 @@ Keep its 44px target and focus outline.
 
 **Session recovery:** On desktop, center a paper dialog over the private workspace’s blurred layout. On phones, use a bottom sheet with safe-area spacing. Keep private records out of the backdrop. Use a filled pink primary button and a quiet, filled **Sign out** button, each with an icon and a label. Both are borderless at rest and on hover; keyboard focus stays visible. An expired session offers **Sign in again**; a temporary session-check failure offers **Try again**.
 
-**Button hover:** Boxed action buttons may use a subtle inset outline on fine-pointer hover. Text-like actions use text cues such as an underline without a surrounding box. Form fields, dropdown triggers and options retain their own control styles. In Programme, underline only the description and resource disclosure label. Keep the preview plain and preserve keyboard focus.
+**Button hover:** Keep the button's role stable on fine-pointer hover. Pink primary actions retain white text and darken modestly; neutral secondary actions retain dark text and gain a soft cream background. Preserve meaningful yellow and destructive variants. Keep borders stable, omit extra inset outlines and upward movement on ordinary actions, and leave disabled controls unchanged. Text-like actions use text cues such as an underline without a surrounding box. Keyboard focus remains clearly visible in pink. Form fields, dropdown triggers and options retain their own control styles. In Programme, underline only the description and resource disclosure label. Keep the preview plain and preserve keyboard focus.
 
 **Forms:** Use `AppDropdown.vue` for single choice and `AppMultiSelectDropdown.vue`
 for multiple choice, including loading fixtures. Native select menus are

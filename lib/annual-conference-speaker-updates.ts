@@ -1,30 +1,31 @@
 import { renderSpeakerOutcomeMessage } from '@/lib/annual-conference-speaker-outcomes';
 
 export const DEFAULT_SPEAKER_UPDATE = {
-  subject: 'DevCon26 speaker update — details needed by 7 November',
+  subject: 'DevCon26 speaker update: A few details for 12 November',
   message: `Hi {first_name},
 
-We apologize for the miscommunication caused by our earlier acceptance email.
+Sorry for the confusion in our earlier acceptance email.
 
-Please disregard the earlier request for a short bio and your slides or demo materials. Right now, we only need the following from you on or before November 7, 2026:
+You do not need to send a short bio, slides or demo materials at this stage. Please share the following by November 12, 2026:
 
-1. Your preferred headshot link
-2. Your social media handles
+1. Your preferred headshot. Upload a photo, provide a link or choose “Use saved badge photo” in your private workspace.
+2. Your social media handles.
 
-This helps us feature you on our social platforms. If we don't receive a photo by the deadline, we'll use a publicly available professional image from your online profiles so you're still included.
+We’ll use these for our speaker announcements. If we haven’t received your headshot by the deadline, we’ll use a publicly available professional photo from your online profiles.
 
-Please use your private workspace to confirm your participation, share your headshot link and social media handles, and tell us about any technical or accessibility needs by November 7, 2026.
+Please also confirm your participation in your private workspace by November 12. You can include any technical or accessibility support you need.
 
+Open your private workspace:
 {workspace_url}
 
-You can return to your private workspace to update your details. Please keep your private link to yourself.
+Your speaker badge is optional. You can personalize and download it whenever you’re ready. You do not need to customize it to submit your details.
 
-Thank you for your patience and understanding. We can't wait to have you on the DevCon26 stage!
+You can return to your workspace to update your information. Please keep your private link to yourself.
 
-Warm regards,
+Thank you,
 DevCon 2026 Event Organizers
-For enquiries:
-events@devcongress.org`,
+
+For enquiries: events@devcongress.org`,
 };
 
 export function defaultSpeakerUpdate(year: number): { subject: string; message: string } {

@@ -185,6 +185,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
             technical_requirements: acceptedSession.technical_requirements,
             accessibility_requirements: acceptedSession.accessibility_requirements,
             headshot_url: acceptedSession.headshot_url,
+            headshot_photo_available: Boolean(acceptedSession.headshot_photo_path),
             social_handle: acceptedSession.social_handle,
             workshop_prerequisites: acceptedSession.workshop_prerequisites,
             required_software_equipment: acceptedSession.required_software_equipment,
@@ -1071,7 +1072,6 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         availability_confirmed: parsed.data.availability_confirmed,
         technical_requirements: parsed.data.technical_requirements || null,
         ...(parsed.data.accessibility_requirements === undefined ? {} : { accessibility_requirements: parsed.data.accessibility_requirements || null }),
-        ...(parsed.data.headshot_url === undefined ? {} : { headshot_url: parsed.data.headshot_url || null }),
         ...(parsed.data.social_handle === undefined ? {} : { social_handle: parsed.data.social_handle || null }),
         workshop_prerequisites: parsed.data.workshop_prerequisites || null,
         required_software_equipment: parsed.data.required_software_equipment || null,
@@ -1079,7 +1079,9 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         preferred_workshop_capacity: parsed.data.preferred_workshop_capacity,
       });
 
-      return c.json({ session, message: 'Your speaker logistics have been saved.' });
+      const { headshot_photo_path: _photoPath, ...safeSession } = session;
+
+      return c.json({ session: safeSession, message: 'Your speaker logistics have been saved.' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to submit presenter details.';
 

@@ -437,7 +437,7 @@ for (const publicWritePath of [
 }
 
 app.use('/api/conferences/*/speaker-intake/*', (c, next) => {
-  const limit = /\/badge\/photo$/.test(c.req.path)
+  const limit = /\/(?:badge|headshot)\/photo$/.test(c.req.path)
     ? PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES
     : PUBLIC_JSON_BODY_MAX_BYTES;
 
@@ -1184,8 +1184,10 @@ function isPublicCfpEventRequest(path: string, method: string): boolean {
 
 function isSpeakerTalkIntakeRequest(path: string, method: string): boolean {
   if (method === 'DELETE' && /^\/api\/conference-speaker-materials\/\d{4}\/[^/]+\/[0-9a-f-]+$/i.test(path)) return true;
-  if (method === 'DELETE' && /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+\/badge\/photo$/.test(path)) return true;
+  if (method === 'DELETE' && /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+\/(?:badge\/photo|headshot)$/.test(path)) return true;
   if (['GET', 'POST', 'PATCH'].includes(method) && /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+\/badge(?:\/photo)?$/.test(path)) return true;
+  if (['GET', 'PATCH'].includes(method) && /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+\/headshot$/.test(path)) return true;
+  if (['GET', 'POST'].includes(method) && /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+\/headshot\/photo$/.test(path)) return true;
 
   return (method === 'GET' || method === 'POST') && (
     /^\/api\/events\/[^/]+\/speaker-intake\/[^/]+$/.test(path)
@@ -1639,7 +1641,7 @@ app.use('/api/public/*', async (c, next) => {
 const credentialedApiCors = cors({
   origin: corsOrigin,
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'X-Badge-Photo-Version'],
+  allowHeaders: ['Content-Type', 'X-Badge-Photo-Version', 'X-Headshot-Revision'],
   credentials: true,
   maxAge: 86400,
 });

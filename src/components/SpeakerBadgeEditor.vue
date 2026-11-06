@@ -6,6 +6,7 @@ import { uploadMultipart } from '../lib/upload-multipart';
 import { canvasPng, loadSpeakerBadge, renderSpeakerBadge, saveBadgeFile, type SpeakerBadge } from '../lib/speaker-badge';
 
 const props = defineProps<{ year: number; token: string }>();
+const emit = defineEmits<{ photoChanged: [] }>();
 const path = computed(() => `/api/conferences/${props.year}/speaker-intake/${encodeURIComponent(props.token)}/badge`);
 const canvas = ref<HTMLCanvasElement | null>(null);
 const previewCanvas = ref<HTMLCanvasElement | null>(null);
@@ -153,6 +154,7 @@ async function removePhoto() {
     photo.value = null;
     confirmPhotoRemoval.value = false;
     photoMessage.value = 'Photo removed.';
+    emit('photoChanged');
     refreshPreview();
   } catch (reason) {
     confirmPhotoRemoval.value = false;
@@ -212,6 +214,7 @@ async function upload(event: Event) {
     updatePhotoCard(body.card);
     photo.value = file;
     photoMessage.value = 'Photo saved.';
+    emit('photoChanged');
     refreshPreview();
   } catch (reason) {
     photoError.value = reason instanceof Error ? reason.message : 'Unable to save photo.';

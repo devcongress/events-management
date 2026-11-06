@@ -25,7 +25,6 @@ const drawer = ref<HTMLElement | null>(null);
 const closeButton = ref<HTMLButtonElement | null>(null);
 const readyHeading = ref<HTMLElement | null>(null);
 const testEmail = ref('');
-const testMessage = ref('');
 const testError = ref('');
 const pendingTests = new Map<string, string>();
 let previousFocus: HTMLElement | null = null;
@@ -92,7 +91,6 @@ onBeforeUnmount(() => {
 async function sendTest() {
   if (!currentPreview.value || !testEmail.value.trim()) return;
   busy.value = true;
-  testMessage.value = '';
   testError.value = '';
   const signature = JSON.stringify([previewToken.value, currentPreview.value.id, testEmail.value.trim().toLowerCase()]);
   const requestId = pendingTests.get(signature) ?? crypto.randomUUID();
@@ -103,9 +101,12 @@ async function sendTest() {
     const result = await fetchJson<{ recipient: string }>(`${base.value}/test`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preview_id: previewToken.value, recipient_id: currentPreview.value.id, email: testEmail.value.trim(), request_id: requestId }) });
 
     pendingTests.delete(signature);
-    if (contextVersion === testContextVersion) testMessage.value = `Test accepted for ${result.recipient}. Check your inbox; delivery is not yet confirmed.`;
+    if (drawerOpen.value && contextVersion === testContextVersion && signature === JSON.stringify([previewToken.value, currentPreview.value?.id, testEmail.value.trim().toLowerCase()])) {
+      clearPreview();
+      notify.success(`Test email sent to ${result.recipient}.`);
+    }
   } catch (error) {
-    if (contextVersion === testContextVersion) testError.value = error instanceof Error ? error.message : 'Unable to confirm test delivery.';
+    if (drawerOpen.value && contextVersion === testContextVersion && signature === JSON.stringify([previewToken.value, currentPreview.value?.id, testEmail.value.trim().toLowerCase()])) testError.value = error instanceof Error ? error.message : 'Unable to confirm test delivery.';
   } finally {
     busy.value = false;
   }
@@ -127,10 +128,10 @@ function clearPreview() {
 watch([previewId, previewToken, () => props.year], () => {
   testContextVersion += 1;
   testEmail.value = '';
-  testMessage.value = '';
   testError.value = '';
 }, { flush: 'sync' });
 
+watch(drawerOpen, () => { testContextVersion += 1; }, { flush: 'sync' });
 watch(selected, clearPreview, { deep: true });
 watch(eligible, (items) => {
   const eligibleIds = new Set(items.map((item) => item.id));
@@ -257,7 +258,7 @@ async function send() {
               <input id="speaker-test-email" v-model="testEmail" class="app-form-control w-full" type="email" maxlength="254" required placeholder="you@example.com">
               <p class="text-sm text-dc-gray">This sends the exact personalized email, including any private speaker link, to the address above. Speaker decisions and the delivery queue stay unchanged.</p>
               <div><button type="submit" class="editorial-action" :disabled="busy">Send test email</button></div>
-              <p v-if="testMessage" role="status">{{ testMessage }}</p><p v-if="testError" role="alert">{{ testError }}</p>
+              <p v-if="testError" role="alert">{{ testError }}</p>
             </form>
             <p class="mt-4 text-sm text-dc-gray">Sending queues delivery for {{ recipients.length }} recipient{{ recipients.length === 1 ? '' : 's' }}. Provider acceptance is not confirmation of delivery.</p>
           </div>
