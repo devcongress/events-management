@@ -2,7 +2,7 @@
 import { badgeRoleDots } from './devcon26-badge-role';
 
 type Crop = { zoom: number; x: number; y: number };
-export type DigitalBadgeRole = 'attendee' | 'speaker';
+export type DigitalBadgeRole = 'attendee' | 'speaker' | 'volunteer';
 type NameLayout = {
   valid: true;
   normalized: string;
@@ -59,6 +59,51 @@ function paintBadgeBackdrop(context: CanvasRenderingContext2D) {
   context.beginPath();
   context.arc(1060, 160, 170, 0, Math.PI * 2);
   context.stroke();
+  context.restore();
+}
+
+function paintBadgeVenue(context: CanvasRenderingContext2D) {
+  const venue = 'Accra Digital Center';
+
+  context.save();
+  context.font = `600 28px ${FONT}`;
+  const pinX = 944 - context.measureText(venue).width - 23;
+  const middle = 224;
+
+  context.strokeStyle = '#c30070';
+  context.lineWidth = 2.25;
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.globalAlpha = 0.3;
+  context.beginPath();
+  context.arc(pinX, middle, 14, 0, Math.PI * 2);
+  context.stroke();
+  context.globalAlpha = 1;
+  context.beginPath();
+  context.moveTo(pinX, middle + 8);
+  context.bezierCurveTo(pinX - 2, middle + 5, pinX - 6, middle + 1, pinX - 6, middle - 3);
+  context.arc(pinX, middle - 3, 6, Math.PI, 0);
+  context.bezierCurveTo(pinX + 6, middle + 1, pinX + 2, middle + 5, pinX, middle + 8);
+  context.stroke();
+  context.beginPath();
+  context.arc(pinX, middle - 3, 2, 0, Math.PI * 2);
+  context.stroke();
+
+  context.strokeStyle = 'rgba(195, 0, 112, 0.6)';
+  context.lineWidth = 1.5;
+  context.setLineDash([1, 5]);
+  context.beginPath();
+  context.moveTo(885, 249);
+  context.lineTo(936, 249);
+  context.stroke();
+  context.setLineDash([]);
+  context.beginPath();
+  context.arc(941, 249, 3, 0, Math.PI * 2);
+  context.stroke();
+
+  context.fillStyle = INK;
+  context.textAlign = 'right';
+  context.fillText(venue, 944, middle + 9);
   context.restore();
 }
 
@@ -193,12 +238,8 @@ export async function paintDigitalBadge(
   context.fillText('DevCon26', 134, 245);
   context.fillStyle = PINK;
   context.fillRect(136, 269, 58, 5);
-  context.fillStyle = '#68655d';
-  context.font = `600 24px ${FONT}`;
-  context.textAlign = 'right';
-  context.fillText('ACCRA', 944, 215);
-  context.fillText('2026', 944, 249);
-  context.textAlign = 'left';
+
+  paintBadgeVenue(context);
 
   const portrait = document.createElement('canvas');
 

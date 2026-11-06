@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-06 — DevCon26 volunteer badges and attendance counter
+
+- Volunteers can sign in with their approved Google account, personalize a badge from the conference overview, and download or share the PNG on supported devices.
+- Speakers can share the badge PNG directly from their existing private editor on supported devices.
+- Badge artwork highlights Accra Digital Center with a pink map pin and dotted trail.
+- The conference overview can show a turnout estimate that starts at 20 and rises every two days until event day. Owners can switch it to valid admissions and confirmed speakers. The website can read the same count from EMS.
+
 ## 2026-11-06 — Browser journey CI budget
 
 - Allow five minutes for the full browser suite and log each journey’s start and completion time to make CI timeouts easier to diagnose.

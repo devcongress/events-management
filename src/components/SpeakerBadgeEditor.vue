@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import SpeakerUploadStatus from './SpeakerUploadStatus.vue';
 import ConfirmDialog from './ui/ConfirmDialog.vue';
 import { uploadMultipart } from '../lib/upload-multipart';
@@ -31,6 +31,9 @@ const photoStatus = computed(() => {
   return card.value?.photo_available ? 'Photo saved to your badge' : 'No photo added';
 });
 const busy = ref(false);
+const shareFile = ref<File | null>(null);
+const canShare = computed(() => Boolean(shareFile.value && typeof navigator.share === 'function' && navigator.canShare?.({ files: [shareFile.value] })));
+let shareRevision = 0;
 const savedCard = ref('');
 const hasUnsavedChanges = computed(() => busy.value || (card.value !== null && savedCard.value !== badgeFields(card.value)));
 
@@ -54,6 +57,36 @@ function draw() {
   });
 
   return renderQueue;
+}
+
+async function prepareShare() {
+  const revision = ++shareRevision;
+  const currentCard = card.value ? { ...card.value, crop: { ...card.value.crop } } : null;
+  const currentPhoto = photo.value;
+
+  shareFile.value = null;
+  if (!currentCard) return;
+  try {
+    const exportCanvas = document.createElement('canvas');
+
+    await renderSpeakerBadge(exportCanvas, currentCard, currentPhoto);
+    const blob = await canvasPng(exportCanvas);
+
+    if (revision === shareRevision) shareFile.value = new File([blob], 'devcon26-speaker-badge.png', { type: 'image/png' });
+  } catch {
+    // The existing preview and download actions report rendering errors.
+  }
+}
+
+watch([card, photo], () => { void prepareShare(); }, { deep: true, flush: 'sync' });
+
+function share() {
+  const file = shareFile.value;
+
+  if (busy.value || !file || typeof navigator.share !== 'function' || !navigator.canShare?.({ files: [file] })) return;
+  void navigator.share({ files: [file], title: 'DevCon26 speaker badge' }).catch((reason) => {
+    if (reason?.name !== 'AbortError') error.value = 'Sharing was unavailable. Download your badge instead.';
+  });
 }
 
 function refreshPreview() {
@@ -280,6 +313,7 @@ onMounted(load);
         </div>
         <div class="speaker-badge__actions">
           <button type="button" class="speaker-badge__save" :disabled="busy" @click="save">Save badge</button>
+          <button v-if="canShare" type="button" class="motion-press" :disabled="busy" @click="share">Share badge</button>
           <button type="button" :disabled="busy" @click="download">Download PNG</button>
         </div>
       </div>

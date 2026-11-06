@@ -264,6 +264,7 @@ import { registerAnnualConferenceSpeakerMaterialRoutes } from '@/server/routes/a
 import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
 import { registerManagedConferenceCheckout } from '@/server/routes/managed-conference-checkout';
 import { registerManagedConferencePaymentSettings } from '@/server/routes/managed-conference-payment-settings';
+import { registerAnnualConferenceAttendanceCounter } from '@/server/routes/annual-conference-attendance-counter';
 import { managedPaymentEnvironment } from '@/server/managed-conference-checkout';
 import { isManagedCheckoutRequest, MANAGED_CHECKOUT_PATH, MANAGED_PAYMENT_WEBHOOK_PATH, managedCheckoutOrigin } from '@/lib/managed-conference-checkout';
 import { registerDevcon26CompleteTestCheckout } from '@/server/routes/devcon26-complete-test-checkout';
@@ -1153,7 +1154,8 @@ function registrationCorsOrigin(origin: string | undefined, c: Context): string 
 }
 
 function isPublicReadApiPath(path: string): boolean {
-  return path === '/api/public/annual-conference/2026/programme'
+  return path === '/api/public/annual-conference/2026/attendance-counter'
+    || path === '/api/public/annual-conference/2026/programme'
     || /^\/api\/public\/annual-conference\/2026\/programme\/speakers\/[0-9a-f-]+\/photo$/.test(path)
     || path === '/api/public/annual-conference/2026/ticket-prices'
     || path === '/api/public/meetups'
@@ -1262,7 +1264,8 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
     || isDevcon26FlexibleTicketAccessRequest(path, method)
     || isBuyerSocialCardRequest(path, method)
     || ((method === 'GET' || method === 'HEAD') && (
-    path === '/api/public/annual-conference/2026/programme'
+    path === '/api/public/annual-conference/2026/attendance-counter'
+    || path === '/api/public/annual-conference/2026/programme'
     || /^\/api\/public\/annual-conference\/2026\/programme\/speakers\/[0-9a-f-]+\/photo$/.test(path)
     || path === '/api/public/annual-conference/2026/ticket-prices'
     || path === '/api/public/meetups'
@@ -5428,6 +5431,7 @@ registerAnnualConferenceSpeakerMaterialRoutes(app);
 registerAnnualConferenceTaskResourceRoutes(app);
 registerManagedConferenceCheckout(app);
 registerManagedConferencePaymentSettings(app);
+registerAnnualConferenceAttendanceCounter(app);
 registerDevcon26CompleteTestCheckout(app);
 registerAnnualConferenceTicketingRoutes(app);
 registerAnnualConferenceFlexibleOperationsRoutes(app);
