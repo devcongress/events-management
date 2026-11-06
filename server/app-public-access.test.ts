@@ -34,6 +34,30 @@ afterEach(() => {
 });
 
 describe('public API access policy', () => {
+  it('allows headshot revision headers in split-origin preflights', async () => {
+    vi.stubEnv('PUBLIC_FRONTEND_ORIGIN', 'https://app.example.com');
+    for (const [path, method] of [['headshot', 'PATCH'], ['headshot/photo', 'POST']] as const) {
+      const response = await app.request(`https://api.example.com/api/conferences/2026/speaker-intake/token/${path}`, {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://app.example.com', 'Access-Control-Request-Method': method, 'Access-Control-Request-Headers': 'content-type,x-headshot-revision' },
+      });
+
+      expect(response.status).toBe(204);
+      expect(response.headers.get('access-control-allow-origin')).toBe('https://app.example.com');
+      expect(response.headers.get('access-control-allow-headers')).toContain('X-Headshot-Revision');
+    }
+  });
+
+  it('allows only the headshot workspace methods without organizer authentication', () => {
+    const headshot = '/api/conferences/2026/speaker-intake/sample/headshot';
+
+    expect(isUnauthenticatedApiRequest(headshot, 'GET')).toBe(true);
+    expect(isUnauthenticatedApiRequest(headshot, 'PATCH')).toBe(true);
+    expect(isUnauthenticatedApiRequest(headshot, 'DELETE')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${headshot}/photo`, 'POST')).toBe(true);
+    expect(isUnauthenticatedApiRequest('/api/annual-conference/2026/speaker-headshots/sample/photo', 'GET')).toBe(false);
+  });
+
   it('allows a private speaker link to remove only its badge photo', () => {
     const badge = '/api/conferences/2026/speaker-intake/sample/badge';
 

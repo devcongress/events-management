@@ -757,6 +757,8 @@ export interface Database {
           technical_requirements: string | null;
           accessibility_requirements: string | null;
           headshot_url: string | null;
+          headshot_photo_path: string | null;
+          headshot_revision: number;
           social_handle: string | null;
           workshop_prerequisites: string | null;
           required_software_equipment: string | null;

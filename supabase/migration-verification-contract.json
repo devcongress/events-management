@@ -6172,6 +6172,49 @@
           "bodySha256": "3e045409cdb4f65e74c6cbbc020a2df01e64ad88c829761e164b717b36fe784f"
         }
       ]
+    },
+    {
+      "file": "20261105130000_speaker_headshot_workspace.sql",
+      "sha256": "ad0eb3fa2387d798d3dc2c70e52067ef3df0c23fab4b89a42360ea64a0564aaa",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "headshot_photo_path",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "headshot_revision",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "0"
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "annual_conference_headshot_revision_nonnegative",
+          "contains": [
+            "headshot_revision >= 0"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "annual_conference_headshot_single_source",
+          "contains": [
+            "headshot_url IS NULL",
+            "headshot_photo_path IS NULL"
+          ]
+        }
+      ]
     }
   ]
 }

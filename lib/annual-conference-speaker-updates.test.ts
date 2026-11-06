@@ -5,7 +5,7 @@ import { defaultSpeakerOutcomeMessage, renderSpeakerOutcomeMessage } from './ann
 describe('speaker update message', () => {
   it('uses the November correction only for the 2026 edition', () => {
     expect(defaultSpeakerUpdate(2026)).toEqual(DEFAULT_SPEAKER_UPDATE);
-    expect(defaultSpeakerUpdate(2027).message).not.toContain('November 7, 2026');
+    expect(defaultSpeakerUpdate(2027).message).not.toContain('November 12, 2026');
     expect(defaultSpeakerUpdate(2027).message).toContain('{edition}');
   });
 
@@ -21,8 +21,8 @@ describe('speaker update message', () => {
 
     expect(result.subject).toBe(DEFAULT_SPEAKER_UPDATE.subject);
     expect(result.text).toContain('Hi Ama,');
-    expect(result.text).toContain('preferred headshot link');
-    expect(result.text).toContain('disregard the earlier request');
+    expect(result.text).toContain('preferred headshot');
+    expect(result.text).toContain('You do not need to send a short bio');
     expect(result.text).toContain('https://example.org/private');
     expect(result.html).toContain('Speaker update');
     expect(result.html).toContain('Open private link &rarr;');

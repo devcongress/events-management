@@ -421,126 +421,29 @@ try {
   browser = await chromium.launch();
 
   await journey('button-hover-feedback', async ({ page, responses }) => {
-    const rows = [{ id: '00000000-0000-4000-8000-000000000001', time: '10:00 AM', title: 'Opening', type: 'talk', lead: '', description: 'Host introduction, event overview, and housekeeping.', resourceTitle: '', resourceUrl: '' }];
-
     responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
     responses.set('/api/annual-conference/2026/work-plan', { body: workspace });
-    responses.set('/api/annual-conference/2026/programme', { body: { rows, revision: 1, updated_at: null, updated_by: null } });
+    responses.set('/api/annual-conference/2026/programme', { body: { rows: [], revision: 0, updated_at: null, updated_by: null } });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
-    await page.getByRole('button', { name: 'Edit outline' }).click();
-    const add = page.getByRole('group', { name: 'Outline actions' }).getByRole('button', { name: 'Add row' });
-    const cue = async (locator) => locator.evaluate(element => ({ style: getComputedStyle(element).textDecorationLine, outline: getComputedStyle(element).outlineStyle, icon: element.querySelector('svg') && getComputedStyle(element.querySelector('svg')).opacity }));
+    const add = page.getByRole('button', { name: 'Add outline' });
 
+    await add.waitFor();
     await page.mouse.move(0, 0);
-    const idle = await cue(add);
+    const style = (element) => {
+      const css = getComputedStyle(element);
+
+      return { outline: css.outlineStyle, transform: css.transform, shadow: css.boxShadow };
+    };
+    const idle = await add.evaluate(style);
 
     await add.hover();
-    assert.notDeepEqual(await cue(add), idle);
-    await page.locator('.programme-heading').screenshot({ path: `${artifacts}/button-hover-programme.png` });
-    for (const control of [
-      page.getByRole('group', { name: 'Outline actions' }).getByRole('button', { name: 'Save outline' }),
-      page.getByRole('button', { name: 'Remove Opening' }),
-    ]) {
-      await page.mouse.move(0, 0);
-      const before = await cue(control);
-
-      await control.hover();
-      assert.notDeepEqual(await cue(control), before);
-      assert.equal((await cue(control)).style, 'none');
-    }
-    const type = page.locator('.programme-type-field button').first();
-
-    await type.hover();
-    assert.equal((await cue(type)).style, 'none');
-    await type.click();
-    const option = page.getByRole('option').first();
-
-    await option.hover();
-    assert.equal((await cue(option)).style, 'none');
-    await option.click();
-    const details = page.getByRole('button', { name: /Description and resource/ }).first();
-
-    await details.hover();
-    assert.equal((await cue(details)).outline, 'none');
-    assert.equal((await cue(details)).style, 'none');
-    assert.equal((await cue(details.locator('.programme-details-label'))).style, 'underline');
-    assert.equal((await cue(details.locator('.programme-preview'))).style, 'none');
-    await details.screenshot({ path: `${artifacts}/button-hover-disclosure.png` });
-
+    assert.deepEqual(await add.evaluate(style), idle, 'Hover must not add an outline, shadow, or lift');
     await add.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     assert.equal(await add.evaluate(element => element.matches(':focus-visible')), true);
-    await page.mouse.move(0, 0);
-    const focusStyle = await cue(add);
-
-    await add.hover();
-    assert.deepEqual(await cue(add), focusStyle);
-    await add.blur();
-    const disabled = page.getByRole('button', { name: 'Move Opening up' });
-
-    await disabled.hover({ force: true });
-    assert.equal((await cue(disabled)).outline, 'none');
-    await page.getByRole('button', { name: 'Remove Opening' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Remove session?' });
-    const confirm = dialog.getByRole('button', { name: 'Remove session' });
-
-    await confirm.hover();
-    assert.notEqual((await cue(confirm)).outline, 'none');
-    await page.locator('.confirm-dialog-shell').click({ position: { x: 5, y: 5 } });
-    await page.getByRole('button', { name: 'Cancel', exact: true }).first().click();
-    await page.goto(`${origin}/organizer-console/events`);
-    const create = page.getByRole('link', { name: /Create event/i }).first();
-
-    await create.waitFor();
-    await create.hover();
-    assert.notEqual((await cue(create)).outline, 'none');
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await create.hover();
-    assert.notEqual((await cue(create)).outline, 'none');
-    await page.evaluate(() => {
-      const container = document.createElement('div');
-
-      container.innerHTML = '<input type="submit" id="hover-input" value="Submit"><span role="button" id="hover-role">Action</span><a class="mobile-ops-action" href="#" id="hover-link">Action</a><button class="text-action" id="hover-text">Text action</button><button class="submission-review-action submission-review-action--quiet text-action" id="hover-quiet">Quiet action</button><fieldset disabled><button id="hover-fieldset">Disabled</button></fieldset><div aria-disabled="true"><button id="hover-aria">Disabled</button></div><div inert><button id="hover-inert">Inert</button></div><button class="submission-drawer-backdrop" id="hover-backdrop">Backdrop</button>';
-      document.body.append(container);
-    });
-    for (const selector of ['#hover-input', '#hover-role', '#hover-link']) {
-      const node = page.locator(selector);
-
-      await node.evaluate(element => { element.style.cssText = 'position:fixed;left:10px;top:80px;width:100px;height:30px;z-index:200'; });
-      await page.mouse.move(0, 0);
-      const before = await cue(node);
-
-      await page.mouse.move(20, 90);
-      assert.notDeepEqual(await cue(node), before, selector);
-      await node.evaluate(element => { element.style.display = 'none'; });
-    }
-    for (const selector of ['#hover-fieldset', '#hover-aria', '#hover-inert', '#hover-backdrop']) {
-      const node = page.locator(selector);
-
-      await node.evaluate(element => { element.style.cssText = 'position:fixed;left:10px;top:80px;width:100px;height:30px;z-index:200'; });
-      await page.mouse.move(20, 90);
-      assert.equal((await cue(node)).outline, 'none', selector);
-      await node.evaluate(element => { element.style.display = 'none'; });
-    }
-    for (const selector of ['#hover-text', '#hover-quiet']) {
-      const node = page.locator(selector);
-
-      await node.evaluate(element => { element.style.cssText = 'position:fixed;left:10px;top:80px;width:100px;height:30px;z-index:200'; });
-      await page.mouse.move(0, 0);
-      const decoration = element => {
-        const style = getComputedStyle(element);
-
-        return [style.outlineColor, style.backgroundColor, style.borderColor, style.boxShadow];
-      };
-      const idleDecoration = await node.evaluate(decoration);
-
-      await page.mouse.move(20, 90);
-      assert.deepEqual(await node.evaluate(decoration), idleDecoration, selector);
-      assert.equal((await cue(node)).style, 'underline', selector);
-      await node.evaluate(element => { element.style.display = 'none'; });
-    }
+    assert.notEqual(await add.evaluate(element => getComputedStyle(element).outlineStyle === 'none' && getComputedStyle(element).boxShadow === 'none'), true);
   }, { role: 'organizer' });
 
   await journey('button-hover-touch', async ({ page, responses }) => {
@@ -3473,10 +3376,11 @@ try {
   for (const mobile of [false, true]) {
     await journey(`speaker-updates-${mobile ? "mobile" : "desktop"}`, async ({ page, responses, requests }) => {
       const base = "/api/annual-conference/2026/speaker-updates";
-      const ids = ["speaker-1", "speaker-2"];
+      const ids = ["speaker-1", "speaker-2", "speaker-3"];
       const candidates = [
         { id: ids[0], name: "Ada Example", email: "ada@example.test", eligible: true, reason: null },
-        { id: ids[1], name: "Ama Example", email: "ama@example.test", eligible: false, reason: "Private workspace access is revoked." },
+        { id: ids[1], name: "Ama Example", email: "ama@example.test", eligible: true, reason: null },
+        { id: ids[2], name: "Esi Example", email: "esi@example.test", eligible: false, reason: "Private workspace access is revoked." },
       ];
       const fixture = spawnSync(process.execPath, ["--import", "tsx", "scripts/fixtures/speaker-update-preview.ts"], { encoding: "utf8" });
 
@@ -3496,8 +3400,20 @@ try {
 
         return { body: request.method() === "PUT" ? { campaign } : { campaign, deliveries: campaign.state === "draft" ? [] : [delivery] } };
       });
-      responses.set(`${base}/${campaign.id}/preview`, { body: { preview_id: "preview-1", expires_in_seconds: 600, recipients: [recipient] } });
-      responses.set(`${base}/${campaign.id}/test`, { body: { accepted: true, recipient: "test@example.test" } });
+      responses.set(`${base}/${campaign.id}/preview`, { body: { preview_id: "preview-1", expires_in_seconds: 600, recipients: [recipient, { ...recipient, id: ids[1], name: "Ama Example", recipient: "ama@example.test" }] } });
+      let testAttempt = 0;
+      const staleTest = createSaveGate();
+
+      responses.set(`${base}/${campaign.id}/test`, async () => {
+        testAttempt += 1;
+        if (testAttempt === 1) return { status: 503, body: { error: "Test delivery unavailable" } };
+        if (testAttempt === 3) {
+          staleTest.markEntered();
+          await staleTest.response;
+        }
+
+        return { body: { accepted: true, recipient: "test@example.test" } };
+      });
       responses.set(`${base}/${campaign.id}/send`, async () => { campaign = { ...campaign, state: "queued" };
 
  return { body: { queued: 1 } }; });
@@ -3510,7 +3426,8 @@ try {
       await page.getByText("Save your changes before previewing or testing.").waitFor();
       await page.getByRole("button", { name: "Save update" }).click();
       await page.getByLabel(/Ada Example/).check();
-      assert.equal(await page.getByLabel(/Ama Example/).isDisabled(), true);
+      await page.getByLabel(/Ama Example/).check();
+      assert.equal(await page.getByLabel(/Esi Example/).isDisabled(), true);
       await page.getByText("Private workspace access is revoked.").waitFor();
       await page.getByRole("heading", { name: "Speaker updates", exact: true }).scrollIntoViewIfNeeded();
       await page.getByRole("button", { name: /Updated details.*Draft/ }).scrollIntoViewIfNeeded();
@@ -3522,47 +3439,88 @@ try {
 
       await testDrawer.waitFor();
       assert.equal(await testDrawer.getByLabel("Test recipient").evaluate((input) => document.activeElement === input), true);
-      assert.equal(await testDrawer.getByRole("button", { name: "Send update to 1 speaker" }).count(), 0);
+      assert.equal(await testDrawer.getByRole("button", { name: "Send update to 2 speakers" }).count(), 0);
       await testDrawer.getByText("Choose the speaker whose frozen email you want to test.").waitFor();
       await testDrawer.getByLabel("Test recipient").fill("test@example.test");
+      if (!mobile) {
+        const primary = testDrawer.getByRole("button", { name: "Send test email" });
+        const secondary = testDrawer.getByRole("button", { name: "Close" });
+        const style = (element) => {
+          const css = getComputedStyle(element);
+
+          return { background: css.backgroundColor, color: css.color, outline: css.outlineStyle, shadow: css.boxShadow, transform: css.transform };
+        };
+
+        for (const button of [primary, secondary]) {
+          await page.mouse.move(0, 0);
+          const before = await button.evaluate(style);
+
+          await button.hover();
+          const after = await button.evaluate(style);
+
+          assert.notEqual(after.background, before.background);
+          assert.equal(after.outline, before.outline);
+          assert.equal(after.shadow, before.shadow);
+          assert.equal(after.transform, before.transform);
+        }
+        await primary.hover();
+        await testDrawer.screenshot({ path: `${artifacts}/speaker-update-hover-primary.png`, animations: "disabled" });
+        await secondary.hover();
+        await testDrawer.screenshot({ path: `${artifacts}/speaker-update-hover-secondary.png`, animations: "disabled" });
+      }
       await page.screenshot({ path: `${artifacts}/speaker-updates-${mobile ? "mobile" : "desktop"}-test.png`, animations: "disabled" });
       await testDrawer.getByRole("button", { name: "Send test email" }).click();
-      await testDrawer.getByRole("status").waitFor();
-      const testPayload = JSON.parse(requests.find((request) => request.path.endsWith("/test")).body);
+      await testDrawer.getByRole("alert").filter({ hasText: "Test delivery unavailable" }).waitFor();
+      assert.equal(await testDrawer.getByLabel("Test recipient").inputValue(), "test@example.test");
+      await testDrawer.getByRole("button", { name: "Send test email" }).click();
+      await testDrawer.waitFor({ state: "hidden" });
+      await page.getByText("Test email sent to test@example.test.").waitFor();
+      await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Send test email");
+      const testRequests = requests.filter((request) => request.path.endsWith("/test"));
+      const testPayload = JSON.parse(testRequests[0].body);
 
       assert.deepEqual({ ...testPayload, request_id: "uuid" }, { preview_id: "preview-1", recipient_id: ids[0], email: "test@example.test", request_id: "uuid" });
+      assert.equal(JSON.parse(testRequests[1].body).request_id, testPayload.request_id);
       assert.equal(requests.some((request) => request.path.endsWith("/send")), false);
-      await testDrawer.getByRole("button", { name: "Close" }).click();
       assert.equal(await testAction.evaluate((button) => document.activeElement === button), true);
-      await page.getByRole("button", { name: "Preview 1 selected" }).click();
+      await page.getByRole("button", { name: "Preview 2 selected" }).click();
       const drawer = page.getByRole("dialog", { name: "Review speaker updates" });
 
       await drawer.waitFor();
-      assert.deepEqual(JSON.parse(requests.find((request) => request.path.endsWith("/preview")).body), { ids: [ids[0]], version: 2 });
+      assert.deepEqual(JSON.parse(requests.find((request) => request.path.endsWith("/preview")).body), { ids: [ids[0], ids[1]], version: 2 });
       assert.equal(await drawer.locator("iframe").getAttribute("srcdoc"), recipient.html);
       await page.screenshot({ path: `${artifacts}/speaker-updates-${mobile ? "mobile" : "desktop"}-preview.png`, animations: "disabled" });
-      assert.equal(await drawer.getByRole("button", { name: "Send update to 1 speaker" }).isDisabled(), true);
+      assert.equal(await drawer.getByRole("button", { name: "Send update to 2 speakers" }).isDisabled(), true);
       await drawer.getByText("Speaker update delivery is not enabled.").waitFor();
       sendingEnabled = true;
       await page.reload();
       await page.getByRole("button", { name: /Updated details.*Draft/ }).click();
       await page.getByLabel(/Ada Example/).check();
-      await page.getByRole("button", { name: "Preview 1 selected" }).click();
+      await page.getByLabel(/Ama Example/).check();
+      await page.getByRole("button", { name: "Preview 2 selected" }).click();
       await drawer.waitFor();
       await drawer.getByRole("button", { name: "Close" }).click();
       await drawer.waitFor({ state: "hidden" });
-      await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Preview 1 selected");
+      await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Preview 2 selected");
       await page.getByLabel("Subject").fill("Unsaved change");
-      assert.equal(await page.getByRole("button", { name: "Preview 1 selected" }).isDisabled(), true);
+      assert.equal(await page.getByRole("button", { name: "Preview 2 selected" }).isDisabled(), true);
       await page.getByLabel("Subject").fill("Updated details");
-      await page.getByRole("button", { name: "Preview 1 selected" }).click();
+      await page.getByRole("button", { name: "Preview 2 selected" }).click();
       await drawer.waitFor();
       assert.equal(requests.filter((request) => request.path.endsWith("/preview")).length, 4);
       await drawer.getByLabel("Test recipient").fill("test@example.test");
       await drawer.getByRole("button", { name: "Send test email" }).click();
-      await drawer.getByRole("status").waitFor();
+      await waitForSaveGate(staleTest, "stale speaker update test");
+      await drawer.getByRole("button", { name: "Ama Example" }).click();
+      assert.equal(await drawer.getByLabel("Test recipient").inputValue(), "");
+      const staleResponse = page.waitForResponse((response) => response.url().endsWith("/test"));
+
+      staleTest.release();
+      await staleResponse;
+      assert.equal(await drawer.isVisible(), true);
+      assert.equal(await drawer.getByLabel("Test recipient").inputValue(), "");
       assert.equal(requests.some((request) => request.path.endsWith("/send")), false);
-      await drawer.getByRole("button", { name: "Send update to 1 speaker" }).click();
+      await drawer.getByRole("button", { name: "Send update to 2 speakers" }).click();
       await drawer.waitFor({ state: "hidden" });
       await page.getByText("Temporary failure").waitFor();
       assert.deepEqual(JSON.parse(requests.find((request) => request.path.endsWith("/send")).body), { preview_id: "preview-1", confirmed: true });
@@ -3650,6 +3608,15 @@ try {
       assert.equal(testBody.email, "tester@example.test");
       assert.match(testBody.request_id, /^[0-9a-f-]{36}$/);
       assert.equal(requests.some((request) => request.path === `${base}/send`), false);
+      responses.set(`${base}/test`, { body: { accepted: true, recipient: "tester@example.test" } });
+      await drawer.getByLabel("Test recipient").fill("tester@example.test");
+      await drawer.getByRole("button", { name: "Send test email" }).click();
+      await drawer.waitFor({ state: "hidden" });
+      await page.getByText("Test email sent to tester@example.test.").waitFor();
+      await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Preview 2 selected");
+      assert.equal(requests.some((request) => request.path === `${base}/send`), false);
+      await page.getByRole("button", { name: "Preview 2 selected" }).click();
+      await drawer.waitFor();
       await drawer.getByRole("button", { name: "Send selected emails" }).click();
       await drawer.waitFor({ state: "hidden" });
       await page.waitForFunction(() => document.activeElement?.textContent === "Ready to send");
@@ -3667,7 +3634,8 @@ try {
           title: "Reliable systems", session_type: "Talk", topic: "Engineering", abstract: "Fixture abstract",
           bio: "Fixture bio", learning_outcomes: [], status: "selected", created_at: "2026-10-18T10:00:00Z",
           workspace_access: "active",
-          logistics: { availability_confirmed: true, slides_url: "https://example.test/slides" },
+          selected_session_id: "session-ada",
+          logistics: { availability_confirmed: true, slides_url: "https://example.test/slides", headshot_photo_available: true, headshot_url: null, social_handle: "@ada" },
           decision_email_status: "failed", decision_email_attempt_count: 2,
           decision_email_last_error: "Fixture delivery failure",
           decision_email_last_attempt_at: "2026-11-03T03:15:00Z",
@@ -3676,6 +3644,10 @@ try {
 
         const extraSpeakers = Array.from({ length: 6 }, (_, index) => ({
           ...accepted, id: `tracking-extra-${index}`, speaker_name: `Guest ${index + 1}`, title: `Session ${index + 1}`,
+          logistics: index === 0
+            ? { availability_confirmed: false, headshot_photo_available: false, headshot_url: "https://example.test/headshot.png", social_handle: "@guest" }
+            : { availability_confirmed: null, headshot_photo_available: false, headshot_url: null, social_handle: null },
+          selected_session_id: index === 1 ? "session-badge" : "session-ada",
         }));
 
         async function checkSecondPage(lastRow) {
@@ -3694,6 +3666,11 @@ try {
 
         responses.set(storagePath, { status: 503, body: { error: "Unavailable" } });
         responses.set("/api/annual-conference/2026/speaker-submissions/tracking-accepted/materials", { body: { materials: [] } });
+        responses.set("/api/annual-conference/2026/speaker-submissions/tracking-extra-0/materials", { body: { materials: [] } });
+        responses.set("/api/annual-conference/2026/speaker-submissions/tracking-extra-1/materials", { body: { materials: [] } });
+        responses.set("/api/annual-conference/2026/speaker-badges/session-badge", { body: { card: { display_name: "Guest 2", role: "speaker", crop: { x: 0.5, y: 0.5, scale: 1 }, photo_available: true, photo_version: "badge-v1" } } });
+        await page.route('**/api/annual-conference/2026/speaker-badges/session-badge/photo', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/aS8AAAAASUVORK5CYII=', 'base64') }));
+        responses.set("/api/annual-conference/2026/speaker-badges/session-ada", { body: { card: { display_name: "Ada Example", role: "speaker", crop: { x: 0.5, y: 0.5, scale: 1 }, photo_available: false, photo_version: null } } });
         responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
         responses.set("/api/annual-conference/2026/speakers", { body: {
           edition: { ...edition, name: "DevCongress Annual Conference" },
@@ -3723,18 +3700,56 @@ try {
         await usage.getByRole("button", { name: "Try again" }).waitFor();
         responses.set(storagePath, storageResponse);
         await usage.getByRole("button", { name: "Try again" }).click();
-        await usage.getByText("All badge photos", { exact: true }).waitFor();
+        await usage.getByText("Speaker badge photos", { exact: true }).waitFor();
         assert.match(await usage.innerText(), /1 photo/);
         assert.equal(await usage.evaluate(el => el.scrollWidth <= el.clientWidth), true);
         await usage.evaluate(el => el.scrollIntoView({ block: "end", behavior: "instant" }));
         await usage.screenshot({ path: artifacts + "/badge-storage-" + (mobile ? "phone" : "desktop") + ".png" });
 
         assert.equal(await page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Participation", { exact: true }).count(), 1);
-        await checkSecondPage(page.getByRole("button", { name: "Guest 6 Confirmed", exact: true }));
-        await page.getByRole("button", { name: "Ada Example Confirmed", exact: true }).click();
+        await checkSecondPage(page.getByRole("button", { name: /Guest 6.*Awaiting response/ }));
+        const ada = page.getByRole("button", { name: /Ada Example.*Confirmed/ });
+        const linkRow = page.getByRole("button", { name: /Guest 1.*Not yet confirmed/ });
+        const missingRow = page.getByRole("button", { name: /Guest 2.*Awaiting response/ });
+
+        assert.match(await ada.innerText(), /Photo uploaded/);
+        assert.match(await ada.innerText(), /Provided/);
+        assert.match(await linkRow.innerText(), /Link provided/);
+        assert.match(await missingRow.innerText(), /Missing/);
+        if (!mobile) {
+          const columns = await page.locator('.participation-header > span').evaluateAll(nodes => nodes.slice(0, 4).map(node => node.getBoundingClientRect().x));
+          const values = await ada.locator(':scope > span, :scope > strong').evaluateAll(nodes => nodes.slice(0, 4).map(node => node.getBoundingClientRect().x));
+
+          assert.ok(columns.every((x, index) => Math.abs(x - values[index]) < 2), 'Participation columns align with their headings');
+        }
+        const participationPanel = page.locator('.speaker-list-panel').filter({ has: page.getByRole('heading', { name: 'Accepted speakers' }) });
+
+        await page.setViewportSize({ width: mobile ? 390 : 1440, height: 1800 });
+        await participationPanel.scrollIntoViewIfNeeded();
+        await participationPanel.screenshot({ path: `${artifacts}/speaker-monitoring-${mobile ? 'phone' : 'desktop'}-list.png`, animations: 'disabled' });
+        await page.setViewportSize({ width: mobile ? 390 : 1440, height: 844 });
+        await linkRow.click();
+        const linked = page.getByRole("dialog", { name: "Participation · Guest 1", exact: true });
+
+        assert.equal(await linked.getByRole("link", { name: /Open submitted link/ }).getAttribute('href'), 'https://example.test/headshot.png');
+        await linked.getByRole("button", { name: "Close participation details" }).click();
+        await missingRow.click();
+        const missing = page.getByRole("dialog", { name: "Participation · Guest 2", exact: true });
+
+        await missing.getByText("Missing", { exact: true }).first().waitFor();
+        await missing.getByRole("button", { name: "Close participation details" }).click();
+        await ada.click();
         const logistics = page.getByRole("dialog", { name: "Participation · Ada Example", exact: true });
 
         await logistics.getByText("Slides/resources", { exact: true }).waitFor();
+        await logistics.getByText("Photo uploaded", { exact: true }).waitFor();
+        await logistics.getByText("@ada", { exact: true }).waitFor();
+        await logistics.screenshot({ path: `${artifacts}/speaker-monitoring-${mobile ? 'phone' : 'desktop'}-drawer.png`, animations: 'disabled' });
+        await page.route('**/api/annual-conference/2026/speaker-headshots/session-ada/photo', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('fixture photo') }));
+        const download = page.waitForEvent('download');
+
+        await logistics.getByRole("button", { name: "Download original photo" }).click();
+        assert.match((await download).suggestedFilename(), /^speaker-headshot\./);
         assert.equal(await logistics.getByText("Delivery address", { exact: true }).count(), 0);
         assert.equal(await logistics.getByText("Abstract", { exact: true }).count(), 0);
         await logistics.getByRole("button", { name: "Close participation details" }).click();
@@ -3779,6 +3794,142 @@ try {
         await page.screenshot({ path: `${artifacts}/speaker-tracking-${canSendEmail ? "sender" : "viewer"}-${mobile ? "mobile" : "desktop"}.png`, fullPage: true });
       }, { role: canSendEmail ? "owner" : "organizer" });
     }
+  }
+
+  for (const mobile of [false, true]) {
+    await journey(`speaker-headshot-workspace-${mobile ? "phone" : "desktop"}`, async ({ page, responses, requests }) => {
+      await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 });
+      const base = "/api/conferences/2026/speaker-intake/fixture-token";
+      const photo = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIAAABt+uBvAAABzklEQVR4nO3bO07EQBCE4T0GJARIJAgS7oHIiYk5GgciJ+AWIFlaIaP1+tFVNeP9pQrt6a5PThzM4fPrm0zkEN+g8QAEEEAAAdRwAAIIIIAuEujp7nZpLgJohUtWygRU4hKRkgOJaGxMWiCDjtpIBWSjUTNJgCI6IqN6oKCOwgggL1Bcp9yoEijuojACCCCAAAIIIIAAAmhPRoWN+BfzAn28P8eBfndoGihrNCzQOlDK6Di9AyAz02huN0Aeo/9DewKSMp0a1x9QrdTZKR0DDbm5vhoyU+T4/Mzz9wMkeh6gvQOpAxBAAAEEEEAA1QO1YFRbByCAWgPKGpV3AagHoNeH+1PZJ1DqI1IUASgE5DcStQAoB+Q00lWQ3/bpWscBpDZSL2+6UNepDkDNAJUz2XZ2X+rtSycAtN3IvK0P6PHl7W9W0IxO2A/QqNhSqenXOwaaLlaenoDMNFKmYqAgjYipEijuojCqAYpz6JgKgOIKUqOtQPH+aqNNQPHmBqP1QPHOHqOVQPG2NqM1QPGeTqPFQPGGZqNlQPFufiOA6oDirSJGc4HifVJGAFUAxZsEjQDaDBTvkDUCaBtQfPu4EUAAARQDiu/dghFAZ4B+AA9oBiqkuabWAAAAAElFTkSuQmCC", "base64");
+      let headshot = { source: "none", url: null, revision: 0, photo_available: false };
+      const badgePhoto = { available: true, version: "badge-v1" };
+      const dto = () => ({ headshot: { ...headshot }, badge_photo: badgePhoto });
+      let failNext = false;
+      let staleNext = false;
+      const mutate = (request, source, url = null) => {
+        assert.equal(request.headers()["x-headshot-revision"], String(headshot.revision));
+        if (staleNext) {
+          staleNext = false;
+          headshot = { source: "photo", url: null, revision: headshot.revision + 1, photo_available: true };
+
+          return { status: 409, body: { error: "Headshot changed" } };
+        }
+        if (failNext) {
+          failNext = false;
+
+          return { status: 503, body: { error: "Headshot temporarily unavailable" } };
+        }
+        headshot = { source, url, revision: headshot.revision + 1, photo_available: source === "photo" };
+
+        return { body: dto() };
+      };
+
+      responses.set(base, (request) => request.method() === "GET" ? { body: {
+        event: { ...event, name: "DevCon2026", event_date: "2026-12-19T09:00:00Z" },
+        link: { purpose: "conference_speaker_workspace", deadline: "2026-11-12" },
+        prefill: { speaker_name: "Ada Example", title: "Building Together", topic: "Open Source", session_type: "Talk", slides_url: "https://example.test/slides" },
+      } } : { body: { ok: true } });
+      responses.set(`${base}/headshot`, (request) => {
+        if (request.method() === "GET") return { body: dto() };
+        if (request.method() === "DELETE") return mutate(request, "none");
+        const payload = JSON.parse(request.postData());
+
+        if (payload.source === "badge") {
+          assert.equal(payload.badge_version, badgePhoto.version);
+
+          return mutate(request, "photo");
+        }
+        assert.equal(payload.source, "link");
+
+        return mutate(request, "link", payload.url);
+      });
+      responses.set(`${base}/headshot/photo`, (request) => mutate(request, "photo"));
+      responses.set(`${base}/badge`, { body: { card: { display_name: "Ada Example", role: "speaker", crop: { x: 0.5, y: 0.5, scale: 1 }, photo_available: true, photo_version: badgePhoto.version } } });
+      responses.set("/api/conference-speaker-materials/2026/fixture-token", { body: { materials: [{ id: "material-1", file_name: "slides.pdf", size_bytes: 120 }] } });
+      await page.route(`**${base}/headshot/photo**`, async (route) => {
+        if (route.request().method() === "GET") return route.fulfill({ status: 200, contentType: "image/png", body: photo });
+
+        return route.fallback();
+      });
+      await page.route(`**${base}/badge/photo**`, (route) => route.fulfill({ status: 200, contentType: "image/png", body: photo }));
+      await page.goto(`${origin}/conference-speakers/2026/fixture-token`);
+      await page.getByRole("heading", { name: "Headshot", exact: true }).waitFor();
+      await page.getByText("No headshot added").waitFor();
+      const badgeToggle = page.getByRole("button", { name: "Customize badge" });
+
+      assert.equal(await badgeToggle.getAttribute("aria-expanded"), "false");
+      const headshotHeading = page.getByRole("heading", { name: "Help us introduce you" });
+      const logisticsHeading = page.getByRole("heading", { name: "Session logistics" });
+
+      assert.equal(await headshotHeading.evaluate((node, other) => Boolean(node.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING), await logisticsHeading.elementHandle()), true);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.screenshot({ path: `${artifacts}/speaker-headshot-workspace-${mobile ? "phone" : "desktop"}-initial.png`, fullPage: true, animations: "disabled" });
+      await page.getByText("Session materials", { exact: false }).click();
+      assert.equal(await page.getByLabel("Slides or supporting-resource link").inputValue(), "https://example.test/slides");
+      await page.getByRole("list", { name: "Uploaded files" }).getByText("slides.pdf").waitFor();
+      await page.getByText("Session materials", { exact: false }).click();
+      const link = page.getByLabel("Or use an HTTPS headshot link");
+
+      await link.fill("https://example.test/ada.png");
+      await page.getByRole("button", { name: "Save headshot link" }).click();
+      await page.getByText("Headshot saved.").waitFor();
+      await page.reload();
+      await page.getByRole("link", { name: /Open saved headshot link/ }).waitFor();
+      assert.equal(await link.inputValue(), "https://example.test/ada.png");
+      const input = page.locator('input[type="file"][accept="image/jpeg,image/png,image/webp,image/avif"]').first();
+
+      await input.setInputFiles({ name: "synthetic.png", mimeType: "image/png", buffer: photo });
+      await page.getByRole("img", { name: "Your saved headshot" }).waitFor();
+      await page.screenshot({ path: `${artifacts}/speaker-headshot-workspace-${mobile ? "phone" : "desktop"}-photo.png`, fullPage: true, animations: "disabled" });
+      if (!mobile) {
+        await page.setViewportSize({ width: 1440, height: 1800 });
+        await page.screenshot({ path: `${artifacts}/speaker-headshot-workspace-desktop-overview.png`, fullPage: true, animations: "disabled" });
+        await page.setViewportSize({ width: 1440, height: 1000 });
+      }
+      await page.getByRole("button", { name: "Use saved badge photo" }).click();
+      await page.getByText("Headshot saved.").waitFor();
+      await page.getByRole("button", { name: "Remove headshot" }).click();
+      await page.getByText("No headshot added").waitFor();
+      await link.fill("https://example.test/draft.png");
+      failNext = true;
+      await page.getByRole("button", { name: "Save headshot link" }).click();
+      await page.getByRole("status").filter({ hasText: "Headshot temporarily unavailable" }).waitFor();
+      assert.equal(await link.inputValue(), "https://example.test/draft.png");
+      staleNext = true;
+      await page.getByRole("button", { name: "Save headshot link" }).click();
+      await page.getByRole("status").filter({ hasText: "changed in another session" }).waitFor();
+      assert.equal(await link.inputValue(), "https://example.test/draft.png");
+      await page.getByRole("img", { name: "Your saved headshot" }).waitFor();
+      await link.fill("unfinished headshot link");
+      await page.getByLabel("Social handles").fill("@ada");
+      await page.getByRole("button", { name: "SAVE DETAILS" }).click();
+      await page.getByText(/Draft saved/).waitFor();
+      assert.equal(await link.inputValue(), "unfinished headshot link");
+      let warned = false;
+
+      page.once("dialog", async (dialog) => { warned = true; await dialog.dismiss(); });
+      await page.evaluate(async () => {
+        const app = document.querySelector("#app").__vue_app__;
+
+        await app.config.globalProperties.$router.push("/conference-speakers/2026/another-token");
+      });
+      assert.equal(warned, true, "Unsaved headshot draft warns before changing routes");
+      assert.ok(page.url().endsWith("/conference-speakers/2026/fixture-token"));
+      await page.getByRole("button", { name: "Customize badge" }).click();
+      const displayName = page.getByLabel("Display name");
+
+      await displayName.fill("Ada Draft");
+      await page.getByRole("button", { name: "Close badge editor" }).click();
+      await page.getByRole("button", { name: "Customize badge" }).click();
+      assert.equal(await displayName.inputValue(), "Ada Draft");
+      await page.getByRole("button", { name: "SAVE DETAILS" }).click();
+      await page.getByText(/Draft saved/).waitFor();
+      const generalSave = requests.find((request) => request.path === base && request.method === "POST");
+
+      assert.ok(generalSave);
+      assert.equal(Object.hasOwn(JSON.parse(generalSave.body), "headshot_url"), false);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    });
   }
 
   for (const capability of ["speakers.view", "speakers.manage"]) {

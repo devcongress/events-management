@@ -209,7 +209,7 @@ onBeforeUnmount(unlock);
       <dialog ref="dialog" class="community-drawer" aria-labelledby="community-drawer-title" @cancel.prevent="close" @click="(event) => { if (event.target === dialog) close(); }">
         <header class="community-drawer-header">
           <div><p class="editorial-eyebrow">Community purchase</p><h2 id="community-drawer-title">{{ purchase?.supporter_name ?? 'Purchase details' }}</h2></div>
-          <button ref="closeButton" type="button" class="editorial-action" :disabled="busy" @click="close">Close</button>
+          <button ref="closeButton" type="button" class="editorial-action editorial-action--neutral" :disabled="busy" @click="close">Close</button>
         </header>
         <div class="community-drawer-body">
           <p v-if="pool.isError.value" role="alert">Unable to refresh this purchase. Assignment is paused. <button type="button" class="editorial-action" @click="pool.refetch()">Retry</button></p>
@@ -229,7 +229,7 @@ onBeforeUnmount(unlock);
               <template v-if="!reviewing">
                 <label>Recipient name<input ref="nameInput" v-model="recipient.name" class="app-form-control" required maxlength="120" autocomplete="off" :disabled="unavailable" /></label>
                 <label>Recipient email<input v-model="recipient.email" class="app-form-control" type="email" required maxlength="254" autocomplete="off" :disabled="unavailable" /></label>
-                <div class="assignment-actions"><button type="button" class="editorial-action" :disabled="busy" @click="resetAssignment(); closeButton?.focus()">Cancel</button><button type="submit" class="editorial-action primary" :disabled="unavailable">Review assignment</button></div>
+                <div class="assignment-actions"><button type="button" class="editorial-action editorial-action--neutral" :disabled="busy" @click="resetAssignment(); closeButton?.focus()">Cancel</button><button type="submit" class="editorial-action primary" :disabled="unavailable">Review assignment</button></div>
               </template>
               <template v-else>
                 <p>Assign this ticket to <strong>{{ recipient.name.trim() }}</strong> at <strong class="recipient-address">{{ recipient.email.trim() }}</strong>?</p>

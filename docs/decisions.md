@@ -1559,3 +1559,13 @@ The DevCon26 website reads an allowlisted projection of the saved 2026 programme
 **Why:** A correction must remain distinguishable from the original acceptance, with an independently reviewable audience, message and delivery history. Resetting a decision email would erase that distinction and risk resending an acceptance.
 
 **Trade-offs:** Two forward migrations and an explicit rollout setting are required before sending. Delivery payloads remain private evidence; expired unused previews are purged on subsequent preview creation. Retries stop after five attempts or the conservative 23-hour provider deduplication window. The existing quota reserve is reused; this does not establish provider-account-wide serialization across all mail producers.
+
+## ADR-129: Save publicity headshots independently of badge customization
+
+**Date:** 2026-11-05
+
+**Decision:** Store the selected publicity headshot on the private conference session as either an HTTPS URL or an original image reference, with a revision for conditional writes. Reuse the existing private social-card bucket. Reusing a saved badge photo copies the original into a distinct headshot object; it does not share the badge's deletable object reference. Headshot operations save separately from logistics and never publish to programme or social-card endpoints.
+
+**Why:** Organizers need a reusable original photo while speakers may independently customize or remove their shareable badge. Separate ownership preserves the publicity photo and avoids duplicate browser uploads or accidental overwrites from the general form.
+
+**Trade-offs:** Badge reuse consumes storage for a second original. Superseded headshots remain retained pending the existing recovery/retention policy. A forward migration is required but is not applied automatically. External image links are not fetched; organizers open them explicitly.

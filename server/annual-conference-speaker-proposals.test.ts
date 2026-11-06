@@ -393,6 +393,9 @@ describe('Annual Conference proposal lifecycle', () => {
       body: JSON.stringify(details),
     });
     const updateLogistics = vi.spyOn(speakerStore, 'updateAnnualConferenceSessionLogistics');
+    const selected = await speakerStore.getAnnualConferenceSpeakerSubmission(accepted.id);
+
+    await speakerStore.updateAnnualConferenceSessionHeadshot(selected!.selected_session_id!, 0, { headshot_url: privateDetails.headshot_url, headshot_photo_path: null });
 
     expect((await savePrivateDetails(privateDetails)).status).toBe(200);
     expect((await save('Legacy client')).status).toBe(200);
@@ -401,8 +404,16 @@ describe('Annual Conference proposal lifecycle', () => {
     expect(updateLogistics.mock.lastCall?.[1]).not.toHaveProperty('social_handle');
     await expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${token}`)).json()).resolves.toMatchObject({ prefill: privateDetails });
     expect((await savePrivateDetails({ accessibility_requirements: '', headshot_url: '', social_handle: '' })).status).toBe(200);
-    expect(updateLogistics.mock.lastCall?.[1]).toMatchObject({ accessibility_requirements: null, headshot_url: null, social_handle: null });
-    await expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${token}`)).json()).resolves.toMatchObject({ prefill: { accessibility_requirements: '', headshot_url: '', social_handle: '' } });
+    expect(updateLogistics.mock.lastCall?.[1]).toMatchObject({ accessibility_requirements: null, social_handle: null });
+    expect(updateLogistics.mock.lastCall?.[1]).not.toHaveProperty('headshot_url');
+    await expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${token}`)).json()).resolves.toMatchObject({ prefill: { accessibility_requirements: '', headshot_url: 'https://example.com/headshot', social_handle: '' } });
+    await speakerStore.updateAnnualConferenceSessionHeadshot(selected!.selected_session_id!, 1, { headshot_url: null, headshot_photo_path: 'headshots/private/original' });
+    const logisticsResponse = await savePrivateDetails({ headshot_url: 'https://example.com/stale' });
+    const logisticsBody = await logisticsResponse.json();
+
+    expect(logisticsBody.session).not.toHaveProperty('headshot_photo_path');
+    expect(JSON.stringify(logisticsBody)).not.toContain('headshots/private/original');
+    expect(await speakerStore.getAnnualConferenceSession(selected!.selected_session_id!)).toMatchObject({ headshot_url: null, headshot_photo_path: 'headshots/private/original', headshot_revision: 2 });
     updateLogistics.mockRestore();
 
     const editionsPath = path.join(tempRoot, 'data', 'annual-conference-editions.json');

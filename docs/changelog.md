@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-06 — Speaker monitoring and action feedback
+
+- Show participation, headshot and social submission statuses before opening a speaker, with explicit missing details in the organizer drawer and optional badge/materials below.
+- Keep secondary button hover neutral and primary labels white, remove blanket hover outlines and ordinary button lifts, and preserve keyboard focus.
+- Close speaker test-email drawers after a successful send and confirm the destination with the existing toast; preserve the address and error for retry on failure.
+- Align the workspace publicity deadline and new follow-up drafts with the approved 12 November copy. Existing saved campaigns and acceptance history are unchanged.
+
+## 2026-11-05 — Headshot-first speaker workspace
+
+- Put publicity headshots and social handles first; support photo upload, an HTTPS link, or reuse of the saved badge photo.
+- Keep badge customization optional and preserve its unsaved edits when collapsed. Move optional session materials below participation and support details.
+- Give organizers private access to the original headshot. Preserve existing badge photos, crops, external links and acceptance history; require the additive headshot migration before deployment.
+
 ## 2026-11-05 — Discoverable speaker update tests
 
 - Offer a direct test-email action for a saved update and selected speaker, including when live update sending is disabled.

@@ -6,8 +6,9 @@ import {
   SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
 } from '@/lib/speaker-intake-limits';
 import AppDropdown from '@/src/components/AppDropdown.vue';
-import SpeakerMaterialsUpload from '@/src/components/SpeakerMaterialsUpload.vue';
 import SpeakerBadgeEditor from '@/src/components/SpeakerBadgeEditor.vue';
+import SpeakerMaterialsUpload from '@/src/components/SpeakerMaterialsUpload.vue';
+import SpeakerHeadshotEditor from '@/src/components/SpeakerHeadshotEditor.vue';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import type { ArchiveItemKind, ArchiveMaterialField, Event, SpeakerIntakeLinkPurpose } from '@/types';
 
@@ -25,7 +26,6 @@ type IntakePrefill = {
   availability_confirmed?: boolean | null;
   technical_requirements?: string;
   accessibility_requirements?: string;
-  headshot_url?: string;
   social_handle?: string;
   workshop_prerequisites?: string;
   required_software_equipment?: string;
@@ -46,14 +46,16 @@ const submitted = ref(false);
 const unavailableMessage = ref<string | null>(null);
 const error = ref<string | null>(null);
 const savedMessage = ref<string | null>(null);
-const workspaceDeadline = ref<string | null>(null);
 const slidesUpdateMode = ref(false);
+const badgeExpanded = ref(false);
+const headshotEditor = ref<{ hasUnsavedChanges: boolean; refresh: () => Promise<boolean> } | null>(null);
 const badgeEditor = ref<{ hasUnsavedChanges: boolean } | null>(null);
 const materialsUpload = ref<{ hasUnsavedChanges: boolean } | null>(null);
 const savedForm = ref<string | null>(null);
 const hasUnsavedChanges = computed(() => (
   submitting.value
   || (savedForm.value !== null && JSON.stringify(form) !== savedForm.value)
+  || Boolean(headshotEditor.value?.hasUnsavedChanges)
   || Boolean(badgeEditor.value?.hasUnsavedChanges)
   || Boolean(materialsUpload.value?.hasUnsavedChanges)
 ));
@@ -98,7 +100,6 @@ const form = reactive({
   availability_confirmed: '' as '' | 'yes' | 'not_yet',
   technical_requirements: '',
   accessibility_requirements: '',
-  headshot_url: '',
   social_handle: '',
   workshop_prerequisites: '',
   required_software_equipment: '',
@@ -155,7 +156,7 @@ function resourceLabel() {
 }
 
 function archiveHeading() {
-  if (isConferenceIntake.value) return 'Speaker logistics workspace';
+  if (isConferenceIntake.value) return 'Your speaker workspace';
   if (isSlidesUpdateMode()) return 'Update Your Slides Link';
   if (isSelectedSpeakerLink()) {
     return 'Complete Your Speaker Details';
@@ -167,7 +168,7 @@ function archiveHeading() {
 }
 
 function archiveDescription() {
-  if (isConferenceIntake.value) return 'Your accepted proposal is already saved. Please provide these delivery details by the organizer due date. You can still update them afterward.';
+  if (isConferenceIntake.value) return 'Share your publicity details and confirm what you need for your session. You can return to update them.';
   if (isSlidesUpdateMode()) return 'Your talk details are already saved. You can update only your slides link until the end of the event day.';
   if (isSelectedSpeakerLink()) {
     return 'Add a short bio and any resource link you have. You can leave the resource link blank if it is not ready yet.';
@@ -208,7 +209,6 @@ async function submitTalkDetails() {
       availability_confirmed: form.availability_confirmed === '' ? null : form.availability_confirmed === 'yes',
       technical_requirements: form.technical_requirements,
       accessibility_requirements: form.accessibility_requirements,
-      headshot_url: form.headshot_url,
       social_handle: form.social_handle,
       workshop_prerequisites: form.workshop_prerequisites,
       required_software_equipment: form.required_software_equipment,
@@ -268,7 +268,6 @@ onMounted(async () => {
     if (response.ok) {
       event.value = data.event;
       linkPurpose.value = data.link?.purpose ?? 'archive_backfill';
-      workspaceDeadline.value = data.link?.deadline ?? null;
       slidesUpdateMode.value = data.link?.mode === 'slides_update';
       archiveItemKind.value = data.link?.kind === 'product_demo' ? 'product_demo' : 'talk';
       requestedFields.value = Array.isArray(data.link?.requested_fields)
@@ -299,18 +298,11 @@ function applyPrefill(prefill: IntakePrefill) {
   form.availability_confirmed = prefill.availability_confirmed === true ? 'yes' : prefill.availability_confirmed === false ? 'not_yet' : '';
   form.technical_requirements = prefill.technical_requirements || '';
   form.accessibility_requirements = prefill.accessibility_requirements || '';
-  form.headshot_url = prefill.headshot_url || '';
   form.social_handle = prefill.social_handle || '';
   form.workshop_prerequisites = prefill.workshop_prerequisites || '';
   form.required_software_equipment = prefill.required_software_equipment || '';
   form.participants_need_laptops = prefill.participants_need_laptops === true ? 'yes' : prefill.participants_need_laptops === false ? 'no' : '';
   form.preferred_workshop_capacity = prefill.preferred_workshop_capacity ?? null;
-}
-
-function formatDeadline(value: string | null): string {
-  if (!value) return 'the organizer deadline';
-
-  return new Intl.DateTimeFormat('en-GH', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value));
 }
 
 function formatEventDay(): string {
@@ -386,18 +378,33 @@ function formatEventDay(): string {
 
         <template v-if="isConferenceIntake">
           <div v-if="savedMessage" class="rounded-md border border-[#15803d] bg-[#effcf3] p-4 text-sm font-semibold text-[#15803d]" role="status">{{ savedMessage }}</div>
-          <section class="rounded-lg border border-dc-border bg-dc-paper-warm p-5">
+          <section class="rounded-lg border border-dc-border bg-dc-paper-warm p-4">
             <p class="editorial-label">Accepted proposal</p>
-            <h2 class="text-2xl font-bold tracking-tight text-dc-ink">{{ form.title }}</h2>
-            <p class="mt-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">{{ form.session_type }} · {{ form.topic }}</p>
-            <p class="mt-4 whitespace-pre-line text-sm leading-6 text-dc-gray">{{ form.abstract }}</p>
-            <ol class="mt-4 list-decimal space-y-1 pl-5 text-sm leading-6 text-dc-gray">
-              <li v-for="outcome in form.learning_outcomes" :key="outcome">{{ outcome }}</li>
-            </ol>
-            <p class="mt-4 border-t border-dc-border pt-4 text-xs font-semibold text-dc-gray">Logistics due {{ formatDeadline(workspaceDeadline) }}. You can still make updates after this date.</p>
+            <h2 class="text-xl font-bold text-dc-ink">{{ form.title }}</h2>
+            <p class="mt-1 text-sm text-dc-gray">{{ form.session_type }} · {{ form.topic }}</p>
+            <details class="mt-2 text-sm text-dc-gray">
+              <summary class="cursor-pointer font-semibold text-dc-ink">View proposal</summary>
+              <p class="mt-3 whitespace-pre-line leading-6">{{ form.abstract }}</p>
+              <ol class="mt-3 list-decimal space-y-1 pl-5"><li v-for="outcome in form.learning_outcomes" :key="outcome">{{ outcome }}</li></ol>
+            </details>
           </section>
 
-          <SpeakerBadgeEditor v-if="String(route.params.year) === '2026'" ref="badgeEditor" :year="Number(route.params.year)" :token="String(route.params.token)" />
+          <section class="app-form-section space-y-5">
+            <div>
+              <p class="editorial-label text-dc-pink">Publicity details<span v-if="String(route.params.year) === '2026'"> · due November 12, 2026</span></p>
+              <h2 class="app-form-section-title">Help us introduce you</h2>
+              <p class="mt-2 text-sm text-dc-gray">Share a headshot and your social handles for speaker publicity.</p>
+            </div>
+            <div class="grid min-w-0 gap-6 lg:grid-cols-2">
+              <SpeakerHeadshotEditor ref="headshotEditor" :year="Number(route.params.year)" :token="String(route.params.token)" />
+              <label class="block min-w-0">
+                <span class="editorial-label">Social handles</span>
+                <textarea v-model="form.social_handle" maxlength="200" rows="3" class="editorial-input resize-y" placeholder="e.g. LinkedIn: yourname, X: @yourname" />
+                <span class="mt-2 block text-sm text-dc-gray">Add your platforms and handles. Save them with Save Details below.</span>
+              </label>
+            </div>
+          </section>
+
           <section class="app-form-section speaker-logistics">
           <h2 class="app-form-section-title speaker-logistics__title">Session logistics</h2>
           <div class="speaker-logistics__fields">
@@ -407,25 +414,12 @@ function formatEventDay(): string {
           </div>
 
           <label class="block">
-            <span class="editorial-label">Slides or supporting-resource link</span>
-            <input v-model="form.slides_url" type="url" inputmode="url" placeholder="https://…" class="editorial-input font-mono" />
-          </label>
-          <SpeakerMaterialsUpload ref="materialsUpload" :year="String(route.params.year)" :token="String(route.params.token)" />
-          <label class="block">
             <span class="editorial-label">Technical and setup requirements</span>
             <textarea v-model="form.technical_requirements" rows="4" class="editorial-input resize-none" placeholder="Microphones, display adapters, internet access, room setup, or other needs." />
           </label>
           <label class="block">
             <span class="editorial-label">Accessibility support (optional)</span>
             <textarea v-model="form.accessibility_requirements" maxlength="2000" rows="4" class="editorial-input resize-none" placeholder="Tell the organizers about any support you need." />
-          </label>
-          <label class="block">
-            <span class="editorial-label">Headshot link (optional)</span>
-            <input v-model="form.headshot_url" maxlength="2048" type="url" inputmode="url" placeholder="https://…" class="editorial-input font-mono" />
-          </label>
-          <label class="block">
-            <span class="editorial-label">Social handle (optional)</span>
-            <input v-model="form.social_handle" maxlength="200" type="text" class="editorial-input" />
           </label>
           <p class="speaker-logistics__note text-sm text-dc-gray">These details are shared privately with organizers and are not published automatically.</p>
           <label class="block">
@@ -446,8 +440,27 @@ function formatEventDay(): string {
             </label>
           </section>
           <div class="flex justify-end">
-            <button type="submit" :disabled="submitting" class="speaker-intake-submit motion-press w-full rounded-lg border border-dc-ink bg-dc-pink px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-56">{{ submitting ? 'SAVING…' : 'SAVE DETAILS' }}</button>
+            <button type="submit" :disabled="submitting" class="speaker-intake-submit motion-press w-full rounded-lg bg-dc-pink px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-56">{{ submitting ? 'SAVING…' : 'SAVE DETAILS' }}</button>
           </div>
+          <section v-if="String(route.params.year) === '2026'" class="rounded-lg border border-dc-border bg-dc-paper p-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div><h2 class="font-bold">Speaker badge <span class="font-normal text-dc-gray">(optional)</span></h2><p class="text-sm text-dc-gray">Customize and download your badge when you are ready.</p></div>
+              <button type="button" class="workspace-secondary" :aria-expanded="badgeExpanded" aria-controls="badge-editor" @click="badgeExpanded = !badgeExpanded">{{ badgeExpanded ? 'Close badge editor' : 'Customize badge' }}</button>
+            </div>
+            <div id="badge-editor" v-show="badgeExpanded" class="mt-4">
+              <SpeakerBadgeEditor ref="badgeEditor" :year="Number(route.params.year)" :token="String(route.params.token)" @photo-changed="headshotEditor?.refresh()" />
+            </div>
+          </section>
+          <details class="rounded-lg border border-dc-border bg-dc-paper p-4">
+            <summary class="cursor-pointer font-bold">Session materials <span class="font-normal text-dc-gray">(optional, not needed now)</span></summary>
+            <div class="mt-4 space-y-4">
+              <label class="block">
+                <span class="editorial-label">Slides or supporting-resource link</span>
+                <input v-model="form.slides_url" type="url" inputmode="url" placeholder="https://…" class="editorial-input font-mono" />
+              </label>
+              <SpeakerMaterialsUpload ref="materialsUpload" :year="String(route.params.year)" :token="String(route.params.token)" />
+            </div>
+          </details>
         </template>
 
         <template v-else>
@@ -588,6 +601,21 @@ function formatEventDay(): string {
 </template>
 
 <style scoped>
+.workspace-secondary {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid #bcb8ae;
+  border-radius: 6px;
+  background: white;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.workspace-secondary:focus-visible {
+  outline: 2px solid #e8117f;
+  outline-offset: 2px;
+}
+
 .speaker-logistics__fields {
   display: grid;
   min-width: 0;

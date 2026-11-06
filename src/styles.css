@@ -2734,7 +2734,6 @@
   @media (hover: hover) and (pointer: fine) {
     .event-media-upload-button:hover {
       background: #f5e642;
-      transform: translateY(-1px);
     }
   }
 
@@ -2866,10 +2865,8 @@
     }
 
     .event-media-remove:not(:disabled):hover {
-      border-color: #111111;
       background: #fffde7;
       color: #111111;
-      transform: translateY(-1px);
     }
   }
 
@@ -3339,6 +3336,18 @@
     transition:
       transform 100ms var(--motion-fast),
       opacity 150ms var(--motion-fast);
+  }
+
+  .editorial-action.editorial-action--neutral {
+    border-color: #d3d0c9;
+    background: #ffffff;
+    color: #25231f;
+    box-shadow: none;
+  }
+
+  .editorial-action.editorial-action--neutral:focus-visible {
+    outline: 2px solid #e8117f;
+    outline-offset: 3px;
   }
 
   .editorial-action:disabled {
@@ -6337,9 +6346,7 @@
 
 	  @media (hover: hover) and (pointer: fine) {
 	    .feedback-card-action:not(:disabled):hover {
-	      border-color: #000000;
 	      background: #fefce8;
-	      transform: translate3d(0, -1px, 0);
 	    }
 	  }
 
@@ -6472,9 +6479,7 @@
 
 	  @media (hover: hover) and (pointer: fine) {
 	    .feedback-quiet-button:not(:disabled):hover {
-	      border-color: #000000;
 	      background: #fefce8;
-	      transform: translate3d(0, -1px, 0);
 	    }
 	  }
 
@@ -8416,9 +8421,7 @@
     }
 
     .lifecycle-stage-trigger:hover {
-      border-color: #111111;
       box-shadow: 0 1px 0 rgba(17, 17, 17, 0.06);
-      transform: translate3d(0, -1px, 0);
     }
 
     .lifecycle-stage-trigger:hover .lifecycle-stage-index {
@@ -8440,28 +8443,27 @@
 
     .editorial-action:not(:disabled):hover {
       background: #c70d6c;
-      transform: translate3d(0, -1px, 0);
+    }
+
+    .editorial-action.editorial-action--neutral:not(:disabled):hover {
+      background: #f5f2e8;
     }
 
     .editorial-secondary-action:not(:disabled):hover {
       background: #fff8a8;
-      transform: translate3d(0, -1px, 0);
     }
 
     .submission-amendment-decline:not(:disabled):hover {
       color: #111111;
-      transform: translate3d(0, -1px, 0);
+      text-decoration: underline;
     }
 
     .submission-review-action--primary:not(:disabled):hover {
       background: #fff8a8;
-      transform: translate3d(0, -1px, 0);
     }
 
     .submission-review-action--secondary:not(:disabled):hover {
-      border-color: #111111;
       background: #fffef6;
-      transform: translate3d(0, -1px, 0);
     }
 
     .submission-review-action--quiet:not(:disabled):hover {
@@ -8490,9 +8492,7 @@
 
     .feedback-year-button:hover,
     .feedback-month-button:hover {
-      border-color: #111111;
       color: #111111;
-      transform: translate3d(0, -1px, 0);
     }
 
     .quiz-question-card:hover {
@@ -9874,20 +9874,10 @@
   }
 }
 
-/* Boxed actions retain a quiet hover cue, including in teleported panels. */
+/* Text actions use an underline without adding a surrounding box. */
 @media (hover: hover) and (pointer: fine) {
   .text-action:not(:disabled):hover {
     text-decoration: underline;
     text-underline-offset: 0.2em;
-  }
-
-  :where(
-    button,
-    input:is([type="button"], [type="submit"], [type="reset"]),
-    [role="button"],
-    a:is(.editorial-action, .editorial-secondary-action, .submission-review-action, .cfp-primary-action, .cfp-secondary-action, .primary-button, .secondary-button, .mobile-ops-action, .mobile-event-primary-action, .icon-button, .motion-press)
-  ):where(:hover):where(:not(.text-action, .programme-details-toggle, .app-form-control, [aria-haspopup="listbox"], [role="combobox"], [role="option"], [role="switch"], [role="checkbox"], [role="radio"], :disabled, :focus-visible, [aria-disabled="true"], [inert], [aria-disabled="true"] *, [inert] *, .audit-log-drawer-backdrop, .submission-drawer-backdrop, .talk-preview-drawer-backdrop)) {
-    outline: 1px solid color-mix(in srgb, currentColor 28%, transparent);
-    outline-offset: -2px;
   }
 }

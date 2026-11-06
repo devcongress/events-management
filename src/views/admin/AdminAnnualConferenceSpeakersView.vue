@@ -36,6 +36,7 @@ type ConferenceSubmission = AnnualConferenceSpeakerSubmission & {
     technical_requirements: string | null;
     accessibility_requirements: string | null;
     headshot_url: string | null;
+    headshot_photo_available: boolean;
     social_handle: string | null;
     workshop_prerequisites: string | null;
     required_software_equipment: string | null;
@@ -507,8 +508,8 @@ function toLocalDateTimeInput(value: string): string {
           </div>
           <div v-if="year === '2026'" class="badge-storage border-b border-dc-border px-5 py-3 text-sm text-dc-gray" aria-live="polite">
             <div v-if="badgeStorageQuery.data.value" class="badge-storage__readout">
-              <p><span class="font-semibold text-dc-ink">Speaker photos</span> · {{ badgeStorageQuery.data.value.speaker_photo_count }} {{ badgeStorageQuery.data.value.speaker_photo_count === 1 ? 'photo' : 'photos' }} · {{ formatStorageSize(badgeStorageQuery.data.value.speaker_photo_bytes) }}</p>
-              <p><span class="font-semibold text-dc-ink">All badge photos</span> · {{ formatStorageSize(badgeStorageQuery.data.value.shared_bucket_bytes) }} <span>(includes attendee badges)</span></p>
+              <p><span class="font-semibold text-dc-ink">Speaker badge photos</span> · {{ badgeStorageQuery.data.value.speaker_photo_count }} {{ badgeStorageQuery.data.value.speaker_photo_count === 1 ? 'photo' : 'photos' }} · {{ formatStorageSize(badgeStorageQuery.data.value.speaker_photo_bytes) }}</p>
+              <p><span class="font-semibold text-dc-ink">Shared photo storage</span> · {{ formatStorageSize(badgeStorageQuery.data.value.shared_bucket_bytes) }} <span>(includes badge photos, headshots, and retained uploads)</span></p>
             </div>
             <p v-if="badgeStorageQuery.isError.value" class="badge-storage__error">
               {{ badgeStorageQuery.data.value ? 'Could not refresh storage.' : 'Badge photo storage unavailable.' }}
@@ -517,11 +518,16 @@ function toLocalDateTimeInput(value: string): string {
             <p v-else-if="!badgeStorageQuery.data.value">Loading badge photo storage…</p>
           </div>
           <p v-if="!acceptedSubmissions.length" class="p-5 text-sm text-dc-gray">No accepted speakers yet.</p>
-          <ul v-else class="divide-y divide-dc-border">
+          <div v-if="acceptedSubmissions.length" class="participation-header participation-grid" aria-hidden="true">
+            <span>Speaker</span><span>Participation</span><span>Headshot</span><span>Socials</span><span></span>
+          </div>
+          <ul v-if="acceptedSubmissions.length" class="divide-y divide-dc-border">
             <li v-for="submission in paginatedAcceptedSubmissions" :key="submission.id">
-              <button type="button" aria-haspopup="dialog" class="speaker-summary-row grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 px-4 py-2 text-left focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-dc-pink" @click="openProposal(submission.id)">
-                <strong class="min-w-0 break-words text-sm font-semibold">{{ submission.speaker_name }}</strong>
-                <span class="text-right text-sm text-dc-gray">{{ submission.logistics?.availability_confirmed === true ? 'Confirmed' : submission.logistics?.availability_confirmed === false ? 'Not yet confirmed' : 'Awaiting response' }}</span>
+              <button type="button" aria-haspopup="dialog" class="speaker-summary-row participation-grid min-h-11 w-full px-4 py-2 text-left focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-dc-pink" @click="openProposal(submission.id)">
+                <strong class="participation-name min-w-0 break-words text-sm font-semibold">{{ submission.speaker_name }}</strong>
+                <span class="participation-status"><span class="participation-mobile-label">Participation: </span>{{ submission.logistics?.availability_confirmed === true ? 'Confirmed' : submission.logistics?.availability_confirmed === false ? 'Not yet confirmed' : 'Awaiting response' }}</span>
+                <span class="participation-status"><span class="participation-mobile-label">Headshot: </span>{{ submission.logistics?.headshot_photo_available ? 'Photo uploaded' : submission.logistics?.headshot_url?.trim() ? 'Link provided' : 'Missing' }}</span>
+                <span class="participation-status"><span class="participation-mobile-label">Socials: </span>{{ submission.logistics?.social_handle?.trim() ? 'Provided' : 'Missing' }}</span>
                 <span aria-hidden="true" class="speaker-summary-chevron text-lg leading-none text-dc-gray">›</span>
               </button>
             </li>
@@ -741,6 +747,68 @@ function toLocalDateTimeInput(value: string): string {
 @media (hover: hover) and (pointer: fine) {
   .delivery-table tbody tr:hover {
     background-color: #f7f7f7;
+  }
+}
+
+.participation-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.7fr) 1rem;
+  align-items: center;
+  gap: 12px;
+}
+
+.participation-header {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--dc-border, #dedbd3);
+  color: #555;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.participation-status {
+  min-width: 0;
+  color: #555;
+  font-size: 14px;
+}
+
+.participation-mobile-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .participation-header {
+    display: none;
+  }
+
+  .participation-grid {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .participation-name, .participation-status {
+    grid-column: 1;
+  }
+
+  .participation-mobile-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+    font-weight: 600;
+  }
+
+  .speaker-summary-chevron {
+    grid-column: 2;
+    grid-row: 1 / 5;
   }
 }
 

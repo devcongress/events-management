@@ -1,5 +1,6 @@
 type UploadOptions = {
   onProgress?: (percent: number | null) => void;
+  headers?: Record<string, string>;
 };
 
 /** Send a multipart request with upload progress and the same split-origin behavior as fetch. */
@@ -13,6 +14,9 @@ export function uploadMultipart<T>(path: string, body: FormData, options: Upload
 
     request.open('POST', url);
     request.withCredentials = true;
+    for (const [name, value] of Object.entries(options.headers ?? {})) {
+      request.setRequestHeader(name, value);
+    }
     request.upload.onprogress = (event) => {
       options.onProgress?.(event.lengthComputable && event.total > 0
         ? Math.min(100, Math.floor(event.loaded / event.total * 100))
@@ -42,7 +46,7 @@ export function uploadMultipart<T>(path: string, body: FormData, options: Upload
         ? payload.error
         : 'The upload could not be completed. Please try again.';
 
-      reject(new Error(message));
+      reject(Object.assign(new Error(message), { status: request.status }));
     };
     request.send(body);
   });

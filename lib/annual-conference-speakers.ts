@@ -105,6 +105,8 @@ export interface AnnualConferenceSession {
   technical_requirements: string | null;
   accessibility_requirements: string | null;
   headshot_url: string | null;
+  headshot_photo_path: string | null;
+  headshot_revision: number;
   social_handle: string | null;
   workshop_prerequisites: string | null;
   required_software_equipment: string | null;
@@ -709,7 +711,7 @@ export async function getAnnualConferenceSpeakerIntakeLinkById(id: string): Prom
 }
 
 export async function createAnnualConferenceSession(
-  input: Omit<AnnualConferenceSession, 'id' | 'status' | 'created_at' | 'updated_at' | 'availability_confirmed' | 'technical_requirements' | 'accessibility_requirements' | 'headshot_url' | 'social_handle' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at'>
+  input: Omit<AnnualConferenceSession, 'id' | 'status' | 'created_at' | 'updated_at' | 'availability_confirmed' | 'technical_requirements' | 'accessibility_requirements' | 'headshot_url' | 'headshot_photo_path' | 'headshot_revision' | 'social_handle' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at'>
     & Partial<Pick<AnnualConferenceSession, 'availability_confirmed' | 'technical_requirements' | 'accessibility_requirements' | 'headshot_url' | 'social_handle' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at'>>,
 ): Promise<AnnualConferenceSession> {
   const createdAt = now();
@@ -720,6 +722,8 @@ export async function createAnnualConferenceSession(
     technical_requirements: input.technical_requirements ?? null,
     accessibility_requirements: input.accessibility_requirements ?? null,
     headshot_url: input.headshot_url ?? null,
+    headshot_photo_path: null,
+    headshot_revision: 0,
     social_handle: input.social_handle ?? null,
     workshop_prerequisites: input.workshop_prerequisites ?? null,
     required_software_equipment: input.required_software_equipment ?? null,
@@ -752,7 +756,37 @@ export async function getAnnualConferenceSession(id: string): Promise<AnnualConf
     return data ? sessionFromRow(data) : undefined;
   }
 
-  return (await readData<AnnualConferenceSession>(SESSIONS_FILE)).find((session) => session.id === id);
+  const session = (await readData<AnnualConferenceSession>(SESSIONS_FILE)).find((item) => item.id === id);
+
+  return session ? { ...session, headshot_photo_path: session.headshot_photo_path ?? null, headshot_revision: session.headshot_revision ?? 0 } : undefined;
+}
+
+export async function updateAnnualConferenceSessionHeadshot(
+  id: string,
+  revision: number,
+  selection: { headshot_url: string | null; headshot_photo_path: string | null },
+): Promise<AnnualConferenceSession | null> {
+  const payload = { ...selection, headshot_revision: revision + 1, updated_at: now() };
+
+  if (isSupabaseRuntimeEnabled()) {
+    const { data, error } = await getSupabaseAdminClient().from('annual_conference_sessions').update(payload)
+      .eq('id', id).eq('status', 'confirmed').eq('headshot_revision', revision).select('*').maybeSingle();
+
+    if (error) throw new Error('Unable to save speaker headshot.');
+
+    return data ? sessionFromRow(data) : null;
+  }
+
+  return updateData<AnnualConferenceSession, AnnualConferenceSession | null>(SESSIONS_FILE, (items) => {
+    const index = items.findIndex((item) => item.id === id);
+
+    if (index < 0 || items[index].status !== 'confirmed' || (items[index].headshot_revision ?? 0) !== revision) return { data: items, result: null };
+    const next = [...items];
+
+    next[index] = { ...next[index], ...payload };
+
+    return { data: next, result: next[index] };
+  });
 }
 
 export async function updateAnnualConferenceSessionLogistics(

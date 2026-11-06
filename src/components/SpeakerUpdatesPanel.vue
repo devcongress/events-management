@@ -30,7 +30,6 @@ const error = ref('');
 const sendingEnabled = ref(false);
 const sendUnavailableReason = ref('');
 const testEmail = ref('');
-const testFeedback = ref('');
 const testError = ref('');
 const page = ref(1);
 const deliveryPage = ref(1);
@@ -39,6 +38,7 @@ const pendingTests = new Map<string, string>();
 let previousFocus: HTMLElement | null = null;
 let previousOverflow = '';
 let previousDocumentOverflow = '';
+let testContextVersion = 0;
 
 const base = computed(() => `/api/annual-conference/${props.year}/speaker-updates`);
 const currentPreview = computed(() => recipients.value.find((item) => item.id === previewId.value));
@@ -109,7 +109,8 @@ watch(drawerOpen, async (open) => {
     }
   }
 });
-watch([previewId, previewToken], () => { testEmail.value = ''; testFeedback.value = ''; testError.value = ''; });
+watch([previewId, previewToken], () => { testEmail.value = ''; testError.value = ''; }, { flush: 'sync' });
+watch([previewId, previewToken, drawerOpen, () => props.year], () => { testContextVersion += 1; }, { flush: 'sync' });
 watch(selected, clearPreview, { deep: true });
 watch(() => props.active, (active) => { if (!active) clearPreview(); });
 watch(() => props.year, () => { campaign.value = null; selected.value = []; clearPreview(); void load(); });
@@ -217,19 +218,22 @@ async function prepare(event: MouseEvent, mode: 'review' | 'test' = 'review') {
 async function sendTest() {
   if (!campaign.value || !currentPreview.value || !testEmail.value.trim()) return;
   busy.value = true;
-  testFeedback.value = '';
   testError.value = '';
   const signature = JSON.stringify([previewToken.value, currentPreview.value.id, testEmail.value.trim().toLowerCase()]);
   const requestId = pendingTests.get(signature) ?? crypto.randomUUID();
+  const contextVersion = testContextVersion;
 
   pendingTests.set(signature, requestId);
   try {
     const result = await fetchJson<{ recipient: string }>(`${base.value}/${campaign.value.id}/test`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preview_id: previewToken.value, recipient_id: currentPreview.value.id, email: testEmail.value.trim(), request_id: requestId }) });
 
     pendingTests.delete(signature);
-    if (signature === JSON.stringify([previewToken.value, currentPreview.value?.id, testEmail.value.trim().toLowerCase()])) testFeedback.value = `Test accepted for ${result.recipient}. Check your inbox; delivery is not yet confirmed.`;
+    if (drawerOpen.value && contextVersion === testContextVersion && signature === JSON.stringify([previewToken.value, currentPreview.value?.id, testEmail.value.trim().toLowerCase()])) {
+      clearPreview();
+      notify.success(`Test email sent to ${result.recipient}.`);
+    }
   } catch (cause) {
-    if (signature === JSON.stringify([previewToken.value, currentPreview.value?.id, testEmail.value.trim().toLowerCase()])) testError.value = cause instanceof Error ? cause.message : 'Unable to confirm test delivery.';
+    if (drawerOpen.value && contextVersion === testContextVersion && signature === JSON.stringify([previewToken.value, currentPreview.value?.id, testEmail.value.trim().toLowerCase()])) testError.value = cause instanceof Error ? cause.message : 'Unable to confirm test delivery.';
   } finally {
     busy.value = false;
   }
@@ -347,7 +351,7 @@ async function retry(delivery: Delivery) {
               <input id="update-test-email" ref="testEmailInput" v-model="testEmail" class="app-form-control w-full" type="email" maxlength="254" :disabled="busy || !configured" required placeholder="you@example.com">
               <p class="text-sm text-dc-gray">The test includes this speaker's private link. It does not change the delivery queue.</p>
               <div><button type="submit" class="editorial-action" :class="{ 'update-primary': testMode }" :disabled="busy || !configured || !testEmail.trim()">Send test email</button></div>
-              <p v-if="testFeedback" role="status">{{ testFeedback }}</p><p v-if="testError" role="alert">{{ testError }}</p>
+              <p v-if="testError" role="alert">{{ testError }}</p>
             </form>
             <p class="mt-3 break-words text-sm"><template v-if="testMode"><strong>Personalized for:</strong> {{ currentPreview.name }} · {{ currentPreview.recipient }}</template><template v-else><strong>To:</strong> {{ currentPreview.recipient }}</template><br><strong>Subject:</strong> {{ currentPreview.subject }}</p>
             <iframe :srcdoc="currentPreview.html" sandbox="" tabindex="-1" title="Personalized speaker update preview" class="mt-3 h-96 w-full border border-dc-border bg-white" />
@@ -383,6 +387,16 @@ async function retry(delivery: Delivery) {
   border-color: #c80d68;
   background: #c80d68;
   color: white;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .editorial-action:not(.update-primary):not(:disabled):hover {
+    background: #f5f2e8;
+  }
+
+  .editorial-action.update-primary:not(:disabled):hover {
+    background: #a50c57;
+  }
 }
 
 .editorial-action[aria-pressed="true"] {
