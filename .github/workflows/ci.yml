@@ -18,6 +18,12 @@ jobs:
     name: Dependencies, typecheck, test, and build
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # Update the image tag, digest, and expected version together with the Playwright lockfile.
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble@sha256:9bd26ad900bb5e0f4dee75839e957a89ae89c2b7ab1e76050e559790e946b948
+      options: --init --ipc=host
+    env:
+      PLAYWRIGHT_IMAGE_VERSION: '1.60.0'
 
     steps:
       - name: Checkout
@@ -37,6 +43,30 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify Playwright image and browser
+        timeout-minutes: 1
+        run: |
+          node --input-type=module <<'NODE'
+          import { access } from 'node:fs/promises';
+          import { constants } from 'node:fs';
+          import { createRequire } from 'node:module';
+
+          const require = createRequire(import.meta.url);
+          const version = require('playwright/package.json').version;
+          const { chromium } = require('playwright');
+
+          if (version !== process.env.PLAYWRIGHT_IMAGE_VERSION) {
+            throw new Error(`Playwright ${version} does not match image ${process.env.PLAYWRIGHT_IMAGE_VERSION}. Update the image tag, digest, and expected version.`);
+          }
+
+          await access(chromium.executablePath(), constants.X_OK);
+
+          const browser = await chromium.launch();
+
+          await browser.close();
+          console.log(`Playwright ${version} and Chromium are ready.`);
+          NODE
+
       - name: Audit dependencies
         run: pnpm audit:dependencies
 
@@ -54,9 +84,6 @@ jobs:
 
       - name: Build
         run: pnpm build
-
-      - name: Install journey browser
-        run: pnpm exec playwright install --with-deps chromium
 
       - name: Organizer browser journeys
         timeout-minutes: 5
