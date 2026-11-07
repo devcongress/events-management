@@ -1577,3 +1577,13 @@ The DevCon26 website reads an allowlisted projection of the saved 2026 programme
 **Why:** Organizers need a reusable original photo while speakers may independently customize or remove their shareable badge. Separate ownership preserves the publicity photo and avoids duplicate browser uploads or accidental overwrites from the general form.
 
 **Trade-offs:** Badge reuse consumes storage for a second original. Superseded headshots remain retained pending the existing recovery/retention policy. A forward migration is required but is not applied automatically. External image links are not fetched; organizers open them explicitly.
+
+## ADR-130: Share phone navigation without replacing workspace route state
+
+**Date:** 2026-11-07
+
+**Decision:** Let the app shell own the phone header, bottom navigation, and More menu for conference workspaces and global organizer tools. Keep existing routed workspace components and their query-state keys. Use the shared dropdown behavior for long phone subsection lists; retain short visible tabs when they fit.
+
+**Why:** Full desktop navigation and scrolling tab rows on phones obscure the current task and make permitted destinations difficult to discover. One phone shell, compact subsection breadcrumbs, and a section picker provide a consistent hierarchy without recreating workspace state or changing desktop navigation.
+
+**Boundaries:** Destinations intersect existing role guards and conference capabilities. Server authorization remains authoritative. Owner tools remain Owner-only, Finance remains unavailable, and session recovery continues to hide protected content. Phone skeleton refreshes affect only the changed sections and preserve desktop captures.

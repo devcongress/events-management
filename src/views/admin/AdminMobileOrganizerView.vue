@@ -218,12 +218,32 @@ function retryActions() {
 .mobile-home-state p { margin: .35rem 0 0; color: #5f5b54; font-size: .8rem; line-height: 1.45; }
 .mobile-home-state button { min-height: 2.5rem; margin-top: .75rem; border: 1px solid #111; border-radius: 8px; background: #fff; padding: 0 .8rem; font-family: var(--font-mono), monospace; font-size: .65rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .mobile-home-shortcuts { position: fixed; z-index: 30; bottom: 0; left: 0; right: 0; display: grid; width: min(100%, 42rem); margin-inline: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #d9d5cc; background: #fff; padding: .35rem max(.5rem, env(safe-area-inset-right)) max(.35rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); }
-.mobile-home-shortcuts a { display: flex; min-height: 3.75rem; align-items: center; justify-content: space-between; gap: .6rem; border-right: 1px solid #d9d5cc; padding: .8rem; color: #111; font-family: var(--font-mono), monospace; font-size: .62rem; font-weight: 700; letter-spacing: .05em; text-decoration: none; text-transform: uppercase; transition: transform 120ms cubic-bezier(.4, 0, .2, 1), background-color 160ms cubic-bezier(.4, 0, .2, 1); }
+.mobile-home-shortcuts a {
+  display: flex;
+  min-height: 3.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+  border-right: 1px solid #d9d5cc;
+  padding: .8rem;
+  color: #111;
+  font-family: var(--font-mono), monospace;
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-decoration: none;
+  transition: transform 120ms cubic-bezier(.4, 0, .2, 1), background-color 160ms cubic-bezier(.4, 0, .2, 1);
+}
 .mobile-home-shortcuts a:last-child { border-right: 0; }
 .mobile-home-shortcuts a:only-child { grid-column: 1 / -1; }
 .mobile-home-shortcuts strong { font-size: 1rem; }
 .mobile-home-action:active, .mobile-home-shortcuts a:active, .mobile-home-state button:active { transform: scale(.97); }
 @media (hover: hover) and (pointer: fine) { .mobile-home-action:hover, .mobile-home-shortcuts a:hover { background-color: var(--surface-warm); } }
-@media (max-width: 23rem) { .mobile-home-shortcuts a { padding: .65rem .45rem; font-size: .55rem; } }
+@media (max-width: 23rem) {
+  .mobile-home-shortcuts a {
+    padding: .65rem .45rem;
+    font-size: .75rem;
+  }
+}
 @media (prefers-reduced-motion: reduce) { .mobile-home-action, .mobile-home-shortcuts a { transition: none; } }
 </style>

@@ -23,6 +23,7 @@ type SpeakerProposal = { id: string; speakerId: string; name: string; title: str
 type State = { canManagePhotos: boolean; proposals: SpeakerProposal[]; speakersLoading: boolean; speakersError: string; photoBusy: string; photoError: string; snapshot: ProgrammeSnapshot | null; draft: ProgrammeRow[]; editing: boolean; loading: boolean; saving: boolean; error: string; conflict: boolean };
 const states = reactive(new Map<string, State>());
 const expandedRows = reactive(new Map<string, Set<string>>());
+const mobileEditingRows = reactive(new Map<string, string>());
 const editor = ref<HTMLElement | null>(null);
 const heading = ref<HTMLElement | null>(null);
 const annualConferenceNav = ref<ComponentPublicInstance | null>(null);
@@ -208,6 +209,7 @@ async function add(focus = true) {
   if (!current) return;
   const id = crypto.randomUUID();
 
+  mobileEditingRows.set(year.value, id);
   current.draft.push({ id, time: '', title: '', type: 'talk', lead: '', description: '', resourceTitle: '', resourceUrl: '', speakerProposalIds: [] });
   if (focus) {
     await nextTick();
@@ -235,7 +237,7 @@ function onEditorFocus(event: FocusEvent) {
   });
 }
 function focusEditorField(selector: string) {
-  const field = editor.value?.querySelector<HTMLInputElement>(selector);
+  const field = editor.value?.querySelector<HTMLElement>(selector);
 
   if (!field) return;
   field.focus();
@@ -246,6 +248,7 @@ function edit() {
 
   if (!current) return;
   current.draft = copy(current.snapshot?.rows ?? []);
+  mobileEditingRows.delete(year.value);
   current.editing = true;
   current.error = '';
   if (!current.draft.length) void add(false);
@@ -260,6 +263,11 @@ function cancel() {
   current.conflict = false;
   current.error = '';
 }
+function toggleMobileRow(id: string) {
+  if (mobileEditingRows.get(year.value) === id) mobileEditingRows.delete(year.value);
+  else mobileEditingRows.set(year.value, id);
+}
+
 function toggleDetails(id: string) {
   let expanded = expandedRows.get(year.value);
 
@@ -312,7 +320,11 @@ async function confirmRemoval() {
   pendingDeletion.value = null;
   await nextTick();
   if (year.value !== pending.year) return;
-  if (nextId) focusEditorField(`[data-row-title="${nextId}"]`);
+  if (nextId) {
+    mobileEditingRows.set(pending.year, nextId);
+    await nextTick();
+    focusEditorField(`[data-row-title="${nextId}"]`);
+  }
   else heading.value?.querySelector<HTMLButtonElement>('[aria-label="Outline actions"] button')?.focus();
 }
 async function save() {
@@ -323,21 +335,32 @@ async function save() {
   const parsed = programmeSaveSchema.safeParse({ revision: current.snapshot?.revision, rows: current.draft });
 
   if (!parsed.success) {
-    current.error = parsed.error.issues[0]?.message ?? 'Check the programme rows.';
-    if (parsed.error.issues.some((issue) => issue.path.includes('resourceUrl'))) {
-      const issue = parsed.error.issues.find((item) => item.path.includes('resourceUrl'));
-      const index = typeof issue?.path[1] === 'number' ? issue.path[1] : -1;
-      const invalidRow = current.draft[index];
+    const issue = parsed.error.issues[0];
+    const index = typeof issue?.path[1] === 'number' ? issue.path[1] : -1;
+    const field = String(issue?.path[2] ?? 'title');
+    const invalidRow = current.draft[index];
 
-      if (invalidRow) {
+    current.error = issue?.message ?? 'Check the programme rows.';
+    if (invalidRow) {
+      mobileEditingRows.set(target, invalidRow.id);
+      if (['description', 'resourceTitle', 'resourceUrl', 'speakerProposalIds'].includes(field)) {
         const expanded = expandedRows.get(target) ?? new Set<string>();
 
         expanded.add(invalidRow.id);
         expandedRows.set(target, expanded);
       }
-      if (invalidRow && year.value === target) {
+      if (year.value === target) {
         await nextTick();
-        focusEditorField(`[data-resource-url="${invalidRow.id}"]`);
+        const selectors: Record<string, string> = {
+          time: '.programme-time-trigger',
+          type: '.programme-type-field button',
+          description: '[data-programme-description]',
+          resourceTitle: '[data-programme-resource-title]',
+          resourceUrl: '[data-resource-url]',
+        };
+        const selector = selectors[field] ?? '[data-row-title]';
+
+        focusEditorField(`[data-programme-row="${invalidRow.id}"] ${selector}`);
       }
     }
 
@@ -404,94 +427,109 @@ async function save() {
         <template v-if="state.snapshot">
           <div v-if="state.editing" ref="editor" class="programme-editor" @focusin="onEditorFocus">
             <div class="programme-rows">
-              <fieldset v-for="(row, index) in state.draft" :key="`${year}-${row.id}`" class="programme-row" :disabled="state.saving || state.loading">
+              <fieldset v-for="(row, index) in state.draft" :key="`${year}-${row.id}`" class="programme-row" :data-programme-row="row.id" :class="{ 'programme-row--mobile-collapsed': mobileEditingRows.get(year) !== row.id }" :disabled="state.saving || state.loading">
                 <legend class="sr-only">Session {{ index + 1 }}</legend>
-                <div class="programme-grid">
-                  <div class="programme-time-field">
-                    <span>Time</span>
-                    <ProgrammeTimePicker v-model="row.time" :previous-time="state.draft[index - 1]?.time" :disabled="state.saving || state.loading" />
-                  </div>
-                  <label>
-                    Title
-                    <input v-model="row.title" :data-row-title="row.id" class="app-form-control" maxlength="200" required />
-                  </label>
-                  <div class="programme-type-field">
-                    <span>Type</span>
-                    <AppDropdown v-model="row.type" aria-label="Type" :options="options" :disabled="state.saving || state.loading" trigger-class="!px-2" />
-                  </div>
-                  <div class="programme-row-actions" role="group" :aria-label="`Session ${index + 1} actions`">
-                    <button type="button" :disabled="index === 0" :aria-label="`Move ${row.title || `session ${index + 1}`} up`" title="Move up" @click="move(index, -1)">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
-                    </button>
-                    <button type="button" :disabled="index === state.draft.length - 1" :aria-label="`Move ${row.title || `session ${index + 1}`} down`" title="Move down" @click="move(index, 1)">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
-                    </button>
-                    <button type="button" class="programme-remove" :disabled="state.conflict" :aria-label="`Remove ${row.title || `session ${index + 1}`}`" title="Remove" @click="requestRemoval(row.id)">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v6M14 11v6" /></svg>
-                    </button>
-                  </div>
-                </div>
-                <button type="button" class="programme-details-toggle" :aria-expanded="isExpanded(row.id)" :aria-controls="`programme-details-${year}-${row.id}`" @click="toggleDetails(row.id)">
-                  <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ 'is-expanded': isExpanded(row.id) }"><path d="m9 6 6 6-6 6" /></svg>
-                  <span class="programme-details-label">{{ isExpanded(row.id) ? 'Hide details' : 'Description and resource' }}</span>
-                  <span v-if="!isExpanded(row.id) && (row.description || row.resourceUrl)" class="programme-preview">{{ row.description || row.resourceTitle || row.resourceUrl }}</span>
+                <button
+                  type="button"
+                  class="programme-mobile-toggle"
+                  :aria-expanded="mobileEditingRows.get(year) === row.id"
+                  :aria-controls="`programme-mobile-body-${year}-${row.id}`"
+                  @click="toggleMobileRow(row.id)"
+                >
+                  <span>
+                    <strong>{{ row.title || 'Untitled session' }}</strong>
+                    <small>{{ row.time || 'Time not set' }}</small>
+                  </span>
+                  <span>{{ mobileEditingRows.get(year) === row.id ? 'Done' : 'Edit' }}</span>
                 </button>
-                <div :id="`programme-details-${year}-${row.id}`" v-show="isExpanded(row.id)" class="programme-details">
-                  <div class="programme-speakers">
-                    <AppMultiSelectDropdown
-                      :model-value="row.speakerProposalIds"
-                      :options="[...state.proposals.map((proposal) => ({ value: proposal.id, label: `${proposal.name} · ${proposal.title}` })), ...row.speakerProposalIds.filter((id) => !state?.proposals.some((proposal) => proposal.id === id)).map((id) => ({ value: id, label: `Unavailable proposal (${id})` }))]"
-                      label="Accepted speaker proposals"
-                      placeholder="No speakers selected"
-                      :disabled="state.speakersLoading || !!state.speakersError || !state.canManagePhotos"
-                      teleport
-                      @update:model-value="row.speakerProposalIds = $event.map(String)"
-                    />
-                    <p class="programme-help">{{ state.canManagePhotos ? 'Select one or more proposals, or leave empty. Copying proposal text is optional.' : 'Speaker links can be changed by an organizer with speaker management access.' }}</p>
-                    <p v-if="state.speakersLoading" class="programme-help">Loading accepted proposals…</p>
-                    <p v-else-if="state.speakersError" role="alert" class="programme-error">{{ state.speakersError }} <button type="button" @click="loadSpeakers(year)">Try again</button></p>
-                    <p v-else-if="!state.proposals.length" class="programme-help">No accepted proposals for this conference yet.</p>
-                    <p v-if="!state.speakersLoading && !state.speakersError && row.speakerProposalIds.some((id) => !state?.proposals.some((proposal) => proposal.id === id))" class="programme-error">A linked proposal is no longer available. This speaker is hidden from the public programme. You can keep editing the schedule.</p>
-                    <div v-for="proposal in state.proposals.filter((item) => row.speakerProposalIds.includes(item.id))" :key="proposal.id" class="programme-speaker">
-                      <img v-if="proposal.photoUrl" :src="proposal.photoUrl" :alt="`Photo of ${proposal.name}`" class="programme-photo" />
-                      <div class="programme-speaker-copy">
-                        <strong>{{ proposal.name }}</strong>
-                        <span>{{ proposal.title }}</span>
-                        <div class="programme-speaker-actions">
-                          <button type="button" @click="copyProposal(row, proposal)">Copy title and description</button>
-                          <label v-if="state.canManagePhotos" class="programme-photo-action">{{ proposal.photoUrl ? 'Replace photo' : 'Upload photo' }}<input type="file" accept="image/avif,image/jpeg,image/png,image/webp" :disabled="!!state.photoBusy" @change="updatePhoto(proposal, $event)" /></label>
-                          <button v-if="proposal.photoUrl && state.canManagePhotos" type="button" :disabled="!!state.photoBusy" @click="requestPhotoRemoval(row, proposal)">Remove photo</button>
+                <div :id="`programme-mobile-body-${year}-${row.id}`" class="programme-mobile-body">
+                  <div class="programme-grid">
+                    <div class="programme-time-field">
+                      <span>Time</span>
+                      <ProgrammeTimePicker v-model="row.time" :previous-time="state.draft[index - 1]?.time" :disabled="state.saving || state.loading" />
+                    </div>
+                    <label>
+                      Title
+                      <input v-model="row.title" :data-row-title="row.id" class="app-form-control" maxlength="200" required />
+                    </label>
+                    <div class="programme-type-field">
+                      <span>Type</span>
+                      <AppDropdown v-model="row.type" aria-label="Type" :options="options" :disabled="state.saving || state.loading" trigger-class="!px-2" />
+                    </div>
+                    <div class="programme-row-actions" role="group" :aria-label="`Session ${index + 1} actions`">
+                      <button type="button" :disabled="index === 0" :aria-label="`Move ${row.title || `session ${index + 1}`} up`" title="Move up" @click="move(index, -1)">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+                      </button>
+                      <button type="button" :disabled="index === state.draft.length - 1" :aria-label="`Move ${row.title || `session ${index + 1}`} down`" title="Move down" @click="move(index, 1)">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
+                      </button>
+                      <button type="button" class="programme-remove" :disabled="state.conflict" :aria-label="`Remove ${row.title || `session ${index + 1}`}`" title="Remove" @click="requestRemoval(row.id)">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v6M14 11v6" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <button type="button" class="programme-details-toggle" :aria-expanded="isExpanded(row.id)" :aria-controls="`programme-details-${year}-${row.id}`" @click="toggleDetails(row.id)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ 'is-expanded': isExpanded(row.id) }"><path d="m9 6 6 6-6 6" /></svg>
+                    <span class="programme-details-label">{{ isExpanded(row.id) ? 'Hide details' : 'Description and resource' }}</span>
+                    <span v-if="!isExpanded(row.id) && (row.description || row.resourceUrl)" class="programme-preview">{{ row.description || row.resourceTitle || row.resourceUrl }}</span>
+                  </button>
+                  <div :id="`programme-details-${year}-${row.id}`" v-show="isExpanded(row.id)" class="programme-details">
+                    <div class="programme-speakers">
+                      <AppMultiSelectDropdown
+                        :model-value="row.speakerProposalIds"
+                        :options="[...state.proposals.map((proposal) => ({ value: proposal.id, label: `${proposal.name} · ${proposal.title}` })), ...row.speakerProposalIds.filter((id) => !state?.proposals.some((proposal) => proposal.id === id)).map((id) => ({ value: id, label: `Unavailable proposal (${id})` }))]"
+                        label="Accepted speaker proposals"
+                        placeholder="No speakers selected"
+                        :disabled="state.speakersLoading || !!state.speakersError || !state.canManagePhotos"
+                        teleport
+                        @update:model-value="row.speakerProposalIds = $event.map(String)"
+                      />
+                      <p class="programme-help">{{ state.canManagePhotos ? 'Select one or more proposals, or leave empty. Copying proposal text is optional.' : 'Speaker links can be changed by an organizer with speaker management access.' }}</p>
+                      <p v-if="state.speakersLoading" class="programme-help">Loading accepted proposals…</p>
+                      <p v-else-if="state.speakersError" role="alert" class="programme-error">{{ state.speakersError }} <button type="button" @click="loadSpeakers(year)">Try again</button></p>
+                      <p v-else-if="!state.proposals.length" class="programme-help">No accepted proposals for this conference yet.</p>
+                      <p v-if="!state.speakersLoading && !state.speakersError && row.speakerProposalIds.some((id) => !state?.proposals.some((proposal) => proposal.id === id))" class="programme-error">A linked proposal is no longer available. This speaker is hidden from the public programme. You can keep editing the schedule.</p>
+                      <div v-for="proposal in state.proposals.filter((item) => row.speakerProposalIds.includes(item.id))" :key="proposal.id" class="programme-speaker">
+                        <img v-if="proposal.photoUrl" :src="proposal.photoUrl" :alt="`Photo of ${proposal.name}`" class="programme-photo" />
+                        <div class="programme-speaker-copy">
+                          <strong>{{ proposal.name }}</strong>
+                          <span>{{ proposal.title }}</span>
+                          <div class="programme-speaker-actions">
+                            <button type="button" @click="copyProposal(row, proposal)">Copy title and description</button>
+                            <label v-if="state.canManagePhotos" class="programme-photo-action">{{ proposal.photoUrl ? 'Replace photo' : 'Upload photo' }}<input type="file" accept="image/avif,image/jpeg,image/png,image/webp" :disabled="!!state.photoBusy" @change="updatePhoto(proposal, $event)" /></label>
+                            <button v-if="proposal.photoUrl && state.canManagePhotos" type="button" :disabled="!!state.photoBusy" @click="requestPhotoRemoval(row, proposal)">Remove photo</button>
+                          </div>
                         </div>
                       </div>
+                      <p v-if="state.photoBusy" class="programme-help">Updating photo…</p>
+                      <p v-if="state.photoError" role="alert" class="programme-error">{{ state.photoError }}</p>
+                      <p v-if="row.speakerProposalIds.length" class="programme-help">Photo changes save immediately for this speaker across sessions. Use AVIF, JPEG, PNG or WebP, up to 5 MB.</p>
                     </div>
-                    <p v-if="state.photoBusy" class="programme-help">Updating photo…</p>
-                    <p v-if="state.photoError" role="alert" class="programme-error">{{ state.photoError }}</p>
-                    <p v-if="row.speakerProposalIds.length" class="programme-help">Photo changes save immediately for this speaker across sessions. Use AVIF, JPEG, PNG or WebP, up to 5 MB.</p>
+                    <label class="programme-description">
+                      Description
+                      <textarea v-model="row.description" data-programme-description class="app-form-control" maxlength="2000" rows="2" @input="suggestions.delete(suggestionKey(row.id))" />
+                    </label>
+                    <p v-if="row.description.length > 2000" class="programme-error programme-description">Description: {{ row.description.length }} of 2,000 characters. Shorten it or use a suggested summary before saving.</p>
+                    <div class="programme-summary">
+                      <button type="button" :disabled="!row.description.trim()" @click="suggestions.set(suggestionKey(row.id), suggestProgrammeSummary(row.description))">Suggest summary</button>
+                      <p class="programme-help">Drafted from your description on this device. Review the extract before using it.</p>
+                      <template v-if="suggestions.has(suggestionKey(row.id))">
+                        <label>Suggested summary
+                          <textarea :value="suggestions.get(suggestionKey(row.id))" class="app-form-control" rows="3" maxlength="2000" @input="suggestions.set(suggestionKey(row.id), ($event.target as HTMLTextAreaElement).value)" />
+                        </label>
+                        <button type="button" @click="row.description = suggestions.get(suggestionKey(row.id)) || ''; suggestions.delete(suggestionKey(row.id))">Use summary</button>
+                        <button type="button" @click="suggestions.delete(suggestionKey(row.id))">Dismiss</button>
+                      </template>
+                    </div>
+                    <label>
+                      Resource title
+                      <input v-model="row.resourceTitle" data-programme-resource-title class="app-form-control" maxlength="200" />
+                    </label>
+                    <label>
+                      Resource URL
+                      <input v-model="row.resourceUrl" :data-resource-url="row.id" class="app-form-control" type="url" maxlength="2048" placeholder="https://" />
+                    </label>
                   </div>
-                  <label class="programme-description">
-                    Description
-                    <textarea v-model="row.description" class="app-form-control" maxlength="2000" rows="2" @input="suggestions.delete(suggestionKey(row.id))" />
-                  </label>
-                  <p v-if="row.description.length > 2000" class="programme-error programme-description">Description: {{ row.description.length }} of 2,000 characters. Shorten it or use a suggested summary before saving.</p>
-                  <div class="programme-summary">
-                    <button type="button" :disabled="!row.description.trim()" @click="suggestions.set(suggestionKey(row.id), suggestProgrammeSummary(row.description))">Suggest summary</button>
-                    <p class="programme-help">Drafted from your description on this device. Review the extract before using it.</p>
-                    <template v-if="suggestions.has(suggestionKey(row.id))">
-                      <label>Suggested summary
-                        <textarea :value="suggestions.get(suggestionKey(row.id))" class="app-form-control" rows="3" maxlength="2000" @input="suggestions.set(suggestionKey(row.id), ($event.target as HTMLTextAreaElement).value)" />
-                      </label>
-                      <button type="button" @click="row.description = suggestions.get(suggestionKey(row.id)) || ''; suggestions.delete(suggestionKey(row.id))">Use summary</button>
-                      <button type="button" @click="suggestions.delete(suggestionKey(row.id))">Dismiss</button>
-                    </template>
-                  </div>
-                  <label>
-                    Resource title
-                    <input v-model="row.resourceTitle" class="app-form-control" maxlength="200" />
-                  </label>
-                  <label>
-                    Resource URL
-                    <input v-model="row.resourceUrl" :data-resource-url="row.id" class="app-form-control" type="url" maxlength="2048" placeholder="https://" />
-                  </label>
                 </div>
               </fieldset>
             </div>
@@ -605,6 +643,8 @@ async function save() {
   border-radius: 8px;
   background: #fff;
 }
+
+.programme-mobile-toggle { display: none; }
 
 .programme-grid {
   display: grid;
@@ -952,7 +992,7 @@ async function save() {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .programme-heading {
     align-items: start;
     flex-direction: column;
@@ -967,23 +1007,46 @@ async function save() {
     font-size: 14px;
   }
 
+  .programme-mobile-toggle {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+  }
+  .programme-mobile-toggle > span:first-child {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+  .programme-mobile-toggle strong {
+    overflow-wrap: anywhere;
+  }
+  .programme-mobile-toggle small {
+    color: #555;
+    font-size: 13px;
+  }
+  .programme-mobile-toggle > span:last-child {
+    color: #b10d62;
+    font-weight: 700;
+  }
+  .programme-mobile-toggle:focus-visible {
+    outline: 2px solid #e8117f;
+    outline-offset: 2px;
+  }
+  .programme-row--mobile-collapsed .programme-mobile-body {
+    display: none;
+  }
+  .programme-mobile-body {
+    padding-top: 12px;
+  }
   .programme-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
-
-  .programme-grid > :nth-child(1) {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
   .programme-grid > :nth-child(2) {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-
-  .programme-grid > :nth-child(3) {
-    grid-column: 2;
-    grid-row: 1;
+    order: -1;
   }
 
   .programme-row-actions {

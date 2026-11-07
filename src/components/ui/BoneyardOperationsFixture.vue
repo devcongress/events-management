@@ -68,7 +68,7 @@ const members = [{ value: 'member', label: 'Choose a person' }];
           <h2 class="mt-1 text-lg font-semibold text-dc-ink">Access requests</h2>
           <p class="mt-1 text-xs leading-5 text-dc-gray">Review each request, then choose a workspace role when approving.</p>
         </div>
-        <input class="editorial-input w-full !min-h-11 !rounded-md !px-3 !py-2 !text-sm sm:!w-72" placeholder="Search name, email or reason" disabled />
+        <input class="editorial-input w-full !min-h-11 !rounded-md !px-3 !py-2 !text-base md:!text-sm sm:!w-72" placeholder="Search name, email or reason" disabled />
       </div>
       <table class="block w-full text-left text-sm sm:table">
         <thead class="hidden border-b border-dc-border bg-dc-paper-warm text-xs text-dc-gray sm:table-header-group"><tr><th v-for="label in ['Person', 'How they’d like to help', 'Requested', 'Review']" :key="label" class="px-5 py-3 font-medium">{{ label }}</th></tr></thead>
@@ -84,6 +84,8 @@ const members = [{ value: 'member', label: 'Choose a person' }];
     </section>
 
     <section class="rounded-lg border border-dc-border bg-dc-paper p-4 xl:col-start-2 xl:row-start-2">
+      <button class="min-h-11 w-full text-left font-semibold md:hidden" disabled>Add access</button>
+      <div class="hidden md:block">
       <p class="editorial-eyebrow">Invite</p>
       <h2 class="mt-1 text-lg font-semibold text-dc-ink">Add access</h2>
       <p class="mt-1 text-xs leading-5 text-dc-gray">Add one person and choose the access they need.</p>
@@ -93,23 +95,41 @@ const members = [{ value: 'member', label: 'Choose a person' }];
         <AppDropdown model-value="organizer" label="Role" :options="roles" density="compact" disabled />
         <button class="editorial-action min-h-10 w-full justify-center" disabled>Add person</button>
       </div>
+      </div>
     </section>
 
     <section v-if="owner" class="rounded-lg border border-dc-border bg-dc-paper p-4 xl:col-start-2 xl:row-start-3">
+      <button class="min-h-11 w-full text-left font-semibold md:hidden" disabled>Conference responsibilities</button>
+      <div class="hidden md:block">
       <p class="editorial-eyebrow">Delegation</p>
       <h2 class="mt-1 text-lg font-semibold text-dc-ink">Conference responsibilities</h2>
       <p class="mt-1 text-xs leading-5 text-dc-gray">Give a member access to specific Annual Conference sections without changing their role.</p>
       <div class="mt-3 grid gap-2.5"><AppDropdown model-value="member" label="Team member" :options="members" density="compact" disabled /><button class="editorial-action min-h-10 w-full justify-center" disabled>Open delegation</button></div>
       <p class="mt-3 border-t border-dc-border pt-3 text-[11px] leading-4 text-dc-gray">Volunteers remain limited to assigned tasks.</p>
+      </div>
     </section>
 
     <section class="min-w-0 overflow-hidden rounded-lg border border-dc-border bg-dc-paper xl:col-start-1 xl:row-span-2 xl:row-start-2">
       <div class="flex items-center justify-between gap-4 border-b border-dc-border px-4 py-3 sm:px-5">
         <div><h2 class="text-lg font-semibold text-dc-ink">Team access</h2><p class="mt-0.5 text-xs text-dc-gray">Names, roles, and recent sign-in activity.</p></div>
-        <span class="text-[11px] font-semibold uppercase text-dc-gray">4 total</span>
+        <div class="flex items-center gap-3"><span class="text-[11px] font-semibold uppercase text-dc-gray">4 total</span><button v-if="owner" class="min-h-11 rounded-md border border-dc-border px-3 text-xs" disabled>Show emails</button></div>
       </div>
       <div class="overflow-hidden">
-        <table class="w-full min-w-[46rem] border-collapse text-left">
+        <ul class="divide-y divide-dc-border md:hidden">
+          <li v-for="row in 3" :key="row" class="space-y-3 px-4 py-4">
+            <div class="flex items-start gap-3">
+              <NaviiAvatar :seed="`loading-mobile-team-${row}`" title="" :size="36" />
+              <div><p class="font-semibold">Community organizer</p><p class="text-sm text-dc-gray">Email hidden</p></div>
+            </div>
+            <dl class="grid grid-cols-2 gap-3 text-sm">
+              <div><dt>Role</dt><dd>Organizer</dd></div>
+              <div><dt>Status</dt><dd>Active</dd></div>
+              <div class="col-span-2"><dt>Last sign-in</dt><dd>28 Oct 2026</dd></div>
+            </dl>
+            <div class="flex gap-2"><button class="min-h-11 rounded-md border px-3" disabled>Access</button><button class="min-h-11 rounded-md border px-3" disabled>Disable</button></div>
+          </li>
+        </ul>
+        <table class="hidden w-full min-w-[46rem] border-collapse text-left md:table">
           <thead class="bg-dc-paper-warm"><tr class="text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray"><th v-for="label in ['Person', 'Role', 'Last sign-in', 'Status', '']" :key="label" class="px-5 py-2.5">{{ label }}</th></tr></thead>
           <tbody class="divide-y divide-dc-border">
             <tr v-for="row in 4" :key="row">

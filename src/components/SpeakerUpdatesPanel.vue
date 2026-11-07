@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import AppDropdown from '@/src/components/AppDropdown.vue';
+import { usePhoneViewport } from '@/src/composables/usePhoneViewport';
 import AppPagination from '@/src/components/AppPagination.vue';
 import { fetchJson } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
@@ -20,6 +22,7 @@ const recipients = ref<Recipient[]>([]);
 const previewToken = ref('');
 const previewId = ref('');
 const drawerOpen = ref(false);
+const phone = usePhoneViewport();
 const testMode = ref(false);
 const testEmailInput = ref<HTMLInputElement | null>(null);
 const drawer = ref<HTMLElement | null>(null);
@@ -42,6 +45,8 @@ let testContextVersion = 0;
 
 const base = computed(() => `/api/annual-conference/${props.year}/speaker-updates`);
 const currentPreview = computed(() => recipients.value.find((item) => item.id === previewId.value));
+const previewPosition = computed(() => recipients.value.findIndex(item => item.id === previewId.value) + 1);
+const previewOptions = computed(() => recipients.value.map(item => ({ value: item.id, label: item.name })));
 const dirty = computed(() => Boolean(campaign.value && JSON.stringify([campaign.value.subject, campaign.value.message]) !== saved.value));
 const eligibleCandidates = computed(() => candidates.value.filter(item => item.eligible !== false));
 const allEligibleSelected = computed(() => eligibleCandidates.value.length > 0
@@ -84,6 +89,15 @@ function clearPreview() {
 
 function onDrawerKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
+    const openDropdown = drawer.value?.querySelector<HTMLButtonElement>('button[aria-haspopup="listbox"][aria-expanded="true"]');
+
+    if (openDropdown) {
+      event.preventDefault();
+      openDropdown.click();
+      openDropdown.focus();
+
+      return;
+    }
     event.preventDefault();
     drawerOpen.value = false;
 
@@ -102,6 +116,16 @@ function onDrawerKeydown(event: KeyboardEvent) {
     first?.focus();
   }
 }
+
+watch(phone, async (isPhone) => {
+  if (isPhone || !drawerOpen.value) return;
+  const trigger = drawer.value?.querySelector<HTMLButtonElement>('button[aria-haspopup="listbox"][aria-expanded="true"]');
+  const focusWasInPicker = Boolean(trigger || drawer.value?.querySelector('.recipient-picker')?.contains(document.activeElement));
+
+  if (!focusWasInPicker) return;
+  await nextTick();
+  if (drawerOpen.value && !phone.value) drawer.value?.querySelector<HTMLButtonElement>('[role="group"][aria-label="Preview recipient"] button[aria-pressed="true"]')?.focus();
+}, { flush: 'sync' });
 
 watch(drawerOpen, async (open) => {
   if (open) {
@@ -373,7 +397,11 @@ async function retry(delivery: Delivery) {
           <header class="update-drawer-header"><div><p class="text-sm text-dc-gray">Owner preview · 10 minute snapshot</p><h2 id="update-preview-title" class="text-xl font-bold">{{ testMode ? 'Send test email' : 'Review speaker updates' }}</h2></div><button ref="closeButton" type="button" class="editorial-action" @click="drawerOpen = false">Close</button></header>
           <div class="update-drawer-body">
             <p class="text-sm text-dc-gray">Choose the speaker whose frozen email you want to {{ testMode ? 'test' : 'review' }}.</p>
-            <div class="mt-2 flex flex-wrap gap-2" role="group" aria-label="Preview recipient"><button v-for="recipient in recipients" :key="recipient.id" type="button" class="editorial-action" :aria-pressed="previewId === recipient.id" @click="previewId = recipient.id">{{ recipient.name }}</button></div>
+            <div v-if="phone" class="recipient-picker mt-2">
+              <AppDropdown v-model="previewId" :options="previewOptions" label="Preview recipient" menu-class="!z-[1201]" teleport />
+              <p class="mt-1 text-sm text-dc-gray" aria-live="polite">{{ previewPosition }} of {{ recipients.length }} speakers</p>
+            </div>
+            <div class="mt-2 hidden flex-wrap gap-2 md:flex" role="group" aria-label="Preview recipient"><button v-for="recipient in recipients" :key="recipient.id" type="button" class="editorial-action" :aria-pressed="previewId === recipient.id" @click="previewId = recipient.id">{{ recipient.name }}</button></div>
             <form v-if="testMode" class="mt-4 grid gap-2" @submit.prevent="sendTest">
               <label for="update-test-email" class="text-sm font-semibold">Test recipient</label>
               <input id="update-test-email" ref="testEmailInput" v-model="testEmail" class="app-form-control w-full" type="email" maxlength="254" :disabled="busy || !configured" required placeholder="you@example.com">
@@ -470,6 +498,8 @@ async function retry(delivery: Delivery) {
   display: flex;
   width: min(42rem, 100%);
   height: 100%;
+  height: 100dvh;
+  min-height: 0;
   flex-direction: column;
   background: white;
 }
@@ -482,6 +512,10 @@ async function retry(delivery: Delivery) {
   gap: 1rem;
   padding: 1.25rem;
   border-bottom: 1px solid #e6e3dc;
+}
+
+.update-drawer-header {
+  padding-top: max(1.25rem, env(safe-area-inset-top));
 }
 
 .update-drawer-header button {
@@ -497,7 +531,20 @@ async function retry(delivery: Delivery) {
 
 .update-drawer-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 1.25rem;
+}
+
+@media (max-width: 767px) {
+  .update-drawer-header,
+  .update-drawer-body,
+  .update-drawer-footer {
+    padding-inline: 1rem;
+  }
+
+  .update-drawer-footer > button {
+    width: 100%;
+  }
 }
 </style>

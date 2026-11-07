@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MobileSectionPicker from '@/src/components/MobileSectionPicker.vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from "vue";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import { useRoute, useRouter } from "vue-router";
@@ -842,6 +843,13 @@ onUnmounted(() => {
       >
         Refresh failed. Showing the last loaded campaign data.
       </p>
+      <MobileSectionPicker
+        class="campaign-section-picker"
+        :model-value="activeCampaignTab"
+        label="Campaign section"
+        :options="campaignTabs.map(tab => ({ value: tab.id, label: tab.label }))"
+        @update:model-value="selectCampaignTab($event as CampaignTab)"
+      />
       <div
         ref="campaignTablist"
         class="follow-up-campaign-tabs"
@@ -1685,6 +1693,19 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.campaign-section-picker {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .campaign-section-picker {
+    display: block;
+  }
+
+  .follow-up-campaign-tabs.follow-up-campaign-tabs {
+    display: none;
+  }
+}
 .follow-up-panel {
   margin: 0;
   padding: clamp(1rem, 2.4vw, 1.6rem);

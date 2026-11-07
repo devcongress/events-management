@@ -49,6 +49,9 @@ const PHONE_ALLOWED_ADMIN_ROUTE_NAMES = new Set([
   "admin-public-event-preview",
   "admin-organizers",
   "admin-reports",
+  "admin-audit-log",
+  "admin-present-forms",
+  "admin-present-forms-display",
   ORGANIZER_VOLUNTEER_FOLLOW_UP_PREVIEW_ROUTE_NAME,
 ]);
 

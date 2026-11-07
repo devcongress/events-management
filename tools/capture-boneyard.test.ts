@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { breakpoints, compactSnapshot, promoteTransaction, recoverTransaction, validateCatalog, validateSnapshot, withinDeadline } from './capture-boneyard.mjs';
+import { breakpoints, compactSnapshot, mergePhoneBreakpoints, promoteTransaction, recoverTransaction, validateCatalog, validateSnapshot, withinDeadline } from './capture-boneyard.mjs';
 import { hashBytes, mergeRegistry } from './rebuild-boneyard-registry.mjs';
 
 const temporaryRoots: string[] = [];
@@ -55,6 +55,17 @@ describe('Boneyard capture safety', () => {
     expect(validateCatalog([{ ...section, capture: { maxWidth: 1280, breakpoints: [320, ...breakpoints] } }])).toHaveLength(1);
     expect(() => validateCatalog([{ ...section, capture: { maxWidth: 1280, breakpoints: [390, 320] } }])).toThrow('Invalid Boneyard breakpoints');
     expect(() => validateCatalog([{ ...section, capture: { maxWidth: 1280, breakpoints: [] } }])).toThrow('Invalid Boneyard breakpoints');
+  });
+
+  it('replaces only existing phone breakpoints and preserves desktop snapshots', () => {
+    const desktop = { viewportWidth: 1280, bones: [[1, 2, 3, 4, 5]] };
+    const existing = { breakpoints: { 390: { old: true }, 640: { old: true }, 1280: desktop } };
+    const refreshed = mergePhoneBreakpoints(existing, { breakpoints: { 390: { updated: true }, 640: { updated: true } } });
+
+    expect(refreshed.breakpoints[1280]).toEqual(desktop);
+    expect(refreshed.breakpoints[390]).toEqual({ updated: true });
+    expect(() => mergePhoneBreakpoints(existing, { breakpoints: { 1280: {} } })).toThrow('Phone-only');
+    expect(() => mergePhoneBreakpoints(existing, { breakpoints: { 320: {} } })).toThrow('existing matching');
   });
 
   it('serializes supported compact tuples without changing geometry or container flags', () => {

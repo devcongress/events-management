@@ -57,23 +57,17 @@ describe("organizer viewport policy", () => {
     }
   });
 
-  it("keeps the form presentation board desktop-only", () => {
-    expect(
-      organizerViewportRedirect({
-        authenticated: true,
-        isAdminRoute: true,
-        isPhone: true,
-        routeName: "admin-present-forms",
-      }),
-    ).toEqual({ path: ORGANIZER_PHONE_ROUTE_PATH, replace: true });
-    expect(
-      organizerViewportRedirect({
-        authenticated: true,
-        isAdminRoute: true,
-        isPhone: false,
-        routeName: "admin-present-forms",
-      }),
-    ).toBeNull();
+  it("keeps owner tools on their requested routes at phone and desktop widths", () => {
+    for (const routeName of ["admin-present-forms", "admin-present-forms-display", "admin-audit-log"]) {
+      for (const isPhone of [true, false]) {
+        expect(organizerViewportRedirect({
+          authenticated: true,
+          isAdminRoute: true,
+          isPhone,
+          routeName,
+        })).toBeNull();
+      }
+    }
   });
 
   it("uses one shared phone breakpoint", () => {

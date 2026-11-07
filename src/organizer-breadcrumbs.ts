@@ -1,12 +1,16 @@
 import type { LocationQuery, RouteLocationRaw } from 'vue-router';
 import {
+  hasAnyAnnualConferenceCapability,
   isAnnualConferenceCapability,
+  VOLUNTEER_SECTION_CAPABILITIES,
   type AnnualConferenceCapability,
 } from '@/lib/annual-conference-capabilities';
 import { adminPath } from './admin-routes';
 import { annualConferencePath, canCreateConferenceBadge, mobileAnnualConferencePath, volunteerCanAccessOrganizerPath } from './annual-conference';
 import { queryKeys } from './lib/api';
 import { resolveTicketingSection, ticketingSectionLabel } from './ticketing-navigation';
+import { resolveAuditLogSection } from './lib/organizer-workspace-sections';
+import { resolveVolunteerCampaignTab, resolveVolunteerView } from './lib/volunteer-navigation';
 
 export type OrganizerBreadcrumbRole = 'owner' | 'organizer' | 'volunteer' | null;
 
@@ -224,6 +228,85 @@ function conferenceBreadcrumbs(
 
   const query = route.query ?? {};
 
+  if (phone) {
+    const overviewCrumb: OrganizerBreadcrumb = { label: 'Overview', ...(canLink(overview) ? { to: overviewTo } : {}) };
+
+    if (mobile) {
+      const section = query.section === 'tasks' || query.section === 'volunteers' ? query.section : 'overview';
+
+      if (query.section === 'badge' && canCreateConferenceBadge(year, role)) return [overviewCrumb, { label: 'Conference badge' }];
+      if (section === 'overview') return [{ label: 'Overview' }];
+      if (section === 'volunteers') {
+        if (!hasAnyAnnualConferenceCapability(capabilities, VOLUNTEER_SECTION_CAPABILITIES)) return [{ label: 'Overview' }];
+        const canReview = year === '2026' && capabilities.includes('volunteers.review_applications');
+        const canCampaign = canReview && role === 'owner';
+
+        if (!canReview && !canCampaign) return [overviewCrumb, { label: 'Volunteers' }];
+        const view = resolveVolunteerView(query.volunteerView, canReview, canCampaign);
+        const titles = { directory: 'Directory', reviews: 'Reviews', campaign: 'Campaign' };
+
+        const volunteerCrumb: OrganizerBreadcrumb = { label: 'Volunteers', to: { path: overview, query: { ...query, section: 'volunteers', volunteerView: 'directory' } } };
+
+        if (view === 'campaign') {
+          const tab = resolveVolunteerCampaignTab(query.campaignTab);
+          const tabLabels = { updates: 'Updates', outcomes: 'Outcomes', invitations: 'Invitations', settings: 'Settings' };
+
+          return [
+            overviewCrumb,
+            volunteerCrumb,
+            { label: 'Campaign', to: { path: overview, query: { ...query, section: 'volunteers', volunteerView: 'campaign', campaignTab: 'updates' } } },
+            { label: tabLabels[tab] },
+          ];
+        }
+
+        return [overviewCrumb, volunteerCrumb, { label: titles[view] }];
+      }
+
+      return [overviewCrumb, { label: labels.assignedAccess ? 'My tasks' : 'Work plan' }];
+    }
+
+    if (name === 'admin-annual-conference-ticketing') {
+      const path = annualConferencePath('ticketing', year);
+
+      if (!canLink(path)) return [];
+      const section = resolveTicketingSection(query.section, year);
+
+      return [overviewCrumb, { label: 'Ticketing', to: { path, query: { section: 'overview' } } }, { label: ticketingSectionLabel(section) }];
+    }
+
+    if (name === 'admin-annual-conference-registrations') {
+      const path = annualConferencePath('registrations', year);
+
+      if (!canLink(path)) return [];
+      const raw = scalar(query.section);
+      const section = raw && registrationSections[raw] && (raw !== 'community' || (role === 'owner' && year === '2026')) ? raw : 'summary';
+
+      return [overviewCrumb, { label: 'Registration', to: { path, query: { section: 'summary' } } }, { label: registrationSections[section] }];
+    }
+
+    if (name === 'admin-annual-conference-speakers') {
+      const path = annualConferencePath('speakers', year);
+
+      if (!canLink(path)) return [];
+      const sectionLabel = query.section === 'participation' ? 'Participation'
+        : role === 'owner' && query.section === 'delivery' ? 'Delivery'
+          : role === 'owner' && query.section === 'outcome-messages' ? 'Outcome messages' : 'Proposals';
+
+      return [overviewCrumb, { label: 'Speakers', to: { path, query: { section: 'proposals' } } }, { label: sectionLabel }];
+    }
+
+    const phoneSections: Record<string, { path: string; label: string }> = {
+      'admin-annual-conference-work-plan': { path: 'work-plan', label: 'Work plan' },
+      'admin-annual-conference-programme': { path: 'programme', label: 'Programme' },
+      'admin-annual-conference-check-in': { path: 'check-in', label: 'Guests' },
+      'admin-annual-conference-volunteers': { path: 'volunteers', label: 'Volunteers' },
+    };
+    const section = phoneSections[name];
+
+    return section && canLink(annualConferencePath(section.path, year)) ? [overviewCrumb, { label: section.label }] : [];
+
+  }
+
   if (name === 'admin-annual-conference') {
     if (!canLink(overview)) return [];
 
@@ -247,7 +330,6 @@ function conferenceBreadcrumbs(
 
   if (name === 'admin-annual-conference-ticketing') {
     if (!canLink(annualConferencePath('ticketing', year))) return [];
-    if (phone) return [...base, { label: 'Ticketing' }];
     const section = resolveTicketingSection(query.section, year);
 
     return [...base, { label: 'Ticketing', ...(section === 'overview' ? {} : { to: { path: annualConferencePath('ticketing', year), query: { section: 'overview' } } }) }, { label: ticketingSectionLabel(section) }];
@@ -257,7 +339,6 @@ function conferenceBreadcrumbs(
     const path = annualConferencePath('registrations', year);
 
     if (!canLink(path)) return [];
-    if (phone) return [...base, { label: 'Registration' }];
     const raw = scalar(query.section);
     const section = raw && registrationSections[raw] && (raw !== 'community' || (role === 'owner' && year === '2026')) ? raw : 'summary';
 
@@ -307,12 +388,24 @@ export function resolveOrganizerBreadcrumbs(
     'admin-present-forms': 'Present forms',
   };
 
-  if (name === 'admin-reports') return [{ label: 'Reports', to: adminPath('reports') }, { label: input.query?.section === 'feedback' ? 'Feedback' : 'Attendance' }];
+  if (name === 'admin-reports') return [
+    ...(input.phone ? [{ label: 'Home', to: adminPath('mobile') }] : []),
+    { label: 'Reports', to: adminPath('reports') },
+    { label: input.query?.section === 'feedback' ? 'Feedback' : 'Attendance' },
+  ];
 
   if (name === 'admin-audit-log' || name === 'admin-present-forms') {
-    return input.role === 'owner' ? [{ label: topLevel[name] }] : [];
+    if (input.role !== 'owner') return [];
+    if (name === 'admin-audit-log' && input.phone) {
+      const section = resolveAuditLogSection(input.query?.section);
+      const sections = { activity: 'Activity', 'email-delivery': 'Email delivery', 'email-previews': 'Email previews', 'short-links': 'Short links', 'archived-events': 'Archived events' };
+
+      return [{ label: 'Home', to: adminPath('mobile') }, { label: 'Audit Log', to: { path: adminPath('audit-log'), query: { ...input.query, section: 'activity' } } }, { label: sections[section] }];
+    }
+
+    return [...(input.phone ? [{ label: 'Home', to: adminPath('mobile') }] : []), { label: topLevel[name] }];
   }
-  if (topLevel[name]) return [{ label: topLevel[name] }];
+  if (topLevel[name]) return [...(input.phone ? [{ label: 'Home', to: adminPath('mobile') }] : []), { label: topLevel[name] }];
 
   return eventBreadcrumbs(input, labels);
 }

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { ComponentPublicInstance } from 'vue';
-import { RouterLink, useRoute } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
+import MobileSectionPicker from '@/src/components/MobileSectionPicker.vue';
+import { usePhoneSectionFit } from '@/src/composables/usePhoneSectionFit';
 import { adminPath } from '@/src/admin-routes';
 import { isSystemDesignWorkspaceDisabled } from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
@@ -21,6 +23,7 @@ type AdminEventTab = {
 };
 
 const route = useRoute();
+const router = useRouter();
 const tabsTrack = ref<HTMLElement | null>(null);
 const tabElements = ref<HTMLElement[]>([]);
 const indicator = ref({ left: 0, width: 0, ready: false });
@@ -41,6 +44,9 @@ const tabs = computed<AdminEventTab[]>(() => eventNavigationTabs(
   isQuarterlyEvent.value,
   hasSavedSystemDesignSource.value || (Boolean(checklistQuery.data.value) && !systemDesignDisabled.value),
 ));
+const container = ref<HTMLElement | null>(null);
+const measurement = ref<HTMLElement | null>(null);
+const usePicker = usePhoneSectionFit(container, measurement, computed(() => tabs.value.length));
 
 function tabPath(href: string) {
   return href ? adminPath(`events/${props.eventId}/${href}`) : adminPath(`events/${props.eventId}`);
@@ -133,11 +139,27 @@ watch(tabs, () => {
   tabElements.value = [];
   void nextTick(updateIndicator);
 });
+
+watch(usePicker, () => {
+  void nextTick(updateIndicator);
+}, { flush: 'post' });
 </script>
 
 <template>
-  <nav class="mb-5 overflow-x-auto">
-    <div ref="tabsTrack" class="admin-event-tabs-track flex min-w-max gap-2 border-b-2 border-dc-border pb-3 font-mono text-xs font-semibold uppercase tracking-wide">
+  <nav ref="container" class="event-tabs-container mb-5" aria-label="Event workspace">
+    <div class="event-tabs-measure-clip" aria-hidden="true" inert>
+      <div ref="measurement" class="flex w-max gap-2 font-mono text-xs font-semibold uppercase tracking-wide">
+        <span v-for="tab in tabs" :key="tab.href" class="admin-event-tab">{{ tab.label }}</span>
+      </div>
+    </div>
+    <MobileSectionPicker
+      v-if="usePicker"
+      :model-value="tabs[activeIndex]?.href ?? ''"
+      label="Event section"
+      :options="tabs.map(tab => ({ value: tab.href, label: tab.label, disabled: tab.disabled }))"
+      @update:model-value="router.push(tabTo($event))"
+    />
+    <div v-show="!usePicker" ref="tabsTrack" class="admin-event-tabs-track flex min-w-max gap-2 border-b-2 border-dc-border pb-3 font-mono text-xs font-semibold uppercase tracking-wide">
       <span class="admin-event-tabs-indicator" :style="indicatorStyle" aria-hidden="true" />
       <component
         v-for="(tab, index) in tabs"
@@ -162,3 +184,25 @@ watch(tabs, () => {
     </div>
   </nav>
 </template>
+
+<style scoped>
+.event-tabs-container {
+  position: relative;
+  min-width: 0;
+}
+
+.event-tabs-measure-clip {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .event-tabs-container {
+    overflow-x: auto;
+  }
+}
+</style>

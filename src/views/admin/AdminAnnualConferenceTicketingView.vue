@@ -625,7 +625,7 @@ onUnmounted(() => {
             <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-dc-gray">Live capacity accounting</p>
           </div>
 
-          <div class="mt-3 grid gap-3 md:grid-cols-3">
+          <div class="inventory-summary mt-3 grid gap-3 md:grid-cols-3">
             <article v-for="item in [
               ['Capacity', ticketing.inventory.public_capacity, 'Total seats available to this edition'],
               ['Reserved', ticketing.inventory.reduction_floor, 'Paid, sponsor-held, and active checkout holds'],
@@ -985,6 +985,33 @@ onUnmounted(() => {
 <style scoped src="@/src/styles/ticket-order-cards.css"></style>
 
 <style scoped>
+@media (max-width: 767px) {
+  .inventory-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid #e0ddd4;
+    border-radius: 8px;
+    background: #fff;
+  }
+  .inventory-summary article {
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    padding: 12px 10px;
+  }
+  .inventory-summary article + article {
+    border-left: 1px solid #e0ddd4;
+  }
+  .inventory-summary article strong {
+    margin-top: 4px;
+    font-size: 1.35rem;
+  }
+  .inventory-summary article > p:last-child {
+    display: none;
+  }
+}
+
 .pricing-drawer {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);

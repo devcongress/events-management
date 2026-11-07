@@ -124,16 +124,36 @@ function share() {
         <p>Your name and optional photo stay in this browser while you use this page. They are not saved when you leave.</p>
         <input ref="photoInput" hidden type="file" accept="image/jpeg,image/png,image/webp" @change="choosePhoto" />
         <div class="volunteer-badge__actions">
-          <button type="button" class="volunteer-badge__secondary motion-press" @click="photoInput?.click()">{{ photo ? 'Change photo' : 'Add photo' }}</button>
-          <button v-if="photo" type="button" class="volunteer-badge__secondary motion-press" @click="removePhoto">Remove photo</button>
+          <button type="button" class="volunteer-badge__secondary motion-press" @click="photoInput?.click()">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <rect x="2.5" y="3" width="15" height="14" rx="2" />
+              <circle cx="7" cy="7.5" r="1" />
+              <path d="m3 14 4-4 3 3 3-4 4 5" />
+            </svg>
+            {{ photo ? 'Change photo' : 'Add photo' }}
+          </button>
+          <button v-if="photo" type="button" class="volunteer-badge__secondary motion-press" @click="removePhoto">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M3 5.5h14m-12 0 .8 10.5a1.5 1.5 0 0 0 1.5 1.5h5.4a1.5 1.5 0 0 0 1.5-1.5L15 5.5m-7-2v2m4-2v2" />
+            </svg>
+            Remove photo
+          </button>
+          <button v-if="canShare" type="button" class="volunteer-badge__button motion-press" :disabled="!ready" @click="share">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 12V2.5m-3 3 3-3 3 3m1 3h1a1.5 1.5 0 0 1 1.5 1.5v5.5A1.5 1.5 0 0 1 15 17H5a1.5 1.5 0 0 1-1.5-1.5V10A1.5 1.5 0 0 1 5 8.5h1" />
+            </svg>
+            Share badge
+          </button>
+          <button type="button" class="volunteer-badge__secondary motion-press" :disabled="!ready" @click="ready && prepared && saveBadgeFile(prepared, 'devcon26-volunteer.png')">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 2.5V13m-3-3 3 3 3-3M3.5 13v2.5A1.5 1.5 0 0 0 5 17h10a1.5 1.5 0 0 0 1.5-1.5V13" />
+            </svg>
+            Download PNG
+          </button>
         </div>
         <p class="volunteer-badge__status" :class="{ 'volunteer-badge__error': error }" role="status" aria-live="polite">
           {{ error || (preparing ? 'Preparing preview…' : !normalizedName ? 'Enter a display name to preview your badge.' : '') }}
         </p>
-        <div class="volunteer-badge__actions">
-          <button v-if="canShare" type="button" class="volunteer-badge__button motion-press" :disabled="!ready" @click="share">Share badge</button>
-          <button type="button" class="volunteer-badge__secondary motion-press" :disabled="!ready" @click="ready && prepared && saveBadgeFile(prepared, 'devcon26-volunteer.png')">Download PNG</button>
-        </div>
       </div>
       <canvas ref="canvas" width="1080" height="1350" class="volunteer-badge__preview" :class="{ 'volunteer-badge__preview--hidden': !previewName }" role="img" :aria-label="`DevCon26 volunteer badge preview for ${previewName}`" />
     </div>
@@ -197,11 +217,25 @@ function share() {
 
 .volunteer-badge__button,
 .volunteer-badge__secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   min-height: 44px;
   padding: 0.5rem 1rem;
   border: 1px solid #111;
   border-radius: 6px;
   font-weight: 600;
+}
+
+.volunteer-badge__actions svg {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .volunteer-badge__button {

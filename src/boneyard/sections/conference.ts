@@ -1267,12 +1267,6 @@ export const conferenceSections: SkeletonSection[] = [
         ]
       },
       {
-        "kind": "toolbar",
-        "actions": [
-          "Open Registration"
-        ]
-      },
-      {
         "kind": "heading",
         "title": "Saturday, 19 December 2026",
         "eyebrow": "2026 edition",

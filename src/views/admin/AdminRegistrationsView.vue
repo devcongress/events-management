@@ -5,6 +5,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { resolveRegistrationSection, type RegistrationWorkspaceTab } from '@/src/lib/organizer-workspace-sections';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import MobileSectionPicker from '@/src/components/MobileSectionPicker.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
@@ -1175,6 +1176,13 @@ async function retryEmails() {
       </section>
 
       <template v-else>
+        <MobileSectionPicker
+          class="registration-workspace-picker"
+          :model-value="activeWorkspaceTab"
+          label="Registration section"
+          :options="workspaceTabs.map(tab => ({ value: tab.id, label: tab.label }))"
+          @update:model-value="selectWorkspaceTab($event as RegistrationWorkspaceTab)"
+        />
         <div
           class="registration-workspace-tabs underline-section-nav"
           role="tablist"
@@ -1858,7 +1866,17 @@ async function retryEmails() {
                 <div><p class="editorial-eyebrow">delivery record</p><h3 class="mt-1 text-lg font-bold text-dc-ink">Blast activity</h3></div>
                 <p class="text-xs text-dc-gray">Select an update to view delivery progress or the exact issue.</p>
               </div>
-              <div class="overflow-x-auto">
+              <ul class="divide-y divide-dc-border md:hidden" aria-label="Blast activity">
+                <li v-for="blast in paginatedBlasts" :key="blast.id">
+                  <button type="button" class="block min-h-11 w-full space-y-2 px-4 py-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink" :aria-label="`View delivery details for ${blast.subject}`" @click="openBlastActivity(blast)">
+                    <span class="block break-words font-bold text-dc-ink">{{ blast.subject }}</span>
+                    <span v-if="blast.status === 'preparing'" class="block text-sm text-dc-gray">{{ blast.prepared_recipient_count }}/{{ blast.recipient_count }} recipients ready</span>
+                    <span class="block text-sm text-dc-gray">{{ blast.recipient_count }} guest{{ blast.recipient_count === 1 ? '' : 's' }} · {{ formatDateTime(blast.sent_at ?? blast.scheduled_for ?? blast.updated_at) }}</span>
+                    <span class="inline-block rounded-sm border px-2 py-1 text-sm font-semibold" :class="blastStatusClass(blast.status)">{{ blastStatusLabel(blast.status) }}</span>
+                  </button>
+                </li>
+              </ul>
+              <div class="hidden overflow-x-auto md:block">
                 <table class="w-full min-w-[40rem] text-left">
                   <thead class="border-b border-dc-border bg-dc-paper-warm font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink"><tr><th class="px-5 py-3">Blast</th><th class="px-4 py-3">Audience</th><th class="px-4 py-3">Last updated</th><th class="px-4 py-3">Status</th></tr></thead>
                   <tbody class="divide-y divide-dc-border">
@@ -1973,6 +1991,19 @@ async function retryEmails() {
 <style scoped src="@/src/styles/underline-section-nav.css"></style>
 
 <style scoped>
+.registration-workspace-picker {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .registration-workspace-picker {
+    display: block;
+  }
+
+  .registration-workspace-tabs {
+    display: none;
+  }
+}
 .registration-page-wrap {
   --registration-workspace-tabs-height: 3rem;
   padding-top: clamp(1rem, 2vh, 1.5rem);

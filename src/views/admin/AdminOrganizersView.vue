@@ -5,6 +5,7 @@ import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { z } from 'zod';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import { usePhoneViewport } from '@/src/composables/usePhoneViewport';
 import AccessRequestDrawer from '@/src/components/AccessRequestDrawer.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
@@ -61,6 +62,27 @@ const form = reactive({
   role: 'organizer' as AdminRole,
 });
 const accessSetupContext = ref<string | null>(null);
+const addAccessOpen = ref(false);
+const delegationOpen = ref(false);
+const addAccessEmail = ref<HTMLInputElement | null>(null);
+const delegationFields = ref<HTMLElement | null>(null);
+
+async function toggleAddAccess() {
+  addAccessOpen.value = !addAccessOpen.value;
+  if (addAccessOpen.value) {
+    await nextTick();
+    addAccessEmail.value?.focus();
+  }
+}
+
+async function toggleDelegation() {
+  delegationOpen.value = !delegationOpen.value;
+  if (delegationOpen.value) {
+    await nextTick();
+    delegationFields.value?.querySelector<HTMLButtonElement>('button')?.focus();
+  }
+}
+
 const appliedVolunteerApplication = ref<string | null>(null);
 const appliedResponsibilityMember = ref<string | null>(null);
 const requestedApplicationId = computed(() => typeof route.query.volunteer_application === 'string'
@@ -81,6 +103,7 @@ const adminSessionQuery = useQuery({
   queryFn: fetchAdminSession,
 });
 const organizers = computed(() => organizersQuery.data.value?.organizers ?? []);
+const phone = usePhoneViewport();
 const currentUserRole = computed<AdminRole | null>(() => adminSessionQuery.data.value?.user?.role ?? null);
 const currentUserEmail = computed(() => adminSessionQuery.data.value?.user?.email?.toLowerCase() ?? null);
 const accessRequestsQuery = useQuery({
@@ -108,6 +131,14 @@ const canRevealEmails = computed(() => currentUserRole.value === 'owner');
 const activeOrganizers = computed(() => organizers.value.filter((organizer) => organizer.status === 'active'));
 const ownerCount = computed(() => activeOrganizers.value.filter((organizer) => organizer.role === 'owner').length);
 const loading = computed(() => organizersQuery.isPending.value);
+
+watch([accessSetupContext, loading], async ([context, isLoading]) => {
+  if (!context || isLoading) return;
+  addAccessOpen.value = true;
+  await nextTick();
+  if (window.matchMedia('(max-width: 767px)').matches) addAccessEmail.value?.focus();
+});
+
 const pageError = computed(() => organizersQuery.error.value?.message || '');
 const organizerPage = ref(1);
 const organizersPerPage = 10;
@@ -759,7 +790,7 @@ onUnmounted(() => {
             </div>
             <label class="w-full sm:w-72">
               <span class="sr-only">Search access requests</span>
-              <input v-model="accessRequestSearch" type="search" class="editorial-input !min-h-11 !rounded-md !px-3 !py-2 !text-sm" placeholder="Search name, email or reason">
+              <input v-model="accessRequestSearch" type="search" class="editorial-input !min-h-11 !rounded-md !px-3 !py-2 !text-base md:!text-sm" placeholder="Search name, email or reason">
             </label>
           </div>
           <BoneyardPageSkeleton v-if="accessRequestsQuery.isPending.value" name="admin-access-requests" label="admin access requests" :show-header="false" />
@@ -800,25 +831,44 @@ onUnmounted(() => {
         </section>
 
         <form class="rounded-lg border border-dc-border bg-dc-paper p-4 xl:col-start-2 xl:row-start-2" @submit.prevent="submitOrganizer">
-          <p class="editorial-eyebrow">Invite</p>
-          <h2 class="mt-1 text-lg font-semibold text-dc-ink">Add access</h2>
-          <p class="mt-1 text-xs leading-5 text-dc-gray">Add one person and choose the access they need.</p>
-          <p v-if="accessSetupContext" class="mt-3 rounded-md border border-dc-border bg-dc-yellow/30 px-3 py-2 text-[11px] leading-4 text-dc-gray">
-            Reviewing access for <strong class="text-dc-ink">{{ accessSetupContext }}</strong>. Adding this person grants workspace access; it does not happen automatically.
-          </p>
-          <div class="mt-3 grid gap-2.5">
-            <label>
-              <span class="editorial-label">Email</span>
-              <input v-model="form.email" required type="email" autocomplete="email" class="editorial-input mt-1.5 !min-h-10 !rounded-md !px-3 !py-2 !text-sm" placeholder="person@devcongress.org">
-            </label>
-            <label>
-              <span class="editorial-label">Display name</span>
-              <input v-model="form.display_name" required maxlength="120" autocomplete="name" class="editorial-input mt-1.5 !min-h-10 !rounded-md !px-3 !py-2 !text-sm" placeholder="Full name">
-            </label>
-            <AppDropdown v-model="form.role" label="Role" :options="roleOptions" density="compact" menu-class="min-w-48" teleport />
-            <button class="editorial-action min-h-10 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50" :disabled="!canAddOrganizer">
-              {{ addOrganizerMutation.isPending.value ? 'Adding…' : 'Add person' }}
-            </button>
+          <button
+            type="button"
+            class="access-disclosure md:hidden"
+            :aria-expanded="addAccessOpen"
+            aria-controls="add-access-fields"
+            @click="toggleAddAccess"
+          >
+            <span>Add access</span>
+            <span aria-hidden="true">{{ addAccessOpen ? '−' : '+' }}</span>
+          </button>
+          <div :class="{ 'hidden md:block': !addAccessOpen }" id="add-access-fields">
+            <p class="editorial-eyebrow">Invite</p>
+            <h2 class="mt-1 text-lg font-semibold text-dc-ink">Add access</h2>
+            <p class="mt-1 text-xs leading-5 text-dc-gray">Add one person and choose the access they need.</p>
+            <p v-if="accessSetupContext" class="mt-3 rounded-md border border-dc-border bg-dc-yellow/30 px-3 py-2 text-[11px] leading-4 text-dc-gray">
+              Reviewing access for <strong class="text-dc-ink">{{ accessSetupContext }}</strong>. Adding this person grants workspace access; it does not happen automatically.
+            </p>
+            <div class="mt-3 grid gap-2.5">
+              <label>
+                <span class="editorial-label">Email</span>
+                <input ref="addAccessEmail" v-model="form.email" required type="email" autocomplete="email" class="editorial-input mt-1.5 !min-h-10 !rounded-md !px-3 !py-2 !text-base md:!text-sm" placeholder="person@devcongress.org">
+              </label>
+              <label>
+                <span class="editorial-label">Display name</span>
+                <input v-model="form.display_name" required maxlength="120" autocomplete="name" class="editorial-input mt-1.5 !min-h-10 !rounded-md !px-3 !py-2 !text-base md:!text-sm" placeholder="Full name">
+              </label>
+              <AppDropdown
+                v-model="form.role"
+                label="Role"
+                :options="roleOptions"
+                density="compact"
+                menu-class="min-w-48"
+                teleport
+              />
+              <button class="editorial-action min-h-10 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50" :disabled="!canAddOrganizer">
+                {{ addOrganizerMutation.isPending.value ? 'Adding…' : 'Add person' }}
+              </button>
+            </div>
           </div>
         </form>
 
@@ -827,37 +877,49 @@ onUnmounted(() => {
           class="rounded-lg border border-dc-border bg-dc-paper p-4 xl:col-start-2 xl:row-start-3"
           aria-labelledby="delegation-section-title"
         >
-          <p class="editorial-eyebrow">Delegation</p>
-          <h2 id="delegation-section-title" class="mt-1 text-lg font-semibold text-dc-ink">Conference responsibilities</h2>
-          <p class="mt-1 text-xs leading-5 text-dc-gray">
-            Give a member access to specific Annual Conference sections without changing their role.
-          </p>
-          <div class="mt-3 grid gap-2.5">
-            <AppDropdown
-              v-model="delegationMemberId"
-              label="Team member"
-              placeholder="Choose a person"
-              :options="delegationMemberOptions"
-              density="compact"
-              menu-class="min-w-64"
-              teleport
-            />
-            <button
-              type="button"
-              class="editorial-action min-h-10 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="!delegationMember"
-              @click="openSelectedResponsibilities"
-            >
-              Open delegation
-            </button>
+          <button
+            type="button"
+            class="access-disclosure md:hidden"
+            :aria-expanded="delegationOpen"
+            aria-controls="delegation-fields"
+            @click="toggleDelegation"
+          >
+            <span>Conference responsibilities</span>
+            <span aria-hidden="true">{{ delegationOpen ? '−' : '+' }}</span>
+          </button>
+          <div id="delegation-fields" ref="delegationFields" :class="{ 'hidden md:block': !delegationOpen }">
+            <p class="editorial-eyebrow">Delegation</p>
+            <h2 id="delegation-section-title" class="mt-1 text-lg font-semibold text-dc-ink">Conference responsibilities</h2>
+            <p class="mt-1 text-xs leading-5 text-dc-gray">
+              Give a member access to specific Annual Conference sections without changing their role.
+            </p>
+            <div class="mt-3 grid gap-2.5">
+              <AppDropdown
+                v-model="delegationMemberId"
+                label="Team member"
+                placeholder="Choose a person"
+                :options="delegationMemberOptions"
+                density="compact"
+                menu-class="min-w-64"
+                teleport
+              />
+              <button
+                type="button"
+                class="editorial-action min-h-10 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!delegationMember"
+                @click="openSelectedResponsibilities"
+              >
+                Open delegation
+              </button>
+            </div>
+            <p class="mt-3 border-t border-dc-border pt-3 text-[11px] leading-4 text-dc-gray">
+              Volunteers remain limited to assigned tasks.
+            </p>
           </div>
-          <p class="mt-3 border-t border-dc-border pt-3 text-[11px] leading-4 text-dc-gray">
-            Volunteers remain limited to assigned tasks.
-          </p>
         </section>
 
         <section class="flex min-w-0 flex-col overflow-hidden rounded-lg border border-dc-border bg-dc-paper xl:col-start-1 xl:row-span-2 xl:row-start-2">
-          <div class="flex items-center justify-between gap-4 border-b border-dc-border px-4 py-3 sm:px-5">
+          <div class="flex flex-wrap items-center justify-between gap-4 border-b border-dc-border px-4 py-3 sm:px-5">
             <div>
               <h2 class="text-lg font-semibold text-dc-ink">Team access</h2>
               <p class="mt-0.5 text-xs text-dc-gray">Names, roles, and recent sign-in activity.</p>
@@ -869,7 +931,7 @@ onUnmounted(() => {
               <button
                 v-if="canRevealEmails"
                 type="button"
-                class="motion-press inline-flex min-h-9 items-center gap-2 rounded-md border border-dc-border px-3 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-pink hover:text-dc-pink"
+                class="motion-press inline-flex min-h-11 items-center gap-2 rounded-md border border-dc-border px-3 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-pink hover:text-dc-pink"
                 :aria-pressed="showEmails"
                 @click="toggleEmailVisibility"
               >
@@ -889,92 +951,161 @@ onUnmounted(() => {
             No access emails have been added yet.
           </div>
 
-          <div v-else class="flex-1 overflow-x-auto">
-            <table class="w-full min-w-[46rem] border-collapse text-left">
-              <thead class="bg-dc-paper-warm">
-                <tr class="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray">
-                  <th class="px-5 py-2.5">Person</th>
-                  <th class="px-3 py-2.5">Role</th>
-                  <th class="px-3 py-2.5">Last sign-in</th>
-                  <th class="px-3 py-2.5">Status</th>
-                  <th class="px-5 py-2.5"><span class="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-dc-border">
-                <tr v-for="organizer in paginatedOrganizers" :key="organizer.id">
-                  <td class="px-5 py-3">
-                    <span class="flex min-w-0 items-center gap-3">
-                      <NaviiAvatar :seed="organizer.id" :title="`${memberName(organizer)} avatar`" :size="36" />
-                      <span class="min-w-0">
-                        <span class="block max-w-[16rem] truncate text-sm font-semibold text-dc-ink">{{ memberName(organizer) }}</span>
-                        <span v-if="showEmails" class="mt-0.5 block max-w-[16rem] truncate text-xs text-dc-gray">{{ organizer.email }}</span>
-                        <span v-else class="mt-0.5 block text-xs text-dc-gray">Email hidden</span>
+          <div v-else class="min-w-0 flex-1">
+            <ul v-if="phone" class="divide-y divide-dc-border md:hidden" aria-label="Team access members">
+              <li v-for="organizer in paginatedOrganizers" :key="organizer.id" class="space-y-3 px-4 py-4">
+                <div class="flex min-w-0 items-start gap-3">
+                  <NaviiAvatar :seed="organizer.id" :title="`${memberName(organizer)} avatar`" :size="36" />
+                  <div class="min-w-0">
+                    <p class="break-words font-semibold">{{ memberName(organizer) }}</p>
+                    <p class="break-all text-sm text-dc-gray">{{ showEmails ? organizer.email : 'Email hidden' }}</p>
+                  </div>
+                </div>
+                <dl class="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt class="text-dc-gray">Role</dt>
+                    <dd class="mt-1">
+                      <AppDropdown
+                        v-if="canChangeOrganizerRole(organizer)"
+                        :model-value="organizer.role"
+                        :options="memberRoleOptions"
+                        :aria-label="`Role for ${memberName(organizer)}`"
+                        :disabled="roleUpdatingId === organizer.id"
+                        teleport
+                        @update:model-value="changeOrganizerRole(organizer, $event)"
+                      />
+                      <OrganizerRoleBadge v-else :role="organizer.role" />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-dc-gray">Status</dt>
+                    <dd class="mt-1 capitalize">{{ organizer.status }}</dd>
+                  </div>
+                  <div class="col-span-2">
+                    <dt class="text-dc-gray">Last sign-in</dt>
+                    <dd>{{ formatDateTime(organizer.last_login_at) }}</dd>
+                  </div>
+                </dl>
+                <div class="flex flex-wrap gap-2">
+                  <template v-if="currentUserRole === 'owner' && organizer.status === 'disabled'">
+                    <button
+                      type="button"
+                      class="min-h-11 rounded-md border border-dc-border px-3 text-sm font-semibold disabled:opacity-50"
+                      :disabled="enableUpdatingId === organizer.id || removeOrganizerMutation.isPending.value"
+                      @click="enableOrganizer(organizer)"
+                    >{{ enableUpdatingId === organizer.id ? 'Enabling…' : 'Re-enable' }}</button>
+                    <button
+                      type="button"
+                      class="min-h-11 rounded-md border border-red-300 px-3 text-sm font-semibold text-red-700 disabled:opacity-50"
+                      :disabled="enableOrganizerMutation.isPending.value || removeOrganizerMutation.isPending.value"
+                      @click="requestPermanentRemoval(organizer)"
+                    >Remove</button>
+                  </template>
+                  <button
+                    v-if="currentUserRole === 'owner' && organizer.status === 'active' && organizer.role !== 'owner'"
+                    type="button"
+                    class="min-h-11 rounded-md border border-dc-border px-3 text-sm font-semibold text-dc-pink"
+                    :aria-label="`Delegate Annual Conference responsibilities to ${memberName(organizer)}`"
+                    @click="openResponsibilities(organizer, $event)"
+                  >Access</button>
+                  <button
+                    v-if="canDisableOrganizer(organizer)"
+                    type="button"
+                    class="min-h-11 rounded-md border border-dc-border px-3 text-sm font-semibold"
+                    @click="disableOrganizer(organizer)"
+                  >Disable</button>
+                  <span v-else-if="organizer.role === 'owner' || currentUserRole !== 'owner'" class="text-sm text-dc-gray">{{ unavailableActionLabel(organizer) }}</span>
+                </div>
+              </li>
+            </ul>
+            <div v-else class="hidden overflow-x-auto md:block">
+              <table class="w-full min-w-[46rem] border-collapse text-left">
+                <thead class="bg-dc-paper-warm">
+                  <tr class="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray">
+                    <th class="px-5 py-2.5">Person</th>
+                    <th class="px-3 py-2.5">Role</th>
+                    <th class="px-3 py-2.5">Last sign-in</th>
+                    <th class="px-3 py-2.5">Status</th>
+                    <th class="px-5 py-2.5"><span class="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-dc-border">
+                  <tr v-for="organizer in paginatedOrganizers" :key="organizer.id">
+                    <td class="px-5 py-3">
+                      <span class="flex min-w-0 items-center gap-3">
+                        <NaviiAvatar :seed="organizer.id" :title="`${memberName(organizer)} avatar`" :size="36" />
+                        <span class="min-w-0">
+                          <span class="block max-w-[16rem] truncate text-sm font-semibold text-dc-ink">{{ memberName(organizer) }}</span>
+                          <span v-if="showEmails" class="mt-0.5 block max-w-[16rem] truncate text-xs text-dc-gray">{{ organizer.email }}</span>
+                          <span v-else class="mt-0.5 block text-xs text-dc-gray">Email hidden</span>
+                        </span>
                       </span>
-                    </span>
-                  </td>
-                  <td class="px-3 py-3 text-xs font-medium text-dc-ink">
-                    <AppDropdown
-                      v-if="canChangeOrganizerRole(organizer)"
-                      class="w-32"
-                      :model-value="organizer.role"
-                      :options="memberRoleOptions"
-                      :disabled="roleUpdatingId === organizer.id"
-                      density="slim"
-                      menu-class="min-w-32"
-                      teleport
-                      @update:model-value="changeOrganizerRole(organizer, $event)"
-                    />
-                    <OrganizerRoleBadge v-else :role="organizer.role" />
-                  </td>
-                  <td class="px-3 py-3 text-xs text-dc-gray">{{ formatDateTime(organizer.last_login_at) }}</td>
-                  <td class="px-3 py-3">
-                    <span class="inline-flex items-center gap-2 text-xs font-medium capitalize" :class="organizer.status === 'active' ? 'text-dc-success' : 'text-dc-gray'">
-                      <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />{{ organizer.status }}
-                    </span>
-                  </td>
-                  <td class="px-5 py-3 text-right">
-                    <div class="flex items-center justify-end gap-2">
-                      <template v-if="currentUserRole === 'owner' && organizer.status === 'disabled'">
+                    </td>
+                    <td class="px-3 py-3 text-xs font-medium text-dc-ink">
+                      <AppDropdown
+                        v-if="canChangeOrganizerRole(organizer)"
+                        class="w-32"
+                        :model-value="organizer.role"
+                        :options="memberRoleOptions"
+                        :aria-label="'Role for ' + memberName(organizer)"
+                        :disabled="roleUpdatingId === organizer.id"
+                        density="slim"
+                        menu-class="min-w-32"
+                        teleport
+                        @update:model-value="changeOrganizerRole(organizer, $event)"
+                      />
+                      <OrganizerRoleBadge v-else :role="organizer.role" />
+                    </td>
+                    <td class="px-3 py-3 text-xs text-dc-gray">{{ formatDateTime(organizer.last_login_at) }}</td>
+                    <td class="px-3 py-3">
+                      <span class="inline-flex items-center gap-2 text-xs font-medium capitalize" :class="organizer.status === 'active' ? 'text-dc-success' : 'text-dc-gray'">
+                        <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />{{ organizer.status }}
+                      </span>
+                    </td>
+                    <td class="px-5 py-3 text-right">
+                      <div class="flex items-center justify-end gap-2">
+                        <template v-if="currentUserRole === 'owner' && organizer.status === 'disabled'">
+                          <button
+                            class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-50"
+                            type="button"
+                            :disabled="enableUpdatingId === organizer.id || removeOrganizerMutation.isPending.value"
+                            @click="enableOrganizer(organizer)"
+                          >
+                            {{ enableUpdatingId === organizer.id ? 'Enabling…' : 'Re-enable' }}
+                          </button>
+                          <button
+                            class="motion-press rounded-md border border-red-300 px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-red-700 hover:border-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            type="button"
+                            :disabled="enableOrganizerMutation.isPending.value || removeOrganizerMutation.isPending.value"
+                            @click="requestPermanentRemoval(organizer)"
+                          >
+                            Remove
+                          </button>
+                        </template>
                         <button
-                          class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-50"
+                          v-if="currentUserRole === 'owner' && organizer.status === 'active' && organizer.role !== 'owner'"
+                          class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink hover:border-dc-pink"
                           type="button"
-                          :disabled="enableUpdatingId === organizer.id || removeOrganizerMutation.isPending.value"
-                          @click="enableOrganizer(organizer)"
+                          :aria-label="`Delegate Annual Conference responsibilities to ${memberName(organizer)}`"
+                          @click="openResponsibilities(organizer, $event)"
                         >
-                          {{ enableUpdatingId === organizer.id ? 'Enabling…' : 'Re-enable' }}
+                            Access
                         </button>
                         <button
-                          class="motion-press rounded-md border border-red-300 px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-red-700 hover:border-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          v-if="canDisableOrganizer(organizer)"
+                          class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink"
                           type="button"
-                          :disabled="enableOrganizerMutation.isPending.value || removeOrganizerMutation.isPending.value"
-                          @click="requestPermanentRemoval(organizer)"
+                          @click="disableOrganizer(organizer)"
                         >
-                          Remove
+                          Disable
                         </button>
-                      </template>
-                      <button
-                        v-if="currentUserRole === 'owner' && organizer.status === 'active' && organizer.role !== 'owner'"
-                        class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink hover:border-dc-pink"
-                        type="button"
-                        :aria-label="`Delegate Annual Conference responsibilities to ${memberName(organizer)}`"
-                        @click="openResponsibilities(organizer, $event)"
-                      >
-                          Access
-                      </button>
-                      <button
-                        v-if="canDisableOrganizer(organizer)"
-                        class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink"
-                        type="button"
-                        @click="disableOrganizer(organizer)"
-                      >
-                        Disable
-                      </button>
-                      <span v-else-if="organizer.role === 'owner' || currentUserRole !== 'owner'" class="font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-gray">{{ unavailableActionLabel(organizer) }}</span>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                        <span v-else-if="organizer.role === 'owner' || currentUserRole !== 'owner'" class="font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-gray">{{ unavailableActionLabel(organizer) }}</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <AppPagination v-model:page="organizerPage" :page-count="organizerPageCount" :total="organizers.length" :range-start="organizerPageStart + 1" :range-end="organizerPageEnd" item-label="members" aria-label="Organizer allowlist pagination" />
@@ -1140,6 +1271,28 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.access-disclosure {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: left;
+  font-weight: 700;
+}
+
+.access-disclosure:focus-visible {
+  outline: 2px solid #e8117f;
+  outline-offset: 2px;
+}
+
+@media (min-width: 768px) {
+  .access-disclosure {
+    display: none;
+  }
+}
+
 .responsibility-overlay-enter-active,
 .responsibility-overlay-leave-active {
   transition: opacity 180ms cubic-bezier(0.4, 0, 0.2, 1);

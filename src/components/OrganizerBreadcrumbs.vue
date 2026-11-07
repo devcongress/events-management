@@ -74,7 +74,7 @@ onUnmounted(() => {
     v-if="breadcrumbs.length"
     ref="breadcrumbElement"
     class="organizer-breadcrumbs"
-    :class="{ 'organizer-breadcrumbs--embedded': embedded, 'organizer-breadcrumbs--report-event': reportEventTrail }"
+    :class="{ 'organizer-breadcrumbs--embedded': embedded, 'organizer-breadcrumbs--report-event': reportEventTrail, 'organizer-breadcrumbs--phone': phone }"
     aria-label="Breadcrumb"
   >
     <ol>
@@ -84,7 +84,7 @@ onUnmounted(() => {
         :class="{ 'organizer-breadcrumbs__earlier': index < breadcrumbs.length - (reportEventTrail ? 3 : 2) }"
       >
         <svg v-if="index > 0" class="organizer-breadcrumbs__separator" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" /></svg>
-        <RouterLink v-if="breadcrumb.to && index < breadcrumbs.length - 1" :to="breadcrumb.to" :title="breadcrumb.label" aria-current-value="false">{{ breadcrumb.label }}</RouterLink>
+        <RouterLink v-if="breadcrumb.to && index < breadcrumbs.length - 1" :to="breadcrumb.to" :title="breadcrumb.label" aria-current-value="false"><span class="organizer-breadcrumbs__link-label">{{ breadcrumb.label }}</span></RouterLink>
         <span v-else :aria-current="index === breadcrumbs.length - 1 ? 'page' : undefined" :title="breadcrumb.label">{{ breadcrumb.label }}</span>
       </li>
     </ol>

@@ -53,8 +53,8 @@ describe("mobile organizer entry points", () => {
       /return role === ["']owner["']\s*\|\|\s*role === ["']organizer["']/u,
     );
     expect(mobileConferenceSource).toContain("enabled: canManageEditions");
-    expect(mobileConferenceSource).toContain(
-      'v-if="canManageEditions" class="conference-mobile__edition-bar"',
+    expect(mobileConferenceSource).toMatch(
+      /<details v-if="canManageEditions"[^>]*class="conference-edition-menu">[\s\S]*?<AppDropdown/,
     );
     expect(conferenceNavSource).toMatch(
       /<div\s+v-if="canManageEditions"[^>]*>\s*<AppDropdown\s+:model-value="year"/,

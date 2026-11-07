@@ -8,6 +8,8 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import ProjectNightRecurrencePanel from '@/src/components/ProjectNightRecurrencePanel.vue';
+import MobileSectionPicker from '@/src/components/MobileSectionPicker.vue';
+import { usePhoneSectionFit } from '@/src/composables/usePhoneSectionFit';
 import { adminPath } from '@/src/admin-routes';
 import {
   checkInEventRegistration,
@@ -88,6 +90,9 @@ const queryClient = useQueryClient();
 const eventId = computed(() => String(route.params.eventId ?? ''));
 const checkInDay = useCheckInDay(() => eventQuery.data.value);
 const activeSection = ref<MobileEventSection>(organizerMobileEventSection(route.query));
+const sectionContainer = ref<HTMLElement | null>(null);
+const sectionMeasurement = ref<HTMLElement | null>(null);
+const useSectionPicker = usePhoneSectionFit(sectionContainer, sectionMeasurement, computed(() => 3));
 const panelTransition = ref('mobile-event-panel-forward');
 const guestSearch = ref('');
 const guestFilter = ref<RegistrationGuestFilter>('all');
@@ -317,19 +322,39 @@ async function confirmProposalDecision() {
           </dl>
         </header>
 
-        <nav class="mobile-event-tabs" aria-label="Event workspace">
-          <button type="button" :aria-current="activeSection === 'overview' ? 'page' : undefined" @click="selectSection('overview')">Overview</button>
-          <button type="button" :aria-current="activeSection === 'guests' ? 'page' : undefined" @click="selectSection('guests')">
-            Guests
-            <span v-if="managedInternally" class="mobile-event-tab-count">{{ registrationSummary?.total ?? registrations.length }}</span>
-          </button>
-          <button type="button" :aria-current="activeSection === 'submissions' ? 'page' : undefined" :aria-label="`Submissions, ${submissionTotalCount} proposals`" @click="selectSection('submissions')">
-            Submissions
-            <Transition name="submission-count">
-              <span v-if="submissionTotalCount" class="mobile-event-tab-count" aria-hidden="true">{{ formatSpeakerSubmissionCount(submissionTotalCount) }}</span>
-            </Transition>
-          </button>
-        </nav>
+        <div ref="sectionContainer" class="mobile-event-section-container">
+          <div class="mobile-event-tabs__measurement-clip" aria-hidden="true" inert>
+            <div ref="sectionMeasurement" class="mobile-event-tabs mobile-event-tabs--measurement">
+              <button type="button">Overview</button>
+              <button type="button">Guests <span v-if="managedInternally" class="mobile-event-tab-count">{{ registrationSummary?.total ?? registrations.length }}</span></button>
+              <button type="button">Submissions <span v-if="submissionTotalCount" class="mobile-event-tab-count">{{ formatSpeakerSubmissionCount(submissionTotalCount) }}</span></button>
+            </div>
+          </div>
+          <MobileSectionPicker
+            v-if="useSectionPicker"
+            :model-value="activeSection"
+            label="Event section"
+            :options="[
+              { value: 'overview', label: 'Overview' },
+              { value: 'guests', label: managedInternally ? 'Guests (' + (registrationSummary?.total ?? registrations.length) + ')' : 'Guests' },
+              { value: 'submissions', label: 'Submissions (' + submissionTotalCount + ')' },
+            ]"
+            @update:model-value="selectSection($event as MobileEventSection)"
+          />
+          <nav v-else class="mobile-event-tabs" aria-label="Event workspace">
+            <button type="button" :aria-current="activeSection === 'overview' ? 'page' : undefined" @click="selectSection('overview')">Overview</button>
+            <button type="button" :aria-current="activeSection === 'guests' ? 'page' : undefined" @click="selectSection('guests')">
+              Guests
+              <span v-if="managedInternally" class="mobile-event-tab-count">{{ registrationSummary?.total ?? registrations.length }}</span>
+            </button>
+            <button type="button" :aria-current="activeSection === 'submissions' ? 'page' : undefined" :aria-label="`Submissions, ${submissionTotalCount} proposals`" @click="selectSection('submissions')">
+              Submissions
+              <Transition name="submission-count">
+                <span v-if="submissionTotalCount" class="mobile-event-tab-count" aria-hidden="true">{{ formatSpeakerSubmissionCount(submissionTotalCount) }}</span>
+              </Transition>
+            </button>
+          </nav>
+        </div>
 
         <Transition :name="panelTransition" mode="out-in">
           <main :key="activeSection" class="mobile-event-content">
@@ -527,8 +552,54 @@ async function confirmProposalDecision() {
 .mobile-event-hero dl > div { display: grid; grid-template-columns: 3.25rem minmax(0, 1fr); gap: .65rem; }
 .mobile-event-hero dt, .mobile-event-section-heading > span, .mobile-event-section-heading > div > span, .mobile-event-search > span, .mobile-event-submission-detail dt, .mobile-event-submission-detail > div > span { color: #77736b; font-family: var(--font-mono), monospace; font-size: .58rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .mobile-event-hero dd { margin: 0; color: #45413b; font-size: .82rem; font-weight: 600; line-height: 1.45; }
-.mobile-event-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; border: 1px solid #d9d5cc; border-radius: 10px; background: #fff; padding: 3px; }
-.mobile-event-tabs button { position: relative; display: flex; min-width: 0; min-height: 2.75rem; align-items: center; justify-content: center; gap: .3rem; border: 0; border-radius: 7px; background: transparent; padding: .45rem .3rem; color: #69645c; font-family: var(--font-mono), monospace; font-size: clamp(.54rem, 2.6vw, .65rem); font-weight: 700; text-transform: uppercase; transition: transform 100ms cubic-bezier(.4,0,.2,1), background-color 150ms cubic-bezier(.4,0,.2,1), color 150ms cubic-bezier(.4,0,.2,1); }
+.mobile-event-section-container {
+  position: relative;
+  min-width: 0;
+}
+
+.mobile-event-tabs__measurement-clip {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.mobile-event-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(max-content, 1fr));
+  border: 1px solid #d9d5cc;
+  border-radius: 10px;
+  background: #fff;
+  padding: 3px;
+}
+
+.mobile-event-tabs--measurement {
+  position: absolute;
+  width: max-content;
+  visibility: hidden;
+  pointer-events: none;
+}
+.mobile-event-tabs button {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: .3rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  padding: .45rem .3rem;
+  color: #69645c;
+  font-family: var(--font-mono), monospace;
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  transition: transform 100ms cubic-bezier(.4,0,.2,1), background-color 150ms cubic-bezier(.4,0,.2,1), color 150ms cubic-bezier(.4,0,.2,1);
+}
 .mobile-event-tabs button[aria-current=page] { background: #f5e642; color: #111; }
 .mobile-event-tab-count { display: grid; min-width: 1.15rem; min-height: 1.15rem; place-items: center; border-radius: 999px; background: #e8117f; padding: 0 .25rem; color: #fff; font-size: .52rem; }
 .mobile-event-content { display: grid; gap: .75rem; }

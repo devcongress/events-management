@@ -99,9 +99,12 @@ navigation, labels, focus return, disabled behavior, and viewport positioning.
 **Sibling navigation:** Use `WorkspaceSectionNav.vue`, as in Ticketing and
 Registration. Store selection in URL query state so direct links and browser Back
 restore it. Preserve the workspace across query changes so drafts survive; close
-inactive overlays without clearing forms. On phones the row scrolls horizontally,
-reveals the active item, and shows an overflow cue. Links are at least 44px wide
-and 46px high.
+inactive overlays without clearing forms. On phones, use the labelled
+`MobileSectionPicker.vue` for long lists or when a short row cannot fit. Keep two
+or three short tabs visible when they fit; subsection navigation must not require
+horizontal scrolling. Reuse `AppDropdown.vue` for selection, keyboard behavior,
+and teleported menu placement. Desktop links retain their underline row and are
+at least 44px wide and 46px high.
 
 **Underline rows:** Reuse `src/styles/underline-section-nav.css` for workspace,
 Annual Conference, event Registration, and Audit Log underline navigation. Align
@@ -111,11 +114,18 @@ another active border or turn segmented controls into underline tabs.
 
 **Parents:** Use `OrganizerBreadcrumbs.vue`. Resolve labels from cached records
 without extra reads; use neutral fallbacks while names load. Only the current
-leaf has current-page semantics. Phone trails show the nearest parent and current
-workspace, returning to the same conference year. Breadcrumbs complement the
-sibling row.
+leaf has current-page semantics. On phones, keep a compact trail through the
+current subsection, such as Overview, Speakers, Participation. Parents remain
+tappable and retain the conference year; the current leaf is plain text. Wrap
+the trail at narrow widths instead of requiring horizontal scrolling. Pair it
+with the aligned phone workspace header. Center linked and current text on the
+same line while preserving touch targets, wrapping, and desktop truncation.
 
 **Programme outline:** Present saved sessions as compact rows with a non-breaking time range and a restrained type label. In edit mode keep time, title, type, and row actions visible; use the time picker for a start and duration, with an editable minute stepper and an optional previous-session shortcut; disclose descriptions and resources on demand. Keep the programme heading and top editing controls sticky beneath conference navigation on desktop and at the top of the phone scroll region. Keep Add, Save, and Cancel together in that heading. Confirm draft row removal in a desktop dialog or phone bottom sheet; destructive actions use the shared destructive color token.
+
+**Attendance counter:** Place the independent counter on the 2026 Registration
+summary. Use compact neutral controls with icons for publishing and confirming;
+leave the displayed count and source legible at phone widths.
 
 **Conference scrolling:** On desktop, breadcrumbs stay at the top of the main
 scroll container. The conference header sticks beneath their measured height.
@@ -139,6 +149,28 @@ filters at each size. Show when an unpaid checkout started; attendance belongs
 in Registration. Forms stack, drawer Close controls remain visible, safe areas
 are respected, and scrolling stays in the intended region.
 
+At phone widths, prioritize the current task over persistent setup controls.
+`OrganizerPhoneShell.vue` supplies a single aligned header and a small bottom
+navigation for conference destinations and organizer tools. More contains the
+remaining permitted destinations, edition selection, and edition creation.
+Intersect conference capabilities with existing role restrictions; navigation
+does not grant access. Keep existing route components and query-state keys so
+section changes do not discard drafts. Use a local section picker when needed,
+while expanded call controls scroll with the page. Put advanced task filters and saved
+volunteer email copy behind labeled disclosures that retain their values.
+Programme editing opens one session at a time on phones and keeps the other
+session drafts intact.
+
+Use labeled lists for speaker delivery, team access, attendance records, and
+contextual event activity instead of horizontally scrolling desktop tables.
+Owner Audit Log records use labelled phone cards with their existing actions;
+Present forms uses a single-column choice and preview layout.
+Retain useful status, counts, dates, and permission-gated actions in each row.
+Phone email previews use a recipient picker and position count, with a viewport
+height layout and safe-area spacing. Body and control text must remain readable;
+do not force every phone action to full width or shrink labels to fit desktop
+groups. Size primary actions to their context.
+
 **Loading:** Resolve by the stable section ID in `src/boneyard/sections/`. Match
 the loaded layout, role, tab, and container. Reuse loaded presentation components
 or styles for complex shapes. Synthetic fixtures remain inert. Page previews fit
@@ -150,6 +182,10 @@ Capture list cards and table cells through their children so labels, values, and
 actions remain distinct. Verify visible field bones rather than accepting a
 single solid block with the correct outer dimensions.
 Completed captures require an explicit refresh to replace them.
+For a phone-only layout change, refresh the named sections with
+`pnpm skeletons:capture --refresh --phone-only <section IDs>`. This replaces only
+existing phone breakpoint snapshots and preserves desktop captures. Verify the
+field spacing at phone widths, including content below the fold.
 
 **Motion:** Follow `AGENTS.md`: use opacity and transform only when useful, exact
 transition properties, and reduced-motion support. Query section changes must not

@@ -6,10 +6,12 @@ import {
   nextTick,
   onMounted,
   onUnmounted,
+  provide,
   ref,
   watch,
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import OrganizerPhoneShell from "./components/OrganizerPhoneShell.vue";
 import OrganizerSessionPause from "./components/OrganizerSessionPause.vue";
 import OrganizerSessionBackdrop from "./components/OrganizerSessionBackdrop.vue";
 import { captureFrozenGeometry, type FrozenGeometry } from "./lib/organizer-session-backdrop";
@@ -270,16 +272,30 @@ const isConferenceVolunteer = computed(
 const currentOrganizerRole = computed(
   () => adminSessionQuery.data.value?.user?.role ?? null,
 );
+const phoneConferenceRoute = computed(() => phoneViewport.value && typeof route.name === 'string' && [
+  'admin-mobile-annual-conference',
+  'admin-annual-conference-programme',
+  'admin-annual-conference-speakers',
+  'admin-annual-conference-ticketing',
+  'admin-annual-conference-check-in',
+  'admin-annual-conference-registrations',
+].includes(route.name));
+const phoneOrganizerToolRoute = computed(() => phoneViewport.value && typeof route.name === 'string'
+  && ['admin-reports', 'admin-organizers', 'admin-audit-log', 'admin-present-forms'].includes(route.name));
+const showConferencePhoneShell = computed(() => isOrganizerAuthenticated.value && !showOrganizerAccessSurface.value
+  && (phoneConferenceRoute.value || phoneOrganizerToolRoute.value));
+
+provide('annual-conference-phone-sign-out', logout);
 const showOrganizerBreadcrumbs = computed(() => (
   isOrganizerAuthenticated.value
   && isAdminRoute.value
-  && !isStandaloneRoute.value
+  && (!isStandaloneRoute.value || phoneConferenceRoute.value)
   && !isLoginRoute.value
   && !showOrganizerAccessSurface.value
   && isOrganizerBreadcrumbRoute(route.name)
 ));
 const showAppHeader = computed(() =>
-  shouldShowAuthenticatedAppHeader({
+  !showConferencePhoneShell.value && shouldShowAuthenticatedAppHeader({
     authenticated: isOrganizerAuthenticated.value,
     isLoginRoute: isLoginRoute.value,
     isStandaloneRoute: isStandaloneRoute.value,
@@ -1391,6 +1407,7 @@ onUnmounted(() => {
     :class="{
       'app-shell--login': isLoginRoute || showOrganizerAccessSurface,
       'app-shell--standalone': isStandaloneRoute,
+      'app-shell--conference-phone': showConferencePhoneShell,
     }"
   >
     <template v-if="!organizerLocked || isLoginRoute || !isOrganizerProtectedRoute">
@@ -1545,6 +1562,8 @@ onUnmounted(() => {
       </Transition>
     </header>
 
+    <OrganizerPhoneShell v-if="showConferencePhoneShell" :conference="phoneConferenceRoute" />
+
     <main
       class="app-main page-transition-host min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
       :class="{
@@ -1657,6 +1676,15 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.app-shell--conference-phone {
+  --app-header-height: 0px;
+  --app-header-fixed-offset: 0px;
+}
+
+.app-shell--conference-phone .app-main {
+  padding-bottom: calc(68px + env(safe-area-inset-bottom));
+}
+
 .app-main--with-breadcrumbs {
   display: flex;
   flex-direction: column;

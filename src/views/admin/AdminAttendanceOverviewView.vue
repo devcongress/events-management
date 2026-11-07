@@ -326,7 +326,7 @@ onMounted(fetchAttendanceLedger);
                       v-for="year in availableYears"
                       :key="year"
                       type="button"
-                      class="motion-press min-h-8 rounded-md border px-2.5 font-mono text-[11px] font-semibold uppercase tracking-wide"
+                      class="motion-press min-h-11 rounded-md border px-2.5 font-mono text-xs font-semibold uppercase tracking-wide"
                       :class="selectedYear === year ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
                       @click="selectedYear = year"
                     >
@@ -339,7 +339,7 @@ onMounted(fetchAttendanceLedger);
                       v-for="option in statusOptions"
                       :key="option"
                       type="button"
-                      class="motion-press min-h-8 rounded-md border px-2.5 font-mono text-[11px] font-semibold uppercase tracking-wide"
+                      class="motion-press min-h-11 rounded-md border px-2.5 font-mono text-xs font-semibold uppercase tracking-wide"
                       :class="selectedStatus === option ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
                       @click="selectedStatus = option"
                     >
@@ -526,7 +526,7 @@ onMounted(fetchAttendanceLedger);
               <div class="inline-flex self-start rounded-md border border-dc-border bg-white p-1" role="tablist" aria-label="Repeat attendance view">
                 <button
                   type="button"
-                  class="motion-press rounded px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide"
+                  class="motion-press min-h-11 rounded px-3 py-2 font-mono text-xs font-semibold uppercase tracking-wide"
                   :class="repeatPeopleView === 'regulars'
                     ? 'border border-dc-ink bg-dc-yellow text-dc-ink'
                     : 'border border-transparent text-dc-gray'"
@@ -538,7 +538,7 @@ onMounted(fetchAttendanceLedger);
                 </button>
                 <button
                   type="button"
-                  class="motion-press rounded px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide"
+                  class="motion-press min-h-11 rounded px-3 py-2 font-mono text-xs font-semibold uppercase tracking-wide"
                   :class="repeatPeopleView === 'never-came'
                     ? 'border border-dc-ink bg-dc-yellow text-dc-ink'
                     : 'border border-transparent text-dc-gray'"
@@ -556,9 +556,38 @@ onMounted(fetchAttendanceLedger);
                 ? 'Upload at least two monthly CSVs to see repeat registrations and check-ins.'
                 : `No repeated no-shows found in ${selectedYearLabel}.` }}
             </div>
+            <ul v-else class="divide-y divide-dc-border md:hidden" :aria-label="repeatPeopleView === 'regulars' ? 'Regular attendees' : 'Repeated no-shows'">
+              <li v-for="person in activeRepeatPeople" :key="person.key" class="space-y-3 px-4 py-4 text-sm">
+                <div class="flex min-w-0 items-center gap-3">
+                  <NaviiAvatar :seed="person.key" :title="`${person.name} avatar`" :size="38" />
+                  <div class="min-w-0">
+                    <p class="break-words font-semibold">{{ person.name }}</p>
+                    <p v-if="person.email" class="break-all text-dc-gray">{{ person.email }}</p>
+                  </div>
+                </div>
+                <dl class="grid grid-cols-2 gap-3">
+                  <div>
+                    <dt class="text-dc-gray">{{ repeatPeopleView === 'regulars' ? 'Registered' : 'RSVPs' }}</dt>
+                    <dd class="font-semibold">{{ person.rsvpCount }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-dc-gray">{{ repeatPeopleView === 'regulars' ? 'Came' : 'Missed' }}</dt>
+                    <dd class="font-semibold">{{ repeatPeopleView === 'regulars' ? person.checkedInCount : person.missedCount }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-dc-gray">{{ repeatPeopleView === 'regulars' ? 'Rate' : 'No-show rate' }}</dt>
+                    <dd>{{ repeatPeopleView === 'regulars' ? formatPercent(person.checkedInCount / person.rsvpCount) : formatPercent(person.missedCount / person.rsvpCount) }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-dc-gray">{{ repeatPeopleView === 'regulars' ? 'Last seen' : 'Last RSVP' }}</dt>
+                    <dd>{{ repeatPeopleView === 'regulars' ? (person.lastCameAt ? formatDate(person.lastCameAt) : '-') : formatLastRsvpDate(person) }}</dd>
+                  </div>
+                </dl>
+              </li>
+            </ul>
             <div
-              v-else
-              class="max-h-[min(32rem,60vh)] overflow-auto overscroll-contain [scrollbar-gutter:stable]"
+              v-if="activeRepeatPeople.length"
+              class="hidden max-h-[min(32rem,60vh)] overflow-auto overscroll-contain [scrollbar-gutter:stable] md:block"
               tabindex="0"
               :aria-label="repeatPeopleView === 'regulars' ? 'Regular attendees table' : 'Repeated no-shows table'"
             >

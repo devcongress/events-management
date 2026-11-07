@@ -706,7 +706,7 @@ export const generalSections: SkeletonSection[] = [
           }
         ],
         "rows": 4,
-        "mobile": "scroll"
+        "mobile": "cards"
       }
     ]
   },
@@ -1145,7 +1145,7 @@ export const generalSections: SkeletonSection[] = [
           }
         ],
         "rows": 4,
-        "mobile": "scroll"
+        "mobile": "cards"
       }
     ]
   },
@@ -1209,7 +1209,7 @@ export const generalSections: SkeletonSection[] = [
           }
         ],
         "rows": 4,
-        "mobile": "scroll"
+        "mobile": "cards"
       }
     ]
   },
@@ -1292,7 +1292,7 @@ export const generalSections: SkeletonSection[] = [
           }
         ],
         "rows": 3,
-        "mobile": "scroll"
+        "mobile": "cards"
       }
     ]
   },
@@ -1765,7 +1765,7 @@ export const generalSections: SkeletonSection[] = [
           }
         ],
         "rows": 3,
-        "mobile": "scroll"
+        "mobile": "cards"
       }
     ]
   },
@@ -2553,7 +2553,7 @@ export const generalSections: SkeletonSection[] = [
           }
         ],
         "rows": 4,
-        "mobile": "scroll"
+        "mobile": "cards"
       }
     ]
   },
@@ -2677,7 +2677,7 @@ export const generalSections: SkeletonSection[] = [
           }
         ],
         "rows": 4,
-        "mobile": "scroll"
+        "mobile": "cards"
       }
     ]
   }

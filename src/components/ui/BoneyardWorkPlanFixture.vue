@@ -73,11 +73,8 @@ function cannotChangeTask() {
     </label>
 
     <div v-if="!assigned" class="loading-phone-work-plan__filters">
-      <AppDropdown model-value="all" label="Phase" :options="phaseOptions" density="compact" disabled />
       <AppDropdown model-value="all" label="Status" :options="statusOptions" density="compact" disabled />
-      <AppDropdown class="loading-phone-work-plan__wide" model-value="all" label="Workstream" :options="workstreamOptions" density="compact" disabled />
-      <AppDropdown class="loading-phone-work-plan__wide" model-value="all" label="Owner" :options="ownerOptions" density="compact" disabled />
-      <button class="loading-phone-work-plan__wide loading-phone-work-plan__clear" disabled>Clear filters</button>
+      <button class="loading-phone-work-plan__more" disabled>More filters</button>
     </div>
     <div v-else class="loading-phone-work-plan__assigned">
       <div class="loading-phone-work-plan__owner">
@@ -263,16 +260,14 @@ function cannotChangeTask() {
 
 .loading-phone-work-plan__filters {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem;
-  border: 1px solid #ddd9d0;
-  border-radius: 10px;
-  background: white;
-  padding: 0.8rem;
+  gap: 0.5rem;
 }
 
-.loading-phone-work-plan__wide {
-  grid-column: 1 / -1;
+.loading-phone-work-plan__more {
+  min-height: 44px;
+  color: #333;
+  text-align: left;
+  font-weight: 700;
 }
 
 .loading-phone-work-plan__assigned {

@@ -63,38 +63,35 @@ onMounted(refresh);
 
 <template>
   <section v-if="canManage || counter?.source" class="attendance-counter" aria-labelledby="attendance-counter-title">
-    <h2 id="attendance-counter-title">Attendance counter</h2>
-    <p v-if="loading">Loading attendance counter…</p>
-    <template v-else-if="counter?.source">
-      <div class="attendance-preview">
-        <svg class="attendance-people" viewBox="0 0 68 48" aria-hidden="true" focusable="false">
-          <circle cx="34" cy="24" r="24" fill="#FEFCE8" />
-          <circle cx="19" cy="19" r="5" fill="#111111" />
-          <path d="M11 34c0-5 3-8 8-8s8 3 8 8" fill="#111111" />
-          <circle cx="49" cy="19" r="5" fill="#111111" />
-          <path d="M41 34c0-5 3-8 8-8s8 3 8 8" fill="#111111" />
-          <circle cx="34" cy="16" r="6" fill="#E8117F" />
-          <path d="M24 35c0-6 4-10 10-10s10 4 10 10" fill="#E8117F" />
-        </svg>
-        <div>
-          <p class="attendance-headline">{{ headline }}</p>
-          <p v-if="counter.source === 'estimate'">Estimated turnout</p>
-          <p v-else>Valid admissions and confirmed speakers</p>
-        </div>
-      </div>
-    </template>
-    <p v-else-if="!error">The counter is hidden from the public.</p>
-    <p v-if="error" role="alert">{{ error }} <button type="button" class="editorial-action motion-press" @click="refresh">Retry</button></p>
+    <div class="attendance-status">
+      <h2 id="attendance-counter-title">Attendance counter</h2>
+      <p v-if="loading">Loading attendance counter…</p>
+      <template v-else-if="counter?.source">
+        <p class="attendance-headline">{{ headline }}</p>
+        <p v-if="counter.source === 'estimate'">Estimated turnout</p>
+        <p v-else>Valid admissions and confirmed speakers</p>
+      </template>
+      <p v-else-if="!error">Hidden from the public</p>
+      <p v-if="error" role="alert">{{ error }} <button type="button" class="editorial-action motion-press" @click="refresh">Retry</button></p>
+    </div>
     <template v-if="canManage && !loading && !error">
       <div v-if="!pending" class="attendance-actions">
-        <button v-if="!counter?.source" type="button" class="editorial-action motion-press" @click="pending = 'estimate'">Publish estimate</button>
-        <button v-if="counter?.source !== 'actual'" type="button" class="editorial-action motion-press" @click="pending = 'actual'">{{ counter?.source ? 'Switch to actual' : 'Publish actual' }}</button>
+        <button v-if="!counter?.source" type="button" class="attendance-button motion-press" @click="pending = 'estimate'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19h16M6 16v-4m6 4V8m6 8V5" /></svg>
+          Publish estimate
+        </button>
+        <button v-if="counter?.source !== 'actual'" type="button" class="attendance-button motion-press" @click="pending = 'actual'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3" /><path d="M3.5 19v-1.5a5.5 5.5 0 0 1 11 0V19M16 10a3 3 0 0 0 0-5.8M17 13a4.5 4.5 0 0 1 3.5 4.4V19" /></svg>
+          {{ counter?.source ? 'Switch to actual' : 'Publish actual' }}
+        </button>
       </div>
       <div v-else class="attendance-confirm">
         <p v-if="pending === 'estimate'">Publish the estimate starting at 20? It increases every 48 hours until the event date.</p>
         <p v-else>Publish the actual count? This switch is permanent and the number may decrease.</p>
-        <button type="button" class="editorial-action motion-press" :disabled="busy" @click="confirmChange">{{ busy ? 'Saving…' : 'Confirm' }}</button>
-        <button type="button" class="editorial-action motion-press" :disabled="busy" @click="pending = null">Cancel</button>
+        <div class="attendance-actions">
+          <button type="button" class="attendance-button motion-press" :disabled="busy" @click="confirmChange">{{ busy ? 'Saving…' : 'Confirm' }}</button>
+          <button type="button" class="attendance-button motion-press" :disabled="busy" @click="pending = null">Cancel</button>
+        </div>
       </div>
     </template>
   </section>
@@ -102,42 +99,86 @@ onMounted(refresh);
 
 <style scoped>
 .attendance-counter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
   border: 1px solid #e0ddd4;
   border-radius: 8px;
   background: white;
-  padding: 16px;
+  padding: 16px 20px;
 }
 
-.attendance-counter h2 {
+.attendance-status {
+  min-width: 0;
+}
+
+.attendance-status h2 {
   font-weight: 600;
 }
 
-.attendance-preview {
+.attendance-status p {
+  color: #555;
+  font-size: 0.875rem;
+}
+
+.attendance-status .attendance-headline {
+  color: #111;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.attendance-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.attendance-button {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.attendance-people {
-  flex: none;
-  width: 68px;
-  height: 48px;
-}
-
-.attendance-headline {
-  font-size: 1.25rem;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: #f2f2ef;
+  padding: 8px 12px;
+  color: #252b30;
   font-weight: 600;
 }
 
-.attendance-actions,
-.attendance-confirm {
-  margin-top: 12px;
+.attendance-button svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: #627481;
 }
 
-.attendance-actions button,
-.attendance-confirm button {
-  margin-right: 16px;
-  min-height: 44px;
+.attendance-button:hover:not(:disabled) {
+  background: #e9eae7;
+}
+
+.attendance-button:focus-visible {
+  outline: 2px solid #e8117f;
+  outline-offset: 2px;
+}
+
+.attendance-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.attendance-confirm {
+  display: grid;
+  gap: 8px;
+  max-width: 440px;
+}
+
+@media (max-width: 600px) {
+  .attendance-counter {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>

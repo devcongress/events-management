@@ -12,6 +12,8 @@ Sandbox checkout confirmations use `lib/devcon26-test-checkout-email-delivery.ts
 | `lib/app-boot.ts` | Shared route-aware first-paint markup and styles injected into the Vite build shell and Hono development fallback |
 | `src/admin-routes.ts` | Configurable organizer route base path helpers |
 | `src/organizer-viewport.ts` | Shared phone/tablet organizer route policy and breakpoint helpers |
+| `src/components/OrganizerPhoneShell.vue` | Shared phone header, capability-filtered conference destinations, bottom navigation, and organizer More menu; existing route keys and session locks stay in the app shell |
+| `src/components/MobileSectionPicker.vue` / `src/composables/usePhoneSectionFit.ts` | Shared dropdown for long or overflowing phone subsection rows, with resize cleanup and fit measurement for short tabs |
 | `src/speaker-intake-route.ts` | Testable public route record for generated private speaker links |
 | `src/router.ts` | Active Vue route table; page components are lazy-loaded per route so the initial app bundle does not include every public and organizer view |
 | `lib/email/previews.ts` | Owner email-preview catalog that maps every active scenario to the existing production renderer using safe sample fixtures |
