@@ -18,10 +18,14 @@ export const conferenceSections: SkeletonSection[] = [
     "blocks": [
       {
         "kind": "heading",
-        "title": "Saturday, 19 December 2026",
+        "title": "Your conference",
         "eyebrow": "2026 edition",
         "action": "Planning notes \u00b7 02",
         "level": "page"
+      },
+      {
+        "kind": "toolbar",
+        "actions": ["Saturday, 19 December 2026"]
       },
       {
         "kind": "split",
@@ -127,10 +131,14 @@ export const conferenceSections: SkeletonSection[] = [
     "blocks": [
       {
         "kind": "heading",
-        "title": "Saturday, 19 December 2026",
+        "title": "Your conference",
         "eyebrow": "Your conference work",
         "description": "Your assigned tasks and progress, in one focused place.",
         "level": "page"
+      },
+      {
+        "kind": "toolbar",
+        "actions": ["Saturday, 19 December 2026"]
       },
       {
         "kind": "split",
@@ -1268,10 +1276,14 @@ export const conferenceSections: SkeletonSection[] = [
       },
       {
         "kind": "heading",
-        "title": "Saturday, 19 December 2026",
+        "title": "Your conference",
         "eyebrow": "2026 edition",
         "description": "Conference delivery, planning notes, and the work that needs attention.",
         "level": "page"
+      },
+      {
+        "kind": "toolbar",
+        "actions": ["Saturday, 19 December 2026"]
       },
       {
         "kind": "section",
@@ -1421,10 +1433,14 @@ export const conferenceSections: SkeletonSection[] = [
     "blocks": [
       {
         "kind": "heading",
-        "title": "19 December",
+        "title": "Your conference",
         "eyebrow": "Your conference work",
         "description": "Your assigned tasks and progress, in one focused place.",
         "level": "page"
+      },
+      {
+        "kind": "toolbar",
+        "actions": ["Saturday, 19 December 2026"]
       },
       {
         "kind": "section",

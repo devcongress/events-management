@@ -1641,6 +1641,7 @@ onUnmounted(() => {
     <button
       v-if="keyboardDismissVisible"
       class="keyboard-dismiss-control motion-press"
+      :class="{ 'keyboard-dismiss-control--phone-footer': showConferencePhoneShell }"
       type="button"
       :style="keyboardDismissStyle"
       aria-label="Dismiss keyboard"
@@ -1649,7 +1650,7 @@ onUnmounted(() => {
     >
       Done
     </button>
-    <AppToaster />
+    <AppToaster :phone-footer="showConferencePhoneShell" />
     </template>
     <OrganizerSessionBackdrop
       v-if="organizerLocked && isOrganizerProtectedRoute && !isLoginRoute"
@@ -1682,7 +1683,13 @@ onUnmounted(() => {
 }
 
 .app-shell--conference-phone .app-main {
+  min-height: 0;
   padding-bottom: calc(68px + env(safe-area-inset-bottom));
+}
+
+.app-shell--conference-phone :deep(.page-route-stack),
+.app-shell--conference-phone :deep(.page-view) {
+  min-height: 0;
 }
 
 .app-main--with-breadcrumbs {

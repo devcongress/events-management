@@ -2059,7 +2059,7 @@
     },
     "annual-conference-overview": {
       "status": "completed",
-      "inputFingerprint": "3a08c0b2c264ce257c3ae8143ea81d97239dcd43d53ed272dd079a11a110fd93",
+      "inputFingerprint": "c139c95e2290d8d244c14c79773d7ce581e75f9ca1c6aa50a82a621a867a1074",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -2110,7 +2110,7 @@
         "src/bones/annual-conference-overview.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/annual-conference-overview.bones.json": "1b7a44a2c1e5abeb1b6a0f9dbb72a7094cb35761ebfdd396795a007af3892758"
+        "src/bones/annual-conference-overview.bones.json": "e51b3b0e87c0ea02fbaf2b264584854a8c0c2540447159ec00a427d031ed1569"
       },
       "captureConfig": {
         "breakpoints": [
@@ -2501,7 +2501,7 @@
     },
     "organizer-mobile-next-actions": {
       "status": "completed",
-      "inputFingerprint": "bc8f943ef1cd7f4166a0d68700534be02d13458263afe9da61d9d2263d263b93",
+      "inputFingerprint": "9da365028b0f284cc406a8b1ddae0d8aee629d439ecd307de45ec5b47f57cfac",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3425,7 +3425,7 @@
     },
     "mobile-conference-workspace": {
       "status": "completed",
-      "inputFingerprint": "87c59d27a24f752d917ec11533c01fad4f748b1a46a3981d39c61c61f9a827da",
+      "inputFingerprint": "ddfe52475a809b5d2fc156c4a028bcf3c94098f7b69d27053e08d30a6600b40a",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -3476,7 +3476,7 @@
         "src/bones/mobile-conference-workspace.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/mobile-conference-workspace.bones.json": "9f9522c48f0e63a4c694b1d3f91c5d517fdda7e8452aa7ce2d257b2074a4bf2e"
+        "src/bones/mobile-conference-workspace.bones.json": "59030fd0a6b9476c3d0a43e18728802a5a33b560ea037c7ff4f2ae6f0c91fc18"
       },
       "captureConfig": {
         "breakpoints": [
@@ -3499,59 +3499,7 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
-      "phoneRefresh": {
-        "breakpoints": [
-          390,
-          640
-        ],
-        "inputFingerprint": "8effa6d04e08ff34328c75806c902cceb41487fc68df4611923730ab18a17a0e",
-        "sourcePaths": [
-          "lib/annual-conference-owner-avatar.ts",
-          "lib/annual-conference-task-board-order.ts",
-          "lib/annual-conference-task-card.ts",
-          "lib/annual-conference-task-details.ts",
-          "lib/annual-conference-work-plan.ts",
-          "lib/design-system.ts",
-          "package.json",
-          "pnpm-lock.yaml",
-          "postcss.config.mjs",
-          "src/boneyard/capture.ts",
-          "src/boneyard/sections/conference.ts",
-          "src/boneyard/sections/general.ts",
-          "src/boneyard/sections/index.ts",
-          "src/boneyard/sections/types.ts",
-          "src/components/AnnualConferenceTaskBoard.vue",
-          "src/components/AppDropdown.vue",
-          "src/components/NaviiAvatar.vue",
-          "src/components/PublicFormRouteFrame.vue",
-          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
-          "src/components/ui/BoneyardFormBoardFixture.vue",
-          "src/components/ui/BoneyardLearningLobbyFixture.vue",
-          "src/components/ui/BoneyardOperationsFixture.vue",
-          "src/components/ui/BoneyardPageSkeleton.vue",
-          "src/components/ui/BoneyardPageSkeletonFixture.vue",
-          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
-          "src/components/ui/BoneyardSkeletonBlocks.vue",
-          "src/components/ui/BoneyardTicketOrdersFixture.vue",
-          "src/components/ui/BoneyardWorkPlanFixture.vue",
-          "src/components/ui/boneyard-skeleton-blocks.css",
-          "src/lib/dropdown-keyboard.ts",
-          "src/lib/floating-placement.ts",
-          "src/main.ts",
-          "src/styles.css",
-          "src/styles/forms.css",
-          "src/styles/registration-workspace.css",
-          "src/styles/ticket-order-cards.css",
-          "src/styles/underline-section-nav.css",
-          "src/views/admin/AdminMobileAnnualConferenceView.vue",
-          "tailwind.config.ts",
-          "tools/boneyard.vite.config.ts",
-          "tools/capture-boneyard.mjs",
-          "tools/rebuild-boneyard-registry.mjs"
-        ],
-        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
-      }
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
     },
     "mobile-check-in-guests": {
       "status": "completed",
@@ -6101,7 +6049,7 @@
     },
     "annual-conference-overview-assigned": {
       "status": "completed",
-      "inputFingerprint": "3b6e3a7d50940c62b3ec45b85bf86d6cd59447ff51060c665a3c29915bf70119",
+      "inputFingerprint": "5262b6695bd8da81a3511d4758fdd6ce9f121886d52b8b116d7c9a6edef6a0d0",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6152,7 +6100,7 @@
         "src/bones/annual-conference-overview-assigned.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/annual-conference-overview-assigned.bones.json": "8f043f3bd085eca65a13cb2d7095bc7723ee3c5417ef5b077f4f09935be44e2b"
+        "src/bones/annual-conference-overview-assigned.bones.json": "7dda04b48bff9a7bd95025188539420d4c4d7eba4048825063d707bbef9fa886"
       },
       "captureConfig": {
         "breakpoints": [
@@ -6858,7 +6806,7 @@
     },
     "mobile-conference-workspace-assigned": {
       "status": "completed",
-      "inputFingerprint": "1557d99117f18ba95adb9ac9d3accbf7be96513751ef796d29784fc54da35b48",
+      "inputFingerprint": "23f3d5950eb0cc903045aa79b204560e82e12b989c6b8d8d93137fa1c22e6397",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -6909,7 +6857,7 @@
         "src/bones/mobile-conference-workspace-assigned.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/mobile-conference-workspace-assigned.bones.json": "8535e8393144d8cd847876956d1c16225974656f3071bfa2489d87d067359219"
+        "src/bones/mobile-conference-workspace-assigned.bones.json": "63ab37615006531b2bf2c2f0e4867206a101cbdb0349357142a266978ad059d5"
       },
       "captureConfig": {
         "breakpoints": [

@@ -21,10 +21,14 @@ const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
 const signOut = inject<(() => void) | null>('annual-conference-phone-sign-out', null);
-const menu = ref<HTMLDetailsElement | null>(null);
+const menuPanel = ref<HTMLElement | null>(null);
+const menuClose = ref<HTMLButtonElement | null>(null);
 const bottomMore = ref<HTMLButtonElement | null>(null);
+const conferenceFooter = ref<HTMLElement | null>(null);
 const menuOpen = ref(false);
-const menuOpener = ref<HTMLElement | null>(null);
+let appWasInert = false;
+let previousBodyOverflow = '';
+let previousDocumentOverflow = '';
 const lastYear = ref(String(ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
 const year = computed(() => String(route.params.year ?? lastYear.value));
 const sessionQuery = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetchAdminSession });
@@ -100,6 +104,12 @@ const items = computed(() => [
   ...(!canSpeakers.value && registration.value && !(canBadge.value && canVolunteers.value) ? [{ key: 'registration', label: registration.value.endsWith('/check-in') ? 'Check-in' : 'Registration', icon: 'registration' }] : []),
 ]);
 
+const visibleItems = computed(() => items.value.slice(0, 4));
+const overflowItems = computed(() => items.value.slice(4));
+const showMore = computed(() => !props.conference || isOrganizer.value || overflowItems.value.length > 0
+  || (Boolean(registration.value) && !items.value.some(item => item.key === 'registration'))
+  || capabilities.value.includes('finance.view'));
+
 watch(() => [identity.value, year.value, route.fullPath] as const, () => {
   const currentIdentity = identity.value ?? '';
 
@@ -109,54 +119,68 @@ watch(() => [identity.value, year.value, route.fullPath] as const, () => {
   if (isMobileWorkspace.value) conferenceContexts.set(year.value, organizerConferenceContextQuery(route.query));
 }, { immediate: true });
 
-watch(() => route.path, () => {
+watch(showMore, (visible) => {
+  if (visible || !menuOpen.value) return;
+  closeMenu();
+  void nextTick(() => conferenceFooter.value?.querySelector<HTMLElement>('button:last-child')?.focus());
+});
+
+watch(() => route.fullPath, () => {
   closeMenu();
   editionOpen.value = false;
 });
 
 function closeMenu(focus = false) {
-  if (!menu.value?.open) return;
-  menu.value.open = false;
+  if (!menuOpen.value) return;
   menuOpen.value = false;
-  if (focus) menuOpener.value?.focus();
+  document.body.style.overflow = previousBodyOverflow;
+  document.documentElement.style.overflow = previousDocumentOverflow;
+  if (!appWasInert) document.querySelector<HTMLElement>('#app')?.removeAttribute('inert');
+  if (focus) void nextTick(() => bottomMore.value?.focus());
 }
 
 function toggleBottomMenu() {
-  if (!menu.value) return;
-  if (menu.value.open) {
+  if (menuOpen.value) {
     closeMenu(true);
 
     return;
   }
-  menuOpener.value = bottomMore.value;
-  menu.value.open = true;
-  void nextTick(() => {
-    menu.value?.querySelector<HTMLElement>('.conference-phone-menu__panel button, .conference-phone-menu__panel a')?.focus();
-  });
+  previousBodyOverflow = document.body.style.overflow;
+  previousDocumentOverflow = document.documentElement.style.overflow;
+  appWasInert = document.querySelector<HTMLElement>('#app')?.hasAttribute('inert') ?? false;
+  document.querySelector<HTMLElement>('#app')?.setAttribute('inert', '');
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
+  menuOpen.value = true;
+  void nextTick(() => menuClose.value?.focus());
 }
 
-function dismiss(event: PointerEvent | KeyboardEvent) {
-  if (!menu.value?.open) return;
-  if (event instanceof KeyboardEvent) {
-    if (event.key !== 'Escape' || menu.value.querySelector('.app-dropdown-trigger[aria-expanded="true"]')) return;
+function handleMenuKeydown(event: KeyboardEvent) {
+  if (!menuOpen.value || document.querySelector('.app-dropdown-trigger[aria-expanded="true"]')) return;
+  if (event.key === 'Escape') {
     event.preventDefault();
     closeMenu(true);
 
     return;
   }
-  const target = event.target;
+  if (event.key !== 'Tab' || !menuPanel.value) return;
+  const focusable = [...menuPanel.value.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+  const first = focusable[0];
+  const last = focusable.at(-1);
 
-  if (target instanceof Element && (menu.value.contains(target) || bottomMore.value?.contains(target) || target.closest('.app-dropdown-menu'))) return;
-  closeMenu();
+  if (event.shiftKey && document.activeElement === first && last) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last && first) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
-onMounted(() => {
-  document.addEventListener('pointerdown', dismiss, true);
-  document.addEventListener('keydown', dismiss, true);
-});
+onMounted(() => document.addEventListener('keydown', handleMenuKeydown, true));
 onUnmounted(() => {
-  document.removeEventListener('pointerdown', dismiss, true);
-  document.removeEventListener('keydown', dismiss, true);
+  closeMenu();
+  document.removeEventListener('keydown', handleMenuKeydown, true);
 });
 
 function select(key: string) {
@@ -221,34 +245,11 @@ function createEdition() {
         <strong>{{ title }}</strong>
         <span>{{ conference ? editionLabel : "Organizer workspace" }}</span>
       </div>
-      <details ref="menu" class="conference-phone-menu" @toggle="menuOpen = menu?.open ?? false">
-        <summary aria-label="More conference navigation" @click="menuOpener = $event.currentTarget as HTMLElement">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-        </summary>
-        <div class="conference-phone-menu__panel">
-          <AppDropdown v-if="conference && isOrganizer" :model-value="year" :options="editionOptions" label="Edition" density="compact" :teleport="true" @update:model-value="changeEdition" />
-          <button v-if="conference && canCreateEdition" type="button" @click="createEdition">New edition</button>
-          <nav v-if="conference" aria-label="More conference destinations">
-            <RouterLink v-if="isOrganizer" :to="annualConferencePath('programme', year)" @click="closeMenu()">Programme</RouterLink>
-            <RouterLink v-if="registration" :to="registration" @click="closeMenu()">{{ registration.endsWith('/check-in') ? 'Check-in' : 'Registration' }}</RouterLink>
-            <RouterLink v-if="canTicketing" :to="annualConferencePath('ticketing', year)" @click="closeMenu()">Ticketing</RouterLink>
-            <span v-if="capabilities.includes('finance.view')" aria-disabled="true">Finance <small>Unavailable</small></span>
-          </nav>
-          <nav v-if="isOrganizer" aria-label="Organizer destinations">
-            <RouterLink :to="adminPath('mobile')" @click="closeMenu()">Home</RouterLink>
-            <RouterLink :to="adminPath('mobile/events')" @click="closeMenu()">Events</RouterLink>
-            <RouterLink :to="adminPath('reports')" @click="closeMenu()">Reports</RouterLink>
-            <RouterLink :to="adminPath('organizers')" @click="closeMenu()">People &amp; Access</RouterLink>
-            <RouterLink v-if="role === 'owner'" :to="adminPath('audit-log')" @click="closeMenu()">Audit Log</RouterLink>
-            <RouterLink v-if="role === 'owner'" :to="adminPath('present-forms')" @click="closeMenu()">Present forms</RouterLink>
-          </nav>
-          <button v-if="signOut" type="button" @click="signOut">Sign out</button>
-        </div>
-      </details>
+      <span aria-hidden="true" />
     </header>
-    <nav v-if="conference" class="conference-phone-bottom" aria-label="Annual Conference workspace">
+    <nav v-if="conference" ref="conferenceFooter" class="conference-phone-bottom" aria-label="Annual Conference workspace">
       <button
-        v-for="item in items"
+        v-for="item in visibleItems"
         :key="item.key"
         type="button"
         :aria-label="item.key === 'badge' ? 'Conference badge' : undefined"
@@ -266,14 +267,20 @@ function createEdition() {
         <span>{{ item.label }}</span>
       </button>
       <button
+        v-if="showMore"
         ref="bottomMore"
         type="button"
         :aria-expanded="menuOpen"
+        aria-controls="conference-phone-more"
         :aria-current="!section && !items.some(item => item.key === 'speakers' && title === 'Speakers' || item.key === 'registration' && (title === 'Registration' || title === 'Check-in')) ? 'page' : undefined"
         @click="toggleBottomMenu"
       >
         <svg viewBox="0 0 24 24" class="conference-phone-bottom__icon" aria-hidden="true"><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></svg>
         <span>More</span>
+      </button>
+      <button v-else-if="signOut" type="button" @click="signOut">
+        <svg viewBox="0 0 24 24" class="conference-phone-bottom__icon" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10" /></svg>
+        <span>Sign out</span>
       </button>
     </nav>
     <nav v-else class="conference-phone-bottom" aria-label="Organizer workspaces">
@@ -289,11 +296,45 @@ function createEdition() {
         <svg viewBox="0 0 24 24" class="conference-phone-bottom__icon" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg>
         <span>Conference</span>
       </RouterLink>
-      <button ref="bottomMore" type="button" :aria-expanded="menuOpen" aria-current="page" @click="toggleBottomMenu">
+      <button ref="bottomMore" type="button" :aria-expanded="menuOpen" aria-controls="conference-phone-more" aria-current="page" @click="toggleBottomMenu">
         <svg viewBox="0 0 24 24" class="conference-phone-bottom__icon" aria-hidden="true"><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></svg>
         <span>More</span>
       </button>
     </nav>
+    <Teleport to="body">
+      <Transition name="phone-menu">
+      <div v-if="menuOpen" class="conference-phone-menu-backdrop" @click.self="closeMenu(true)">
+        <section id="conference-phone-more" ref="menuPanel" class="conference-phone-menu__panel" role="dialog" aria-modal="true" aria-labelledby="conference-phone-more-title" tabindex="-1">
+          <header class="conference-phone-menu__header">
+            <h2 id="conference-phone-more-title">More</h2>
+            <button ref="menuClose" type="button" aria-label="Close menu" @click="closeMenu(true)">×</button>
+          </header>
+          <div class="conference-phone-menu__content">
+            <AppDropdown v-if="conference && isOrganizer" :model-value="year" :options="editionOptions" label="Edition" density="compact" :teleport="true" @update:model-value="changeEdition" />
+            <button v-if="conference && canCreateEdition" type="button" @click="createEdition">New edition</button>
+            <nav v-if="conference" aria-label="More conference destinations">
+              <button v-for="item in overflowItems" :key="item.key" type="button" @click="select(item.key)">{{ item.label }}</button>
+              <RouterLink v-if="isOrganizer" :to="annualConferencePath('programme', year)" @click="closeMenu()">Programme</RouterLink>
+              <RouterLink v-if="registration && !items.some(item => item.key === 'registration')" :to="registration" @click="closeMenu()">{{ registration.endsWith('/check-in') ? 'Check-in' : 'Registration' }}</RouterLink>
+              <RouterLink v-if="canTicketing" :to="annualConferencePath('ticketing', year)" @click="closeMenu()">Ticketing</RouterLink>
+              <span v-if="capabilities.includes('finance.view')" aria-disabled="true">Finance <small>Unavailable</small></span>
+            </nav>
+            <nav v-if="isOrganizer" aria-label="Organizer destinations">
+              <template v-if="conference">
+                <RouterLink :to="adminPath('mobile')" @click="closeMenu()">Home</RouterLink>
+                <RouterLink :to="adminPath('mobile/events')" @click="closeMenu()">Events</RouterLink>
+              </template>
+              <RouterLink :to="adminPath('reports')" @click="closeMenu()">Reports</RouterLink>
+              <RouterLink :to="adminPath('organizers')" @click="closeMenu()">People &amp; Access</RouterLink>
+              <RouterLink v-if="role === 'owner'" :to="adminPath('audit-log')" @click="closeMenu()">Audit Log</RouterLink>
+              <RouterLink v-if="role === 'owner'" :to="adminPath('present-forms')" @click="closeMenu()">Present forms</RouterLink>
+            </nav>
+            <button v-if="signOut" type="button" @click="closeMenu(); signOut()">Sign out</button>
+          </div>
+        </section>
+      </div>
+      </Transition>
+    </Teleport>
     <form
       v-if="editionOpen"
       class="conference-phone-edition"
@@ -312,7 +353,7 @@ function createEdition() {
       <AppDatePicker v-model="editionForm.provisional_date" label="Conference date" required />
       <AppDropdown v-model="editionForm.task_creator_email" label="Planning owner" :options="ownerOptions" :teleport="true" />
       <div>
-        <button type="button" @click="editionOpen = false; menuOpener?.focus()">Cancel</button>
+        <button type="button" @click="editionOpen = false; bottomMore?.focus()">Cancel</button>
         <button type="submit" :disabled="createMutation.isPending.value">{{ createMutation.isPending.value ? 'Creating…' : 'Create edition' }}</button>
       </div>
     </form>
@@ -341,7 +382,7 @@ function createEdition() {
     background: #f5f2e8;
   }
 
-  .conference-phone-header__back, .conference-phone-menu summary {
+  .conference-phone-header__back {
     display: grid;
     width: 44px;
     height: 44px;
@@ -353,10 +394,6 @@ function createEdition() {
     font-size: 24px;
     cursor: pointer;
     list-style: none;
-  }
-
-  .conference-phone-menu summary::-webkit-details-marker {
-    display: none;
   }
 
   .conference-phone-header__title {
@@ -378,27 +415,71 @@ function createEdition() {
     font-size: 13px;
   }
 
-  .conference-phone-menu__panel {
+  .conference-phone-menu-backdrop {
     position: fixed;
-    z-index: 60;
-    top: calc(64px + env(safe-area-inset-top));
-    right: 12px;
-    width: min(290px, calc(100vw - 24px));
-    max-height: min(70vh, 560px);
-    overflow-y: auto;
-    padding: 12px;
-    border: 1px solid #dedbd4;
-    border-radius: 8px;
-    background: #fff;
-    box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+    z-index: var(--layer-app-modal);
+    inset: 0;
+    display: flex;
+    align-items: end;
+    background: rgb(0 0 0 / 30%);
   }
+
+  .phone-menu-enter-active,
+  .phone-menu-leave-active {
+    transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .phone-menu-enter-active .conference-phone-menu__panel,
+  .phone-menu-leave-active .conference-phone-menu__panel {
+    transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .phone-menu-enter-from,
+  .phone-menu-leave-to {
+    opacity: 0;
+  }
+
+  .phone-menu-enter-from .conference-phone-menu__panel,
+  .phone-menu-leave-to .conference-phone-menu__panel {
+    transform: translateY(100%);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .phone-menu-enter-active,
+    .phone-menu-leave-active,
+    .phone-menu-enter-active .conference-phone-menu__panel,
+    .phone-menu-leave-active .conference-phone-menu__panel {
+      transition: none;
+    }
+  }
+
+  .conference-phone-menu__panel {
+    display: flex;
+    width: 100%;
+    max-height: min(80dvh, 640px);
+    flex-direction: column;
+    border-radius: 12px 12px 0 0;
+    background: #fff;
+  }
+
+  .conference-phone-menu__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    border-bottom: 1px solid #dedbd4;
+  }
+
+  .conference-phone-menu__header h2 { margin: 0; font-size: 1.15rem; }
+  .conference-phone-menu__header button { min-width: 44px; min-height: 44px; border: 0; background: transparent; font-size: 1.5rem; }
+  .conference-phone-menu__content { overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px max(16px, env(safe-area-inset-bottom)); }
 
   .conference-phone-menu__panel nav {
     display: grid;
     border-bottom: 1px solid #eeeae1;
   }
 
-  .conference-phone-menu__panel a, .conference-phone-menu__panel nav span, .conference-phone-menu__panel > button {
+  .conference-phone-menu__panel a, .conference-phone-menu__panel nav span, .conference-phone-menu__panel nav button, .conference-phone-menu__content > button {
     display: flex;
     min-height: 44px;
     width: 100%;
@@ -490,7 +571,8 @@ function createEdition() {
     padding: 0 12px;
   }
 
-  .conference-phone-shell :is(button, summary, a):focus-visible {
+  .conference-phone-shell :is(button, a):focus-visible,
+  .conference-phone-menu__panel :is(button, a):focus-visible {
     outline: 2px solid #e8117f;
     outline-offset: 2px;
   }

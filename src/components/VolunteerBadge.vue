@@ -25,7 +25,7 @@ async function refresh(current: number, badgeName: string, badgePhoto: File | nu
   const draft = document.createElement('canvas');
 
   try {
-    const result = await paintDigitalBadge(draft, badgeName, badgePhoto, undefined, 'volunteer');
+    const result = await paintDigitalBadge(draft, badgeName, badgePhoto, undefined, 'attendee');
 
     if (!result.valid) throw new Error(result.message);
     const blob = await canvasPng(draft);

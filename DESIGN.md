@@ -151,8 +151,11 @@ are respected, and scrolling stays in the intended region.
 
 At phone widths, prioritize the current task over persistent setup controls.
 `OrganizerPhoneShell.vue` supplies a single aligned header and a small bottom
-navigation for conference destinations and organizer tools. More contains the
-remaining permitted destinations, edition selection, and edition creation.
+navigation for conference destinations and organizer tools. Use one footer menu:
+More opens a bottom drawer containing remaining permitted destinations, edition
+selection, edition creation, and sign out. When sign out is the only extra action,
+show it directly in the footer. Keep at most four destination links plus More;
+move additional destinations into the drawer without duplicating visible links.
 Intersect conference capabilities with existing role restrictions; navigation
 does not grant access. Keep existing route components and query-state keys so
 section changes do not discard drafts. Use a local section picker when needed,
