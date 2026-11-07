@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import AnnualConferenceAttendanceCounter from '@/src/components/AnnualConferenceAttendanceCounter.vue';
 import VolunteerBadge from '@/src/components/VolunteerBadge.vue';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
@@ -16,10 +16,11 @@ import {
   summarizeAnnualConferenceWorkPlan,
   type AnnualConferenceTask,
 } from '@/lib/annual-conference-work-plan';
-import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath } from '@/src/annual-conference';
+import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath, canCreateConferenceBadge } from '@/src/annual-conference';
 import { fetchAdminOrganizers, fetchAdminSession, fetchAnnualConferenceWorkPlan, queryKeys } from '@/src/lib/api';
 
 const route = useRoute();
+const router = useRouter();
 const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
 const factsOpen = ref(false);
 const factsDisclosure = ref<HTMLElement | null>(null);
@@ -38,6 +39,28 @@ const sessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
 });
+const badgeEligible = computed(() => sessionQuery.data.value?.authenticated === true
+  && canCreateConferenceBadge(year.value, sessionQuery.data.value.user?.role));
+const badgeSelected = computed(() => route.query.section === 'badge' && badgeEligible.value);
+const badgeVisited = ref(false);
+
+watch([year, () => sessionQuery.data.value?.user?.email], () => {
+  badgeVisited.value = badgeSelected.value;
+}, { flush: 'sync' });
+watch(badgeSelected, (selected) => {
+  if (selected) {
+    badgeVisited.value = true;
+    closeFacts();
+  }
+}, { immediate: true });
+watch([() => route.query.section, year, () => sessionQuery.data.value], ([section, currentYear, session]) => {
+  if (section === 'badge' && session && (!session.authenticated || !canCreateConferenceBadge(currentYear, session.user?.role))) {
+    const query = { ...route.query };
+
+    delete query.section;
+    void router.replace({ path: route.path, query });
+  }
+}, { immediate: true });
 const loadingAssignedAccess = computed(() => assignedAccess.value || (
   !workPlanQuery.data.value && sessionQuery.data.value?.user?.role === 'volunteer'
 ));
@@ -126,13 +149,13 @@ onUnmounted(() => {
     <div class="editorial-wrap">
       <AnnualConferenceNav :show-page-heading="false" />
 
-      <VolunteerBadge v-if="year === '2026' && sessionQuery.data.value?.user?.role === 'volunteer'" :display-name="sessionQuery.data.value?.user?.display_name" />
+      <VolunteerBadge v-if="badgeVisited && badgeEligible" v-show="badgeSelected" :key="`${year}-${sessionQuery.data.value?.user?.email}`" :display-name="sessionQuery.data.value?.user?.display_name" />
       <AnnualConferenceAttendanceCounter
-        v-if="year === '2026' && sessionQuery.data.value?.authenticated"
+        v-if="!badgeSelected && year === '2026' && sessionQuery.data.value?.authenticated"
         :can-manage="sessionQuery.data.value?.user?.role === 'owner'"
       />
 
-      <section v-if="workPlanQuery.isError.value" class="editorial-panel mb-6 border-dc-pink p-6">
+      <section v-if="!badgeSelected && workPlanQuery.isError.value" class="editorial-panel mb-6 border-dc-pink p-6">
         <p class="text-lg font-semibold text-dc-ink">Conference planning data is temporarily unavailable.</p>
         <button
           type="button"
@@ -143,9 +166,9 @@ onUnmounted(() => {
         </button>
       </section>
 
-      <BoneyardPageSkeleton v-else-if="workPlanQuery.isLoading.value" :name="loadingAssignedAccess ? 'annual-conference-overview-assigned' : 'annual-conference-overview'" label="annual conference" layout="workspace" />
+      <BoneyardPageSkeleton v-else-if="!badgeSelected && workPlanQuery.isLoading.value" :name="loadingAssignedAccess ? 'annual-conference-overview-assigned' : 'annual-conference-overview'" label="annual conference" layout="workspace" />
 
-      <section v-else :class="['conference-brief', { 'conference-brief--volunteer': assignedAccess }]" aria-labelledby="conference-brief-date">
+      <section v-else-if="!badgeSelected" :class="['conference-brief', { 'conference-brief--volunteer': assignedAccess }]" aria-labelledby="conference-brief-date">
         <header class="conference-brief__masthead">
           <div class="conference-brief__date">
             <div class="conference-brief__edition-meta">

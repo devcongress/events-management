@@ -22,6 +22,17 @@ function resolve(name: string, options: Partial<Parameters<typeof resolveOrganiz
 }
 
 describe('organizer breadcrumb routes', () => {
+  it('links the badge back to the same conference overview', () => {
+    const currentYear = currentAnnualConferenceYear();
+
+    if (currentYear !== '2026') return;
+    expect(resolve('admin-annual-conference', { role: 'volunteer', params: { year: '2026' }, query: { section: 'badge' } })).toEqual([
+      { label: 'Annual Conference' },
+      { label: '2026', to: annualConferencePath('', '2026') },
+      { label: 'Conference badge' },
+    ]);
+  });
+
   it.each([
     'admin-login', 'admin-auth-callback', 'admin-access-request', 'admin-not-found',
     'admin-public-events-preview', 'admin-public-event-preview',

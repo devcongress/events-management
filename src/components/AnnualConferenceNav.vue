@@ -9,6 +9,7 @@ import {
   annualConferenceRegistrationTarget,
   annualConferenceEditionsForNavigation,
   annualConferencePath,
+  canCreateConferenceBadge,
 } from '@/src/annual-conference';
 import {
   createAnnualConferenceEdition,
@@ -61,7 +62,7 @@ const isVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volu
 const canManageEditions = computed(() => {
   const role = sessionQuery.data.value?.user?.role;
 
-  return role === 'owner' || role === 'organizer';
+  return sessionQuery.data.value?.authenticated === true && (role === 'owner' || role === 'organizer');
 });
 const editionsQuery = useQuery({
   queryKey: queryKeys.annualConferenceEditions,
@@ -91,7 +92,9 @@ const canCreateEdition = computed(() => (
   && workPlanQuery.data.value?.permissions.can_create_tasks === true
   && editions.value[0]?.year === currentEdition.value?.year
 ));
-const capabilities = computed(() => workPlanQuery.data.value?.permissions.capabilities ?? []);
+const capabilities = computed(() => sessionQuery.data.value?.authenticated === true
+  ? workPlanQuery.data.value?.permissions.capabilities ?? []
+  : []);
 const canViewVolunteers = computed(() => year.value === '2026' && hasAnyAnnualConferenceCapability(
   capabilities.value,
   VOLUNTEER_SECTION_CAPABILITIES,
@@ -107,6 +110,9 @@ const canViewSpeakers = computed(() => hasAnyAnnualConferenceCapability(
 const registrationTarget = computed(() => annualConferenceRegistrationTarget(capabilities.value, year.value));
 const links = computed<AnnualConferenceNavLink[]>(() => [
   { href: annualConferencePath('', year.value), label: 'Overview', icon: 'overview' },
+  ...(sessionQuery.data.value?.authenticated && canCreateConferenceBadge(year.value, sessionQuery.data.value.user?.role)
+    ? [{ href: `${annualConferencePath('', year.value)}?section=badge`, label: 'Conference badge', icon: 'tickets' as const }]
+    : []),
   {
     href: annualConferencePath('work-plan', year.value),
     label: isVolunteer.value && workPlanQuery.data.value?.permissions.access_scope === 'assigned' ? 'My tasks' : 'Work plan',
@@ -177,6 +183,7 @@ function submitEdition() {
 }
 
 function isActive(href: string): boolean {
+  if (href === `${annualConferencePath('', year.value)}?section=badge`) return route.path === annualConferencePath('', year.value) && route.query.section === 'badge';
   if (href === annualConferencePath('finance', year.value)) return false;
 
   if (href === registrationTarget.value && route.path === annualConferencePath('check-in', year.value)) {
@@ -184,7 +191,7 @@ function isActive(href: string): boolean {
   }
 
   if (href === annualConferencePath('', year.value)) {
-    return route.path === href;
+    return route.path === href && route.query.section !== 'badge';
   }
 
   return route.path === href || route.path.startsWith(`${href}/`);
@@ -198,7 +205,7 @@ function revealActiveNavLink() {
   });
 }
 
-watch([links, () => route.path], revealActiveNavLink, { flush: 'post', immediate: true });
+watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immediate: true });
 </script>
 
 <template>

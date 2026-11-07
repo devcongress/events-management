@@ -43,7 +43,7 @@ describe("Annual Conference route skeletons", () => {
 
   it("uses the skeleton only while each primary route query has no initial result", () => {
     expect(overviewSource).toContain(
-      'v-else-if="workPlanQuery.isLoading.value"',
+      'v-else-if="!badgeSelected && workPlanQuery.isLoading.value"',
     );
     expect(overviewSource).toContain(
       ':name="loadingAssignedAccess ? \'annual-conference-overview-assigned\' : \'annual-conference-overview\'"',

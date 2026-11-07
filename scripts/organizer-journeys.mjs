@@ -461,14 +461,48 @@ try {
       if (width === 320) await stubBadgeShare(page);
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`${origin}/organizer-console/annual-conference/2026`);
+      const nav = page.getByRole("navigation", { name: "Annual Conference workspace" });
       const editor = page.getByRole("region", { name: "Your volunteer badge" });
 
       await page.getByText("21 people are attending").waitFor();
-      await editor.getByRole("button", { name: "Create badge" }).click();
-      await editor.getByRole("textbox", { name: "Display name" }).fill("Ama Mensah");
-      const preview = editor.getByRole("img", { name: "DevCon26 volunteer badge preview for Ama Mensah" });
+      assert.equal(await nav.getByText("Volunteers", { exact: true }).count(), 0);
+      assert.equal(await editor.isVisible(), false);
+      await nav.getByText("Conference badge", { exact: true }).click();
+      await page.waitForURL(/section=badge/);
+      assert.equal((await nav.locator('[aria-current="page"]').textContent()).trim(), "Conference badge");
+      const name = editor.getByRole("textbox", { name: "Display name" });
+      const downloadButton = editor.getByRole("button", { name: "Download PNG" });
+
+      await name.fill("Ama Mensah");
+      await editor.getByRole("img", { name: "DevCon26 volunteer badge preview for Ama Mensah" }).waitFor();
+      await page.evaluate(() => {
+        const toBlob = HTMLCanvasElement.prototype.toBlob;
+
+        HTMLCanvasElement.prototype.toBlob = function (callback, ...args) {
+          toBlob.call(this, (blob) => setTimeout(() => callback(blob), 220), ...args);
+        };
+      });
+      const actionOffset = () => downloadButton.evaluate((button) => (
+        button.getBoundingClientRect().top - button.closest("section").getBoundingClientRect().top
+      ));
+      const beforeTyping = await actionOffset();
+
+      await name.fill("Ama Mensah N");
+      assert.equal(await editor.locator("canvas").evaluate((canvas) => getComputedStyle(canvas).visibility), "visible");
+      assert.equal(await downloadButton.isDisabled(), true);
+      assert.equal(await actionOffset(), beforeTyping);
+      if (width === 320) {
+        assert.equal(await editor.getByRole("button", { name: "Share badge" }).isDisabled(), true);
+      }
+      const preview = editor.getByRole("img", { name: "DevCon26 volunteer badge preview for Ama Mensah N" });
 
       await preview.waitFor();
+      await nav.getByText("Overview", { exact: true }).click();
+      await page.getByText("21 people are attending").waitFor();
+      await page.goBack();
+      await page.waitForURL(/section=badge/);
+      await preview.waitFor();
+      assert.equal(await name.inputValue(), "Ama Mensah N");
       if (width === 320) {
         await editor.locator('input[type="file"]').setInputFiles("public/brand/dev-con-logo.png");
         await editor.getByRole("button", { name: "Remove photo" }).waitFor();
@@ -481,7 +515,7 @@ try {
       }
       const download = page.waitForEvent("download");
 
-      await editor.getByRole("button", { name: "Download PNG" }).click();
+      await downloadButton.click();
       const file = await download;
 
       assert.equal(file.suggestedFilename(), "devcon26-volunteer.png");
@@ -4305,6 +4339,18 @@ try {
         `${origin}/organizer-console/mobile/annual-conference/2026`,
       );
       await page.getByText("No tasks assigned yet", { exact: true }).waitFor();
+      const conferenceNavigation = page.getByRole("navigation", { name: "Annual Conference workspace" });
+
+      assert.equal(await conferenceNavigation.getByText("Volunteers", { exact: true }).count(), 0);
+      await page.evaluate(async () => {
+        const app = document.querySelector("#app").__vue_app__;
+
+        await app.config.globalProperties.$router.push({ query: { section: "volunteers" } });
+      });
+      await page.waitForURL((url) => [null, "overview"].includes(url.searchParams.get("section")));
+      await page.getByText("No tasks assigned yet", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("heading", { name: "Volunteers", exact: true }).count(), 0);
+      assert.equal(requests.some((request) => /\/annual-conference\/2026\/(volunteer-applications|team|volunteer-follow-up)/.test(request.path)), false);
       assert.equal(await page.getByRole("link", { name: "Speakers", exact: true }).count(), 0);
       assert.equal(
         await page

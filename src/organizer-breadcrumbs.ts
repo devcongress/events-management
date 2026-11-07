@@ -4,7 +4,7 @@ import {
   type AnnualConferenceCapability,
 } from '@/lib/annual-conference-capabilities';
 import { adminPath } from './admin-routes';
-import { annualConferencePath, mobileAnnualConferencePath, volunteerCanAccessOrganizerPath } from './annual-conference';
+import { annualConferencePath, canCreateConferenceBadge, mobileAnnualConferencePath, volunteerCanAccessOrganizerPath } from './annual-conference';
 import { queryKeys } from './lib/api';
 import { resolveTicketingSection, ticketingSectionLabel } from './ticketing-navigation';
 
@@ -222,13 +222,19 @@ function conferenceBreadcrumbs(
     { label: label(labels.editionLabel) ?? year, ...(name === 'admin-annual-conference' || !canLink(overview) ? {} : { to: overviewTo }) },
   ];
 
-  if (name === 'admin-annual-conference') return canLink(overview) ? base : [];
-
   const query = route.query ?? {};
 
+  if (name === 'admin-annual-conference') {
+    if (!canLink(overview)) return [];
+
+    return query.section === 'badge' && canCreateConferenceBadge(year, role)
+      ? [base[0], { ...base[1], to: overviewTo }, { label: 'Conference badge' }]
+      : base;
+  }
+
   if (mobile) {
-    const section = query.section === 'tasks' || query.section === 'volunteers' ? query.section : 'overview';
-    const title = section === 'tasks' ? labels.assignedAccess ? 'My tasks' : 'Work plan' : section === 'volunteers' ? 'Volunteers' : 'Overview';
+    const section = query.section === 'tasks' || query.section === 'volunteers' || (query.section === 'badge' && canCreateConferenceBadge(year, role)) ? query.section : 'overview';
+    const title = section === 'tasks' ? labels.assignedAccess ? 'My tasks' : 'Work plan' : section === 'volunteers' ? 'Volunteers' : section === 'badge' ? 'Conference badge' : 'Overview';
     const edition = { ...base[1], ...(section === 'overview' ? { to: undefined } : { to: overviewTo }) };
 
     return [

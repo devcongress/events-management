@@ -21,6 +21,12 @@ import {
 } from "./organizer-viewport";
 
 describe("organizer viewport policy", () => {
+  it('preserves badge section across viewport changes', () => {
+    expect(organizerMobileConferenceSection({ section: 'badge' })).toBe('badge');
+    expect(organizerViewportRedirect({ authenticated: true, isAdminRoute: true, isPhone: true, routeName: 'admin-annual-conference', conferenceYear: '2026', query: { section: 'badge' } })).toEqual({ path: '/organizer-console/mobile/annual-conference/2026', query: { section: 'badge' }, replace: true });
+    expect(organizerViewportRedirect({ authenticated: true, isAdminRoute: true, isPhone: false, routeName: ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME, conferenceYear: '2026', query: { section: 'badge' } })).toEqual({ path: '/organizer-console/annual-conference/2026', query: { section: 'badge' }, replace: true });
+  });
+
   it('keeps Programme reachable on phones', () => {
     expect(organizerViewportRedirect({
       authenticated: true,

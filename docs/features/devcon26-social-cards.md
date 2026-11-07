@@ -6,7 +6,7 @@ DevCon26 social cards let an accepted speaker personalize a badge from their pri
 
 The speaker workspace leads with publicity details and keeps badge customization in an optional disclosure. A speaker can reuse the saved badge's original photo as their publicity headshot. That operation stores a separate private copy, so changing or removing the badge photo does not change the organizers' headshot. Uploading a headshot or providing a link does not silently replace an existing badge photo or crop.
 
-Volunteers with active EMS Volunteer access sign in with their approved Google account and open the badge editor from the DevCon26 overview on desktop or phone. They can personalize the name and optionally add a portrait. The volunteer draft and photo stay in the browser for the current visit. Volunteers and speakers can download the PNG or share it through the device share sheet on supported browsers. The exported artwork carries no admission credential.
+Volunteers with active EMS Volunteer access sign in with their approved Google account and open **Conference badge** from the DevCon26 workspace on desktop or phone. This tab is separate from the permissions that open the **Volunteers** workspace. Volunteers can personalize their name and optionally add a portrait. Their draft stays in the browser while they switch sections within the same page. The last preview remains visible during edits, and sharing and download become available once the updated badge is ready. Volunteers and speakers can download the PNG or share it through the device share sheet on supported browsers. The exported artwork carries no admission credential.
 
 ## Security and lifecycle
 

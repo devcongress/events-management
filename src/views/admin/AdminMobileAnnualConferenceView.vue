@@ -41,6 +41,7 @@ import {
   annualConferenceRegistrationTarget,
   annualConferenceEditionsForNavigation,
   annualConferencePath,
+  canCreateConferenceBadge,
 } from "@/src/annual-conference";
 import {
   createAnnualConferenceEdition,
@@ -73,7 +74,7 @@ import {
   VOLUNTEER_SECTION_CAPABILITIES,
 } from "@/lib/annual-conference-capabilities";
 
-type MobileConferenceTab = "overview" | "tasks" | "volunteers";
+type MobileConferenceTab = "overview" | "tasks" | "volunteers" | "badge";
 type TaskStatusFilter = "all" | AnnualConferenceTaskStatus;
 
 const route = useRoute();
@@ -175,8 +176,12 @@ const canViewSpeakers = computed(() => hasAnyAnnualConferenceCapability(
 const assignedAccess = computed(
   () => permissions.value?.access_scope === "assigned",
 );
+const authenticated = computed(() => sessionQuery.isSuccess.value && sessionQuery.data.value?.authenticated === true);
+const canViewBadge = computed(() => authenticated.value && canCreateConferenceBadge(year.value, sessionQuery.data.value?.user?.role));
+const permissionsResolved = computed(() => sessionQuery.isSuccess.value && authenticated.value && workPlanQuery.isSuccess.value && Boolean(permissions.value));
 const canViewVolunteers = computed(
   () =>
+    permissionsResolved.value &&
     year.value === "2026" &&
     hasAnyAnnualConferenceCapability(
       capabilities.value,
@@ -226,7 +231,7 @@ const volunteerTeamQuery = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceVolunteerTeam(year.value)),
   queryFn: () => fetchAnnualConferenceVolunteerTeam(year.value),
   enabled: computed(
-    () => canViewVolunteerTeam.value && activeTab.value === "volunteers",
+    () => canViewVolunteers.value && canViewVolunteerTeam.value && activeTab.value === "volunteers",
   ),
 });
 const volunteerQuery = useQuery({
@@ -234,6 +239,7 @@ const volunteerQuery = useQuery({
   queryFn: () => fetchVolunteerApplications(year.value),
   enabled: computed(
     () =>
+      canViewVolunteers.value &&
       canReviewVolunteerApplications.value &&
       year.value === "2026" &&
       activeTab.value === "volunteers",
@@ -387,6 +393,7 @@ const availableTabs = computed<
 >(() => [
   { id: "overview", label: "Overview" },
   { id: "tasks", label: assignedAccess.value ? "My tasks" : "Work plan" },
+  ...(canViewBadge.value ? [{ id: "badge" as const, label: "Conference badge" }] : []),
   ...(canViewVolunteers.value
     ? [{ id: "volunteers" as const, label: "Volunteers" }]
     : []),
@@ -542,19 +549,32 @@ const canEditSelectedTask = computed(() => {
 const volunteerPublicUrl = `${window.location.origin}${VOLUNTEER_PUBLIC_PATH}`;
 let applyingRouteContext = false;
 
-watch(availableTabs, (tabs) => {
-  if (permissions.value && !tabs.some((tab) => tab.id === activeTab.value)) {
-    selectTab(tabs[0]?.id ?? "overview", "replace");
-  }
+const visitedBadge = ref(false);
+
+watch([year, () => sessionQuery.data.value?.user?.email], () => {
+  visitedBadge.value = activeTab.value === "badge" && canViewBadge.value;
 });
 
+watch([activeTab, canViewBadge], ([tab, allowed]) => {
+  if (tab === "badge" && allowed) visitedBadge.value = true;
+}, { immediate: true });
+
 watch(
-  [() => route.fullPath, tasks, phases, assignedAccess],
+  [() => route.fullPath, tasks, phases, assignedAccess, availableTabs, permissionsResolved, authenticated],
   () => {
     const context = organizerConferenceContextQuery(route.query);
 
     applyingRouteContext = true;
-    activeTab.value = organizerMobileConferenceSection(context);
+    const requestedTab = organizerMobileConferenceSection(context);
+    const allowed = availableTabs.value.some((tab) => tab.id === requestedTab);
+    const sectionResolved = requestedTab === "badge" ? authenticated.value : permissionsResolved.value;
+
+    activeTab.value = sectionResolved && !allowed ? "overview" : requestedTab;
+    if (sectionResolved && !allowed) {
+      void replaceMobileConferenceContext({ section: "overview", task: null });
+    }
+    if (activeTab.value !== "volunteers") selectedVolunteer.value = null;
+    if (activeTab.value !== "tasks") closeTaskDrawer();
     statusFilter.value = (context.status ?? "all") as TaskStatusFilter;
     workstreamFilter.value = context.workstream ?? "all";
     ownerFilter.value = assignedAccess.value ? "all" : (context.owner ?? "all");
@@ -568,7 +588,7 @@ watch(
         ? context.phase
         : "all";
 
-    const requestedTaskId = context.task;
+    const requestedTaskId = activeTab.value === "tasks" ? context.task : undefined;
     const requestedTask = requestedTaskId
       ? tasks.value.find((task) => task.id === requestedTaskId)
       : null;
@@ -1001,10 +1021,10 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
     </div>
 
     <main class="conference-mobile__content">
-      <BoneyardPageSkeleton v-if="workPlanQuery.isPending.value" :name="mobileLoadingSection" label="conference workspace" layout="mobile-conference" :show-header="false" />
+      <BoneyardPageSkeleton v-if="activeTab !== 'badge' && workPlanQuery.isPending.value" :name="mobileLoadingSection" label="conference workspace" layout="mobile-conference" :show-header="false" />
 
       <section
-        v-else-if="workPlanQuery.isError.value"
+        v-else-if="activeTab !== 'badge' && workPlanQuery.isError.value"
         class="conference-state conference-state--error"
       >
         <h1>Conference workspace unavailable</h1>
@@ -1024,7 +1044,6 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
           key="overview"
           class="conference-view"
         >
-          <VolunteerBadge v-if="year === '2026' && sessionQuery.data.value?.user?.role === 'volunteer'" :display-name="sessionQuery.data.value?.user?.display_name" />
           <AnnualConferenceAttendanceCounter
             v-if="year === '2026' && sessionQuery.data.value?.authenticated"
             :can-manage="sessionQuery.data.value?.user?.role === 'owner'"
@@ -1340,7 +1359,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
           </div>
         </section>
 
-        <section v-else key="volunteers" class="conference-view">
+        <section v-else-if="activeTab === 'volunteers' && canViewVolunteers" key="volunteers" class="conference-view">
           <header class="page-intro">
             <h1>Volunteers</h1>
             <p>
@@ -1704,6 +1723,9 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
           </div>
         </section>
       </Transition>
+      <section v-if="visitedBadge && canViewBadge" v-show="activeTab === 'badge'" :key="`${year}:${sessionQuery.data.value?.user?.email}`" class="conference-view">
+        <VolunteerBadge :display-name="sessionQuery.data.value?.user?.display_name" />
+      </section>
     </main>
 
     <nav
@@ -1732,6 +1754,9 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
         >
           <path d="M5 6h14v14H5zM8 3h8v5H8zM8 12l2 2 4-4M8 17h7" />
         </svg>
+        <svg v-else-if="tab.id === 'badge'" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 4h14v16H5zM9 4V2h6v2M9 10a3 3 0 1 0 6 0 3 3 0 0 0-6 0ZM8 17c.5-2 2-3 4-3s3.5 1 4 3" />
+        </svg>
         <svg v-else viewBox="0 0 24 24" aria-hidden="true">
           <path
             d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 10a2.5 2.5 0 1 0 0-5M3 19c0-3 2-5 5-5s5 2 5 5M13 14c3 0 5 2 5 5"
@@ -1757,7 +1782,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
 
     <AnnualConferenceTaskDrawer
       :year="year"
-      :open="showCreateForm || Boolean(selectedTask)"
+      :open="activeTab === 'tasks' && (showCreateForm || Boolean(selectedTask))"
       :mode="showCreateForm ? 'create' : editingTaskId ? 'edit' : 'details'"
       :task="showCreateForm ? null : selectedTask"
       :tasks="tasks"
@@ -1784,7 +1809,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
     />
 
     <VolunteerApplicationSheet
-      :open="Boolean(selectedVolunteer)"
+      :open="activeTab === 'volunteers' && canViewVolunteers && Boolean(selectedVolunteer)"
       :person="selectedVolunteer"
       :assigned-tasks="selectedVolunteerTasks"
       :actions="selectedVolunteerActions"
