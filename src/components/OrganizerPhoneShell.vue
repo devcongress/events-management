@@ -16,6 +16,27 @@ import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath, annualConferenc
 import { organizerConferenceContextQuery, organizerMobileConferenceSection } from '@/src/organizer-viewport';
 import { hasAnyAnnualConferenceCapability, VOLUNTEER_SECTION_CAPABILITIES } from '@/lib/annual-conference-capabilities';
 
+const menuIcons: Record<string, string> = {
+  overview: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  tasks: 'M5 6h14v14H5zM8 3h8v5H8zM8 12l2 2 4-4M8 17h7',
+  badge: 'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',
+  volunteers: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 10a2.5 2.5 0 1 0 0-5M3 19c0-3 2-5 5-5s5 2 5 5M13 14c3 0 5 2 5 5',
+  speakers: 'M4 20c.5-3 2.5-5 5.5-5s5 2 5.5 5M9.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M17 8h5M19.5 5.5v5',
+  registration: 'M4 5h16v14H4zM8 9h8M8 13h5',
+  edition: 'M4 6h16v14H4zM8 3v6M16 3v6M4 10h16',
+  add: 'M12 5v14M5 12h14',
+  programme: 'M5 5h14v15H5zM8 3v4M16 3v4M8 10h2M13 10h3M8 14h2M13 14h3M8 18h2M13 18h3',
+  ticketing: 'M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4zM13 7v10',
+  finance: 'M4 7h16v12H4zM4 7l2-3h12l2 3M15 13h2',
+  home: 'm3 11 9-7 9 7M5 10v10h14V10M9 20v-6h6v6',
+  events: 'M4 6h16v14H4zM8 3v6M16 3v6M4 10h16',
+  reports: 'M5 20V4h14v16zM8 16v-4M12 16V8M16 16v-6',
+  people: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 10a2.5 2.5 0 1 0 0-5M3 19c0-3 2-5 5-5s5 2 5 5M13 14c3 0 5 2 5 5',
+  audit: 'M4 12a8 8 0 1 0 2-5.3M4 4v3h3M12 8v4l3 2',
+  forms: 'M4 4h16v11H4zM12 15v3M8 21l4-3 4 3M8 8h8M8 11h5',
+  signout: 'M10 4H5v16h5M14 8l4 4-4 4M8 12h10',
+};
+
 const props = defineProps<{ conference: boolean }>();
 const route = useRoute();
 const router = useRouter();
@@ -310,26 +331,31 @@ function createEdition() {
             <button ref="menuClose" type="button" aria-label="Close menu" @click="closeMenu(true)">×</button>
           </header>
           <div class="conference-phone-menu__content">
-            <AppDropdown v-if="conference && isOrganizer" :model-value="year" :options="editionOptions" label="Edition" density="compact" :teleport="true" @update:model-value="changeEdition" />
-            <button v-if="conference && canCreateEdition" type="button" @click="createEdition">New edition</button>
+            <AppDropdown v-if="conference && isOrganizer" :model-value="year" :options="editionOptions" label="Edition" :aria-label="`Edition: ${editionLabel}`" density="compact" :teleport="true" @update:model-value="changeEdition">
+              <template #trigger="{ selectedLabel }">
+                <span class="conference-phone-menu__edition-value"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['edition']" /></svg><span>{{ selectedLabel }}</span></span>
+                <svg class="conference-phone-menu__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
+              </template>
+            </AppDropdown>
+            <button v-if="conference && canCreateEdition" type="button" @click="createEdition"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['add']" /></svg><span>New edition</span></button>
             <nav v-if="conference" aria-label="More conference destinations">
-              <button v-for="item in overflowItems" :key="item.key" type="button" @click="select(item.key)">{{ item.label }}</button>
-              <RouterLink v-if="isOrganizer" :to="annualConferencePath('programme', year)" @click="closeMenu()">Programme</RouterLink>
-              <RouterLink v-if="registration && !items.some(item => item.key === 'registration')" :to="registration" @click="closeMenu()">{{ registration.endsWith('/check-in') ? 'Check-in' : 'Registration' }}</RouterLink>
-              <RouterLink v-if="canTicketing" :to="annualConferencePath('ticketing', year)" @click="closeMenu()">Ticketing</RouterLink>
-              <span v-if="capabilities.includes('finance.view')" aria-disabled="true">Finance <small>Unavailable</small></span>
+              <button v-for="item in overflowItems" :key="item.key" type="button" @click="select(item.key)"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons[item.icon]" /></svg><span>{{ item.label }}</span></button>
+              <RouterLink v-if="isOrganizer" :to="annualConferencePath('programme', year)" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['programme']" /></svg><span>Programme</span></RouterLink>
+              <RouterLink v-if="registration && !items.some(item => item.key === 'registration')" :to="registration" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['registration']" /></svg><span>{{ registration.endsWith('/check-in') ? 'Check-in' : 'Registration' }}</span></RouterLink>
+              <RouterLink v-if="canTicketing" :to="annualConferencePath('ticketing', year)" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['ticketing']" /></svg><span>Ticketing</span></RouterLink>
+              <div v-if="capabilities.includes('finance.view')" class="conference-phone-menu__disabled" aria-disabled="true"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['finance']" /></svg>Finance<small>Unavailable</small></div>
             </nav>
             <nav v-if="isOrganizer" aria-label="Organizer destinations">
               <template v-if="conference">
-                <RouterLink :to="adminPath('mobile')" @click="closeMenu()">Home</RouterLink>
-                <RouterLink :to="adminPath('mobile/events')" @click="closeMenu()">Events</RouterLink>
+                <RouterLink :to="adminPath('mobile')" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['home']" /></svg><span>Home</span></RouterLink>
+                <RouterLink :to="adminPath('mobile/events')" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['events']" /></svg><span>Events</span></RouterLink>
               </template>
-              <RouterLink :to="adminPath('reports')" @click="closeMenu()">Reports</RouterLink>
-              <RouterLink :to="adminPath('organizers')" @click="closeMenu()">People &amp; Access</RouterLink>
-              <RouterLink v-if="role === 'owner'" :to="adminPath('audit-log')" @click="closeMenu()">Audit Log</RouterLink>
-              <RouterLink v-if="role === 'owner'" :to="adminPath('present-forms')" @click="closeMenu()">Present forms</RouterLink>
+              <RouterLink :to="adminPath('reports')" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['reports']" /></svg><span>Reports</span></RouterLink>
+              <RouterLink :to="adminPath('organizers')" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['people']" /></svg><span>People &amp; Access</span></RouterLink>
+              <RouterLink v-if="role === 'owner'" :to="adminPath('audit-log')" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['audit']" /></svg><span>Audit Log</span></RouterLink>
+              <RouterLink v-if="role === 'owner'" :to="adminPath('present-forms')" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['forms']" /></svg><span>Present forms</span></RouterLink>
             </nav>
-            <button v-if="signOut" type="button" @click="closeMenu(); signOut()">Sign out</button>
+            <button v-if="signOut" type="button" class="conference-phone-menu__signout" @click="closeMenu(); signOut()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['signout']" /></svg><span>Sign out</span></button>
           </div>
         </section>
       </div>
@@ -479,13 +505,14 @@ function createEdition() {
     border-bottom: 1px solid #eeeae1;
   }
 
-  .conference-phone-menu__panel a, .conference-phone-menu__panel nav span, .conference-phone-menu__panel nav button, .conference-phone-menu__content > button {
+  .conference-phone-menu__panel nav a, .conference-phone-menu__disabled, .conference-phone-menu__panel nav button, .conference-phone-menu__content > button {
     display: flex;
     min-height: 44px;
     width: 100%;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
     border: 0;
+    border-radius: 6px;
     background: transparent;
     padding: 0 8px;
     color: #25231f;
@@ -494,8 +521,44 @@ function createEdition() {
     font-size: 15px;
   }
 
-  .conference-phone-menu__panel nav span {
+  .conference-phone-menu__disabled {
     color: #888;
+  }
+
+  .conference-phone-menu__disabled small {
+    margin-left: auto;
+  }
+
+  .conference-phone-menu__icon,
+  .conference-phone-menu__chevron {
+    width: 20px;
+    height: 20px;
+    flex: none;
+    fill: none;
+    stroke: #64748b;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .conference-phone-menu__edition-value {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .conference-phone-menu__edition-value span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .conference-phone-menu__content > .conference-phone-menu__signout {
+    margin-top: 12px;
+    border: 1px solid #dedbd4;
+    background: #f8f7f3;
+    font-weight: 600;
   }
 
   .conference-phone-menu__panel small {

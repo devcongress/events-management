@@ -1078,7 +1078,7 @@ function isEditableElement(element: Element | null): element is HTMLElement {
   if (element.isContentEditable) return true;
 
   return element.matches(
-    'input:not([type="hidden"]):not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled]), select:not([disabled])',
+    'input:not([type="hidden"]):not([type="range"]):not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled]), select:not([disabled])',
   );
 }
 

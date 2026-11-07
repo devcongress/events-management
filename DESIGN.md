@@ -153,7 +153,9 @@ At phone widths, prioritize the current task over persistent setup controls.
 `OrganizerPhoneShell.vue` supplies a single aligned header and a small bottom
 navigation for conference destinations and organizer tools. Use one footer menu:
 More opens a bottom drawer containing remaining permitted destinations, edition
-selection, edition creation, and sign out. When sign out is the only extra action,
+selection, edition creation, and sign out. Use aligned slate icons for each drawer
+action and a distinct Sign out button at the bottom. On phones, Ticketing keeps
+the shell heading and section picker without repeating its desktop hero. When sign out is the only extra action,
 show it directly in the footer. Keep at most four destination links plus More;
 move additional destinations into the drawer without duplicating visible links.
 Intersect conference capabilities with existing role restrictions; navigation

@@ -6,6 +6,7 @@ import { canvasPng, saveBadgeFile } from '@/src/lib/speaker-badge';
 const props = defineProps<{ displayName?: string | null }>();
 const name = ref(props.displayName?.includes('@') ? '' : props.displayName ?? '');
 const photo = ref<File | null>(null);
+const crop = ref({ zoom: 1, x: 0.5, y: 0.18 });
 const canvas = ref<HTMLCanvasElement | null>(null);
 const error = ref('');
 const preparing = ref(false);
@@ -21,11 +22,11 @@ let preparedRevision = -1;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 const ready = computed(() => Boolean(prepared.value && preparedRevision === revision && !preparing.value && !validatingPhoto.value && normalizedName.value));
 
-async function refresh(current: number, badgeName: string, badgePhoto: File | null) {
+async function refresh(current: number, badgeName: string, badgePhoto: File | null, badgeCrop: { zoom: number; x: number; y: number }) {
   const draft = document.createElement('canvas');
 
   try {
-    const result = await paintDigitalBadge(draft, badgeName, badgePhoto, undefined, 'attendee');
+    const result = await paintDigitalBadge(draft, badgeName, badgePhoto, badgeCrop, 'attendee');
 
     if (!result.valid) throw new Error(result.message);
     const blob = await canvasPng(draft);
@@ -48,14 +49,14 @@ async function refresh(current: number, badgeName: string, badgePhoto: File | nu
   }
 }
 
-watch([normalizedName, photo], ([badgeName, badgePhoto]) => {
+watch([normalizedName, photo, () => crop.value.zoom, () => crop.value.x, () => crop.value.y], ([badgeName, badgePhoto, zoom, x, y]) => {
   const current = ++revision;
 
   clearTimeout(refreshTimer);
   error.value = '';
   preparing.value = Boolean(badgeName);
   if (!badgeName) return;
-  refreshTimer = setTimeout(() => { void refresh(current, badgeName, badgePhoto); }, 120);
+  refreshTimer = setTimeout(() => { void refresh(current, badgeName, badgePhoto, { zoom, x, y }); }, 120);
 }, { flush: 'sync', immediate: true });
 onBeforeUnmount(() => {
   revision += 1;
@@ -84,6 +85,7 @@ async function choosePhoto(event: Event) {
     image.close();
     if (current !== photoRevision) return;
     if (!valid) throw new Error('Choose a photo no larger than 24 megapixels.');
+    crop.value = { zoom: 1, x: 0.5, y: 0.18 };
     photo.value = file;
   } catch (reason) {
     if (current === photoRevision) error.value = reason instanceof Error ? reason.message : 'Unable to read that photo.';
@@ -95,6 +97,7 @@ async function choosePhoto(event: Event) {
 function removePhoto() {
   photoRevision += 1;
   validatingPhoto.value = false;
+  crop.value = { zoom: 1, x: 0.5, y: 0.18 };
   photo.value = null;
   error.value = '';
 }
@@ -118,44 +121,54 @@ function share() {
       </div>
     </div>
     <div class="volunteer-badge__editor">
+      <canvas ref="canvas" width="1080" height="1350" class="volunteer-badge__preview" :class="{ 'volunteer-badge__preview--hidden': !previewName }" role="img" :aria-label="`DevCon26 volunteer badge preview for ${previewName}`" />
       <div class="volunteer-badge__fields">
         <label for="volunteer-badge-name">Display name</label>
         <input id="volunteer-badge-name" v-model="name" class="editorial-input volunteer-badge__name" maxlength="100" autocomplete="name" placeholder="Your name" />
         <p>Your name and optional photo stay in this browser while you use this page. They are not saved when you leave.</p>
+        <div v-if="photo" class="volunteer-badge__crop" aria-label="Adjust photo">
+          <h3>Adjust photo</h3>
+          <label>Zoom <input v-model.number="crop.zoom" type="range" class="app-form-control-range" min="1" max="4" step="0.01"></label>
+          <label>Horizontal position <input v-model.number="crop.x" type="range" class="app-form-control-range" min="0" max="1" step="0.01"></label>
+          <label>Vertical position <input v-model.number="crop.y" type="range" class="app-form-control-range" min="0" max="1" step="0.01"></label>
+        </div>
         <input ref="photoInput" hidden type="file" accept="image/jpeg,image/png,image/webp" @change="choosePhoto" />
         <div class="volunteer-badge__actions">
-          <button type="button" class="volunteer-badge__secondary motion-press" @click="photoInput?.click()">
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <rect x="2.5" y="3" width="15" height="14" rx="2" />
-              <circle cx="7" cy="7.5" r="1" />
-              <path d="m3 14 4-4 3 3 3-4 4 5" />
-            </svg>
-            {{ photo ? 'Change photo' : 'Add photo' }}
-          </button>
-          <button v-if="photo" type="button" class="volunteer-badge__secondary motion-press" @click="removePhoto">
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M3 5.5h14m-12 0 .8 10.5a1.5 1.5 0 0 0 1.5 1.5h5.4a1.5 1.5 0 0 0 1.5-1.5L15 5.5m-7-2v2m4-2v2" />
-            </svg>
-            Remove photo
-          </button>
-          <button v-if="canShare" type="button" class="volunteer-badge__button motion-press" :disabled="!ready" @click="share">
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M10 12V2.5m-3 3 3-3 3 3m1 3h1a1.5 1.5 0 0 1 1.5 1.5v5.5A1.5 1.5 0 0 1 15 17H5a1.5 1.5 0 0 1-1.5-1.5V10A1.5 1.5 0 0 1 5 8.5h1" />
-            </svg>
-            Share badge
-          </button>
-          <button type="button" class="volunteer-badge__secondary motion-press" :disabled="!ready" @click="ready && prepared && saveBadgeFile(prepared, 'devcon26-volunteer.png')">
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M10 2.5V13m-3-3 3 3 3-3M3.5 13v2.5A1.5 1.5 0 0 0 5 17h10a1.5 1.5 0 0 0 1.5-1.5V13" />
-            </svg>
-            Download PNG
-          </button>
+          <div class="volunteer-badge__action-group">
+            <button type="button" class="volunteer-badge__secondary motion-press" @click="photoInput?.click()">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <rect x="2.5" y="3" width="15" height="14" rx="2" />
+                <circle cx="7" cy="7.5" r="1" />
+                <path d="m3 14 4-4 3 3 3-4 4 5" />
+              </svg>
+              {{ photo ? 'Change photo' : 'Add photo' }}
+            </button>
+            <button v-if="photo" type="button" class="volunteer-badge__secondary motion-press" @click="removePhoto">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M3 5.5h14m-12 0 .8 10.5a1.5 1.5 0 0 0 1.5 1.5h5.4a1.5 1.5 0 0 0 1.5-1.5L15 5.5m-7-2v2m4-2v2" />
+              </svg>
+              Remove photo
+            </button>
+          </div>
+          <div class="volunteer-badge__action-group">
+            <button v-if="canShare" type="button" class="volunteer-badge__button motion-press" :disabled="!ready" @click="share">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M10 12V2.5m-3 3 3-3 3 3m1 3h1a1.5 1.5 0 0 1 1.5 1.5v5.5A1.5 1.5 0 0 1 15 17H5a1.5 1.5 0 0 1-1.5-1.5V10A1.5 1.5 0 0 1 5 8.5h1" />
+              </svg>
+              Share badge
+            </button>
+            <button type="button" class="volunteer-badge__secondary motion-press" :disabled="!ready" @click="ready && prepared && saveBadgeFile(prepared, 'devcon26-volunteer.png')">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M10 2.5V13m-3-3 3 3 3-3M3.5 13v2.5A1.5 1.5 0 0 0 5 17h10a1.5 1.5 0 0 0 1.5-1.5V13" />
+              </svg>
+              Download PNG
+            </button>
+          </div>
         </div>
         <p class="volunteer-badge__status" :class="{ 'volunteer-badge__error': error }" role="status" aria-live="polite">
           {{ error || (preparing ? 'Preparing preview…' : !normalizedName ? 'Enter a display name to preview your badge.' : '') }}
         </p>
       </div>
-      <canvas ref="canvas" width="1080" height="1350" class="volunteer-badge__preview" :class="{ 'volunteer-badge__preview--hidden': !previewName }" role="img" :aria-label="`DevCon26 volunteer badge preview for ${previewName}`" />
     </div>
   </section>
 </template>
@@ -192,9 +205,13 @@ function share() {
 
 .volunteer-badge__editor {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(140px, 240px);
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
   gap: 1.5rem;
   margin-top: 1.25rem;
+}
+
+.volunteer-badge__fields {
+  min-width: 0;
 }
 
 .volunteer-badge__fields label {
@@ -208,11 +225,37 @@ function share() {
   font-size: 1rem;
 }
 
+.volunteer-badge__crop {
+  min-width: 0;
+  width: 100%;
+  max-width: 32rem;
+  margin-top: 1.25rem;
+}
+
+.volunteer-badge__crop h3 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.volunteer-badge__crop label + label {
+  margin-top: 1rem;
+}
+
+.volunteer-badge__crop input {
+  display: block;
+  width: 100%;
+}
+
 .volunteer-badge__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 1rem;
+}
+
+.volunteer-badge__action-group {
+  display: contents;
 }
 
 .volunteer-badge__button,
@@ -232,7 +275,7 @@ function share() {
   height: 1em;
   flex-shrink: 0;
   fill: none;
-  stroke: currentColor;
+  stroke: #64748b;
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -269,13 +312,43 @@ function share() {
   color: #a21c32;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 767px) {
+  .volunteer-badge {
+    padding: 0.75rem;
+  }
+
+  .volunteer-badge__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .volunteer-badge__action-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .volunteer-badge__button,
+  .volunteer-badge__secondary {
+    justify-content: center;
+    gap: 0.25rem;
+    min-width: 0;
+    padding: 0.5rem 0.25rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+  }
+
   .volunteer-badge__editor {
     grid-template-columns: 1fr;
   }
 
+  .volunteer-badge__crop {
+    justify-self: stretch;
+  }
+
   .volunteer-badge__preview {
     max-width: 240px;
+    justify-self: center;
   }
 }
 </style>
