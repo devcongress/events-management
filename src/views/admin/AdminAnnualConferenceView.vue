@@ -2,7 +2,6 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
-import AnnualConferenceAttendanceCounter from '@/src/components/AnnualConferenceAttendanceCounter.vue';
 import VolunteerBadge from '@/src/components/VolunteerBadge.vue';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
@@ -150,10 +149,6 @@ onUnmounted(() => {
       <AnnualConferenceNav :show-page-heading="false" />
 
       <VolunteerBadge v-if="badgeVisited && badgeEligible" v-show="badgeSelected" :key="`${year}-${sessionQuery.data.value?.user?.email}`" :display-name="sessionQuery.data.value?.user?.display_name" />
-      <AnnualConferenceAttendanceCounter
-        v-if="!badgeSelected && year === '2026' && sessionQuery.data.value?.authenticated"
-        :can-manage="sessionQuery.data.value?.user?.role === 'owner'"
-      />
 
       <section v-if="!badgeSelected && workPlanQuery.isError.value" class="editorial-panel mb-6 border-dc-pink p-6">
         <p class="text-lg font-semibold text-dc-ink">Conference planning data is temporarily unavailable.</p>

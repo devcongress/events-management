@@ -57,6 +57,9 @@ const statusFilter = ref<"all" | ReviewStatus>("all");
 const submissionFilter = ref<"all" | "submitted" | "awaiting">("submitted");
 const decisionFilter = ref<"all" | Decision>("all");
 const invitationFilter = ref<"all" | "sent" | "not_sent">("all");
+const moreFiltersOpen = ref(false);
+const moreFilterCount = computed(() => Number(submissionFilter.value !== "submitted")
+  + Number(decisionFilter.value !== "all") + Number(invitationFilter.value !== "all"));
 const page = ref(1);
 const pageSize = 10;
 const selectedId = ref<string | null>(null);
@@ -74,6 +77,7 @@ const outcomeBody = ref("");
 const outcomeMessage = computed(() =>
   outcomeMessages.value.find((message) => message.decision === outcomeDecision.value) ?? null,
 );
+const outcomeCopyOpen = ref(false);
 const outcomeMessageDirty = computed(() =>
   Boolean(outcomeMessage.value) &&
   (outcomeSubject.value !== outcomeMessage.value?.subject ||
@@ -395,7 +399,17 @@ onBeforeUnmount(() => {
           <h3 id="outcome-messages-title">Saved email copy</h3>
           <p>Previews use the latest saved copy.</p>
         </div>
-        <div class="outcome-messages-controls">
+        <button
+          type="button"
+          class="outcome-copy-toggle"
+          :aria-expanded="outcomeCopyOpen"
+          aria-controls="outcome-copy-fields"
+          @click="outcomeCopyOpen = !outcomeCopyOpen"
+        >
+          {{ outcomeCopyOpen ? 'Hide email copy' : 'Edit email copy' }}
+          <span v-if="outcomeMessageDirty"> · Unsaved changes</span>
+        </button>
+        <div id="outcome-copy-fields" class="outcome-messages-controls" :class="{ 'outcome-messages-controls--open': outcomeCopyOpen }">
           <div class="outcome-messages-fields">
             <label class="reviews-field">
               <span>Outcome</span>
@@ -467,8 +481,8 @@ onBeforeUnmount(() => {
             type="search"
             placeholder="Search name, email, or motivation"
         /></label>
-        <div class="reviews-filter-controls">
-          <label class="reviews-filter"><span>Submission</span><AppDropdown
+        <div id="review-filter-controls" class="reviews-filter-controls" :class="{ 'reviews-filter-controls--expanded': moreFiltersOpen }">
+          <label class="reviews-filter reviews-filter--more"><span>Submission</span><AppDropdown
             v-model="submissionFilter"
             :options="[
               { value: 'submitted', label: 'Submitted' },
@@ -479,15 +493,24 @@ onBeforeUnmount(() => {
             :teleport="true"
             aria-label="Filter by submission status"
           /></label>
-          <label class="reviews-filter"><span>Review</span><AppDropdown
+          <label class="reviews-filter reviews-filter--primary"><span>Review</span><AppDropdown
             v-model="statusFilter"
             :options="options"
             density="compact"
             :teleport="true"
             aria-label="Filter by review status"
           /></label>
-          <label class="reviews-filter"><span>Decision</span><AppDropdown v-model="decisionFilter" :options="[{ value: 'all', label: 'All decisions' }, ...decisionOptions]" density="compact" :teleport="true" aria-label="Filter by decision" /></label>
-          <label class="reviews-filter"><span>Invitation</span><AppDropdown v-model="invitationFilter" :options="[{ value: 'all', label: 'All invitations' }, { value: 'sent', label: 'Sent' }, { value: 'not_sent', label: 'Not sent' }]" density="compact" :teleport="true" aria-label="Filter by invitation" /></label>
+          <label class="reviews-filter reviews-filter--more"><span>Decision</span><AppDropdown v-model="decisionFilter" :options="[{ value: 'all', label: 'All decisions' }, ...decisionOptions]" density="compact" :teleport="true" aria-label="Filter by decision" /></label>
+          <label class="reviews-filter reviews-filter--more"><span>Invitation</span><AppDropdown v-model="invitationFilter" :options="[{ value: 'all', label: 'All invitations' }, { value: 'sent', label: 'Sent' }, { value: 'not_sent', label: 'Not sent' }]" density="compact" :teleport="true" aria-label="Filter by invitation" /></label>
+          <button
+            type="button"
+            class="reviews-more-filters"
+            :aria-expanded="moreFiltersOpen"
+            aria-controls="review-filter-controls"
+            @click="moreFiltersOpen = !moreFiltersOpen"
+          >
+            More filters<span v-if="moreFilterCount"> ({{ moreFilterCount }} active)</span>
+          </button>
         </div>
       </div>
       <div v-if="!filtered.length" class="reviews-state">
@@ -789,6 +812,10 @@ onBeforeUnmount(() => {
   border: 1px solid #dedbd4;
   border-top: 0;
   background: #faf9f6;
+}
+.outcome-copy-toggle,
+.reviews-more-filters {
+  display: none;
 }
 .outcome-messages {
   display: grid;
@@ -1203,11 +1230,70 @@ onBeforeUnmount(() => {
 .reviews-drawer-leave-to .reviews-drawer {
   transform: translateX(1rem);
 }
+@media (max-width: 767px) {
+  .reviews-header {
+    align-items: center;
+    padding: 0.7rem 1rem;
+  }
+  .reviews-header .reviews-eyebrow,
+  .reviews-header p,
+  .outcome-messages > div:first-child {
+    display: none;
+  }
+  .reviews-header h2 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+  .reviews-count {
+    padding: 0;
+    background: transparent;
+  }
+  .outcome-messages {
+    gap: 0;
+    padding: 0 1rem;
+  }
+  .outcome-messages-controls--open {
+    padding-bottom: 1rem;
+  }
+  .reviews-more-filters {
+    display: block;
+    min-height: 44px;
+    align-self: end;
+    color: #a20e59;
+    text-align: left;
+    font-weight: 700;
+  }
+  .reviews-more-filters:focus-visible {
+    outline: 2px solid #e8117f;
+    outline-offset: 2px;
+  }
+  .reviews-filter--primary {
+    order: -2;
+  }
+  .reviews-more-filters {
+    order: -1;
+  }
+  .reviews-filter-controls:not(.reviews-filter-controls--expanded) .reviews-filter--more {
+    display: none;
+  }
+  .outcome-copy-toggle {
+    display: block;
+    min-height: 44px;
+    text-align: left;
+    font-weight: 700;
+    color: #ad0e60;
+  }
+  .outcome-copy-toggle:focus-visible {
+    outline: 2px solid #e8117f;
+    outline-offset: 2px;
+  }
+  .outcome-messages-controls:not(.outcome-messages-controls--open) {
+    display: none;
+  }
+}
 @media (max-width: 900px) {
   .outcome-messages {
     grid-template-columns: 1fr;
-    gap: 0.75rem;
-    padding: 0.85rem 1rem;
   }
   .outcome-messages-fields {
     grid-template-columns: 1fr;

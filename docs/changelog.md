@@ -3,7 +3,22 @@
 ## 2026-11-07 — Volunteer badge workspace
 
 - Give DevCon26 volunteers a dedicated **Conference badge** tab on desktop and phone. Keep the badge preview and controls steady as they edit their name.
+- Place the volunteer badge’s photo, share, and download buttons in one row where they fit, with an icon beside each label.
 - Limit the **Volunteers** tab to members with volunteer permissions for the edition. Unavailable mobile section links return to **Overview**.
+
+## 2026-11-07 — Mobile organizer layouts
+
+- Aligned linked and current breadcrumb text while retaining phone touch targets, wrapping, and desktop truncation.
+- Replaced wide phone tables in speaker delivery, team access, attendance, and contextual event activity with labeled lists while retaining desktop tables and existing permissions.
+- Added a shared phone header, role-aware bottom navigation, and More menu for conference sections and organizer tools. Long subsection lists use a labelled picker; short tabs remain visible when they fit.
+- Kept compact phone breadcrumbs through the selected subsection, with same-edition parent links and wrapping instead of horizontal scrolling.
+- Moved the 2026 attendance counter to Registration, with compact neutral controls for publishing its estimate or actual count.
+- Made Owner Audit Log and Present forms usable on phones, retaining existing authorization. Fixed short-link menu actions to retain the selected record while closing the menu.
+- Disclosed secondary filters and email-copy controls, and made programme sessions individually expandable without discarding edits.
+- Added compact recipient selection to speaker previews, viewport-safe drawers and confirmation spacing, and clearer mobile action and navigation typography.
+- Refreshed the 16 affected phone loading layouts with separate field placeholders and visible gaps, preserving desktop captures and unrelated sections.
+- Added synthetic browser coverage for phone composition and picker interaction; production data and email delivery behavior are unchanged.
+- Isolated browser preview startup from other local checkouts, with an optional test port and a check that the spawned preview owns the tested address.
 
 ## 2026-11-06 — Speaker update selection and previews
 

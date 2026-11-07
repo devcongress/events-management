@@ -36,7 +36,7 @@ describe('phone event workspace', () => {
   });
 
   it('presents final proposal decisions as an accessible mobile bottom drawer', () => {
-    expect(confirmDialogSource).toContain("mobileSheet ? 'items-end p-0");
+    expect(confirmDialogSource).toMatch(/mobileSheet \? '[^']*items-end p-0[^']*sm:items-center/);
     expect(confirmDialogSource).toContain('transform: translateY(100%)');
     expect(confirmDialogSource).toContain('@media (prefers-reduced-motion: reduce)');
     expect(confirmDialogSource).toContain("event.key === 'Escape'");

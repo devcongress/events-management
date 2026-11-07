@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import AppDropdown from '@/src/components/AppDropdown.vue';
+import { usePhoneViewport } from '@/src/composables/usePhoneViewport';
 import { fetchJson } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 import { selectedMessagesAreDirty } from '@/src/lib/speaker-outcome-selection';
@@ -21,6 +23,7 @@ const previewToken = ref('');
 const previewId = ref('');
 const busy = ref(false);
 const drawerOpen = ref(false);
+const phone = usePhoneViewport();
 const drawer = ref<HTMLElement | null>(null);
 const closeButton = ref<HTMLButtonElement | null>(null);
 const readyHeading = ref<HTMLElement | null>(null);
@@ -38,6 +41,15 @@ function closeDrawer() {
 
 function onDrawerKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
+    const openDropdown = drawer.value?.querySelector<HTMLButtonElement>('button[aria-haspopup="listbox"][aria-expanded="true"]');
+
+    if (openDropdown) {
+      event.preventDefault();
+      openDropdown.click();
+      openDropdown.focus();
+
+      return;
+    }
     event.preventDefault();
     closeDrawer();
 
@@ -56,6 +68,16 @@ function onDrawerKeydown(event: KeyboardEvent) {
     first?.focus();
   }
 }
+
+watch(phone, async (isPhone) => {
+  if (isPhone || !drawerOpen.value) return;
+  const trigger = drawer.value?.querySelector<HTMLButtonElement>('button[aria-haspopup="listbox"][aria-expanded="true"]');
+  const focusWasInPicker = Boolean(trigger || drawer.value?.querySelector('.recipient-picker')?.contains(document.activeElement));
+
+  if (!focusWasInPicker) return;
+  await nextTick();
+  if (drawerOpen.value && !phone.value) drawer.value?.querySelector<HTMLButtonElement>('[role="group"][aria-label="Preview recipient"] button[aria-pressed="true"]')?.focus();
+}, { flush: 'sync' });
 
 watch(drawerOpen, async (open) => {
   if (open) {
@@ -116,6 +138,8 @@ const message = computed(() => messages.value.find((item) => item.kind === kind.
 const hasUnsavedChanges = computed(() => selectedMessagesAreDirty(messages.value, savedMessages.value, props.submissions, selected.value));
 const eligible = computed(() => props.submissions.filter((item) => ['pending', 'failed'].includes(item.decision_email_status ?? '') && item.decision_email_attempt_count === 0 && !item.decision_email_queued_at && (item.status === 'not_selected' || (item.status === 'selected' && item.workspace_access === 'active'))));
 const currentPreview = computed(() => recipients.value.find((item) => item.id === previewId.value));
+const previewPosition = computed(() => recipients.value.findIndex(item => item.id === previewId.value) + 1);
+const previewOptions = computed(() => recipients.value.map(item => ({ value: item.id, label: item.name })));
 const base = computed(() => `/api/annual-conference/${props.year}/speaker-outcomes`);
 
 function clearPreview() {
@@ -248,7 +272,11 @@ async function send() {
           </header>
           <div class="speaker-drawer-body">
             <p class="text-sm text-dc-gray">Choose a speaker to review their frozen email.</p>
-            <div class="mt-2 flex flex-wrap gap-2" role="group" aria-label="Preview recipient">
+            <div v-if="phone" class="recipient-picker mt-2">
+              <AppDropdown v-model="previewId" :options="previewOptions" label="Preview recipient" menu-class="!z-[1201]" teleport />
+              <p class="mt-1 text-sm text-dc-gray" aria-live="polite">{{ previewPosition }} of {{ recipients.length }} speakers</p>
+            </div>
+            <div class="mt-2 hidden flex-wrap gap-2 md:flex" role="group" aria-label="Preview recipient">
               <button v-for="recipient in recipients" :key="recipient.id" type="button" class="editorial-action" :aria-pressed="previewId === recipient.id" @click="previewId = recipient.id">{{ recipient.name }}</button>
             </div>
             <p class="mt-3 break-words text-sm"><strong>From:</strong> {{ currentPreview.from }}<br><strong>Reply to:</strong> {{ currentPreview.replyTo }}<br><strong>To:</strong> {{ currentPreview.recipient }}<br><strong>Subject:</strong> {{ currentPreview.subject }}</p>
@@ -283,6 +311,8 @@ async function send() {
   display: flex;
   width: min(42rem, 100%);
   height: 100%;
+  height: 100dvh;
+  min-height: 0;
   flex-direction: column;
   background: white;
 }
@@ -296,6 +326,10 @@ async function send() {
   border-bottom: 1px solid #e6e3dc;
 }
 
+.speaker-drawer-header {
+  padding-top: max(1.25rem, env(safe-area-inset-top));
+}
+
 .speaker-drawer-footer {
   padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
   border-top: 1px solid #e6e3dc;
@@ -304,8 +338,21 @@ async function send() {
 
 .speaker-drawer-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 1.25rem;
+}
+
+@media (max-width: 767px) {
+  .speaker-drawer-header,
+  .speaker-drawer-body,
+  .speaker-drawer-footer {
+    padding-inline: 1rem;
+  }
+
+  .speaker-drawer-footer > button {
+    width: 100%;
+  }
 }
 
 textarea.speaker-outcome-message.app-form-control {

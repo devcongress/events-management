@@ -516,7 +516,16 @@ onBeforeRouteLeave(() => {
 .mobile-blasts-allocation-inputs label span { color: #111; font-family: inherit; font-size: .68rem; letter-spacing: 0; text-transform: none; }
 .mobile-blasts-reserve-save { display: flex; justify-content: flex-end; }
 .mobile-blasts-capacity-unavailable { border: 1px solid #ead9a5; border-radius: 8px; background: #fff8df; padding: .65rem .75rem; color: #7a5200 !important; }
-.mobile-blasts-capacity input { min-width: 0; min-height: 2.75rem; border: 1px solid #b8b3a9; border-radius: 8px; background: #fff; padding: .65rem .75rem; color: #111; font-size: .9rem; }
+.mobile-blasts-capacity input {
+  min-width: 0;
+  min-height: 2.75rem;
+  border: 1px solid #b8b3a9;
+  border-radius: 8px;
+  background: #fff;
+  padding: .65rem .75rem;
+  color: #111;
+  font-size: 16px;
+}
 .mobile-blasts-capacity button { min-height: 2.75rem; border: 2px solid #111; border-radius: 8px; background: #f5e642; padding: .65rem .8rem; color: #111; font-family: var(--font-mono), monospace; font-size: .62rem; font-weight: 700; text-transform: uppercase; }
 .mobile-blasts-capacity button:disabled { opacity: .45; }
 .mobile-blasts-state, .mobile-blasts-notice { padding: 1.15rem 1rem; color: #5f5b54; font-size: .84rem; line-height: 1.55; text-align: center; }

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import MobileSectionPicker from '@/src/components/MobileSectionPicker.vue';
+import { usePhoneSectionFit } from '@/src/composables/usePhoneSectionFit';
 
 type VolunteerView = "directory" | "reviews" | "campaign";
 
@@ -25,6 +27,9 @@ const tabs = computed(() => [
     ? [{ id: "campaign" as const, label: "Campaign" }]
     : []),
 ]);
+const container = ref<HTMLElement | null>(null);
+const measurement = ref<HTMLElement | null>(null);
+const usePicker = usePhoneSectionFit(container, measurement, computed(() => tabs.value.length));
 
 watch(
   () => [props.reviewsVisible, props.campaignVisible],
@@ -68,31 +73,77 @@ function handleKeydown(event: KeyboardEvent, current: VolunteerView) {
 </script>
 
 <template>
-  <div
-    ref="tablist"
-    class="volunteer-workspace-tabs"
-    :class="{ 'volunteer-workspace-tabs--mobile': mobile }"
-    role="tablist"
-    aria-label="Volunteer views"
-  >
-    <button
-      v-for="tab in tabs"
-      :id="tabId(tab.id)"
-      :key="tab.id"
-      type="button"
-      role="tab"
-      :aria-selected="modelValue === tab.id"
-      :aria-controls="panelId(tab.id)"
-      :tabindex="modelValue === tab.id ? 0 : -1"
-      @click="selectTab(tab.id)"
-      @keydown="handleKeydown($event, tab.id)"
+  <div ref="container" class="volunteer-section-container">
+    <div class="volunteer-tab-measure-clip" aria-hidden="true" inert>
+      <div ref="measurement" class="volunteer-tab-measure">
+        <span v-for="tab in tabs" :key="tab.id">{{ tab.label }}</span>
+      </div>
+    </div>
+    <MobileSectionPicker
+      v-if="usePicker"
+      :model-value="modelValue"
+      label="Volunteer section"
+      :options="tabs.map(tab => ({ value: tab.id, label: tab.label }))"
+      @update:model-value="emit('update:modelValue', $event as VolunteerView)"
+    />
+    <div
+      v-show="!usePicker"
+      ref="tablist"
+      class="volunteer-workspace-tabs"
+      :class="{ 'volunteer-workspace-tabs--mobile': mobile }"
+      role="tablist"
+      aria-label="Volunteer views"
     >
-      {{ tab.label }}
-    </button>
+      <button
+        v-for="tab in tabs"
+        :id="tabId(tab.id)"
+        :key="tab.id"
+        type="button"
+        role="tab"
+        :aria-selected="modelValue === tab.id"
+        :aria-controls="panelId(tab.id)"
+        :tabindex="modelValue === tab.id ? 0 : -1"
+        @click="selectTab(tab.id)"
+        @keydown="handleKeydown($event, tab.id)"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.volunteer-section-container {
+  position: relative;
+  min-width: 0;
+}
+
+.volunteer-tab-measure-clip {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.volunteer-tab-measure {
+  position: absolute;
+  display: flex;
+  width: max-content;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.volunteer-tab-measure span {
+  padding: 0.65rem 1rem;
+  border: 1px solid transparent;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .volunteer-workspace-tabs {
   display: flex;
   gap: 0.25rem;

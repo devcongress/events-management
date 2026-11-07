@@ -522,7 +522,7 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
                   </div>
                 </div>
 
-                <div class="overflow-x-auto border-b border-dc-border bg-dc-paper-warm">
+                <div class="hidden overflow-x-auto border-b border-dc-border bg-dc-paper-warm md:block">
                   <div class="grid min-w-[760px] grid-cols-[35%_35%_15%_15%] font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
                     <div class="px-4 py-2.5">Person</div>
                     <div class="px-4 py-2.5">Contact</div>
@@ -535,39 +535,57 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
               <div v-if="filteredAttendanceRecords.length === 0" class="p-5 text-sm leading-6 text-dc-gray">
                 No attendance rows match the current filters.
               </div>
-              <div v-else class="overflow-x-auto">
-                <table class="w-full min-w-[760px] table-fixed text-left">
-                  <colgroup>
-                    <col class="w-[35%]">
-                    <col class="w-[35%]">
-                    <col class="w-[15%]">
-                    <col class="w-[15%]">
-                  </colgroup>
-                  <thead class="sr-only">
-                    <tr>
-                      <th class="px-4 py-2.5">Person</th>
-                      <th class="px-4 py-2.5">Contact</th>
-                      <th class="px-4 py-2.5">Attendance</th>
-                      <th class="px-4 py-2.5">Context</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-dc-border">
-                    <tr v-for="record in paginatedAttendanceRecords" :key="record.guest_id">
-                      <td class="px-4 py-2.5 align-middle text-sm font-bold text-dc-ink">
-                        <span class="block w-full truncate">{{ attendeeName(record) }}</span>
-                      </td>
-                      <td class="px-4 py-2.5 align-middle text-sm text-dc-gray">
-                        <span class="block w-full truncate">{{ record.email ?? '-' }}</span>
-                      </td>
-                      <td class="px-4 py-2.5 align-middle font-mono text-[11px] font-semibold uppercase tracking-wide" :class="attendanceOutcomeClass(record)">
-                        <span class="block w-full truncate">{{ attendanceOutcome(record) }}</span>
-                      </td>
-                      <td class="px-4 py-2.5 align-middle text-sm text-dc-gray">
-                        <span class="block w-full truncate">{{ attendanceContext(record) }}</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div v-else>
+                <ul class="divide-y divide-dc-border md:hidden" aria-label="Attendance guests">
+                  <li v-for="record in paginatedAttendanceRecords" :key="record.guest_id" class="space-y-2 px-4 py-4 text-sm">
+                    <p class="break-words font-bold text-dc-ink">{{ attendeeName(record) }}</p>
+                    <p class="break-all text-dc-gray">{{ record.email ?? '-' }}</p>
+                    <dl class="grid grid-cols-2 gap-3">
+                      <div>
+                        <dt class="text-dc-gray">Attendance</dt>
+                        <dd :class="attendanceOutcomeClass(record)">{{ attendanceOutcome(record) }}</dd>
+                      </div>
+                      <div>
+                        <dt class="text-dc-gray">Context</dt>
+                        <dd class="break-words">{{ attendanceContext(record) }}</dd>
+                      </div>
+                    </dl>
+                  </li>
+                </ul>
+                <div class="hidden overflow-x-auto md:block">
+                  <table class="w-full min-w-[760px] table-fixed text-left">
+                    <colgroup>
+                      <col class="w-[35%]">
+                      <col class="w-[35%]">
+                      <col class="w-[15%]">
+                      <col class="w-[15%]">
+                    </colgroup>
+                    <thead class="sr-only">
+                      <tr>
+                        <th class="px-4 py-2.5">Person</th>
+                        <th class="px-4 py-2.5">Contact</th>
+                        <th class="px-4 py-2.5">Attendance</th>
+                        <th class="px-4 py-2.5">Context</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dc-border">
+                      <tr v-for="record in paginatedAttendanceRecords" :key="record.guest_id">
+                        <td class="px-4 py-2.5 align-middle text-sm font-bold text-dc-ink">
+                          <span class="block w-full truncate">{{ attendeeName(record) }}</span>
+                        </td>
+                        <td class="px-4 py-2.5 align-middle text-sm text-dc-gray">
+                          <span class="block w-full truncate">{{ record.email ?? '-' }}</span>
+                        </td>
+                        <td class="px-4 py-2.5 align-middle font-mono text-[11px] font-semibold uppercase tracking-wide" :class="attendanceOutcomeClass(record)">
+                          <span class="block w-full truncate">{{ attendanceOutcome(record) }}</span>
+                        </td>
+                        <td class="px-4 py-2.5 align-middle text-sm text-dc-gray">
+                          <span class="block w-full truncate">{{ attendanceContext(record) }}</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+            </div>
               </div>
               <AppPagination v-model:page="currentPage" :page-count="totalPages" :total="filteredAttendanceRecords.length" :range-start="pageStartIndex" :range-end="pageEndIndex" item-label="guests" aria-label="Attendance guest pagination" />
             </section>

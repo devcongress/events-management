@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
@@ -128,6 +128,40 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
   ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const, disabled: true }] : []),
 ]);
 const navViewport = ref<HTMLElement | null>(null);
+const mobileNav = ref<HTMLDetailsElement | null>(null);
+const editionYearInput = ref<HTMLInputElement | null>(null);
+
+function closeMobileNav(restoreFocus = false) {
+  if (!mobileNav.value?.open) return;
+  mobileNav.value.open = false;
+  if (restoreFocus) mobileNav.value.querySelector<HTMLElement>('summary')?.focus();
+}
+
+function dismissMobileNav(event: PointerEvent | KeyboardEvent) {
+  if (!mobileNav.value?.open) return;
+  if (event instanceof KeyboardEvent) {
+    if (event.key !== 'Escape' || mobileNav.value.querySelector('.app-dropdown-trigger[aria-expanded="true"]')) return;
+    event.preventDefault();
+    closeMobileNav(true);
+
+    return;
+  }
+  const target = event.target;
+
+  if (target instanceof Element && (mobileNav.value.contains(target) || target.closest('.app-dropdown-menu'))) return;
+  closeMobileNav();
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', dismissMobileNav, true);
+  document.addEventListener('keydown', dismissMobileNav, true);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('pointerdown', dismissMobileNav, true);
+  document.removeEventListener('keydown', dismissMobileNav, true);
+});
+const activeLink = computed(() => links.value.find((link) => isActive(link.href))?.label ?? 'Conference');
 const editionOptions = computed(() => editions.value.map((edition) => ({
   value: String(edition.year),
   label: edition.label,
@@ -162,7 +196,14 @@ function openEditionForm() {
   showEditionForm.value = true;
 }
 
+function openMobileEditionForm() {
+  openEditionForm();
+  closeMobileNav();
+  void nextTick(() => editionYearInput.value?.focus());
+}
+
 function changeEdition(value: string | number) {
+  closeMobileNav(true);
   const nextYear = String(value);
 
   if (nextYear !== year.value) {
@@ -205,6 +246,9 @@ function revealActiveNavLink() {
   });
 }
 
+watch(() => route.fullPath, () => {
+  closeMobileNav();
+});
 watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immediate: true });
 </script>
 
@@ -213,7 +257,39 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
     class="annual-conference-nav-shell mb-6"
     :class="showPageHeading ? 'border-b-2 border-dc-ink pb-5' : ''"
   >
-    <div class="flex flex-wrap items-center justify-between gap-3" :class="{ 'edition-toolbar--owner': canCreateEdition }">
+    <details ref="mobileNav" class="conference-mobile-nav">
+      <summary>
+        <span>{{ currentEdition?.label ?? `December ${year}` }} · {{ activeLink }}</span>
+        <span aria-hidden="true">⌄</span>
+      </summary>
+      <div class="conference-mobile-nav__menu">
+        <AppDropdown
+          v-if="canManageEditions"
+          :model-value="year"
+          label="Edition"
+          :options="editionOptions"
+          density="compact"
+          :teleport="true"
+          @update:model-value="changeEdition"
+        />
+        <nav aria-label="Annual Conference workspace">
+          <component
+            :is="link.disabled ? 'span' : RouterLink"
+            v-for="link in links"
+            :key="link.href"
+            :to="link.disabled ? undefined : link.href"
+            :aria-disabled="link.disabled ? 'true' : undefined"
+            :aria-current="isActive(link.href) ? 'page' : undefined"
+          >
+            {{ link.label }}
+          </component>
+        </nav>
+        <button v-if="canCreateEdition" type="button" class="conference-mobile-nav__create" @click="openMobileEditionForm">
+          New edition
+        </button>
+      </div>
+    </details>
+    <div class="conference-desktop-toolbar flex flex-wrap items-center justify-between gap-3" :class="{ 'edition-toolbar--owner': canCreateEdition }">
       <div class="edition-fields flex min-w-0 flex-1 flex-wrap items-center gap-3">
         <p class="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-dc-ink">
           Annual Conference
@@ -304,7 +380,7 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
       </div>
       <label>
         <span class="editorial-label">Year</span>
-        <input v-model.number="editionForm.year" class="editorial-input mt-2" type="number" min="2000" max="2200" required>
+        <input ref="editionYearInput" v-model.number="editionForm.year" class="editorial-input mt-2" type="number" min="2000" max="2200" required>
       </label>
       <label>
         <span class="editorial-label">Edition label</span>
@@ -338,6 +414,8 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
 <style scoped src="@/src/styles/underline-section-nav.css"></style>
 
 <style scoped>
+.conference-mobile-nav { display: none; }
+
 .annual-conference-nav {
   display: flex;
   gap: 1.5rem;
@@ -391,7 +469,83 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
   }
 }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
+  .annual-conference-nav-shell {
+    display: none;
+  }
+
+  .conference-desktop-toolbar {
+    display: none;
+  }
+  .conference-mobile-nav {
+    display: block;
+    position: relative;
+  }
+  .conference-mobile-nav summary {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid #dedbd3;
+    border-radius: 6px;
+    background: #fff;
+    padding: 0 12px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+  }
+  .conference-mobile-nav summary::-webkit-details-marker {
+    display: none;
+  }
+  .conference-mobile-nav summary:focus-visible, .conference-mobile-nav a:focus-visible, .conference-mobile-nav__create:focus-visible {
+    outline: 2px solid #e8117f;
+    outline-offset: 2px;
+  }
+  .conference-mobile-nav__menu {
+    position: absolute;
+    z-index: 45;
+    top: calc(100% + 4px);
+    right: 0;
+    left: 0;
+    max-height: min(70vh, 32rem);
+    overflow-y: auto;
+    border: 1px solid #dedbd3;
+    border-radius: 8px;
+    background: #fff;
+    padding: 12px;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  }
+  .conference-mobile-nav__menu nav {
+    display: grid;
+    margin-top: 8px;
+  }
+  .conference-mobile-nav__menu nav a, .conference-mobile-nav__menu nav span, .conference-mobile-nav__create {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    border: 0;
+    border-bottom: 1px solid #eeeae1;
+    background: transparent;
+    padding: 0 8px;
+    color: #111;
+    text-align: left;
+    font-size: 15px;
+  }
+  .conference-mobile-nav__menu nav [aria-current="page"] {
+    color: #c20d6a;
+    font-weight: 700;
+  }
+  .conference-mobile-nav__menu nav [aria-disabled="true"] {
+    color: #888;
+  }
+  .conference-mobile-nav__create {
+    width: 100%;
+    color: #c20d6a;
+    font-weight: 700;
+  }
+
   .edition-toolbar--owner {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

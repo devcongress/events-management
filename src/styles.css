@@ -8802,12 +8802,11 @@
     .editorial-action,
     .editorial-secondary-action {
       min-height: 2.85rem;
-      width: 100%;
-      padding: 0.72rem 0.9rem !important;
-      font-size: 0.78rem !important;
-      line-height: 1.1 !important;
-      letter-spacing: 0.08em !important;
-      box-shadow: 1px 1px 0 #111111 !important;
+      padding: 0.72rem 0.9rem;
+      font-size: 0.875rem;
+      line-height: 1.25;
+      letter-spacing: 0;
+      text-transform: none;
     }
 
     .editorial-input {

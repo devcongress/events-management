@@ -645,7 +645,20 @@ async function verifyPhoneViewports(browser, captureUrl, allowlist) {
   console.log(`Verified ${selected.length} representative phone sections at heights ${phoneHeights.join(', ')}px with reduced motion.`);
 }
 
-async function capture(root, sections, allowlist, manifest, fingerprints, preserved, refresh) {
+export function mergePhoneBreakpoints(existing, replacements) {
+  const entries = Object.entries(replacements.breakpoints ?? {});
+
+  if (!entries.length || entries.some(([width]) => ![320, 390, 640].includes(Number(width)))) {
+    throw new Error('Phone-only captures must contain only 320, 390, or 640px breakpoints.');
+  }
+  if (!existing?.breakpoints || entries.some(([width]) => !existing.breakpoints[width])) {
+    throw new Error('Phone-only refresh requires existing matching breakpoints.');
+  }
+
+  return { ...existing, breakpoints: { ...existing.breakpoints, ...replacements.breakpoints } };
+}
+
+async function capture(root, sections, allowlist, manifest, fingerprints, preserved, refresh, phoneOnly) {
   const staging = `.auto-skeleton/staging-${randomUUID()}`;
   const captureUrl = 'http://127.0.0.1:4180/tools/boneyard-capture.html';
   let output = '';
@@ -705,8 +718,10 @@ async function capture(root, sections, allowlist, manifest, fingerprints, preser
 
     for (const id of allowlist) {
       captures[id] = { breakpoints: {} };
-      const widths = sections.find((entry) => entry.id === id).capture.breakpoints ?? breakpoints;
+      const configuredWidths = sections.find((entry) => entry.id === id).capture.breakpoints ?? breakpoints;
+      const widths = phoneOnly ? configuredWidths.filter(width => [320, 390, 640].includes(width)) : configuredWidths;
 
+      if (phoneOnly && !widths.length) throw new Error(`No phone breakpoints configured for ${id}.`);
       await withFixturePage(browser, { build: true }, async (page) => {
         for (const width of widths) {
           await page.setViewportSize({ width, height: 1000 });
@@ -730,10 +745,16 @@ async function capture(root, sections, allowlist, manifest, fingerprints, preser
       const section = sections.find((entry) => entry.id === id);
       const widths = section.capture.breakpoints ?? breakpoints;
       const artifact = `src/bones/${id}.bones.json`;
-      const contents = `${JSON.stringify(captures[id], null, 2)}\n`;
+      const previous = phoneOnly ? JSON.parse((await readFile(appPath(root, artifact))).toString()) : null;
+      const merged = phoneOnly ? mergePhoneBreakpoints(previous, captures[id]) : captures[id];
+      const contents = `${JSON.stringify(merged, null, 2)}\n`;
 
       writes.push({ target: artifact, contents });
-      nextManifest.sections[id] = {
+      nextManifest.sections[id] = phoneOnly ? {
+        ...manifest.sections[id],
+        artifactHashes: { [artifact]: hashBytes(contents) },
+        phoneRefresh: { breakpoints: Object.keys(captures[id].breakpoints).map(Number), ...fingerprints.get(id), verification: 'Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved.' },
+      } : {
         status: 'completed', ...fingerprints.get(id), route: section.route, fixture: id,
         artifactPaths: [artifact], artifactHashes: { [artifact]: hashBytes(contents) },
         captureConfig: { breakpoints: widths, viewportHeight: 1000, fixture: id, layout: section.capture, generatorVersion: 'boneyard-js@1.9.0', fonts: 'src/main.ts',
@@ -775,11 +796,14 @@ export async function main(root, args = process.argv.slice(2)) {
   const sections = await loadCatalog(root);
   const knownIds = new Set(sections.map((section) => section.id));
   const refresh = args.includes('--refresh');
-  const requested = args.includes('--all') ? [...knownIds] : [...new Set(args.filter((argument) => argument !== '--refresh'))];
+  const phoneOnly = args.includes('--phone-only');
+  const requested = args.includes('--all') ? [...knownIds] : [...new Set(args.filter((argument) => !['--refresh', '--phone-only'].includes(argument)))];
 
-  if (!requested.length || requested.some((id) => !knownIds.has(id)) || args.some((arg) => arg.startsWith('--') && !['--all', '--refresh'].includes(arg))) {
+  if (!requested.length || requested.some((id) => !knownIds.has(id)) || args.some((arg) => arg.startsWith('--') && !['--all', '--refresh', '--phone-only'].includes(arg))) {
     throw new Error('Pass known Boneyard section IDs, or --all. Use --refresh only to deliberately replace the requested completed captures.');
   }
+
+  if (phoneOnly && (!refresh || args.includes('--all'))) throw new Error('Phone-only refresh requires --refresh and explicit section IDs.');
 
   let manifest = await readManifest(root);
   let lock;
@@ -842,12 +866,13 @@ export async function main(root, args = process.argv.slice(2)) {
     }
 
     for (const id of allowlist) {
+      if (phoneOnly && manifest.sections[id]?.status !== 'completed') throw new Error(`Phone-only refresh requires an existing completed section: ${id}.`);
       if (!manifest.sections[id] && await readOptional(resolve(root, `src/bones/${id}.bones.json`))) {
         throw new Error(`Unrecorded artifact exists for ${id}; reconcile or adopt it before capturing.`);
       }
     }
 
-    await capture(root, sections, allowlist, manifest, fingerprints, preserved, refresh);
+    await capture(root, sections, allowlist, manifest, fingerprints, preserved, refresh, phoneOnly);
   } finally {
     if (lock) {
       await lock.close();

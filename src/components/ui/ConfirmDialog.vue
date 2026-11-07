@@ -93,7 +93,7 @@ onBeforeUnmount(() => {
         class="confirm-dialog-shell fixed inset-0 flex bg-black/35"
         :class="[
           aboveDrawer ? 'z-[140]' : 'z-[120]',
-          mobileSheet ? 'items-end p-0 sm:items-center sm:justify-center sm:px-4 sm:py-6' : 'items-center justify-center px-4 py-6',
+          mobileSheet ? 'confirm-dialog-shell--mobile-sheet items-end p-0 sm:items-center sm:justify-center sm:px-4 sm:py-6' : 'items-center justify-center px-4 py-6',
         ]"
         role="presentation"
         @click.self="cancel"
@@ -190,6 +190,25 @@ onBeforeUnmount(() => {
 .confirm-dialog-leave-to .confirm-dialog-panel--mobile-sheet {
   opacity: 1;
   transform: translateY(100%);
+}
+
+@media (max-width: 639px) {
+  .confirm-dialog-shell {
+    padding-top: max(1.5rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+
+  .confirm-dialog-shell--mobile-sheet {
+    padding-bottom: 0;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .confirm-dialog-panel:not(.confirm-dialog-panel--mobile-sheet) {
+    max-height: calc(100dvh - max(2rem, env(safe-area-inset-top)) - max(2rem, env(safe-area-inset-bottom)));
+  }
 }
 
 @media (min-width: 640px) {

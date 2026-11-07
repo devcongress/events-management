@@ -4,7 +4,7 @@ DevCon26 registration is an annual-conference domain, not a monthly meetup or a 
 
 ## Public attendance counter
 
-On the DevCon26 overview, an Owner can publish an estimate or start directly with actual counts. The estimate begins at 20 and increases by +1, +2, and +3 in a repeating sequence at 48-hour intervals after publication. At midnight in Accra on the conference date, it freezes at the last pre-event value. An Owner can switch to actual counts at any time. The switch is permanent and the displayed value can decrease.
+On the DevCon26 Registration summary, an Owner can publish an estimate or start directly with actual counts. Organizers with registration management access see the published count without the Owner controls. The counter loads independently of the registration summary. The estimate begins at 20 and increases by +1, +2, and +3 in a repeating sequence at 48-hour intervals after publication. At midnight in Accra on the conference date, it freezes at the last pre-event value. An Owner can switch to actual counts at any time. The switch is permanent and the displayed value can decrease.
 
 The actual count includes issued and checked-in live admissions, including issued sponsor admissions, and confirmed non-test free registrations. Free registration tickets count through their registration record. Pending, cancelled, refunded, and test tickets, as well as unused sponsor allocations, are excluded. Each distinct confirmed speaker email adds one person when EMS cannot match it to a counted admission.
 

@@ -187,7 +187,7 @@ function updateCompactHeader() {
 }
 
 onMounted(() => {
-  compactHeaderQuery = window.matchMedia('(max-height: 600px), (max-width: 360px)');
+  compactHeaderQuery = window.matchMedia('(max-height: 600px), (max-width: 767px)');
   updateCompactHeader();
   compactHeaderQuery.addEventListener('change', updateCompactHeader);
   emailRecoveryTimer = window.setInterval(() => { emailRecoveryClock.value = Date.now(); }, 30_000);
@@ -489,7 +489,7 @@ function toLocalDateTimeInput(value: string): string {
             </section>
           </div>
 
-          <WorkspaceSectionNav :active="activeSection" label="Speaker sections" :items="sectionLinks">
+          <WorkspaceSectionNav class="speakers-section-nav" :active="activeSection" label="Speaker sections" :items="sectionLinks">
             <template #icon="{ item }">
               <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path v-if="item.icon === 'proposals'" d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h7" />
@@ -541,7 +541,22 @@ function toLocalDateTimeInput(value: string): string {
             <button type="button" class="text-action text-sm font-semibold text-dc-pink underline" @click="speakersQuery.refetch()">Refresh delivery status</button>
           </div>
           <p v-if="!decidedSubmissions.length" class="p-5 text-sm text-dc-gray">No decisions to track yet.</p>
-          <div v-else class="overflow-x-auto">
+          <template v-else>
+            <ul class="delivery-cards md:hidden" aria-label="Decision email deliveries">
+              <li v-for="submission in paginatedDecidedSubmissions" :key="submission.id">
+                <article class="delivery-card">
+                  <button type="button" class="delivery-card__name" aria-haspopup="dialog" :aria-label="`Review delivery for ${submission.speaker_name}`" @click="openProposal(submission.id)">{{ submission.speaker_name }}</button>
+                  <span class="delivery-card__email">{{ submission.decision_email_recipient ?? submission.speaker_email }}</span>
+                  <dl class="delivery-card__details">
+                    <div><dt>Status</dt><dd>{{ deliveryLabel(submission) }}</dd></div>
+                    <div><dt>Attempts</dt><dd>{{ submission.decision_email_attempt_count ?? 0 }}</dd></div>
+                    <div v-for="column in deliveryColumns" :key="column.key"><dt>{{ column.label }}</dt><dd>{{ milestoneTime(submission, column.key) ? deliveryTime.format(new Date(submission[column.key]!)) : '—' }}</dd></div>
+                    <div v-if="submission.decision_email_last_error" class="delivery-card__error"><dt>Error</dt><dd>{{ submission.decision_email_last_error }}</dd></div>
+                  </dl>
+                </article>
+              </li>
+            </ul>
+            <div class="hidden overflow-x-auto md:block">
             <table class="delivery-table w-full text-left text-sm">
               <caption class="sr-only">Decision email delivery, times in Accra</caption>
               <thead class="border-b border-dc-border text-xs text-dc-gray">
@@ -567,7 +582,8 @@ function toLocalDateTimeInput(value: string): string {
                 </tr>
               </tbody>
             </table>
-          </div>
+            </div>
+          </template>
           <AppPagination v-model:page="deliveryPage" :page-count="deliveryPageCount" :total="decidedSubmissions.length" :range-start="deliveryPageStart" :range-end="deliveryPageEnd" item-label="deliveries" aria-label="Speaker delivery pagination" />
         </section>
 
@@ -734,6 +750,57 @@ function toLocalDateTimeInput(value: string): string {
   gap: 0.25rem 2rem;
 }
 
+.delivery-cards > li + li {
+  border-top: 1px solid var(--dc-border, #dedbd3);
+}
+
+.delivery-card {
+  display: grid;
+  width: 100%;
+  gap: 0.25rem;
+  padding: 1rem;
+  text-align: left;
+}
+
+.delivery-card__name {
+  min-height: 44px;
+  width: fit-content;
+  text-align: left;
+  font-weight: 700;
+}
+
+.delivery-card__name:focus-visible {
+  outline: 2px solid #e8117f;
+  outline-offset: 2px;
+}
+
+.delivery-card__email {
+  color: #555;
+  overflow-wrap: anywhere;
+}
+
+.delivery-card__details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.delivery-card__details dt {
+  color: #555;
+}
+
+.delivery-card__details dd {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.delivery-card__error {
+  grid-column: 1 / -1;
+  color: #b91c1c;
+}
+
 .delivery-table :is(th, td) {
   padding-inline: 0.75rem;
   white-space: nowrap;
@@ -780,7 +847,7 @@ function toLocalDateTimeInput(value: string): string {
   white-space: nowrap;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .participation-header {
     display: none;
   }
@@ -856,6 +923,19 @@ function toLocalDateTimeInput(value: string): string {
 .speakers-controls-summary:focus-visible {
   outline: 2px solid var(--dc-pink, #e8117f);
   outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .speakers-header {
+    display: contents;
+  }
+
+  .speakers-section-nav {
+    position: sticky;
+    top: var(--app-header-fixed-offset);
+    z-index: 30;
+    background: var(--surface-canvas, #f5f2e8);
+  }
 }
 
 @media (min-width: 768px) {

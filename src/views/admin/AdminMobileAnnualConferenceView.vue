@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { taskDetailsSearchText } from "@/lib/annual-conference-task-details";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
-import AnnualConferenceAttendanceCounter from "@/src/components/AnnualConferenceAttendanceCounter.vue";
 import VolunteerBadge from "@/src/components/VolunteerBadge.vue";
 import AppDropdown from "@/src/components/AppDropdown.vue";
 import AnnualConferenceTaskDrawer from "@/src/components/AnnualConferenceTaskDrawer.vue";
@@ -92,6 +91,35 @@ const search = ref("");
 const statusFilter = ref<TaskStatusFilter>(
   (initialRouteContext.status ?? "all") as TaskStatusFilter,
 );
+const advancedFiltersOpen = ref(false);
+const mobileEditionMenu = ref<HTMLDetailsElement | null>(null);
+const mobileEditionYearInput = ref<HTMLInputElement | null>(null);
+
+function closeMobileEditionMenu(restoreFocus = false) {
+  if (!mobileEditionMenu.value?.open) return;
+  mobileEditionMenu.value.open = false;
+  if (restoreFocus) mobileEditionMenu.value.querySelector<HTMLElement>('summary')?.focus();
+}
+
+function dismissMobileEditionMenu(event: PointerEvent | KeyboardEvent) {
+  if (!mobileEditionMenu.value?.open) return;
+  if (event instanceof KeyboardEvent) {
+    if (event.key !== 'Escape' || mobileEditionMenu.value.querySelector('.app-dropdown-trigger[aria-expanded="true"]')) return;
+    event.preventDefault();
+    closeMobileEditionMenu(true);
+
+    return;
+  }
+  const target = event.target;
+
+  if (target instanceof Element && (mobileEditionMenu.value.contains(target) || target.closest('.app-dropdown-menu'))) return;
+  closeMobileEditionMenu();
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', dismissMobileEditionMenu, true);
+  document.addEventListener('keydown', dismissMobileEditionMenu, true);
+});
 const workstreamFilter = ref(initialRouteContext.workstream ?? "all");
 const ownerFilter = ref(initialRouteContext.owner ?? "all");
 const phaseFilterValue = ref(initialRouteContext.phase ?? "all");
@@ -517,6 +545,7 @@ const filteredTasks = computed(() =>
     }),
   ),
 );
+const advancedFilterCount = computed(() => [phaseFilterValue.value, workstreamFilter.value, ownerFilter.value].filter((value) => value !== "all").length);
 const filtersActive = computed(
   () =>
     Boolean(search.value.trim()) ||
@@ -885,6 +914,7 @@ function handleTaskSubmit(value: AnnualConferenceTaskUpdateInput) {
 }
 
 function changeEdition(value: string | number) {
+  closeMobileEditionMenu(true);
   const nextYear = String(value);
 
   if (nextYear === year.value) return;
@@ -906,6 +936,8 @@ function openEditionForm() {
   editionForm.provisional_date = `${editionForm.year}-12-19`;
   editionForm.task_creator_email = "";
   editionFormOpen.value = true;
+  closeMobileEditionMenu();
+  void nextTick(() => mobileEditionYearInput.value?.focus());
 }
 
 function submitEdition() {
@@ -951,6 +983,8 @@ async function copyVolunteerLink() {
 }
 
 onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', dismissMobileEditionMenu, true);
+  document.removeEventListener('keydown', dismissMobileEditionMenu, true);
   if (volunteerLinkCopyResetTimer)
     window.clearTimeout(volunteerLinkCopyResetTimer);
 });
@@ -995,30 +1029,24 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
         <span>Annual Conference</span>
         <OrganizerBreadcrumbs :role="sessionQuery.data.value?.user?.role ?? null" phone embedded />
       </div>
-      <span class="conference-mobile__role">{{
-        isVolunteer ? "Volunteer" : "Organizer"
-      }}</span>
+      <details v-if="canManageEditions" ref="mobileEditionMenu" class="conference-edition-menu">
+        <summary>{{ year }} <span aria-hidden="true">⌄</span></summary>
+        <div class="conference-edition-menu__panel">
+          <AppDropdown
+            :model-value="year"
+            :options="editionOptions"
+            label="Edition"
+            density="compact"
+            :teleport="true"
+            @update:model-value="changeEdition"
+          />
+          <button v-if="canCreateEdition" type="button" class="conference-edition-menu__create" @click="openEditionForm">
+            New edition
+          </button>
+        </div>
+      </details>
+      <span v-else class="conference-current-year">{{ year }}</span>
     </header>
-
-    <div v-if="canManageEditions" class="conference-mobile__edition-bar">
-      <AppDropdown
-        :model-value="year"
-        :options="editionOptions"
-        density="compact"
-        trigger-class="min-h-11"
-        menu-class="min-w-48"
-        @update:model-value="changeEdition"
-      />
-      <button
-        v-if="canCreateEdition"
-        type="button"
-        class="secondary-button conference-mobile__edition-action"
-        aria-label="Create new Annual Conference edition"
-        @click="openEditionForm"
-      >
-        New edition
-      </button>
-    </div>
 
     <main class="conference-mobile__content">
       <BoneyardPageSkeleton v-if="activeTab !== 'badge' && workPlanQuery.isPending.value" :name="mobileLoadingSection" label="conference workspace" layout="mobile-conference" :show-header="false" />
@@ -1044,10 +1072,6 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
           key="overview"
           class="conference-view"
         >
-          <AnnualConferenceAttendanceCounter
-            v-if="year === '2026' && sessionQuery.data.value?.authenticated"
-            :can-manage="sessionQuery.data.value?.user?.role === 'owner'"
-          />
           <div v-if="registrationTarget || canManageTicketing" class="conference-workspace-links">
             <RouterLink v-if="registrationTarget" :to="registrationTarget" class="primary-button">Open Registration →</RouterLink>
             <RouterLink v-if="canManageTicketing" :to="annualConferencePath('ticketing', year)" class="secondary-button">Ticketing →</RouterLink>
@@ -1279,42 +1303,41 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
             {{ attentionFilterLabel }} <span aria-hidden="true">×</span>
           </button>
 
-          <div v-if="!assignedAccess" class="filter-grid">
-            <AppDropdown
-              v-model="phaseFilterValue"
-              label="Phase"
-              :options="phaseOptions"
-              density="compact"
-            />
-            <AppDropdown
-              :model-value="statusFilter"
-              label="Status"
-              :options="statusOptions"
-              density="compact"
-              @update:model-value="statusFilter = $event as TaskStatusFilter"
-            />
-            <AppDropdown
-              v-model="workstreamFilter"
-              class="filter-grid__wide"
-              label="Workstream"
-              :options="workstreamOptions"
-              density="compact"
-            />
-            <AppDropdown
-              v-model="ownerFilter"
-              class="filter-grid__wide"
-              label="Owner"
-              :options="ownerOptions"
-              density="compact"
-            />
-            <button
-              type="button"
-              class="clear-button filter-grid__wide"
-              :disabled="!filtersActive"
-              @click="clearFilters"
-            >
-              Clear filters
+          <div v-if="!assignedAccess" class="task-filter-controls">
+            <AppDropdown :model-value="statusFilter" label="Status" :options="statusOptions" density="compact" @update:model-value="statusFilter = $event as TaskStatusFilter" />
+            <button type="button" class="advanced-filter-toggle" :aria-expanded="advancedFiltersOpen" aria-controls="advanced-task-filters" @click="advancedFiltersOpen = !advancedFiltersOpen">
+              More filters<span v-if="advancedFilterCount"> ({{ advancedFilterCount }} active)</span>
             </button>
+            <div v-show="advancedFiltersOpen" id="advanced-task-filters" class="filter-grid">
+              <AppDropdown
+                v-model="phaseFilterValue"
+                label="Phase"
+                :options="phaseOptions"
+                density="compact"
+              />
+              <AppDropdown
+                v-model="workstreamFilter"
+                class="filter-grid__wide"
+                label="Workstream"
+                :options="workstreamOptions"
+                density="compact"
+              />
+              <AppDropdown
+                v-model="ownerFilter"
+                class="filter-grid__wide"
+                label="Owner"
+                :options="ownerOptions"
+                density="compact"
+              />
+              <button
+                type="button"
+                class="clear-button filter-grid__wide"
+                :disabled="!filtersActive"
+                @click="clearFilters"
+              >
+                Clear filters
+              </button>
+            </div>
           </div>
           <div v-else class="assigned-task-controls">
             <div class="assigned-task-owner">
@@ -1843,6 +1866,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
             <label
               ><span>Year</span
               ><input
+                ref="mobileEditionYearInput"
                 v-model.number="editionForm.year"
                 class="editorial-input"
                 type="number"
@@ -1915,10 +1939,10 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
 }
 
 .conference-mobile__header {
+  display: none;
   position: sticky;
   top: 0;
   z-index: 30;
-  display: grid;
   grid-template-columns: 2.75rem minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.75rem;
@@ -1928,6 +1952,50 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
     max(1rem, env(safe-area-inset-right)) 0.7rem
     max(1rem, env(safe-area-inset-left));
   backdrop-filter: blur(14px);
+}
+.conference-edition-menu {
+  position: relative;
+}
+.conference-edition-menu summary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+.conference-edition-menu summary::-webkit-details-marker {
+  display: none;
+}
+.conference-edition-menu summary:focus-visible, .conference-edition-menu__create:focus-visible {
+  outline: 2px solid #e8117f;
+  outline-offset: 2px;
+}
+.conference-edition-menu__panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 45;
+  width: min(16rem, 80vw);
+  border: 1px solid #d9d5cc;
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+.conference-edition-menu__create {
+  min-height: 44px;
+  width: 100%;
+  color: #b10d62;
+  text-align: left;
+  font-weight: 700;
+}
+.conference-current-year {
+  font-size: 14px;
+  font-weight: 700;
 }
 .conference-mobile__header--volunteer {
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2462,6 +2530,20 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
   font-size: 1rem;
   outline: 0;
 }
+.task-filter-controls {
+  display: grid;
+  gap: 0.5rem;
+}
+.advanced-filter-toggle {
+  min-height: 44px;
+  color: #333;
+  text-align: left;
+  font-weight: 700;
+}
+.advanced-filter-toggle:focus-visible {
+  outline: 2px solid #e8117f;
+  outline-offset: 2px;
+}
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2980,12 +3062,12 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
 }
 
 .conference-mobile__tabs {
+  display: none;
   position: fixed;
   right: 0;
   bottom: 0;
   left: 0;
   z-index: 40;
-  display: grid;
   grid-template-columns: repeat(var(--tab-count), minmax(0, 1fr));
   border-top: 1px solid var(--conference-border);
   background: rgba(255, 255, 255, 0.97);
@@ -3007,9 +3089,9 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
   background: transparent;
   color: #77736b;
   font-family: var(--font-mono), monospace;
-  font-size: 0.5rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  text-transform: uppercase;
+  text-transform: none;
   transition:
     transform 100ms var(--motion-fast),
     color 150ms var(--motion-fast),

@@ -33,6 +33,16 @@ describe('organizer breadcrumb routes', () => {
     ]);
   });
 
+  it('shows the phone badge trail only to an authenticated volunteer role for 2026', () => {
+    const input = { params: { year: '2026' }, phone: true, query: { section: 'badge' } };
+
+    expect(resolve('admin-mobile-annual-conference', { ...input, role: 'volunteer' })).toEqual([
+      { label: 'Overview', to: { path: adminPath('mobile/annual-conference/2026'), query: { section: 'overview' } } },
+      { label: 'Conference badge' },
+    ]);
+    expect(resolve('admin-mobile-annual-conference', { ...input, role: 'organizer' })).toEqual([{ label: 'Overview' }]);
+  });
+
   it.each([
     'admin-login', 'admin-auth-callback', 'admin-access-request', 'admin-not-found',
     'admin-public-events-preview', 'admin-public-event-preview',
@@ -186,34 +196,90 @@ describe('conference breadcrumb context', () => {
     expect(resolve('admin-annual-conference-registrations', { params: { year }, query: { section: ['emails', 'guests'] } }).at(-1)).toEqual({ label: 'Summary' });
   });
 
-  it.each(['admin-annual-conference-ticketing', 'admin-annual-conference-registrations'])('uses the same-year phone conference ancestor from %s', name => {
-    const crumbs = resolve(name, { params: { year }, phone: true, query: { section: 'orders' } });
+  it('links phone ticketing and registration subsections to same-year parent views', () => {
+    const ticketing = resolve('admin-annual-conference-ticketing', { params: { year: '2027' }, phone: true, query: { section: 'orders' } });
+    const registration = resolve('admin-annual-conference-registrations', { params: { year }, phone: true, query: { section: 'guests' } });
 
-    expect(crumbs[1].to).toEqual({ path: adminPath('mobile/annual-conference/2026'), query: { section: 'overview' } });
-    expect(crumbs.map(crumb => crumb.label).join(' ')).not.toContain('Home');
-    expect(crumbs.slice(-2).map(crumb => crumb.label)).toEqual([year, name.endsWith('ticketing') ? 'Ticketing' : 'Registration']);
-    expect(crumbs.at(-1)?.to).toBeUndefined();
+    expect(ticketing).toEqual([
+      { label: 'Overview', to: { path: adminPath('mobile/annual-conference/2027'), query: { section: 'overview' } } },
+      { label: 'Ticketing', to: { path: annualConferencePath('ticketing', '2027'), query: { section: 'overview' } } },
+      { label: 'Orders' },
+    ]);
+    expect(registration).toEqual([
+      { label: 'Overview', to: { path: adminPath('mobile/annual-conference/2026'), query: { section: 'overview' } } },
+      { label: 'Registration', to: { path: annualConferencePath('registrations', year), query: { section: 'summary' } } },
+      { label: 'Guests' },
+    ]);
+    expect(resolve('admin-annual-conference-ticketing', { params: { year: '2027' }, phone: true, query: { section: 'delivery' } }).at(-1)).toEqual({ label: 'Delivery' });
   });
 
-  it('supports a local phone conference trail without linking volunteers to Home', () => {
+  it('shows phone speaker subsections with linked parents and preserves access restrictions', () => {
+    expect(resolve('admin-annual-conference-speakers', { params: { year }, phone: true, query: { section: 'participation' } })).toEqual([
+      { label: 'Overview', to: { path: adminPath('mobile/annual-conference/2026'), query: { section: 'overview' } } },
+      { label: 'Speakers', to: { path: annualConferencePath('speakers', year), query: { section: 'proposals' } } },
+      { label: 'Participation' },
+    ]);
+    expect(resolve('admin-annual-conference-speakers', { params: { year }, phone: true, role: 'organizer', query: { section: 'delivery' } }).at(-1)).toEqual({ label: 'Proposals' });
+    expect(resolve('admin-annual-conference-speakers', { params: { year }, phone: true, role: 'volunteer' })).toEqual([]);
+  });
+
+  it('supports a phone task trail without exposing Home to volunteers', () => {
     const mobile = { params: { year }, phone: true, query: { section: 'tasks' } };
     const crumbs = resolve('admin-mobile-annual-conference', mobile);
 
-    expect(isOrganizerBreadcrumbRoute('admin-mobile-annual-conference')).toBe(true);
-    expect(crumbs.map(crumb => crumb.label)).toEqual(['Home', 'Annual Conference', year, 'Work plan']);
-    expect(crumbs[0].to).toBe(adminPath('mobile'));
-    expect(crumbs[2].to).toEqual({ path: adminPath('mobile/annual-conference/2026'), query: { section: 'overview' } });
+    expect(crumbs.map(crumb => crumb.label)).toEqual(['Overview', 'Work plan']);
+    expect(crumbs[0].to).toEqual({ path: adminPath('mobile/annual-conference/2026'), query: { section: 'overview' } });
     const volunteer = resolve('admin-mobile-annual-conference', { ...mobile, role: 'volunteer', labels: { assignedAccess: true } });
 
-    expect(volunteer.map(crumb => crumb.label)).toEqual(['Annual Conference', year, 'My tasks']);
+    expect(volunteer.map(crumb => crumb.label)).toEqual(['Overview', 'My tasks']);
     expect(volunteer.some(crumb => crumb.to === adminPath('mobile'))).toBe(false);
+  });
+
+  it('shows permitted volunteer subsections with a same-year directory parent', () => {
+    const input = { params: { year }, phone: true, labels: { capabilities: ['volunteers.review_applications'] as const }, query: { section: 'volunteers', volunteerView: 'reviews' } };
+
+    expect(resolve('admin-mobile-annual-conference', input)).toEqual([
+      { label: 'Overview', to: { path: adminPath('mobile/annual-conference/2026'), query: { section: 'overview' } } },
+      { label: 'Volunteers', to: { path: adminPath('mobile/annual-conference/2026'), query: { section: 'volunteers', volunteerView: 'directory' } } },
+      { label: 'Reviews' },
+    ]);
+    expect(resolve('admin-mobile-annual-conference', { ...input, query: { section: 'volunteers', volunteerView: 'campaign', campaignTab: 'outcomes' } }).slice(-2)).toEqual([
+      { label: 'Campaign', to: { path: adminPath('mobile/annual-conference/2026'), query: { section: 'volunteers', volunteerView: 'campaign', campaignTab: 'updates' } } },
+      { label: 'Outcomes' },
+    ]);
+    expect(resolve('admin-mobile-annual-conference', { ...input, query: { section: 'volunteers', volunteerView: 'campaign', campaignTab: ['settings'] } }).at(-1)).toEqual({ label: 'Updates' });
+    expect(resolve('admin-mobile-annual-conference', { ...input, role: 'organizer', query: { section: 'volunteers', volunteerView: 'campaign' } }).at(-1)).toEqual({ label: 'Directory' });
+    expect(resolve('admin-mobile-annual-conference', { ...input, role: 'volunteer', labels: { capabilities: ['volunteers.view_team'] } }).at(-1)).toEqual({ label: 'Volunteers' });
+    expect(resolve('admin-mobile-annual-conference', { ...input, role: 'volunteer', labels: { capabilities: [] } })).toEqual([{ label: 'Overview' }]);
+  });
+
+  it('shows Audit Log subsection on phones and keeps it owner-only', () => {
+    expect(resolve('admin-audit-log', { phone: true, query: { section: 'short-links', month: '2026-11' } })).toEqual([
+      { label: 'Home', to: adminPath('mobile') },
+      { label: 'Audit Log', to: { path: adminPath('audit-log'), query: { section: 'activity', month: '2026-11' } } },
+      { label: 'Short links' },
+    ]);
+    expect(resolve('admin-audit-log', { phone: true, role: 'organizer' })).toEqual([]);
+  });
+
+  it('shows phone Home and Reports or People parents without changing desktop trails', () => {
+    expect(resolve('admin-reports', { phone: true, query: { section: 'feedback' } })).toEqual([
+      { label: 'Home', to: adminPath('mobile') },
+      { label: 'Reports', to: adminPath('reports') },
+      { label: 'Feedback' },
+    ]);
+    expect(resolve('admin-organizers', { phone: true })).toEqual([
+      { label: 'Home', to: adminPath('mobile') },
+      { label: 'People & Access' },
+    ]);
+    expect(resolve('admin-organizers')).toEqual([{ label: 'People & Access' }]);
   });
 
   it('uses a plain edition ancestor on the current phone overview destination', () => {
     const crumbs = resolve('admin-mobile-annual-conference', { params: { year }, phone: true, query: { section: ['tasks', 'volunteers'] } });
 
     expect(crumbs.at(-1)).toEqual({ label: 'Overview' });
-    expect(crumbs.at(-2)?.to).toBeUndefined();
+    expect(crumbs).toEqual([{ label: 'Overview' }]);
     expect(resolve('admin-mobile-annual-conference', { params: { year: 'bad' }, phone: true })).toEqual([]);
   });
 

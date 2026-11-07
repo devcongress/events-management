@@ -8,6 +8,8 @@ import { fetchJson } from './lib/api';
 vi.mock('./lib/api', () => ({ fetchJson: vi.fn() }));
 vi.mock('./lib/notify', () => ({ notify: { error: vi.fn(), success: vi.fn() } }));
 vi.mock('./components/AppPagination.vue', () => ({ default: { render: () => null } }));
+// Dropdown behavior is covered by browser journeys; this renderer tests the panel state.
+vi.mock('./components/AppDropdown.vue', () => ({ default: { render: () => null } }));
 
 type Node = { tag: string; text: string; props: Record<string, unknown>; children: Node[]; parent: Node | null; focus: () => void; addEventListener: () => void };
 

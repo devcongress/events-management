@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useRoute, useRouter } from 'vue-router';
 import { resolveAuditLogSection, type AuditLogSection } from '@/src/lib/organizer-workspace-sections';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import MobileSectionPicker from '@/src/components/MobileSectionPicker.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
@@ -43,6 +44,13 @@ const deliveryPage = ref(1);
 const blastDeliveryPage = ref(1);
 const deliveryActivityView = ref<DeliveryActivityView>('messages');
 const activeSection = computed(() => resolveAuditLogSection(route.query.section));
+const auditSectionOptions = [
+  { value: 'activity', label: 'Activity' },
+  { value: 'email-delivery', label: 'Email delivery' },
+  { value: 'email-previews', label: 'Email previews' },
+  { value: 'short-links', label: 'Short links' },
+  { value: 'archived-events', label: 'Archived events' },
+];
 const shortLinkMessage = ref('');
 const copiedShortLinkId = ref<string | null>(null);
 const copyingShortLinkId = ref<string | null>(null);
@@ -51,6 +59,7 @@ const openShortLinkMenuId = ref<string | null>(null);
 const shortLinkMenuPosition = ref<ShortLinkMenuPosition | null>(null);
 const queryClient = useQueryClient();
 const selectedAuditLogId = ref<string | null>(null);
+const auditFiltersExpanded = ref(false);
 const auditFiltersShell = ref<HTMLElement | null>(null);
 const auditActivitySummary = ref<HTMLElement | null>(null);
 const auditDrawerCloseButton = ref<HTMLButtonElement | null>(null);
@@ -288,6 +297,8 @@ watch(loading, () => {
 });
 
 watch(activeSection, () => {
+  closeShortLinkMenu();
+  if (selectedAuditLogId.value) closeAuditDrawer();
   void nextTick(syncAuditStickyObserver);
 });
 
@@ -496,6 +507,15 @@ function closeShortLinkMenu() {
   shortLinkMenuPosition.value = null;
 }
 
+function manageShortLink(action: 'regenerate' | 'revoke') {
+  const linkId = openShortLinkMenuId.value;
+
+  if (!linkId) return;
+  closeShortLinkMenu();
+  if (action === 'regenerate') regenerateShortLinkMutation.mutate(linkId);
+  else revokeShortLinkMutation.mutate(linkId);
+}
+
 async function copyShortLink(linkId: string, value: string) {
   copyingShortLinkId.value = linkId;
   try {
@@ -604,7 +624,14 @@ onUnmounted(() => {
       <BoneyardPageSkeleton v-if="loading" name="admin-audit-log" label="audit log" layout="table" />
 
       <div v-else class="flex w-full flex-1 min-h-0 flex-col" :style="auditStickyStyle">
-        <nav class="audit-log-tabs underline-section-nav mb-5" role="tablist" aria-label="Audit Log sections">
+        <MobileSectionPicker
+          class="mb-5 md:hidden"
+          :model-value="activeSection"
+          label="Audit section"
+          :options="auditSectionOptions"
+          @update:model-value="selectSection(resolveAuditLogSection($event))"
+        />
+        <nav class="audit-log-tabs underline-section-nav mb-5 hidden md:flex" role="tablist" aria-label="Audit Log sections">
           <button
             id="audit-log-tab-activity"
             type="button"
@@ -701,7 +728,16 @@ onUnmounted(() => {
         <Transition :name="`audit-log-panel-${activeSectionTransition}`" mode="out-in">
           <div v-if="activeSection === 'activity'" id="audit-log-panel-activity" key="activity" role="tabpanel" aria-labelledby="audit-log-tab-activity" class="flex flex-1 min-h-0 flex-col">
             <section ref="auditFiltersShell" data-audit-filters class="sticky top-0 z-30 mb-5 bg-dc-cream/95 pb-3 pt-1 backdrop-blur">
-          <div class="rounded-md border border-dc-border bg-dc-paper p-4">
+          <button
+            type="button"
+            class="audit-mobile-filter-toggle md:hidden"
+            :aria-expanded="auditFiltersExpanded"
+            aria-controls="audit-filter-fields"
+            @click="auditFiltersExpanded = !auditFiltersExpanded"
+          >
+            {{ auditFiltersExpanded ? 'Hide filters' : 'Filter activity' }}<span v-if="hasActiveAuditControls"> · Active</span>
+          </button>
+          <div id="audit-filter-fields" class="rounded-md border border-dc-border bg-dc-paper p-4" :class="{ 'hidden md:block': !auditFiltersExpanded }">
             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,16rem)_minmax(0,16rem)_auto_auto] lg:items-end">
               <AppDropdown
                 v-model="filters.action"
@@ -758,7 +794,7 @@ onUnmounted(() => {
           <template v-else>
             <div
               data-audit-table-header
-              class="sticky z-10 overflow-hidden border-b border-dc-border bg-dc-paper-warm"
+              class="sticky z-10 hidden overflow-hidden border-b border-dc-border bg-dc-paper-warm md:block"
               :style="auditTableHeaderStyle"
             >
               <table class="w-full table-fixed text-left">
@@ -780,7 +816,26 @@ onUnmounted(() => {
                 </thead>
               </table>
             </div>
-            <div class="overflow-hidden">
+            <div class="md:hidden">
+              <div v-for="group in visibleLogGroups" :key="group.key">
+                <p v-if="groupByActorEmail" class="bg-dc-cream/70 px-4 py-2 text-sm font-semibold">{{ group.actorLabel }} · {{ group.count }} items</p>
+                <ul class="audit-mobile-list" aria-label="Audit activity">
+                  <li v-for="log in group.logs" :key="log.id">
+                    <button
+                      type="button"
+                      class="audit-mobile-record"
+                      :aria-label="`Open details for ${activityActionSummary(log.action)}`"
+                      @click="openAuditDrawer(log, $event)"
+                    >
+                      <strong>{{ activityActionSummary(log.action) }}</strong>
+                      <span class="audit-mobile-muted">{{ actorLabel(log) }} · {{ actorRoleLabel(log.actor_role) }}</span>
+                      <span class="audit-mobile-muted">{{ formatDateTime(log.created_at) }}</span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div class="hidden overflow-hidden md:block">
               <table class="w-full table-fixed text-left">
                 <colgroup>
                   <col class="w-[13%]">
@@ -975,35 +1030,57 @@ onUnmounted(() => {
                   <div v-if="recentEmailDeliveries.length === 0" class="audit-log-delivery-history__empty">
                     No transactional delivery records yet. New registration, listing, and speaker messages will appear here.
                   </div>
-                  <div v-else class="overflow-x-auto">
-                    <table class="audit-log-delivery-history__table">
-                      <thead>
-                        <tr>
-                          <th>When</th>
-                          <th>Source</th>
-                          <th>Message</th>
-                          <th>Status</th>
-                          <th>Detail</th>
-                          <th>Attempts</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="delivery in paginatedRecentEmailDeliveries" :key="delivery.id">
-                          <td>{{ formatDateTime(delivery.occurred_at) }}</td>
-                          <td>{{ deliverySourceLabel(delivery.source) }}</td>
-                          <td><strong>{{ delivery.label }}</strong></td>
-                          <td>
-                            <span class="audit-log-delivery-history__status" :class="`audit-log-delivery-history__status--${delivery.status}`" :aria-label="deliveryStatusLabel(delivery.status)" role="img" :title="deliveryStatusLabel(delivery.status)">
-                              <svg v-if="delivery.status === 'accepted'" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m6.75 10 2.1 2.1 4.35-4.35" /></svg>
-                              <svg v-else-if="delivery.status === 'pending'" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6.25v4.1l2.75 1.6" /></svg>
-                              <svg v-else viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m7.75 7.75 4.5 4.5m0-4.5-4.5 4.5" /></svg>
-                            </span>
-                          </td>
-                          <td><span :title="deliveryDetail(delivery)">{{ deliveryDetail(delivery) }}</span></td>
-                          <td>{{ delivery.attempts }}</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                  <div v-else>
+                    <ul class="audit-mobile-list md:hidden" aria-label="Email delivery history">
+                      <li v-for="delivery in paginatedRecentEmailDeliveries" :key="delivery.id" class="audit-mobile-card">
+                        <strong>{{ delivery.label }}</strong>
+                        <span class="audit-mobile-muted">{{ deliverySourceLabel(delivery.source) }} · {{ formatDateTime(delivery.occurred_at) }}</span>
+                        <dl class="audit-mobile-facts">
+                          <div>
+                            <dt>Status</dt>
+                            <dd>{{ deliveryStatusLabel(delivery.status) }}</dd>
+                          </div>
+                          <div>
+                            <dt>Attempts</dt>
+                            <dd>{{ delivery.attempts }}</dd>
+                          </div>
+                          <div class="audit-mobile-facts__wide">
+                            <dt>Detail</dt>
+                            <dd>{{ deliveryDetail(delivery) }}</dd>
+                          </div>
+                        </dl>
+                      </li>
+                    </ul>
+                    <div class="hidden overflow-x-auto md:block">
+                      <table class="audit-log-delivery-history__table">
+                        <thead>
+                          <tr>
+                            <th>When</th>
+                            <th>Source</th>
+                            <th>Message</th>
+                            <th>Status</th>
+                            <th>Detail</th>
+                            <th>Attempts</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="delivery in paginatedRecentEmailDeliveries" :key="delivery.id">
+                            <td>{{ formatDateTime(delivery.occurred_at) }}</td>
+                            <td>{{ deliverySourceLabel(delivery.source) }}</td>
+                            <td><strong>{{ delivery.label }}</strong></td>
+                            <td>
+                              <span class="audit-log-delivery-history__status" :class="`audit-log-delivery-history__status--${delivery.status}`" :aria-label="deliveryStatusLabel(delivery.status)" role="img" :title="deliveryStatusLabel(delivery.status)">
+                                <svg v-if="delivery.status === 'accepted'" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m6.75 10 2.1 2.1 4.35-4.35" /></svg>
+                                <svg v-else-if="delivery.status === 'pending'" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6.25v4.1l2.75 1.6" /></svg>
+                                <svg v-else viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m7.75 7.75 4.5 4.5m0-4.5-4.5 4.5" /></svg>
+                              </span>
+                            </td>
+                            <td><span :title="deliveryDetail(delivery)">{{ deliveryDetail(delivery) }}</span></td>
+                            <td>{{ delivery.attempts }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                   <AppPagination v-model:page="deliveryPage" :page-count="deliveryPageCount" :total="recentEmailDeliveries.length" :range-start="deliveryPageStart" :range-end="deliveryPageEnd" item-label="deliveries" aria-label="Email delivery pagination" />
                 </div>
@@ -1012,25 +1089,34 @@ onUnmounted(() => {
                   <div v-if="recentEventBlasts.length === 0" class="audit-log-delivery-history__empty">
                     No event broadcasts have been created yet.
                   </div>
-                  <div v-else class="overflow-x-auto">
-                    <table class="audit-log-delivery-history__table audit-log-broadcast-history__table">
-                      <thead>
-                        <tr>
-                          <th>When</th>
-                          <th>Broadcast</th>
-                          <th>Audience</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="blast in paginatedRecentEventBlasts" :key="blast.id">
-                          <td>{{ formatDateTime(blast.updated_at) }}</td>
-                          <td><strong>{{ blast.subject }}</strong></td>
-                          <td>{{ blast.recipient_count }} recipients</td>
-                          <td><span class="audit-log-broadcast-status" :class="blastStatusTone(blast.status)">{{ blastStatusLabel(blast.status) }}</span></td>
-                        </tr>
-                      </tbody>
-                    </table>
+                  <div v-else>
+                    <ul class="audit-mobile-list md:hidden" aria-label="Event broadcasts">
+                      <li v-for="blast in paginatedRecentEventBlasts" :key="blast.id" class="audit-mobile-card">
+                        <strong>{{ blast.subject }}</strong>
+                        <span class="audit-mobile-muted">{{ formatDateTime(blast.updated_at) }} · {{ blast.recipient_count }} recipients</span>
+                        <span class="audit-log-broadcast-status" :class="blastStatusTone(blast.status)">{{ blastStatusLabel(blast.status) }}</span>
+                      </li>
+                    </ul>
+                    <div class="hidden overflow-x-auto md:block">
+                      <table class="audit-log-delivery-history__table audit-log-broadcast-history__table">
+                        <thead>
+                          <tr>
+                            <th>When</th>
+                            <th>Broadcast</th>
+                            <th>Audience</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="blast in paginatedRecentEventBlasts" :key="blast.id">
+                            <td>{{ formatDateTime(blast.updated_at) }}</td>
+                            <td><strong>{{ blast.subject }}</strong></td>
+                            <td>{{ blast.recipient_count }} recipients</td>
+                            <td><span class="audit-log-broadcast-status" :class="blastStatusTone(blast.status)">{{ blastStatusLabel(blast.status) }}</span></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                   <AppPagination v-model:page="blastDeliveryPage" :page-count="blastDeliveryPageCount" :total="recentEventBlasts.length" :range-start="blastDeliveryPageStart" :range-end="blastDeliveryPageEnd" item-label="blasts" aria-label="Event blast pagination" />
                 </div>
@@ -1059,7 +1145,45 @@ onUnmounted(() => {
               :visible-count="visibleShortLinks.length"
               :status-filter="shortLinkStatusFilter"
             >
-              <div class="overflow-x-auto">
+              <ul class="audit-mobile-list md:hidden" aria-label="Short links">
+                <li v-for="link in visibleShortLinks" :key="link.id" class="audit-mobile-card">
+                  <strong>{{ link.label }}</strong>
+                  <span class="audit-mobile-muted">{{ shortLinkDestinationLabel(link.destination) }}</span>
+                  <span class="break-all">{{ link.url.replace('https://', '') }}</span>
+                  <dl class="audit-mobile-facts">
+                    <div>
+                      <dt>Visits</dt>
+                      <dd>{{ link.redirect_count.toLocaleString() }}</dd>
+                    </div>
+                    <div>
+                      <dt>Last visited</dt>
+                      <dd>{{ link.last_redirected_at ? formatDateTime(link.last_redirected_at) : 'N/A' }}</dd>
+                    </div>
+                  </dl>
+                  <div v-if="link.status === 'active'" class="flex flex-wrap gap-2">
+                    <AppCopyButton
+                      :state="copyingShortLinkId === link.id ? 'copying' : copiedShortLinkId === link.id ? 'copied' : 'idle'"
+                      label="Copy"
+                      class="audit-mobile-action"
+                      @click="copyShortLink(link.id, link.url)"
+                    />
+                    <div data-short-link-menu>
+                      <button
+                        type="button"
+                        class="audit-mobile-action"
+                        aria-haspopup="menu"
+                        :aria-expanded="openShortLinkMenuId === link.id"
+                        :aria-label="`Manage ${link.url}`"
+                        @click.stop="toggleShortLinkMenu(link.id, $event)"
+                      >
+                        Manage
+                      </button>
+                    </div>
+                  </div>
+                  <a v-else :href="link.url" target="_blank" rel="noopener noreferrer" class="audit-mobile-action">Open link ↗</a>
+                </li>
+              </ul>
+              <div class="hidden overflow-x-auto md:block">
                 <table class="audit-log-short-links__table w-full table-fixed text-left">
                   <colgroup>
                     <col class="w-[24%]">
@@ -1112,64 +1236,104 @@ onUnmounted(() => {
               <div v-else-if="archivedEvents.length === 0" class="audit-log-delivery-history__empty">
                 No archived events. Soft-deleted events will appear here during their restore window.
               </div>
-              <div v-else class="overflow-x-auto">
-                <table class="audit-log-archived-events__table w-full table-fixed text-left">
-                  <colgroup>
-                    <col class="w-[34%]">
-                    <col class="w-[18%]">
-                    <col class="w-[18%]">
-                    <col class="w-[12%]">
-                    <col class="w-[18%]">
-                  </colgroup>
-                  <thead class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
-                    <tr>
-                      <th class="px-4 py-2">Event</th>
-                      <th class="px-3 py-2">Archived</th>
-                      <th class="px-3 py-2">Restore window</th>
-                      <th class="px-3 py-2">State</th>
-                      <th class="px-3 py-2 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-dc-border">
-                    <tr v-for="event in archivedEvents" :key="event.id" class="audit-log-archived-events__row">
-                      <td class="px-4 py-3 align-middle">
-                        <strong class="block truncate text-sm text-dc-ink" :title="event.name">{{ event.name }}</strong>
-                        <span class="mt-1 block truncate text-xs font-semibold text-dc-gray">{{ event.deleted_by_email ?? 'Unknown owner' }}</span>
-                      </td>
-                      <td class="px-3 py-3 align-middle text-sm font-semibold text-dc-gray">{{ formatDateTime(event.deleted_at) }}</td>
-                      <td class="px-3 py-3 align-middle text-sm font-semibold text-dc-gray">{{ event.restore_until ? formatDateTime(event.restore_until) : 'No window' }}</td>
-                      <td class="px-3 py-3 align-middle">
-                        <span
-                          class="audit-log-archived-events__state"
-                          :class="{ 'audit-log-archived-events__state--restorable': event.can_restore }"
-                          :title="archivedEventRestoreDetail(event)"
-                        >
-                          {{ archivedEventRestoreLabel(event) }}
-                        </span>
-                      </td>
-                      <td class="px-3 py-3 align-middle">
-                        <div class="flex flex-wrap justify-end gap-2">
-                          <button
-                            type="button"
-                            class="motion-press inline-flex min-h-9 items-center rounded-md border border-dc-ink bg-white px-3 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink disabled:cursor-not-allowed disabled:opacity-50"
-                            :disabled="!event.can_restore || restoreArchivedEventMutation.isPending.value || hardDeleteArchivedEventMutation.isPending.value"
-                            @click="restoreArchivedEventMutation.mutate(event.id)"
+              <div v-else>
+                <ul class="audit-mobile-list md:hidden" aria-label="Archived events">
+                  <li v-for="event in archivedEvents" :key="event.id" class="audit-mobile-card">
+                    <strong>{{ event.name }}</strong>
+                    <span class="audit-mobile-muted">{{ event.deleted_by_email ?? 'Unknown owner' }}</span>
+                    <dl class="audit-mobile-facts">
+                      <div>
+                        <dt>Archived</dt>
+                        <dd>{{ formatDateTime(event.deleted_at) }}</dd>
+                      </div>
+                      <div>
+                        <dt>Restore window</dt>
+                        <dd>{{ event.restore_until ? formatDateTime(event.restore_until) : 'No window' }}</dd>
+                      </div>
+                      <div class="audit-mobile-facts__wide">
+                        <dt>State</dt>
+                        <dd>{{ archivedEventRestoreLabel(event) }} · {{ archivedEventRestoreDetail(event) }}</dd>
+                      </div>
+                    </dl>
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        class="audit-mobile-action"
+                        :disabled="!event.can_restore || restoreArchivedEventMutation.isPending.value || hardDeleteArchivedEventMutation.isPending.value"
+                        @click="restoreArchivedEventMutation.mutate(event.id)"
+                      >
+                        Restore
+                      </button>
+                      <button
+                        type="button"
+                        class="audit-mobile-action text-red-700"
+                        :disabled="restoreArchivedEventMutation.isPending.value || hardDeleteArchivedEventMutation.isPending.value"
+                        @click="hardDeleteArchivedEventMutation.mutate(event.id)"
+                      >
+                        Delete forever
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+                <div class="hidden overflow-x-auto md:block">
+                  <table class="audit-log-archived-events__table w-full table-fixed text-left">
+                    <colgroup>
+                      <col class="w-[34%]">
+                      <col class="w-[18%]">
+                      <col class="w-[18%]">
+                      <col class="w-[12%]">
+                      <col class="w-[18%]">
+                    </colgroup>
+                    <thead class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
+                      <tr>
+                        <th class="px-4 py-2">Event</th>
+                        <th class="px-3 py-2">Archived</th>
+                        <th class="px-3 py-2">Restore window</th>
+                        <th class="px-3 py-2">State</th>
+                        <th class="px-3 py-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dc-border">
+                      <tr v-for="event in archivedEvents" :key="event.id" class="audit-log-archived-events__row">
+                        <td class="px-4 py-3 align-middle">
+                          <strong class="block truncate text-sm text-dc-ink" :title="event.name">{{ event.name }}</strong>
+                          <span class="mt-1 block truncate text-xs font-semibold text-dc-gray">{{ event.deleted_by_email ?? 'Unknown owner' }}</span>
+                        </td>
+                        <td class="px-3 py-3 align-middle text-sm font-semibold text-dc-gray">{{ formatDateTime(event.deleted_at) }}</td>
+                        <td class="px-3 py-3 align-middle text-sm font-semibold text-dc-gray">{{ event.restore_until ? formatDateTime(event.restore_until) : 'No window' }}</td>
+                        <td class="px-3 py-3 align-middle">
+                          <span
+                            class="audit-log-archived-events__state"
+                            :class="{ 'audit-log-archived-events__state--restorable': event.can_restore }"
+                            :title="archivedEventRestoreDetail(event)"
                           >
-                            Restore
-                          </button>
-                          <button
-                            type="button"
-                            class="motion-press inline-flex min-h-9 items-center rounded-md border border-red-600 bg-red-50 px-3 font-mono text-[10px] font-semibold uppercase tracking-wide text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                            :disabled="restoreArchivedEventMutation.isPending.value || hardDeleteArchivedEventMutation.isPending.value"
-                            @click="hardDeleteArchivedEventMutation.mutate(event.id)"
-                          >
-                            Delete forever
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                            {{ archivedEventRestoreLabel(event) }}
+                          </span>
+                        </td>
+                        <td class="px-3 py-3 align-middle">
+                          <div class="flex flex-wrap justify-end gap-2">
+                            <button
+                              type="button"
+                              class="motion-press inline-flex min-h-9 items-center rounded-md border border-dc-ink bg-white px-3 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink disabled:cursor-not-allowed disabled:opacity-50"
+                              :disabled="!event.can_restore || restoreArchivedEventMutation.isPending.value || hardDeleteArchivedEventMutation.isPending.value"
+                              @click="restoreArchivedEventMutation.mutate(event.id)"
+                            >
+                              Restore
+                            </button>
+                            <button
+                              type="button"
+                              class="motion-press inline-flex min-h-9 items-center rounded-md border border-red-600 bg-red-50 px-3 font-mono text-[10px] font-semibold uppercase tracking-wide text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              :disabled="restoreArchivedEventMutation.isPending.value || hardDeleteArchivedEventMutation.isPending.value"
+                              @click="hardDeleteArchivedEventMutation.mutate(event.id)"
+                            >
+                              Delete forever
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </section>
@@ -1181,8 +1345,8 @@ onUnmounted(() => {
       <Transition name="short-link-menu">
         <div v-if="openShortLinkMenuId && shortLinkMenuPosition" data-short-link-menu class="audit-log-short-links__menu-popover" :style="{ left: `${shortLinkMenuPosition.left}px`, top: `${shortLinkMenuPosition.top}px` }" role="menu">
           <a :href="allShortLinks.find((link) => link.id === openShortLinkMenuId)?.url" target="_blank" rel="noopener noreferrer" role="menuitem" @click="closeShortLinkMenu">Open link <span aria-hidden="true">↗</span></a>
-          <button type="button" role="menuitem" :disabled="regenerateShortLinkMutation.isPending.value" @click="closeShortLinkMenu(); regenerateShortLinkMutation.mutate(openShortLinkMenuId)">Regenerate</button>
-          <button type="button" role="menuitem" class="audit-log-short-links__menu-danger" :disabled="revokeShortLinkMutation.isPending.value" @click="closeShortLinkMenu(); revokeShortLinkMutation.mutate(openShortLinkMenuId)">Revoke</button>
+          <button type="button" role="menuitem" :disabled="regenerateShortLinkMutation.isPending.value" @click="manageShortLink('regenerate')">Regenerate</button>
+          <button type="button" role="menuitem" class="audit-log-short-links__menu-danger" :disabled="revokeShortLinkMutation.isPending.value" @click="manageShortLink('revoke')">Revoke</button>
         </div>
       </Transition>
     </Teleport>
@@ -1266,6 +1430,68 @@ onUnmounted(() => {
 <style scoped src="@/src/styles/underline-section-nav.css"></style>
 
 <style scoped>
+.audit-mobile-list > li + li {
+  border-top: 1px solid #e4e0d8;
+}
+
+.audit-mobile-card,
+.audit-mobile-record {
+  display: grid;
+  min-width: 0;
+  gap: 0.5rem;
+  padding: 1rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.audit-mobile-record {
+  width: 100%;
+  min-height: 44px;
+}
+
+.audit-mobile-record:focus-visible,
+.audit-mobile-action:focus-visible {
+  outline: 2px solid #e8117f;
+  outline-offset: 2px;
+}
+
+.audit-mobile-muted,
+.audit-mobile-facts dt {
+  color: #555;
+  font-size: 0.875rem;
+}
+
+.audit-mobile-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.audit-mobile-facts dd {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.audit-mobile-facts__wide {
+  grid-column: 1 / -1;
+}
+
+.audit-mobile-action {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border: 1px solid #bcb8ae;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.audit-mobile-action:disabled {
+  opacity: 0.5;
+}
+
 .audit-log-header {
   margin-bottom: 1.75rem;
   padding-bottom: 1.25rem;
@@ -2426,6 +2652,38 @@ onUnmounted(() => {
 
   .audit-log-delivery-overview__capacity {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 767px) {
+  .audit-log-tabs {
+    display: none;
+  }
+
+  [data-audit-filters],
+  [data-audit-activity-summary] {
+    position: static;
+    top: auto !important;
+  }
+
+  .audit-mobile-filter-toggle {
+    min-height: 44px;
+    width: 100%;
+    border: 1px solid #d6d2c8;
+    border-radius: 6px;
+    background: white;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  .audit-mobile-filter-toggle:focus-visible {
+    outline: 2px solid #e8117f;
+    outline-offset: 2px;
+  }
+
+  .audit-log-delivery-history__page-button {
+    min-height: 44px;
   }
 }
 

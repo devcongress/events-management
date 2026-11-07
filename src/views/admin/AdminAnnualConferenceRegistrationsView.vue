@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
+import AnnualConferenceAttendanceCounter from '@/src/components/AnnualConferenceAttendanceCounter.vue';
 import AnnualConferenceRegistrationNav from '@/src/components/AnnualConferenceRegistrationNav.vue';
 import AnnualConferenceRegistrationEmails from '@/src/components/AnnualConferenceRegistrationEmails.vue';
 import AnnualConferenceCommunityTickets from '@/src/components/AnnualConferenceCommunityTickets.vue';
@@ -405,6 +406,10 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
         </ConfirmDialog>
       </section>
     </template>
+    <AnnualConferenceAttendanceCounter
+      v-if="activeSection === 'summary' && year === '2026' && session.data.value?.authenticated && canManageRegistration"
+      :can-manage="owner"
+    />
       <ConfirmDialog :open="draftConfirmation" title="Prepare this update?" message="Save a draft and capture the confirmed audience. Nothing sends until you review and queue it." confirm-label="Prepare draft" :busy="busy" @cancel="draftConfirmation = false" @confirm="mutate('/blasts', draft, 'Draft prepared. Review it before sending.')">
         <h3 class="font-semibold">{{ draft.subject }}</h3>
         <p class="max-h-60 overflow-auto whitespace-pre-wrap break-words text-sm">{{ draft.body }}</p>

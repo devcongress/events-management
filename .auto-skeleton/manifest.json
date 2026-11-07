@@ -1078,7 +1078,7 @@
         "src/bones/admin-organizers.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/admin-organizers.bones.json": "86279c9c08c03ec35cd8d1c13635d719e8a62319a72a6a29d82c1dff75aecc14"
+        "src/bones/admin-organizers.bones.json": "1a02bacd1fa744c116141c099caa2b4cea6ac190382f39a48f9394252c419b7c"
       },
       "captureConfig": {
         "breakpoints": [
@@ -1100,7 +1100,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "539ccb57e631463d4fd694ce012df504e5cd74be71b6e4b293adc67a8a8ebc0e",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminOrganizersView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "admin-event-detail": {
       "status": "completed",
@@ -1309,7 +1361,7 @@
         "src/bones/admin-attendance.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/admin-attendance.bones.json": "a816b653221dcb6a6b3fe71e5cfd8b6e8965431a8a692afa713fe802e3bec358"
+        "src/bones/admin-attendance.bones.json": "7d634190732c873c14ec5265c2fc0d4dd5a37494564d77a43699c5f8cfd06141"
       },
       "captureConfig": {
         "breakpoints": [
@@ -1331,7 +1383,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "7262fe7f76754ea10e6bf498116a3cb4dd7411b993f12b391b6610438c2d2dab",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminAttendanceView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "admin-audit-log": {
       "status": "completed",
@@ -1386,7 +1490,7 @@
         "src/bones/admin-audit-log.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/admin-audit-log.bones.json": "cd2cc9d3f2f76430c133ee16ff4fa4edbdc83476097021b90eea15d6d87537ed"
+        "src/bones/admin-audit-log.bones.json": "d9c25b7291765f4d718589e44040048e90bf15fab730ee5924ae1cb6466fcdc6"
       },
       "captureConfig": {
         "breakpoints": [
@@ -1408,7 +1512,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "7c40b44c0421dc6a84127b6445c9911f524492938a5bce81e58c13f804c7bec9",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminAuditLogView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "admin-attendance-overview": {
       "status": "completed",
@@ -1463,7 +1619,7 @@
         "src/bones/admin-attendance-overview.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/admin-attendance-overview.bones.json": "2dc91fff017fe01a7d66a2d1cd20251f7aed2587f88ac8d352fb89a142c1a635"
+        "src/bones/admin-attendance-overview.bones.json": "add449046454f210eaa83eaba0253c87cb7696d032f57cfb3acf982c6d7d4177"
       },
       "captureConfig": {
         "breakpoints": [
@@ -1485,7 +1641,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "e872b1531769657385dbc6fa189717532ca1d6b8c1eea056e148d332845efda0",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminAttendanceOverviewView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "admin-events-list": {
       "status": "completed",
@@ -1772,7 +1980,7 @@
         "src/bones/annual-conference-speakers.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/annual-conference-speakers.bones.json": "df69891252657dc17f2ddb19d3eaa31eb3e4dad7ea824c5956b00644574f4bb5"
+        "src/bones/annual-conference-speakers.bones.json": "bce4f91bea96eb26b2a86bdcf30170ad30b2efa6f0dff7fa69ae50a812af9bde"
       },
       "captureConfig": {
         "breakpoints": [
@@ -1795,7 +2003,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "10436d053fe69bd777dfe42e150f6d56cea5d44d0e32aea9c7815ed37323b215",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminAnnualConferenceSpeakersView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "annual-conference-overview": {
       "status": "completed",
@@ -2162,7 +2422,7 @@
         "src/bones/annual-conference-ticketing.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/annual-conference-ticketing.bones.json": "9afac267d9b92f13894f97f28acd7b0ba247202c7468b0fad14e4dd48ef99334"
+        "src/bones/annual-conference-ticketing.bones.json": "5c229fa9bd799beb07ee66bddc4b000350b6a381b792da32a31660c382ab65dd"
       },
       "captureConfig": {
         "breakpoints": [
@@ -2185,7 +2445,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "3bd7aa4f579fd4a6c2c4bfe5d8131d1b8de126dec75f6794e6702084bdafed68",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminAnnualConferenceTicketingView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "organizer-mobile-next-actions": {
       "status": "completed",
@@ -2634,7 +2946,7 @@
         "src/bones/volunteer-follow-up-campaign.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/volunteer-follow-up-campaign.bones.json": "7a965c90a0724ff1f04e0668b6b0a5b561257bf6616a83d3c29c8e12247d9ab9"
+        "src/bones/volunteer-follow-up-campaign.bones.json": "3531194e791fc2d5cc344f26bafb5903d1b3228020b11bbeae74fc4e9e93deea"
       },
       "captureConfig": {
         "breakpoints": [
@@ -2657,7 +2969,60 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "fff05cd6b2885160d6c4d6df02dd344088203ec1e8f80a6a68573a1d96cb30d1",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/VolunteerBroadcastPanel.vue",
+          "src/components/VolunteerFollowUpPanel.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "admin-present-forms-board-1": {
       "status": "completed",
@@ -3111,7 +3476,7 @@
         "src/bones/mobile-conference-workspace.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/mobile-conference-workspace.bones.json": "32abd676e5a0b09614c13897b8232a9856db975b317d040a09732118c65eb4d3"
+        "src/bones/mobile-conference-workspace.bones.json": "9f9522c48f0e63a4c694b1d3f91c5d517fdda7e8452aa7ce2d257b2074a4bf2e"
       },
       "captureConfig": {
         "breakpoints": [
@@ -3134,7 +3499,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "8effa6d04e08ff34328c75806c902cceb41487fc68df4611923730ab18a17a0e",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminMobileAnnualConferenceView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "mobile-check-in-guests": {
       "status": "completed",
@@ -3421,7 +3838,7 @@
         "src/bones/admin-talks-proposals.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/admin-talks-proposals.bones.json": "b6d07d2101c0e09a0b38c3dd9b1342445cfad7b6a779634365f71ce796863b6c"
+        "src/bones/admin-talks-proposals.bones.json": "e4abdd21beb2c7edcc51c2dced1c07b75ce23b473692d943d0a2a9139eb5d40a"
       },
       "captureConfig": {
         "breakpoints": [
@@ -3443,7 +3860,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "9f53fa796549c3818c94c991723ab233c90c36ba463f41ffffe6a375511a98d3",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminTalksView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "admin-talks-program": {
       "status": "completed",
@@ -3652,7 +4121,7 @@
         "src/bones/admin-organizers-owner.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/admin-organizers-owner.bones.json": "7b52ae686e2755b60064c9273df925a9c053dea53273834112b4de6ead131e0b"
+        "src/bones/admin-organizers-owner.bones.json": "6ed59a47b03f7ac7fed5fcc7831e84d0142bcd752334c89458d1caf0137d22d5"
       },
       "captureConfig": {
         "breakpoints": [
@@ -3674,7 +4143,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "4aa989d2929c97112f255993519380b0d1025ea7a180ea0eca3bfa1759274830",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminOrganizersView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "admin-feedback-responses": {
       "status": "completed",
@@ -4037,7 +4558,7 @@
         "src/bones/admin-registration-workspace-blasts.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/admin-registration-workspace-blasts.bones.json": "9034dbc0f065eb8d41a0cf9f7c7000a9dd4427e924d3c4193cf946e34ac06ec2"
+        "src/bones/admin-registration-workspace-blasts.bones.json": "9c92697d4f477b1182bf3c9abec5983b8636b154b689cc22255ae56a2efd7ed6"
       },
       "captureConfig": {
         "breakpoints": [
@@ -4059,7 +4580,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "18be3e6ffe7b306c423b4575cb36a207ab0a35013c8b3cec591ced44b8bf1e44",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminRegistrationsView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "mobile-event-detail-guests": {
       "status": "completed",
@@ -4499,7 +5072,7 @@
         "src/bones/admin-present-forms-choices.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/admin-present-forms-choices.bones.json": "8e7b46e3476aaf04a5057ce443045db2fa78007d46f2a7743597b27a3c8475cf"
+        "src/bones/admin-present-forms-choices.bones.json": "db2a313c673d3582c986d5d278e963c242c37ac252e436259b649a53aa7e1425"
       },
       "captureConfig": {
         "breakpoints": [
@@ -4521,7 +5094,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "5b80c2305e76200374cf9db5dfaae56f5a0c6aece231eb299d1b8e0811cc2aa2",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminPresentFormsView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "admin-feedback-display": {
       "status": "completed",
@@ -5038,7 +5663,7 @@
         "src/bones/admin-archived-events.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/admin-archived-events.bones.json": "fb5796185594905eea2cf2f827e2c3d8d1e7f6005518146abcc6bc0be32a51e7"
+        "src/bones/admin-archived-events.bones.json": "03cb47127dff57ecbe81a10f357a956017b9d8b85cac8c448e6348b320e3646f"
       },
       "captureConfig": {
         "breakpoints": [
@@ -5060,7 +5685,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "c8ef85a5367b3717e50fe999602652ade91eac646f3ecc714becdbb5e38be7b5",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminAuditLogView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "mobile-event-guests": {
       "status": "completed",
@@ -5346,7 +6023,7 @@
         "src/bones/event-blast-history.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/event-blast-history.bones.json": "839ee7ae9dcaadbc2079b0b9f03748d875c0ce81ced333e802e8ed103d4d6c60"
+        "src/bones/event-blast-history.bones.json": "eb448ea1385c6165b16dc5c5b6a9d45eacc5a5ddf7778dcb90ce4e9bc36daedb"
       },
       "captureConfig": {
         "breakpoints": [
@@ -5368,7 +6045,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "24b8e3e1d1b3e3b13c949173fa905a9332970d4bd0f92c443b1d664752e017db",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminRegistrationsView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "annual-conference-overview-assigned": {
       "status": "completed",
@@ -5972,7 +6701,7 @@
         "src/bones/mobile-conference-workspace-tasks.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/mobile-conference-workspace-tasks.bones.json": "ad43b10d4dc8285e9a3525fb6f4ca4f57eb563d5d38a0f0b2493aed65f3f6947"
+        "src/bones/mobile-conference-workspace-tasks.bones.json": "4658976d53c5ead988022c2a346157b4d8f403f015ca286e3c86d5fcf4e27439"
       },
       "captureConfig": {
         "breakpoints": [
@@ -5995,7 +6724,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "2656385c8e17e091d503692032c3a4a699bc6c6c18e592a66b35c1fdc573dcda",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "src/views/admin/AdminMobileAnnualConferenceView.vue",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "mobile-conference-workspace-volunteers": {
       "status": "completed",
@@ -7396,7 +8177,7 @@
         "src/bones/volunteer-reviews.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/volunteer-reviews.bones.json": "c68ff9762e43d5e6e7261506e22a97313ab9b6081d2928c781ca1bbe53000834"
+        "src/bones/volunteer-reviews.bones.json": "d19e09dd55ea0a7cf7a7360c9fffce8eec1b8773653bb968ce16a35db5e3b0e9"
       },
       "captureConfig": {
         "breakpoints": [
@@ -7419,7 +8200,59 @@
         "generatorVersion": "boneyard-js@1.9.0",
         "fonts": "src/main.ts"
       },
-      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height."
+      "verification": "Isolated fixture and runtime loading overlay verified at 390, 640, 768, 960, 1024, 1280px after fonts, images, and bounds settled; natural height matched without vertical scaling at the captured 1000px viewport height.",
+      "phoneRefresh": {
+        "breakpoints": [
+          390,
+          640
+        ],
+        "inputFingerprint": "ef1f96e2be21341c00c4bff4265945e2498fdf7d46d6643a600c70bcf10070a3",
+        "sourcePaths": [
+          "lib/annual-conference-owner-avatar.ts",
+          "lib/annual-conference-task-board-order.ts",
+          "lib/annual-conference-task-card.ts",
+          "lib/annual-conference-task-details.ts",
+          "lib/annual-conference-work-plan.ts",
+          "lib/design-system.ts",
+          "package.json",
+          "pnpm-lock.yaml",
+          "postcss.config.mjs",
+          "src/boneyard/capture.ts",
+          "src/boneyard/sections/conference.ts",
+          "src/boneyard/sections/general.ts",
+          "src/boneyard/sections/index.ts",
+          "src/boneyard/sections/types.ts",
+          "src/components/AnnualConferenceTaskBoard.vue",
+          "src/components/AppDropdown.vue",
+          "src/components/NaviiAvatar.vue",
+          "src/components/PublicFormRouteFrame.vue",
+          "src/components/VolunteerReviewsPanel.vue",
+          "src/components/ui/BoneyardConferenceIntakeFixture.vue",
+          "src/components/ui/BoneyardFormBoardFixture.vue",
+          "src/components/ui/BoneyardLearningLobbyFixture.vue",
+          "src/components/ui/BoneyardOperationsFixture.vue",
+          "src/components/ui/BoneyardPageSkeleton.vue",
+          "src/components/ui/BoneyardPageSkeletonFixture.vue",
+          "src/components/ui/BoneyardRegistrationSummaryFixture.vue",
+          "src/components/ui/BoneyardSkeletonBlocks.vue",
+          "src/components/ui/BoneyardTicketOrdersFixture.vue",
+          "src/components/ui/BoneyardWorkPlanFixture.vue",
+          "src/components/ui/boneyard-skeleton-blocks.css",
+          "src/lib/dropdown-keyboard.ts",
+          "src/lib/floating-placement.ts",
+          "src/main.ts",
+          "src/styles.css",
+          "src/styles/forms.css",
+          "src/styles/registration-workspace.css",
+          "src/styles/ticket-order-cards.css",
+          "src/styles/underline-section-nav.css",
+          "tailwind.config.ts",
+          "tools/boneyard.vite.config.ts",
+          "tools/capture-boneyard.mjs",
+          "tools/rebuild-boneyard-registry.mjs"
+        ],
+        "verification": "Isolated phone fixture and runtime overlay verified; existing desktop breakpoint snapshots preserved."
+      }
     },
     "volunteer-broadcast": {
       "status": "completed",

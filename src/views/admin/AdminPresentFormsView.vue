@@ -423,7 +423,32 @@ button:disabled {
 .presentation-setup .qr-tile {
   border-radius: 8px;
 }
-@media (max-width: 650px) {
+@media (max-width: 767px) {
+  .control-heading,
+  .selection-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .control-heading > button,
+  .selection-controls > div:first-child {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .selection-panel {
+    padding: 16px;
+  }
+
+  .selection-summary {
+    text-align: left;
+  }
+
+  fieldset,
+  .presentation-setup .qr-grid {
+    grid-template-columns: 1fr;
+  }
+
   .qr-grid {
     grid-template-columns: 1fr;
   }

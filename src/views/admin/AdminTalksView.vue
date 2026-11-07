@@ -1652,7 +1652,28 @@ onUnmounted(() => {
                 </button>
               </div>
             </div>
-            <div class="overflow-x-auto">
+            <div class="md:hidden">
+              <div v-if="visibleProposalSubmissions.length === 0" class="px-4 py-8 text-center text-sm text-dc-gray">{{ proposalStatusFilter === 'all' ? 'No proposals yet.' : proposalStatusFilter === 'submitted' ? 'Inbox clear.' : `No ${proposalFilterLabel} proposals.` }}</div>
+              <ul v-else class="divide-y divide-dc-border" aria-label="Presentation proposals">
+                <li v-for="submission in paginatedProposalSubmissions" :key="submission.id" class="space-y-3 p-4">
+                  <button type="button" class="block min-h-11 w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink" :aria-label="`Open proposal: ${submission.title}`" @click="openTalkPreview('proposal', submission, $event)">
+                    <span class="block break-words font-semibold">{{ submission.title }}</span>
+                    <span class="mt-1 block break-words text-sm text-dc-gray">{{ submission.speaker_name }} · {{ submission.kind === 'product_demo' ? 'Demo' : 'Talk' }}</span>
+                  </button>
+                  <div class="flex flex-wrap items-center gap-2 text-sm">
+                    <span class="rounded-md border px-2 py-1 font-semibold" :class="proposalStatusClass(submission.status)">{{ proposalStatusLabel(submission.status) }}</span>
+                    <span class="text-dc-gray">Submitted {{ formatProposalSubmittedDate(submission.created_at) }}</span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2 text-sm">
+                    <span v-if="proposalEmailWasSent(submission)" :title="proposalEmailSentTitle(submission)">Email sent</span>
+                    <span v-else-if="submission.status === 'selected' && selectedSpeakerLinkForSubmission(submission.id)?.email_status === 'pending'">Email sending</span>
+                    <span v-else-if="submission.status === 'selected' && selectedSpeakerLinkForSubmission(submission.id)?.email_status === 'failed'">Email retrying</span>
+                    <AppCopyButton v-if="submission.status === 'selected' && selectedSpeakerLinkForSubmission(submission.id)?.short_url" :state="copyingSpeakerLinkId === selectedSpeakerLinkForSubmission(submission.id)?.id ? 'copying' : copiedSpeakerLinkId === selectedSpeakerLinkForSubmission(submission.id)?.id ? 'copied' : 'idle'" label="Copy link" :class="proposalActionClass()" class="min-h-11" @click="copySpeakerIntakeLink(selectedSpeakerLinkForSubmission(submission.id)?.short_url ?? '', selectedSpeakerLinkForSubmission(submission.id)?.id ?? '')" />
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="hidden overflow-x-auto md:block">
               <table class="w-full min-w-[1080px] table-fixed border-collapse text-left">
                 <caption class="sr-only">Presentation proposals</caption>
                 <thead class="border-b border-dc-border bg-dc-paper font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-pink">
