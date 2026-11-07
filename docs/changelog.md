@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-07 — Phone navigation polish
+
+- Add slate icons to every More drawer destination and a distinct Sign out button, retaining permissions and drawer behavior.
+- Remove the duplicate Ticketing heading and divider on phones while keeping the page heading available to screen readers. Display delivery health totals and their loading placeholders in a two-column phone grid.
+
+## 2026-11-07 — Volunteer badge photo adjustments
+
+- Restore local photo zoom and positioning alongside the badge preview on desktop and below it on phones. Preview, sharing, and download use the same crop, which resets when a photo is replaced or removed. Group photo and sharing actions into two compact rows on phones.
+
 ## 2026-11-07 — Conference overview and phone navigation
 
 - Refine organizer and volunteer conference overviews with a compact date and aligned task summary, plus a badge shortcut for eligible volunteers. Tighten the mobile organizer home greeting and spacing.

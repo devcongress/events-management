@@ -587,7 +587,8 @@ onUnmounted(() => {
     <div class="editorial-wrap">
       <AnnualConferenceNav :show-page-heading="false" />
 
-      <header class="border-b-2 border-dc-ink pb-5">
+      <h1 class="sr-only md:hidden">Ticketing</h1>
+      <header class="hidden border-b-2 border-dc-ink pb-5 md:block">
           <p class="editorial-eyebrow">DevCon{{ year.slice(-2) }} · paid tickets</p>
           <h1 class="mt-2 text-3xl font-semibold tracking-tight text-dc-ink">Ticketing</h1>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Review purchases, track ticket emails, and manage available seats.</p>
@@ -795,7 +796,7 @@ onUnmounted(() => {
             </div>
           </header>
 
-          <div class="grid divide-y divide-dc-border sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+          <div class="ticket-delivery-summary grid grid-cols-2 md:grid-cols-4 md:divide-x md:divide-dc-border">
             <dl v-for="item in [
               ['Queued', emailDeliverySummary.queued],
               ['Accepted', emailDeliverySummary.accepted],
@@ -985,6 +986,16 @@ onUnmounted(() => {
 <style scoped src="@/src/styles/ticket-order-cards.css"></style>
 
 <style scoped>
+@media (max-width: 767px) {
+  .ticket-delivery-summary > :nth-child(even) {
+    border-left: 1px solid var(--dc-border, #e0ddd4);
+  }
+
+  .ticket-delivery-summary > :nth-child(n + 3) {
+    border-top: 1px solid var(--dc-border, #e0ddd4);
+  }
+}
+
 @media (max-width: 767px) {
   .inventory-summary {
     grid-template-columns: repeat(3, minmax(0, 1fr));

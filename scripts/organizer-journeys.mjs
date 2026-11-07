@@ -526,10 +526,10 @@ try {
     }, { role: "owner" });
   }
 
-  for (const width of [320, 1440]) {
+  for (const width of [320, 390, 1440]) {
     await journey(`devcon26-volunteer-badge-${width}`, async ({ page, responses, requests }) => {
       responses.set("/api/public/annual-conference/2026/attendance-counter", { body: { count: 21, source: "estimate" } });
-      if (width === 320) await stubBadgeShare(page);
+      if (width < 768) await stubBadgeShare(page);
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`${origin}/organizer-console/annual-conference/2026`);
       const nav = page.getByRole("navigation", { name: "Annual Conference workspace" });
@@ -538,7 +538,7 @@ try {
       await nav.waitFor();
       assert.equal(await nav.getByText("Volunteers", { exact: true }).count(), 0);
       assert.equal(await editor.isVisible(), false);
-      const badgeTab = width === 320 ? nav.getByRole("button", { name: "Conference badge" }) : nav.getByRole("link", { name: "Conference badge" });
+      const badgeTab = width < 768 ? nav.getByRole("button", { name: "Conference badge" }) : nav.getByRole("link", { name: "Conference badge" });
 
       await badgeTab.click();
       await page.waitForURL(/section=badge/);
@@ -564,7 +564,7 @@ try {
       assert.equal(await editor.locator("canvas").evaluate((canvas) => getComputedStyle(canvas).visibility), "visible");
       assert.equal(await downloadButton.isDisabled(), true);
       assert.equal(await actionOffset(), beforeTyping);
-      if (width === 320) {
+      if (width < 768) {
         assert.equal(await editor.getByRole("button", { name: "Share badge" }).isDisabled(), true);
       }
       const preview = editor.getByRole("img", { name: "DevCon26 volunteer badge preview for Ama Mensah N" });
@@ -576,9 +576,80 @@ try {
       await page.waitForURL(/section=badge/);
       await preview.waitFor();
       assert.equal(await name.inputValue(), "Ama Mensah N");
-      if (width === 320) {
-        await editor.locator('input[type="file"]').setInputFiles("public/brand/dev-con-logo.png");
-        await editor.getByRole("button", { name: "Remove photo" }).waitFor();
+      const photoInput = editor.locator('input[type="file"]');
+      const portrait = await page.evaluate(() => {
+        const canvas = document.createElement("canvas");
+
+        canvas.width = 400;
+        canvas.height = 500;
+        const context = canvas.getContext("2d");
+
+        context.fillStyle = "#d4d9d7";
+        context.fillRect(0, 0, 400, 500);
+        context.fillStyle = "#42595a";
+        context.beginPath();
+        context.ellipse(200, 500, 170, 150, 0, 0, 2 * Math.PI);
+        context.fill();
+        context.fillStyle = "#a87054";
+        context.beginPath();
+        context.ellipse(200, 225, 90, 120, 0, 0, 2 * Math.PI);
+        context.fill();
+        context.fillStyle = "#302a28";
+        context.beginPath();
+        context.ellipse(200, 145, 91, 65, 0, Math.PI, 2 * Math.PI);
+        context.fill();
+
+        return canvas.toDataURL().split(",")[1];
+      });
+      const portraitFile = { name: "portrait.png", mimeType: "image/png", buffer: Buffer.from(portrait, "base64") };
+
+      await photoInput.setInputFiles(portraitFile);
+      await editor.getByRole("button", { name: "Remove photo" }).waitFor();
+      await page.waitForFunction((button) => !button.disabled, await downloadButton.elementHandle());
+      const initialImage = await preview.evaluate((canvas) => canvas.toDataURL());
+      const zoom = editor.getByRole("slider", { name: "Zoom" });
+      const horizontal = editor.getByRole("slider", { name: "Horizontal position" });
+      const vertical = editor.getByRole("slider", { name: "Vertical position" });
+
+      if (width < 768) {
+        const done = page.getByRole("button", { name: "Dismiss keyboard", exact: true });
+
+        await name.focus();
+        await done.waitFor({ state: "visible" });
+        await zoom.focus();
+        await done.waitFor({ state: "hidden" });
+      }
+      await zoom.fill("1.2");
+      await horizontal.fill("0.55");
+      await vertical.fill("0.35");
+      assert.equal(await downloadButton.isDisabled(), true);
+      await page.waitForFunction((button) => !button.disabled, await downloadButton.elementHandle());
+      assert.notEqual(await preview.evaluate((canvas) => canvas.toDataURL()), initialImage);
+      const previewBox = await preview.boundingBox();
+      const zoomBox = await zoom.boundingBox();
+      const actionsBox = await downloadButton.boundingBox();
+
+      assert.ok(width < 768 ? zoomBox.y > previewBox.y + previewBox.height : zoomBox.x > previewBox.x + previewBox.width);
+      assert.ok(width < 768 ? actionsBox.y > previewBox.y + previewBox.height : actionsBox.x > previewBox.x + previewBox.width);
+      if (width < 768) {
+        const changeBox = await editor.getByRole("button", { name: "Change photo" }).boundingBox();
+        const removeBox = await editor.getByRole("button", { name: "Remove photo" }).boundingBox();
+        const shareBox = await editor.getByRole("button", { name: "Share badge" }).boundingBox();
+
+        assert.equal(changeBox.y, removeBox.y);
+        assert.equal(shareBox.y, actionsBox.y);
+        assert.ok(shareBox.y >= changeBox.y + changeBox.height);
+        assert.ok([changeBox, removeBox, shareBox, actionsBox].every((box) => box.height >= 44));
+      }
+      await name.blur();
+      await preview.evaluate((element) => element.scrollIntoView({ block: "center" }));
+      await page.screenshot({ path: `${artifacts}/badge-crop-${width}-preview.png`, fullPage: false, animations: "disabled" });
+      if (width >= 768) {
+        await editor.screenshot({ path: `${artifacts}/badge-crop-${width}-editor.png`, animations: "disabled" });
+      }
+      if (width < 768) {
+        await downloadButton.evaluate((element) => element.scrollIntoView({ block: "center" }));
+        await page.screenshot({ path: `${artifacts}/badge-crop-${width}-controls.png`, fullPage: false, animations: "disabled" });
         await editor.getByRole("button", { name: "Share badge" }).click();
         const result = await page.evaluate(() => window.badgeShared);
 
@@ -586,6 +657,11 @@ try {
         assert.equal(result.activated, true);
         assert.ok(result.size > 0);
       }
+      await photoInput.setInputFiles({ name: "invalid.txt", mimeType: "text/plain", buffer: Buffer.from("invalid") });
+      assert.equal(await zoom.inputValue(), "1.2");
+      assert.equal(await horizontal.inputValue(), "0.55");
+      assert.equal(await vertical.inputValue(), "0.35");
+      assert.equal(await editor.getByRole("button", { name: "Remove photo" }).isVisible(), true);
       const download = page.waitForEvent("download");
 
       await downloadButton.click();
@@ -593,6 +669,19 @@ try {
 
       assert.equal(file.suggestedFilename(), "devcon26-volunteer.png");
       assert.equal(await file.failure(), null);
+      const downloaded = await readFile(await file.path());
+      const previewPng = await preview.evaluate((canvas) => canvas.toDataURL().split(",")[1]);
+
+      assert.equal(downloaded.toString("base64"), previewPng);
+      await photoInput.setInputFiles(portraitFile);
+      await page.waitForFunction((input) => input.value === "1", await zoom.elementHandle());
+      assert.equal(await horizontal.inputValue(), "0.5");
+      assert.equal(await vertical.inputValue(), "0.18");
+      await zoom.fill("2");
+      await editor.getByRole("button", { name: "Remove photo" }).click();
+      await photoInput.setInputFiles(portraitFile);
+      await zoom.waitFor();
+      assert.equal(await zoom.inputValue(), "1");
       assert.equal(await preview.evaluate((canvas) => canvas.width), 1080);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       assert.equal(requests.some((request) => request.method !== "GET"), false);
