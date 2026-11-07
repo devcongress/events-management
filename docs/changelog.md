@@ -1,6 +1,14 @@
 # Changelog
 
+## 2026-11-07 — Conference overview and phone navigation
+
+- Refine organizer and volunteer conference overviews with a compact date and aligned task summary, plus a badge shortcut for eligible volunteers. Tighten the mobile organizer home greeting and spacing.
+- Use one phone More drawer for organizer destinations and a direct Sign out action for volunteers. Reserve footer space once so short conference pages do not scroll unnecessarily.
+- Keep notifications and keyboard dismissal above the phone navigation so its actions remain accessible.
+
 ## 2026-11-07 — Volunteer badge workspace
+
+- Show **ATTENDEE** on the volunteer conference badge preview and shared or downloaded image.
 
 - Give DevCon26 volunteers a dedicated **Conference badge** tab on desktop and phone. Keep the badge preview and controls steady as they edit their name.
 - Place the volunteer badge’s photo, share, and download buttons in one row where they fit, with an icon beside each label.

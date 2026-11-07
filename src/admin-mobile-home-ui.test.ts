@@ -82,7 +82,7 @@ describe("mobile organizer entry points", () => {
     );
     expect(mobileConferenceSource).toContain("No tasks assigned yet");
     expect(mobileConferenceSource).toContain(
-      "You do not need to do anything right now.",
+      "Create your conference badge",
     );
     expect(mobileConferenceSource).toMatch(
       /position: sticky;\s*top: calc\(4\.15rem \+ env\(safe-area-inset-top\)\)/u,
@@ -97,7 +97,7 @@ describe("mobile organizer entry points", () => {
       "assignedAccess && summary.total === 0",
     );
     expect(desktopConferenceSource).toContain("No tasks assigned yet");
-    expect(desktopConferenceSource).toContain("No action required");
+    expect(desktopConferenceSource).toContain("Create your conference badge");
     expect(desktopConferenceSource).toContain(
       "font-family: var(--font-sans), system-ui, sans-serif",
     );

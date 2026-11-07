@@ -497,6 +497,35 @@ try {
     });
   }
 
+  for (const width of [390, 1440]) {
+    await journey(`conference-overview-volunteer-${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const path = width === 390 ? "/organizer-console/mobile/annual-conference/2026" : "/organizer-console/annual-conference/2026";
+
+      await page.goto(`${origin}${path}`);
+      await page.getByRole("heading", { name: "Your conference", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "No tasks assigned yet" }).waitFor();
+      await page.screenshot({ path: `${artifacts}/conference-overview-volunteer-${width}.png`, animations: "disabled", fullPage: true });
+      await page.getByRole(width === 390 ? "button" : "link", { name: "Create your conference badge" }).click();
+      await page.waitForURL(/section=badge/);
+      await page.getByRole("region", { name: "Your volunteer badge" }).waitFor();
+    }, { role: "volunteer" });
+  }
+
+  for (const width of [390, 1440]) {
+    await journey(`conference-overview-owner-${width}`, async ({ page, responses }) => {
+      responses.set("/api/annual-conference/2026/work-plan", { body: { ...workspace, permissions: { ...workspace.permissions, access_scope: "all", can_create_tasks: true } } });
+      responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+      responses.set("/api/admin/organizers", { body: { organizers: [] } });
+      await page.setViewportSize({ width, height: 900 });
+      const path = width === 390 ? "/organizer-console/mobile/annual-conference/2026" : "/organizer-console/annual-conference/2026";
+
+      await page.goto(`${origin}${path}`);
+      await page.getByRole("heading", { name: "Your conference", exact: true }).waitFor();
+      await page.screenshot({ path: `${artifacts}/conference-overview-owner-${width}.png`, animations: "disabled", fullPage: true });
+    }, { role: "owner" });
+  }
+
   for (const width of [320, 1440]) {
     await journey(`devcon26-volunteer-badge-${width}`, async ({ page, responses, requests }) => {
       responses.set("/api/public/annual-conference/2026/attendance-counter", { body: { count: 21, source: "estimate" } });
@@ -694,26 +723,27 @@ try {
       return { body: snapshot };
     });
     await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
-    const menu = page.locator('.conference-phone-menu');
+    const more = page.getByRole('navigation', { name: 'Annual Conference workspace' }).getByRole('button', { name: 'More', exact: true });
+    const menu = page.getByRole('dialog', { name: 'More' });
 
-    await menu.locator('summary').click();
-    assert.equal(await menu.evaluate(el => el.open), true);
+    await more.click();
+    await menu.waitFor();
     await page.keyboard.press('Escape');
-    assert.equal(await menu.evaluate(el => el.open), false);
-    assert.equal(await menu.locator('summary').evaluate(el => el === document.activeElement), true);
-    await menu.locator('summary').click();
+    await menu.waitFor({ state: 'hidden' });
+    assert.equal(await more.evaluate(el => el === document.activeElement), true);
+    await more.click();
     await menu.locator('.app-dropdown-trigger').click();
     await page.keyboard.press('Escape');
-    assert.equal(await menu.evaluate(el => el.open), true);
+    assert.equal(await menu.isVisible(), true);
     assert.equal(await menu.locator('.app-dropdown-trigger').getAttribute('aria-expanded'), 'false');
     await page.keyboard.press('Escape');
-    assert.equal(await menu.evaluate(el => el.open), false);
-    await menu.locator('summary').click();
-    await page.mouse.click(3, 800);
-    assert.equal(await menu.evaluate(el => el.open), false);
-    await menu.locator('summary').click();
+    await menu.waitFor({ state: 'hidden' });
+    await more.click();
+    await page.getByRole('button', { name: 'Close menu' }).click();
+    await menu.waitFor({ state: 'hidden' });
+    await more.click();
     await menu.getByRole('button', { name: 'New edition' }).click();
-    assert.equal(await menu.evaluate(el => el.open), false);
+    await menu.waitFor({ state: 'hidden' });
     assert.equal(await page.locator('input[type=number]').first().evaluate(el => el === document.activeElement), true);
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'Edit outline' }).click();
@@ -875,8 +905,10 @@ try {
     assert.deepEqual(saved.rows[0].speakerProposalIds, row.speakerProposalIds);
   }, { role: 'organizer' });
 
-  for (const mobile of [false, true]) {
-    await journey(`programme-${mobile ? 'mobile' : 'desktop'}`, async ({ page, responses }) => {
+  for (const width of [1440, 390, 700]) {
+    const mobile = width < 768;
+
+    await journey(`programme-${mobile ? (width === 390 ? 'mobile' : `mobile-${width}`) : 'desktop'}`, async ({ page, responses }) => {
       let snapshot = { rows: [], revision: 0, updated_at: null, updated_by: null };
       const programmePath = '/api/annual-conference/2026/programme';
 
@@ -896,7 +928,7 @@ try {
 
         return { body: snapshot };
       });
-      await page.setViewportSize({ width: mobile ? 390 : 1440, height: 900 });
+      await page.setViewportSize({ width, height: 900 });
       await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
       await page.getByRole('button', { name: 'Add outline' }).click();
       await page.getByLabel('Title', { exact: true }).first().fill('Opening');
@@ -921,11 +953,25 @@ try {
       await page.getByRole('button', { name: 'Edit outline' }).click();
       await expandProgrammeRow(page, page.locator('fieldset.programme-row').first());
       await page.getByLabel('Title', { exact: true }).first().fill('Unsaved draft');
-      if (mobile) await page.getByLabel('More conference navigation').click();
+      if (mobile) {
+        const nav = page.getByRole('navigation', { name: 'Annual Conference workspace' });
+        const dismissKeyboard = page.getByRole('button', { name: 'Dismiss keyboard' });
+        const toast = page.locator('[data-sonner-toast][data-visible="true"]');
+
+        await dismissKeyboard.waitFor();
+        await toast.waitFor();
+        const [footerBox, keyboardBox, toastBox] = await Promise.all([nav.boundingBox(), dismissKeyboard.boundingBox(), toast.boundingBox()]);
+
+        assert.ok(footerBox && keyboardBox && toastBox);
+        assert.ok(keyboardBox.y + keyboardBox.height <= footerBox.y, 'Keyboard dismissal clears the footer');
+        assert.ok(toastBox.y + toastBox.height <= footerBox.y, 'Toast clears the footer');
+        await page.screenshot({ path: `${artifacts}/programme-footer-overlays-${width}.png`, fullPage: false, animations: 'disabled' });
+        await nav.getByRole('button', { name: 'More', exact: true }).click();
+      }
       await page.getByRole('button', { name: /December 2026/ }).filter({ visible: true }).click();
       await page.getByRole('option', { name: 'December 2027' }).click();
       await page.getByText('2027 conference').waitFor();
-      if (mobile) await page.getByLabel('More conference navigation').click();
+      if (mobile) await page.getByRole('navigation', { name: 'Annual Conference workspace' }).getByRole('button', { name: 'More', exact: true }).click();
       await page.getByRole('button', { name: /December 2027/ }).filter({ visible: true }).click();
       await page.getByRole('option', { name: 'December 2026' }).click();
       await page.getByText('2026 conference').waitFor();
@@ -1214,11 +1260,11 @@ try {
       await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
       await page.getByRole('heading', { name: 'Session 13' }).waitFor();
       if (width < 768) {
-        const menu = page.locator('.conference-phone-menu');
+        const menu = page.getByRole('dialog', { name: 'More' });
 
-        await page.getByLabel('More conference navigation').click();
+        await page.getByRole('navigation', { name: 'Annual Conference workspace' }).getByRole('button', { name: 'More', exact: true }).click();
         assert.equal(await menu.getByRole('button', { name: 'New edition' }).isVisible(), true);
-        await page.getByLabel('More conference navigation').click();
+        await menu.getByRole('button', { name: 'Close menu' }).click();
       }
       const main = page.locator('.app-main');
       const check = async (editing) => {
@@ -1899,10 +1945,13 @@ try {
         await page.setViewportSize({ width, height: 844 });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         const back = await page.getByRole("button", { name: "Back to conference overview" }).boundingBox();
-        const menuButton = await page.getByLabel("More conference navigation").boundingBox();
 
-        assert.ok(back && menuButton && back.width >= 44 && back.height >= 44 && menuButton.width >= 44 && menuButton.height >= 44);
-        assert.ok(Math.abs((back.y + back.height / 2) - (menuButton.y + menuButton.height / 2)) < 1, "Header controls share a center line");
+        assert.ok(back && back.width >= 44 && back.height >= 44);
+        assert.equal(await page.getByLabel("More conference navigation").count(), 0);
+        assert.ok(await nav.getByRole("button").count() <= 5, "Footer has at most five actions");
+        const footer = await nav.boundingBox();
+
+        assert.ok(footer && Math.abs(footer.y + footer.height - 844) < 1, "Footer is pinned to viewport bottom");
         for (const button of await nav.getByRole("button").all()) {
           const box = await button.boundingBox();
 
@@ -1911,33 +1960,36 @@ try {
       }
       const more = nav.getByRole("button", { name: "More", exact: true });
 
-      await more.click();
-      const menu = page.getByRole("navigation", { name: "More conference destinations" });
+      if (scenario.name === "assigned-volunteer") {
+        assert.equal(await more.count(), 0);
+        assert.equal(await nav.getByRole("button", { name: "Sign out", exact: true }).count(), 1);
+      } else {
+        await more.click();
+        const dialog = page.getByRole("dialog", { name: "More" });
+        const menu = dialog.getByRole("navigation", { name: "More conference destinations" });
 
-      await menu.waitFor();
-      await page.screenshot({ path: `${artifacts}/conference-phone-navigation-${scenario.name}.png`, animations: "disabled" });
-      if (scenario.role === "owner") {
-        assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('.conference-phone-menu__panel'))), true, "Opening More moves keyboard focus into its panel");
-      }
-      assert.equal(await menu.getByRole("link", { name: "Programme", exact: true }).count(), scenario.role === "owner" ? 1 : 0);
-      assert.equal(await menu.getByRole("link", { name: "Ticketing", exact: true }).count(), scenario.role === "owner" ? 1 : 0);
-      assert.equal(await menu.getByRole("link", { name: "Check-in", exact: true }).count(), scenario.name === "delegated-volunteer" ? 1 : 0);
-      assert.equal(await menu.getByRole("link", { name: "Finance", exact: true }).count(), 0);
-      if (scenario.role === "owner") {
-        assert.equal(await menu.getByRole("link", { name: "Registration", exact: true }).getAttribute("href"), "/organizer-console/annual-conference/2026/registrations");
-        assert.equal(await menu.getByText("Finance", { exact: false }).getAttribute("aria-disabled"), "true");
-        const editionPicker = page.getByRole("button", { name: /Edition.*December 2026/ });
+        await dialog.waitFor();
+        await page.screenshot({ path: `${artifacts}/conference-phone-navigation-${scenario.name}.png`, fullPage: false, animations: "disabled" });
+        assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('.conference-phone-menu__panel'))), true);
+        assert.equal(await menu.getByRole("link", { name: "Programme", exact: true }).count(), scenario.role === "owner" ? 1 : 0);
+        assert.equal(await menu.getByRole("link", { name: "Ticketing", exact: true }).count(), scenario.role === "owner" ? 1 : 0);
+        assert.equal(await dialog.getByRole("button", { name: "Sign out", exact: true }).count(), 1);
+        if (scenario.role === "owner") {
+          assert.equal(await menu.getByRole("button", { name: "Speakers", exact: true }).count(), 0);
+          assert.equal(await menu.getByRole("link", { name: "Registration", exact: true }).getAttribute("href"), "/organizer-console/annual-conference/2026/registrations");
+          assert.equal(await menu.getByText("Finance", { exact: false }).getAttribute("aria-disabled"), "true");
+          const editionPicker = page.getByRole("button", { name: /Edition.*December 2026/ });
 
-        await editionPicker.focus();
-        await page.keyboard.press("ArrowDown");
-        await page.getByRole("option", { name: "December 2026" }).waitFor();
+          await editionPicker.focus();
+          await page.keyboard.press("ArrowDown");
+          await page.getByRole("option", { name: "December 2026" }).waitFor();
+          await page.keyboard.press("Escape");
+          assert.equal(await dialog.isVisible(), true, "First Escape closes the edition menu, not the navigation drawer");
+        }
         await page.keyboard.press("Escape");
-        assert.equal(await menu.isVisible(), true, "First Escape closes the edition menu, not the navigation menu");
-        assert.equal(await editionPicker.evaluate(element => document.activeElement === element), true);
+        await dialog.waitFor({ state: "hidden" });
+        assert.equal(await more.evaluate(element => document.activeElement === element), true);
       }
-      await page.keyboard.press("Escape");
-      await menu.waitFor({ state: "hidden" });
-      assert.equal(await more.evaluate(element => document.activeElement === element), true);
       await nav.getByRole("button", { name: "Overview", exact: true }).click();
       await page.waitForURL(url => url.pathname.endsWith("/2026") && url.searchParams.get("section") === "overview");
       await page.goBack();

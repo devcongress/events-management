@@ -9037,6 +9037,10 @@
       display: flex;
     }
 
+    .keyboard-dismiss-control--phone-footer {
+      bottom: calc(4.5rem + env(safe-area-inset-bottom));
+    }
+
     .archive-event-wrap {
       padding-top: 1.25rem !important;
       padding-bottom: 1rem !important;

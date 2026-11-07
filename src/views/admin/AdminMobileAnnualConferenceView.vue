@@ -394,25 +394,6 @@ const currentPhase = computed(
 const conferenceDate = computed(
   () => edition.value?.provisional_date ?? phases.value.at(-1)?.ends_on ?? null,
 );
-const conferenceDateParts = computed(() => {
-  if (!conferenceDate.value) return null;
-
-  const parts = new Intl.DateTimeFormat("en-GH", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).formatToParts(new Date(`${conferenceDate.value}T12:00:00`));
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value ?? "";
-
-  return {
-    weekday: part("weekday"),
-    day: part("day"),
-    month: part("month"),
-    year: part("year"),
-  };
-});
 const daysToConference = computed(() =>
   conferenceDate.value ? daysBetween(today.value, conferenceDate.value) : null,
 );
@@ -1078,39 +1059,22 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
           </div>
           <header v-if="assignedAccess" class="volunteer-intro">
             <span>Your conference work</span>
-            <div
-              v-if="conferenceDateParts"
-              class="volunteer-intro__date"
-              :aria-label="
-                conferenceDate ? formatDate(conferenceDate, true) : undefined
-              "
-            >
-              <strong>{{ conferenceDateParts.day }}</strong>
-              <div>
-                <h1>{{ conferenceDateParts.month }}</h1>
-                <p>
-                  {{ conferenceDateParts.weekday }} ·
-                  {{ conferenceDateParts.year }}
-                </p>
-              </div>
-            </div>
-            <h1 v-else>Conference date to be confirmed</h1>
+            <h1>Your conference</h1>
             <p>Your assigned tasks and progress, in one focused place.</p>
+            <div class="volunteer-intro__date">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4.5h14a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V6A1.5 1.5 0 0 1 5 4.5ZM7.5 2.5v4M16.5 2.5v4M3.5 9h17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+              <strong>{{ conferenceDate ? formatDate(conferenceDate, true) : "Conference date to be confirmed" }}</strong>
+            </div>
           </header>
 
-          <header v-else class="page-intro">
+          <header v-else class="volunteer-intro">
             <span>{{ year }} edition</span>
-            <h1>
-              {{
-                conferenceDate
-                  ? formatDate(conferenceDate, true)
-                  : "Conference date to be confirmed"
-              }}
-            </h1>
-            <p>
-              Conference delivery, planning notes, and the work that needs
-              attention.
-            </p>
+            <h1>Your conference</h1>
+            <p>Conference delivery, planning notes, and the work that needs attention.</p>
+            <div class="volunteer-intro__date">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4.5h14a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V6A1.5 1.5 0 0 1 5 4.5ZM7.5 2.5v4M16.5 2.5v4M3.5 9h17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+              <strong>{{ conferenceDate ? formatDate(conferenceDate, true) : "Conference date to be confirmed" }}</strong>
+            </div>
           </header>
 
           <section
@@ -1133,7 +1097,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
                 under My tasks.
               </p>
             </div>
-            <small>You do not need to do anything right now.</small>
+            <button v-if="canViewBadge" type="button" class="volunteer-empty-work__action" @click="selectTab('badge')">Create your conference badge <span aria-hidden="true">→</span></button>
           </section>
 
           <section
@@ -1933,7 +1897,6 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
   --conference-text: #111111;
   --conference-muted: #66635d;
   --conference-accent: #e8117f;
-  min-height: 100svh;
   background: var(--conference-bg);
   color: var(--conference-text);
 }
@@ -2106,8 +2069,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
   width: min(100%, 42rem);
   margin: 0 auto;
   padding: 1.25rem max(1rem, env(safe-area-inset-right))
-    calc(5.75rem + env(safe-area-inset-bottom))
-    max(1rem, env(safe-area-inset-left));
+    1rem max(1rem, env(safe-area-inset-left));
 }
 .conference-view {
   display: grid;
@@ -2192,46 +2154,34 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
 }
 .volunteer-intro__date {
   display: flex;
+  width: fit-content;
+  max-width: 100%;
   align-items: center;
-  gap: 0.85rem;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-warm);
+  padding: 0.4rem 0.65rem;
+  color: #526772;
+  font-size: 0.8rem;
 }
-.volunteer-intro__date > strong {
-  color: #2f3437;
-  font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: clamp(3.5rem, 18vw, 5rem);
-  font-weight: 700;
-  letter-spacing: -0.055em;
-  line-height: 0.82;
+.volunteer-intro__date strong {
+  color: #46525b;
+  font-weight: 600;
 }
-.volunteer-intro__date > div {
-  display: grid;
-  gap: 0.08rem;
-}
-.volunteer-intro__date h1 {
-  margin: 0;
-  color: #2f3437;
-  font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: clamp(1.7rem, 8vw, 2.25rem);
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1;
-}
-.volunteer-intro__date p {
-  margin: 0;
-  color: #787774;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.volunteer-intro__date svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
 }
 .volunteer-intro > h1 {
   margin: 0.1rem 0 0;
   color: #2f3437;
   font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: 2rem;
+  font-size: 1.8rem;
   font-weight: 700;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.015em;
   line-height: 1.08;
 }
 .volunteer-intro > p {
@@ -2340,8 +2290,8 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
   height: 3rem;
   place-items: center;
   border-radius: 8px;
-  background: #fbf3db;
-  color: #956400;
+  background: #e9edee;
+  color: #526772;
 }
 .volunteer-empty-work__mark svg {
   width: 1.45rem;
@@ -2363,16 +2313,16 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
   font-size: 0.78rem;
   line-height: 1.55;
 }
-.volunteer-empty-work > small {
-  grid-column: 1 / -1;
-  border-top: 1px solid #eaeaea;
-  padding-top: 0.8rem;
-  color: #787774;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.55rem;
+.volunteer-empty-work__action {
+  grid-column: 2;
+  min-height: 44px;
+  justify-self: start;
+  color: #344d5b;
+  font-size: 0.85rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 .overview-progress {
   display: grid;

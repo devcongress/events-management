@@ -173,7 +173,8 @@ onUnmounted(() => {
                 {{ assignedAccess ? 'Volunteer workspace' : 'Provisional' }}
               </span>
             </div>
-            <h1 id="conference-brief-date">{{ formatConferenceDate(edition?.provisional_date) }}</h1>
+            <h1 id="conference-brief-date">Your conference</h1>
+            <p class="conference-brief__calendar"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4.5h14a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V6A1.5 1.5 0 0 1 5 4.5ZM7.5 2.5v4M16.5 2.5v4M3.5 9h17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg> {{ formatConferenceDate(edition?.provisional_date) }}</p>
             <p v-if="assignedAccess" class="conference-brief__volunteer-lede">Your assigned tasks and progress, in one focused place.</p>
           </div>
 
@@ -250,7 +251,7 @@ onUnmounted(() => {
             <h2 id="conference-volunteer-empty-title">No tasks assigned yet</h2>
             <p>When an organizer assigns work to you, it will appear here and in My tasks.</p>
           </div>
-          <p class="conference-volunteer-empty__note">No action required</p>
+          <RouterLink v-if="badgeEligible" :to="{ path: route.path, query: { ...route.query, section: 'badge' } }" class="conference-volunteer-empty__action">Create your conference badge <span aria-hidden="true">→</span></RouterLink>
         </section>
 
         <div v-else class="conference-brief__delivery">
@@ -439,26 +440,42 @@ onUnmounted(() => {
 }
 
 .conference-brief--volunteer {
-  width: min(100%, 70rem);
-  margin-right: auto;
-  margin-left: auto;
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
 .conference-brief--volunteer .conference-brief__masthead {
-  grid-template-columns: minmax(0, 50rem);
-  padding-top: clamp(2.5rem, 5vw, 5rem);
-  padding-bottom: clamp(2rem, 4vw, 3.5rem);
+  grid-template-columns: minmax(0, 1fr);
+  padding: 2rem 0 1.5rem;
 }
 
 .conference-brief--volunteer .conference-brief__date h1 {
-  max-width: 18ch;
   color: #2f3437;
-  font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: clamp(2.75rem, 5.4vw, 5rem);
-  font-weight: var(--font-weight-display);
-  letter-spacing: -0.055em;
-  line-height: 0.96;
+  font-size: clamp(2rem, 3vw, 2.75rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.conference-brief__calendar {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-warm);
+  padding: 0.4rem 0.65rem;
+  color: #46525b;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.conference-brief__calendar svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  color: #667782;
 }
 
 .conference-brief__masthead {
@@ -467,7 +484,7 @@ onUnmounted(() => {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: clamp(2rem, 5vw, 5rem);
-  padding: clamp(1.8rem, 3.8vw, 3.4rem) 0 clamp(1.7rem, 3vw, 2.6rem);
+  padding: 2rem 0 1.5rem;
 }
 
 .conference-brief__edition-meta {
@@ -493,10 +510,10 @@ onUnmounted(() => {
   margin: 0;
   margin-top: 0.85rem;
   color: #111111;
-  font-size: clamp(2.2rem, 4.2vw, 3.65rem);
+  font-size: clamp(2rem, 3vw, 2.75rem);
   font-weight: var(--font-weight-display);
   letter-spacing: -0.055em;
-  line-height: 0.97;
+  line-height: 1.1;
 }
 
 .conference-brief__status {
@@ -676,8 +693,8 @@ onUnmounted(() => {
   height: 4rem;
   place-items: center;
   border-radius: 8px;
-  background: #fbf3db;
-  color: #956400;
+  background: #e9edee;
+  color: #526772;
 }
 
 .conference-volunteer-empty__mark svg {
@@ -707,18 +724,16 @@ onUnmounted(() => {
   line-height: 1.6;
 }
 
-.conference-volunteer-empty__note {
-  margin: 0;
-  border-radius: 999px;
-  background: #edf3ec;
-  padding: 0.45rem 0.65rem;
-  color: #346538;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.58rem;
-  font-weight: var(--font-weight-label);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
+.conference-volunteer-empty__action {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.75rem;
+  color: #344d5b;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 .conference-delivery {
@@ -1300,8 +1315,8 @@ onUnmounted(() => {
     height: 3.25rem;
   }
 
-  .conference-volunteer-empty__note {
-    grid-column: 1 / -1;
+  .conference-volunteer-empty__action {
+    grid-column: 2;
     width: fit-content;
   }
 

@@ -116,12 +116,10 @@ function retryActions() {
         </div>
         <h1>{{ greeting }}, {{ firstName }}.</h1>
         <p>{{ loadingActions ? 'Finding what needs you now.' : 'Here is what needs your attention next.' }}</p>
-        <span class="mobile-home-intro__mark" aria-hidden="true">DC</span>
       </header>
 
       <main class="mobile-home-actions" aria-labelledby="mobile-home-actions-title" aria-live="polite">
         <header>
-          <span>Priority queue</span>
           <h2 id="mobile-home-actions-title">Next actions</h2>
         </header>
 
@@ -187,16 +185,35 @@ function retryActions() {
 <style scoped>
 .mobile-home-page { min-height: 100%; background: #f5f2e8; color: #111; }
 .mobile-home-wrap { display: grid; width: min(100%, 42rem); margin: 0 auto; gap: 1.25rem; padding: 1rem max(1rem, env(safe-area-inset-right)) calc(6rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); }
-.mobile-home-intro { position: relative; overflow: hidden; min-height: 14rem; border: 1px solid #111; border-radius: 12px; background: var(--surface-paper); padding: 1.2rem; color: #111; }
-.mobile-home-intro::after { position: absolute; bottom: 1.2rem; left: 1.2rem; width: 4rem; height: .35rem; background: #f5e642; content: ''; }
+.mobile-home-intro {
+  padding: .25rem 0;
+}
 .mobile-home-intro__meta { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
-.mobile-home-intro__meta > span, .mobile-home-actions > header > span, .mobile-home-action__meta { font-family: var(--font-mono), monospace; font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.mobile-home-intro__meta > span,
+.mobile-home-action__meta {
+  font-size: .8rem;
+  font-weight: var(--font-weight-emphasis);
+}
 .mobile-home-intro__meta > span { color: #555; }
-.mobile-home-intro h1 { position: relative; z-index: 1; margin: 2.6rem 0 0; max-width: 10ch; font-size: clamp(2.35rem, 11vw, 3.2rem); font-weight: var(--font-weight-display); letter-spacing: -.045em; line-height: .94; }
-.mobile-home-intro p { position: relative; z-index: 1; margin: .85rem 0 0; color: #555; font-size: .92rem; font-weight: var(--font-weight-emphasis); line-height: 1.45; }
-.mobile-home-intro__mark { position: absolute; z-index: 1; right: 1.15rem; bottom: 1rem; color: #e8117f; font-family: var(--font-mono), monospace; font-size: 1.1rem; font-weight: 800; letter-spacing: -.08em; }
-.mobile-home-actions > header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; padding: 0 .15rem; }
-.mobile-home-actions > header > span { color: #77736b; }
+.mobile-home-intro h1 {
+  margin: .35rem 0 0;
+  font-size: 1.75rem;
+  font-weight: var(--font-weight-display);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.mobile-home-intro p {
+  margin: .4rem 0 0;
+  color: #555;
+  font-size: .95rem;
+  line-height: 1.45;
+}
+.mobile-home-actions > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
 .mobile-home-actions h2 { margin: 0; font-size: 1.15rem; letter-spacing: -.02em; }
 .mobile-home-action-list { display: grid; gap: .65rem; margin-top: .8rem; }
 .mobile-home-action { display: grid; grid-template-columns: minmax(0, 1fr) 2.5rem; column-gap: .85rem; row-gap: .45rem; align-items: center; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem; color: #111; text-decoration: none; transition: transform 120ms cubic-bezier(.4, 0, .2, 1), background-color 160ms cubic-bezier(.4, 0, .2, 1); }
@@ -207,7 +224,18 @@ function retryActions() {
 .mobile-home-action__meta { grid-column: 1; display: flex; align-items: center; color: #555; }
 .mobile-home-action h3 { grid-column: 1; margin: 0; overflow-wrap: anywhere; font-size: 1.08rem; font-weight: var(--font-weight-heading); letter-spacing: -.02em; line-height: 1.3; }
 .mobile-home-action__detail { grid-column: 1; margin: .1rem 0 0; color: #555; font-size: .78rem; line-height: 1.4; }
-.mobile-home-action__arrow { grid-column: 2; grid-row: 1 / 4; display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--surface-warm); }
+.mobile-home-action__arrow {
+  grid-column: 2;
+  grid-row: 1 / 4;
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-warm);
+  color: #64748b;
+}
 .mobile-home-action__arrow svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .mobile-home-state { display: flex; gap: .85rem; margin-top: .8rem; border: 1px solid #d9d5cc; border-radius: 12px; background: #fff; padding: 1rem; }
 .mobile-home-state--warning { border-color: #e8117f; }
@@ -227,16 +255,17 @@ function retryActions() {
   border-right: 1px solid #d9d5cc;
   padding: .8rem;
   color: #111;
-  font-family: var(--font-mono), monospace;
-  font-size: .8rem;
-  font-weight: 700;
-  letter-spacing: 0;
+  font-size: .9rem;
+  font-weight: var(--font-weight-emphasis);
   text-decoration: none;
   transition: transform 120ms cubic-bezier(.4, 0, .2, 1), background-color 160ms cubic-bezier(.4, 0, .2, 1);
 }
 .mobile-home-shortcuts a:last-child { border-right: 0; }
 .mobile-home-shortcuts a:only-child { grid-column: 1 / -1; }
-.mobile-home-shortcuts strong { font-size: 1rem; }
+.mobile-home-shortcuts strong {
+  color: #64748b;
+  font-size: 1rem;
+}
 .mobile-home-action:active, .mobile-home-shortcuts a:active, .mobile-home-state button:active { transform: scale(.97); }
 @media (hover: hover) and (pointer: fine) { .mobile-home-action:hover, .mobile-home-shortcuts a:hover { background-color: var(--surface-warm); } }
 @media (max-width: 23rem) {
