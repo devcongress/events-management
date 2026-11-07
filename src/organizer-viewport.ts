@@ -22,6 +22,7 @@ export const ORGANIZER_VOLUNTEER_FOLLOW_UP_PREVIEW_ROUTE_NAME =
 export type OrganizerMobileEventSection = "overview" | "guests" | "submissions";
 export type OrganizerMobileConferenceSection =
   | "overview"
+  | "badge"
   | "tasks"
   | "volunteers";
 
@@ -159,7 +160,7 @@ export function organizerMobileConferenceSection(
 ): OrganizerMobileConferenceSection {
   const section = queryString(query, "section");
 
-  if (section === "tasks" || section === "volunteers") return section;
+  if (section === "tasks" || section === "volunteers" || section === "badge") return section;
 
   if (section === "timeline") return "tasks";
 
@@ -289,8 +290,9 @@ export function organizerViewportRedirect({
 
     if (DESKTOP_CONFERENCE_ROUTE_NAMES.has(normalizedRouteName)) {
       const section =
-        DESKTOP_CONFERENCE_ROUTE_SECTIONS.get(normalizedRouteName) ??
-        "overview";
+        normalizedRouteName === "admin-annual-conference" && query?.section === "badge"
+          ? "badge"
+          : DESKTOP_CONFERENCE_ROUTE_SECTIONS.get(normalizedRouteName) ?? "overview";
 
       return redirectTarget(
         mobileAnnualConferencePath(conferenceYear ?? undefined),
@@ -365,6 +367,7 @@ export function organizerViewportRedirect({
 
     return redirectTarget(
       annualConferencePath("", conferenceYear ?? undefined),
+      section === "badge" ? { section: "badge" } : {},
     );
   }
 

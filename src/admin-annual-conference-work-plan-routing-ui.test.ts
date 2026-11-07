@@ -73,7 +73,7 @@ describe("Annual Conference assignee work-plan routing", () => {
       "pushMobileConferenceContext({ task: taskId })",
     );
     expect(mobileConferenceSource).toMatch(
-      /watch\(\s*\[\(\)\s*=>\s*route\.fullPath, tasks, phases, assignedAccess\]/u,
+      /watch\(\s*\[\(\)\s*=>\s*route\.fullPath, tasks, phases, assignedAccess(?:,[^\]]+)?\]/u,
     );
   });
 

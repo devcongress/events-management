@@ -5,6 +5,7 @@ import {
   VOLUNTEER_PUBLIC_PATH,
   annualConferenceEditionsForNavigation,
   annualConferencePath,
+  canCreateConferenceBadge,
   annualConferenceRegistrationTarget,
   currentAnnualConferenceYear,
   mobileAnnualConferencePath,
@@ -26,6 +27,14 @@ const edition = (year: number): AnnualConferenceEdition => ({
 });
 
 describe('volunteer organizer routes', () => {
+  it('limits badge creation to 2026 volunteers', () => {
+    expect(canCreateConferenceBadge('2026', 'volunteer')).toBe(true);
+    expect(canCreateConferenceBadge('2027', 'volunteer')).toBe(false);
+    expect(canCreateConferenceBadge('2026', 'owner')).toBe(false);
+    expect(canCreateConferenceBadge('2026', 'organizer')).toBe(false);
+    expect(canCreateConferenceBadge('2026')).toBe(false);
+  });
+
   it('uses an evergreen volunteer form path while retaining the distributed legacy path', () => {
     expect(VOLUNTEER_PUBLIC_PATH).toBe('/volunteer');
     expect(LEGACY_DECEMBER_2026_VOLUNTEER_PUBLIC_PATH).toBe('/volunteer/december-mega-meetup');

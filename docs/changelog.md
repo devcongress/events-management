@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-07 — Volunteer badge workspace
+
+- Give DevCon26 volunteers a dedicated **Conference badge** tab on desktop and phone. Keep the badge preview and controls steady as they edit their name.
+- Limit the **Volunteers** tab to members with volunteer permissions for the edition. Unavailable mobile section links return to **Overview**.
+
 ## 2026-11-06 — Speaker update selection and previews
 
 - Add Select all eligible and Clear all across recipient pages, with a selected count and the existing 100-recipient limit.

@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { paintDigitalBadge } from '@/src/lib/devcon26-digital-badge';
 import { canvasPng, saveBadgeFile } from '@/src/lib/speaker-badge';
 
 const props = defineProps<{ displayName?: string | null }>();
-const open = ref(false);
 const name = ref(props.displayName?.includes('@') ? '' : props.displayName ?? '');
 const photo = ref<File | null>(null);
 const canvas = ref<HTMLCanvasElement | null>(null);
@@ -13,40 +12,35 @@ const preparing = ref(false);
 const validatingPhoto = ref(false);
 const prepared = ref<File | null>(null);
 const photoInput = ref<HTMLInputElement | null>(null);
+const previewName = ref('');
+const normalizedName = computed(() => name.value.trim().replace(/\s+/g, ' '));
 const canShare = computed(() => Boolean(prepared.value && typeof navigator.share === 'function' && navigator.canShare?.({ files: [prepared.value] })));
 let revision = 0;
 let photoRevision = 0;
+let preparedRevision = -1;
+let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+const ready = computed(() => Boolean(prepared.value && preparedRevision === revision && !preparing.value && !validatingPhoto.value && normalizedName.value));
 
-async function refresh() {
-  const current = ++revision;
-
-  prepared.value = null;
-  error.value = '';
-  if (!open.value || !name.value.trim()) {
-    preparing.value = false;
-
-    return;
-  }
-  preparing.value = true;
+async function refresh(current: number, badgeName: string, badgePhoto: File | null) {
   const draft = document.createElement('canvas');
 
   try {
-    const result = await paintDigitalBadge(draft, name.value, photo.value, undefined, 'volunteer');
+    const result = await paintDigitalBadge(draft, badgeName, badgePhoto, undefined, 'volunteer');
 
     if (!result.valid) throw new Error(result.message);
     const blob = await canvasPng(draft);
 
     if (current !== revision) return;
-    await nextTick();
-    if (current !== revision) return;
     const target = canvas.value;
     const context = target?.getContext('2d');
 
     if (!target || !context) throw new Error('Unable to preview your badge.');
-    target.width = draft.width;
-    target.height = draft.height;
+    if (target.width !== draft.width) target.width = draft.width;
+    if (target.height !== draft.height) target.height = draft.height;
     context.drawImage(draft, 0, 0);
     prepared.value = new File([blob], 'devcon26-volunteer.png', { type: 'image/png' });
+    preparedRevision = current;
+    previewName.value = badgeName;
   } catch (reason) {
     if (current === revision) error.value = reason instanceof Error ? reason.message : 'Unable to prepare your badge.';
   } finally {
@@ -54,8 +48,20 @@ async function refresh() {
   }
 }
 
-watch([open, name, photo], () => { void refresh(); }, { flush: 'sync' });
-onBeforeUnmount(() => { revision += 1; photoRevision += 1; });
+watch([normalizedName, photo], ([badgeName, badgePhoto]) => {
+  const current = ++revision;
+
+  clearTimeout(refreshTimer);
+  error.value = '';
+  preparing.value = Boolean(badgeName);
+  if (!badgeName) return;
+  refreshTimer = setTimeout(() => { void refresh(current, badgeName, badgePhoto); }, 120);
+}, { flush: 'sync', immediate: true });
+onBeforeUnmount(() => {
+  revision += 1;
+  photoRevision += 1;
+  clearTimeout(refreshTimer);
+});
 
 async function choosePhoto(event: Event) {
   const current = ++photoRevision;
@@ -96,7 +102,7 @@ function removePhoto() {
 function share() {
   const file = prepared.value;
 
-  if (validatingPhoto.value || !file || !navigator.canShare?.({ files: [file] })) return;
+  if (!ready.value || !file || !navigator.canShare?.({ files: [file] })) return;
   void navigator.share({ files: [file], title: 'DevCon26 volunteer badge' }).catch((reason) => {
     if (reason?.name !== 'AbortError') error.value = 'Sharing was unavailable. Download your badge instead.';
   });
@@ -110,9 +116,8 @@ function share() {
         <h2 id="volunteer-badge-title">Your volunteer badge</h2>
         <p>Create an image to share that you’re volunteering at DevCon26.</p>
       </div>
-      <button type="button" class="volunteer-badge__button motion-press" :aria-expanded="open" @click="open = !open">{{ open ? 'Close editor' : 'Create badge' }}</button>
     </div>
-    <div v-if="open" class="volunteer-badge__editor">
+    <div class="volunteer-badge__editor">
       <div class="volunteer-badge__fields">
         <label for="volunteer-badge-name">Display name</label>
         <input id="volunteer-badge-name" v-model="name" class="editorial-input volunteer-badge__name" maxlength="100" autocomplete="name" placeholder="Your name" />
@@ -122,15 +127,15 @@ function share() {
           <button type="button" class="volunteer-badge__secondary motion-press" @click="photoInput?.click()">{{ photo ? 'Change photo' : 'Add photo' }}</button>
           <button v-if="photo" type="button" class="volunteer-badge__secondary motion-press" @click="removePhoto">Remove photo</button>
         </div>
-        <p v-if="error" role="alert" class="volunteer-badge__error">{{ error }}</p>
-        <p v-else-if="preparing" role="status">Preparing preview…</p>
-        <p v-else-if="!name.trim()">Enter a display name to preview your badge.</p>
+        <p class="volunteer-badge__status" :class="{ 'volunteer-badge__error': error }" role="status" aria-live="polite">
+          {{ error || (preparing ? 'Preparing preview…' : !normalizedName ? 'Enter a display name to preview your badge.' : '') }}
+        </p>
         <div class="volunteer-badge__actions">
-          <button v-if="canShare" type="button" class="volunteer-badge__button motion-press" :disabled="!prepared || validatingPhoto" @click="share">Share badge</button>
-          <button type="button" class="volunteer-badge__secondary motion-press" :disabled="!prepared || validatingPhoto" @click="!validatingPhoto && prepared && saveBadgeFile(prepared, 'devcon26-volunteer.png')">Download PNG</button>
+          <button v-if="canShare" type="button" class="volunteer-badge__button motion-press" :disabled="!ready" @click="share">Share badge</button>
+          <button type="button" class="volunteer-badge__secondary motion-press" :disabled="!ready" @click="ready && prepared && saveBadgeFile(prepared, 'devcon26-volunteer.png')">Download PNG</button>
         </div>
       </div>
-      <canvas ref="canvas" class="volunteer-badge__preview" :class="{ 'volunteer-badge__preview--hidden': !prepared }" role="img" :aria-label="`DevCon26 volunteer badge preview for ${name}`" />
+      <canvas ref="canvas" width="1080" height="1350" class="volunteer-badge__preview" :class="{ 'volunteer-badge__preview--hidden': !previewName }" role="img" :aria-label="`DevCon26 volunteer badge preview for ${previewName}`" />
     </div>
   </section>
 </template>
@@ -220,6 +225,10 @@ function share() {
 
 .volunteer-badge__preview--hidden {
   visibility: hidden;
+}
+
+.volunteer-badge__status {
+  min-height: 1.65em;
 }
 
 .volunteer-badge .volunteer-badge__error {

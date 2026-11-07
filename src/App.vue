@@ -130,6 +130,7 @@ const organizerLocked = computed(() => organizerSessionPauseState.value === "loc
 const frozenWorkspaceTitle = computed(() => {
   const path = route.path;
 
+  if ((route.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME || route.name === "admin-annual-conference") && route.query.section === "badge") return "Conference badge";
   if (route.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME && organizerMobileConferenceSection(route.query) === "volunteers") return "Volunteers";
   if (path.includes("volunteer")) return "Volunteers";
   if (path.includes("ticketing")) return "Ticketing";
@@ -499,6 +500,7 @@ function routeViewKey(routeForKey: typeof route) {
     routeForKey.name === "admin-reports"
     || routeForKey.name === "admin-registrations"
     || routeForKey.name === "admin-audit-log"
+    || routeForKey.name === "admin-annual-conference"
     || routeForKey.name === "admin-annual-conference-volunteers"
     || routeForKey.name === "admin-annual-conference-registrations"
     || routeForKey.name === 'admin-annual-conference-ticketing'

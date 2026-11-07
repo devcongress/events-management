@@ -1,3 +1,4 @@
+import type { AdminRole } from '@/types/supabase';
 import { adminPath } from './admin-routes';
 import type { AnnualConferenceEdition } from '@/lib/annual-conference-work-plan';
 import {
@@ -25,6 +26,10 @@ export const ACTIVE_ANNUAL_CONFERENCE_EDITION = {
   label: `December ${currentYear}`,
   name: 'DevCongress Annual Conference',
 } as const;
+
+export function canCreateConferenceBadge(year: string, role?: AdminRole): boolean {
+  return year === '2026' && role === 'volunteer';
+}
 
 export function mobileAnnualConferencePath(year: string = ACTIVE_ANNUAL_CONFERENCE_EDITION.year): string {
   return adminPath(`mobile/annual-conference/${encodeURIComponent(year)}`);
