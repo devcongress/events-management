@@ -1270,7 +1270,13 @@ onUnmounted(() => {
     @cancel="accessRequestCandidate = null"
     @confirm="confirmAccessRequestApproval"
   >
-    <AppDropdown v-model="accessRequestRole" label="Workspace role" :options="memberRoleOptions" density="compact" />
+    <AppDropdown
+      v-model="accessRequestRole"
+      label="Workspace role"
+      :options="memberRoleOptions"
+      density="compact"
+      teleport
+    />
   </ConfirmDialog>
 
   <ConfirmDialog
