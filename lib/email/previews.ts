@@ -1,4 +1,5 @@
 import { EMAIL_SCENARIOS, EMAIL_SENDERS, emailSubjects } from '@/lib/email/scenarios';
+import { conferenceTicketEmail } from '@/lib/email/templates/conference-ticket';
 import { eventBlastEmail } from '@/lib/email/templates/event-blast';
 import { communityEventSubmissionEmail } from '@/lib/email/templates/community-event-submission';
 import { eventRegistrationConfirmationEmail } from '@/lib/email/templates/event-registration-confirmation';
@@ -168,6 +169,13 @@ export function emailPreviewCatalog(): EmailPreviewCatalog {
   });
 
   const previews: RenderedEmailPreview[] = [
+    {
+      id: 'conference_complimentary_ticket', label: 'Complimentary conference ticket', category: 'Registration',
+      recipient: 'Complimentary conference guest', trigger: 'Queued when an Owner issues a complimentary ticket.',
+      from: EMAIL_SENDERS.events.from, to: 'Ama Mensah <ama@example.com>',
+      ...conferenceTicketEmail({ name: 'Ama Mensah', hasTicket: true, complimentary: true,
+        badgeUrl: 'https://devcongress.org/devcon26/social-card/#preview-only' }),
+    },
     registrationPreview({
       id: 'registration_confirmed',
       label: 'Registration confirmed',

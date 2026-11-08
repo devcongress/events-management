@@ -423,7 +423,7 @@ export type AnnualConferenceTicketEmailDeliveryStatus = 'queued' | 'sending' | '
 export interface AnnualConferenceTicketEmailDelivery {
   id: string;
   order_id: string | null;
-  kind: 'payment_receipt' | 'ticket_delivery' | 'ticket_bundle_delivery' | 'waitlist_notice';
+  kind: 'payment_receipt' | 'ticket_delivery' | 'ticket_bundle_delivery' | 'waitlist_notice' | 'complimentary_admission_delivery';
   recipient_name: string;
   recipient_email: string;
   status: AnnualConferenceTicketEmailDeliveryStatus;
@@ -674,6 +674,7 @@ export async function listSupabaseAnnualConferenceTicketEmailDeliveries(input: {
   status?: AnnualConferenceTicketEmailDeliveryStatus;
   registrationId?: string;
   recipient?: string;
+  excludeComplimentary?: boolean;
 }, c?: Context) {
   if (!isSupabaseRuntimeEnabled(c)) return null;
 
@@ -687,6 +688,7 @@ export async function listSupabaseAnnualConferenceTicketEmailDeliveries(input: {
     .order('created_at', { ascending: false })
     .range(from, to);
 
+  if (input.excludeComplimentary) query = query.neq('kind', 'complimentary_admission_delivery');
   if (input.status) query = query.eq('status', input.status);
   if (input.registrationId) query = query.eq('registration_id', input.registrationId);
   if (input.recipient) query = query.ilike('recipient_email', input.recipient.replace(/[\\%_]/g, '\\$&'));

@@ -671,7 +671,7 @@ export interface Database {
       annual_conference_ticket_email_outbox: {
         Row: {
           id: string; edition_id: string; order_id: string | null; registration_id: string | null;
-          kind: 'payment_receipt' | 'ticket_delivery' | 'ticket_bundle_delivery' | 'waitlist_notice';
+          kind: 'payment_receipt' | 'ticket_delivery' | 'ticket_bundle_delivery' | 'waitlist_notice' | 'complimentary_admission_delivery';
           recipient_name: string; recipient_email: string; payload: Json; idempotency_key: string;
           status: 'queued' | 'sending' | 'accepted' | 'delivered' | 'failed';
           attempt_count: number; provider_email_id: string | null; last_error: string | null;

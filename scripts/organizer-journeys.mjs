@@ -5765,7 +5765,7 @@ try {
     await filter("Paid orders").click();
     await ordersPanel.getByRole("rowheader", { name: /Abena Mensah/ }).waitFor();
     await assertUnderlineTabGeometry(page, '[aria-label="Ticketing sections"]');
-    assert.deepEqual(await nav.getByRole("link").allTextContents().then(items => items.map(item => item.trim())), ["Overview", "Orders", "Delivery", "Sponsors", "Testing"]);
+    assert.deepEqual(await nav.getByRole("link").allTextContents().then(items => items.map(item => item.trim())), ["Overview", "Orders", "Delivery", "Sponsors", "Complimentary", "Testing"]);
     assert.equal(await nav.locator('[aria-current="page"]').innerText(), "Orders");
     assert.equal(requests.some(request => /\/ticketing\/(sponsor-allocations|email-deliveries|test-coupons)$/.test(request.path)), false, "Unvisited section queries stay idle");
     await nav.getByRole("link", { name: "Sponsors", exact: true }).click();

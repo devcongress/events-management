@@ -19,7 +19,7 @@ const deliverySchema = z.object({
   kind: z.enum([
     'ticket_delivery', 'ticket_bundle_delivery', 'waitlist_notice', 'payment_receipt',
     'flexible_order_management', 'flexible_gift_claim', 'flexible_admission_delivery',
-    'flexible_buyer_bundle_delivery',
+    'flexible_buyer_bundle_delivery', 'complimentary_admission_delivery',
   ]),
   payload: z.record(z.string(), z.unknown()), idempotency_key: z.string(),
   first_attempt_at: z.string(), claimed_until: z.string(), provider_payload: z.unknown().optional(),
@@ -61,6 +61,20 @@ export async function admissionEmailContent(
   isTest = false,
   badgeUrl?: string,
 ): Promise<ResendAttachedEmail> {
+  if (delivery.kind === 'complimentary_admission_delivery') {
+    const capability = z.string().regex(/^[A-Za-z0-9_-]{43}$/).parse(delivery.payload.social_card_capability);
+    const origin = conferenceWebsiteUrl(websiteOrigin ?? '').origin;
+    const personalBadgeUrl = `${origin}/devcon26/social-card/#${capability}`;
+    const ticket = await conferenceTicketPdf({ token: tokenSchema.parse(delivery.payload.qr_token),
+      name: delivery.recipient_name, seat: 1, isTest: false });
+
+    return { from, to: [delivery.recipient_email], reply_to: replyTo,
+      ...conferenceTicketEmail({ name: delivery.recipient_name, hasTicket: true,
+        complimentary: true, badgeUrl: personalBadgeUrl }),
+      attachments: [{ filename: 'devcon26-complimentary-ticket.pdf',
+        content: Buffer.from(ticket).toString('base64'), content_type: 'application/pdf' }],
+    };
+  }
   if (delivery.payload.email_version === 2) {
     const hasTicket = delivery.kind === 'flexible_admission_delivery';
     const capability = delivery.payload.capability === undefined ? undefined : tokenSchema.parse(delivery.payload.capability);

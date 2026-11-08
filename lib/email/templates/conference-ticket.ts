@@ -12,15 +12,18 @@ export function conferenceTicketEmail(input: {
   claimUrl?: string;
   hasTicket: boolean;
   isTest?: boolean;
+  complimentary?: boolean;
 }) {
-  const subject = input.hasTicket ? 'Your DevCon26 ticket & conference badge' : input.claimUrl ? 'Your DevCon26 gift ticket' : 'Your DevCon26 tickets';
+  const subject = input.complimentary ? 'Your complimentary DevCon26 ticket' : input.hasTicket ? 'Your DevCon26 ticket & conference badge' : input.claimUrl ? 'Your DevCon26 gift ticket' : 'Your DevCon26 tickets';
   const headline = input.hasTicket ? 'See you at DevCon26.' : input.claimUrl ? 'A place for you.' : 'Good company awaits.';
-  const explanation = input.hasTicket
+  const explanation = input.complimentary
+    ? 'Thank you for supporting DevCongress and DevCon26. Your complimentary place is confirmed, with no payment required. Your private QR ticket is attached as a PDF; show it at the entrance.'
+    : input.hasTicket
     ? 'Your private QR ticket is attached as a PDF. Save it somewhere handy, then make your conference badge.'
     : input.claimUrl ? 'Someone has saved you a place. Claim your ticket to receive your QR ticket PDF and create your conference badge.'
       : 'Your order is ready. Manage your tickets, share your claim links, and see who has claimed their place.';
   const primaryUrl = input.badgeUrl ?? input.claimUrl ?? input.managementUrl;
-  const primaryLabel = input.badgeUrl ? 'Create your badge' : input.claimUrl ? 'Claim your ticket' : 'Manage your tickets';
+  const primaryLabel = input.badgeUrl ? (input.complimentary ? 'Create your attendee badge' : 'Create your badge') : input.claimUrl ? 'Claim your ticket' : 'Manage your tickets';
   const management = input.managementUrl && input.badgeUrl
     ? `<p style="margin:20px 0 0;"><a class="email-cta" style="color:#C80D68;text-decoration:underline;font-size:14px;" href="${escapeHtml(input.managementUrl)}">Manage your tickets &rarr;</a></p>` : '';
   const contentHtml = `
@@ -35,14 +38,15 @@ export function conferenceTicketEmail(input: {
       </td></tr>
     </table>
     ${primaryUrl ? `<table role="presentation" cellspacing="0" cellpadding="0"><tr><td bgcolor="#C80068" style="border-radius:6px;background:#C80068;"><a href="${escapeHtml(primaryUrl)}" style="display:inline-block;padding:15px 20px;color:#FFFFFF;-webkit-text-fill-color:#FFFFFF;font-weight:700;font-size:15px;line-height:1.4;text-decoration:none;">${primaryLabel} &rarr;</a></td></tr></table>` : ''}
+    ${input.complimentary ? '<p class="email-copy" style="margin:12px 0 0;color:#666666;font-size:14px;line-height:1.6;">Add your name and photo, then download and share your attendee badge.</p>' : ''}
     ${management}
-    <p class="email-copy" style="margin:24px 0 0;color:#666666;font-size:13px;line-height:1.6;">${input.hasTicket ? 'The PDF is your private ticket; your badge is for sharing. ' : ''}Keep this email and its private links. Reply here if you need a hand.</p>
+    <p class="email-copy" style="margin:24px 0 0;color:#666666;font-size:13px;line-height:1.6;">${input.hasTicket ? (input.complimentary ? 'The PDF is your private ticket; your badge is for sharing and is not admission. ' : 'The PDF is your private ticket; your badge is for sharing. ') : ''}Keep this email and its private links. Reply here if you need a hand.</p>
     ${input.isTest ? '<p class="email-copy" style="margin:20px 0 0;color:#666666;font-size:12px;line-height:1.5;"><strong>TEST ONLY</strong> — No money was charged. These tickets and badges are for testing, not admission to DevCon26.</p>' : ''}`;
 
   return {
     subject: input.isTest ? `[TEST] ${subject}` : subject,
     html: renderSpeakerEmailLayout({ subject, preheader: explanation, brandMeta: ['DevCon26', '2026'], contentHtml,
-      footerTitle: 'Made for the community', footerCopy: 'Your private links are for you. Badge links expire after 30 days. Payment receipts are sent by Paystack.' }).replace('</style>', `
+      footerTitle: 'Made for the community', footerCopy: input.complimentary ? 'Questions? Reply to this email.' : 'Your private links are for you. Badge links expire after 30 days. Payment receipts are sent by Paystack.' }).replace('</style>', `
       /* Keep both color modes on the same compact mobile grid. */
       .email-shell { border:1px solid ${design.border} !important; border-radius:${design.radius}px !important; }
       .email-brand-pad { padding:24px 32px !important; }
@@ -61,7 +65,7 @@ export function conferenceTicketEmail(input: {
     </style>`),
     text: [`Hi ${input.name},`, explanation, 'DevCon26 | Saturday, 19 December 2026', 'Ghana Digital Center, Accra',
       primaryUrl ? `${primaryLabel}: ${primaryUrl}` : '', input.badgeUrl && input.managementUrl ? `Manage your tickets: ${input.managementUrl}` : '',
-      'Keep this email private. Your badge is separate from admission. Badge links expire after 30 days.',
+      input.complimentary ? 'Add your name and photo, then download and share your attendee badge. Keep this email private. Your badge is separate from admission. Reply to this email if you need a hand.' : 'Keep this email private. Your badge is separate from admission. Badge links expire after 30 days.',
       input.isTest ? 'TEST ONLY — No money was charged. These tickets and badges are for testing, not admission to DevCon26.' : ''].filter(Boolean).join('\n\n'),
   };
 }

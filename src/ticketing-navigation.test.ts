@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { resolveTicketingSection, ticketingSectionLabel, ticketingSectionLocation, ticketingSections } from './ticketing-navigation';
 
 describe('Ticketing section navigation', () => {
-  it('shows the five current sections and keeps Testing limited to DevCon26', () => {
-    expect(ticketingSections('2026').map(section => section.label)).toEqual(['Overview', 'Orders', 'Delivery', 'Sponsors', 'Testing']);
+  it('shows the current sections and keeps Testing and Complimentary limited to DevCon26', () => {
+    expect(ticketingSections('2026').map(section => section.label)).toEqual(['Overview', 'Orders', 'Delivery', 'Sponsors', 'Complimentary', 'Testing']);
     expect(ticketingSections('2027').map(section => section.key)).toEqual(['overview', 'orders', 'delivery', 'sponsors']);
     expect(ticketingSectionLabel('delivery')).toBe('Delivery');
   });
@@ -18,6 +18,7 @@ describe('Ticketing section navigation', () => {
       expect(resolveTicketingSection(section.key, '2026')).toBe(section.key);
     }
     expect(resolveTicketingSection('testing', '2027')).toBe('overview');
+    expect(resolveTicketingSection('complimentary', '2027')).toBe('overview');
   });
 
   it('preserves unrelated query values and supports native Back/Forward history', async () => {

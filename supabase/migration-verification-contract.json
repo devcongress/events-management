@@ -1252,7 +1252,7 @@
           "table": "annual_conference_ticket_email_outbox",
           "name": "annual_conference_ticket_email_outbox_kind",
           "contains": [
-            "ticket_bundle_delivery"
+            "CHECK ((kind = ANY (ARRAY['payment_receipt'::text, 'ticket_delivery'::text, 'ticket_bundle_delivery'::text, 'waitlist_notice'::text, 'flexible_order_management'::text, 'flexible_gift_claim'::text, 'flexible_admission_delivery'::text, 'flexible_buyer_bundle_delivery'::text, 'complimentary_admission_delivery'::text])))"
           ]
         },
         {
@@ -1781,7 +1781,7 @@
           "table": "annual_conference_ticket_email_outbox",
           "name": "annual_conference_ticket_email_source",
           "contains": [
-            "CHECK ((num_nonnulls(order_id, registration_id) = 1))"
+            "CHECK ((num_nonnulls(order_id, registration_id, sponsor_allocation_id) = 1))"
           ]
         },
         {
@@ -1790,7 +1790,7 @@
           "table": "annual_conference_ticket_email_outbox",
           "name": "annual_conference_ticket_email_outbox_kind",
           "contains": [
-            "CHECK ((kind = ANY (ARRAY['payment_receipt'::text, 'ticket_delivery'::text, 'ticket_bundle_delivery'::text, 'waitlist_notice'::text, 'flexible_order_management'::text, 'flexible_gift_claim'::text, 'flexible_admission_delivery'::text, 'flexible_buyer_bundle_delivery'::text])))"
+            "CHECK ((kind = ANY (ARRAY['payment_receipt'::text, 'ticket_delivery'::text, 'ticket_bundle_delivery'::text, 'waitlist_notice'::text, 'flexible_order_management'::text, 'flexible_gift_claim'::text, 'flexible_admission_delivery'::text, 'flexible_buyer_bundle_delivery'::text, 'complimentary_admission_delivery'::text])))"
           ]
         },
         {
@@ -1817,7 +1817,7 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true,
-          "bodySha256": "6def0f76e3e0d5175503791aa5e562f439a853458ff4ae56b62cae0732c58a77"
+          "bodySha256": "efd04ceb600e0c8c7b486f6c405199a9429f5910d6281cd035cb96d0cb594139"
         },
         {
           "kind": "function",
@@ -4406,7 +4406,7 @@
           "argumentTypes": "text, uuid, text, boolean",
           "result": "boolean",
           "language": "plpgsql",
-          "bodySha256": "46166930620e66ab6cb6ac5c68e50cf8933ab97ac76cd5661b81ee623536bab6",
+          "bodySha256": "b69333a058f90ffef2342df76c100e6d61d3f982c953f06a3f055677002c21d1",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -4683,7 +4683,7 @@
           "argumentTypes": "",
           "result": "trigger",
           "language": "plpgsql",
-          "bodySha256": "6def0f76e3e0d5175503791aa5e562f439a853458ff4ae56b62cae0732c58a77",
+          "bodySha256": "efd04ceb600e0c8c7b486f6c405199a9429f5910d6281cd035cb96d0cb594139",
           "securityDefiner": false,
           "searchPath": "public",
           "private": true,
@@ -6299,6 +6299,164 @@
           "searchPath": "public, pg_temp",
           "private": true,
           "serviceExecute": true
+        }
+      ]
+    },
+{
+      "file": "20261108120000_complimentary_conference_tickets.sql",
+      "sha256": "d5798dac5775e343454f10d222b4f717e628630a98dfbd197a4ef8ae1e53e90c",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_complimentary_batches",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_sponsor_ticket_allocations",
+          "name": "released_quantity",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "0"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_tickets",
+          "name": "complimentary_batch_id",
+          "type": "uuid",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_email_outbox",
+          "name": "sponsor_allocation_id",
+          "type": "uuid",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_ticket_email_outbox",
+          "name": "annual_conference_ticket_email_source",
+          "contains": [
+            "CHECK ((num_nonnulls(order_id, registration_id, sponsor_allocation_id) = 1))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_ticket_email_outbox",
+          "name": "annual_conference_ticket_email_outbox_kind",
+          "contains": [
+            "CHECK ((kind = ANY (ARRAY['payment_receipt'::text, 'ticket_delivery'::text, 'ticket_bundle_delivery'::text, 'waitlist_notice'::text, 'flexible_order_management'::text, 'flexible_gift_claim'::text, 'flexible_admission_delivery'::text, 'flexible_buyer_bundle_delivery'::text, 'complimentary_admission_delivery'::text])))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_sponsor_ticket_allocations",
+          "name": "annual_conference_sponsor_ticket_allocations_quantity",
+          "contains": [
+            "quantity > 0",
+            "released_quantity > 0"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "issue_annual_conference_complimentary_tickets",
+          "argumentTypes": "uuid, uuid, text, jsonb, text, uuid",
+          "result": "uuid",
+          "language": "plpgsql",
+          "bodySha256": "ebe43b1a4d08717b5df159bc1bb32aeeefb0d72dece6fd0ad6180166fed0d339",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "cancel_annual_conference_complimentary_ticket",
+          "argumentTypes": "uuid, uuid",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "77457d6a13698a6470aa7ba75d3018092096ba91fd2b0fe4f314d467f61be398",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "list_annual_conference_complimentary_tickets",
+          "argumentTypes": "uuid, integer",
+          "result": "TABLE(ticket_id uuid, name text, email text, status annual_conference_ticket_status, reason text, allocation_id uuid, allocation_name text, created_at timestamp with time zone, delivery_status annual_conference_ticket_email_status, delivery_id uuid, active_total bigint, total_count bigint)",
+          "language": "sql",
+          "bodySha256": "78f09164838bb7c0fcd6c21a3b36649adfab1728cb640a4630aae1b0be7a4429",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "annual_conference_email_allowed",
+          "argumentTypes": "text, uuid, text, boolean",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "b69333a058f90ffef2342df76c100e6d61d3f982c953f06a3f055677002c21d1",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "prevent_cancelled_complimentary_retry",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "576002460c7f774cba853e76d14289414af73aa13b28679ee647ed7e595065c4",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "scrub_annual_conference_admission_payload",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "efd04ceb600e0c8c7b486f6c405199a9429f5910d6281cd035cb96d0cb594139",
+          "securityDefiner": false,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_ticket_email_outbox",
+          "name": "prevent_cancelled_complimentary_retry",
+          "function": "prevent_cancelled_complimentary_retry",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE UPDATE",
+            "FOR EACH ROW"
+          ]
         }
       ]
     }

@@ -1595,3 +1595,14 @@ The DevCon26 website reads an allowlisted projection of the saved 2026 programme
 **Why:** Full desktop navigation and scrolling tab rows on phones obscure the current task and make permitted destinations difficult to discover. One phone shell, compact subsection breadcrumbs, and a section picker provide a consistent hierarchy without recreating workspace state or changing desktop navigation.
 
 **Boundaries:** Destinations intersect existing role guards and conference capabilities. Server authorization remains authoritative. Owner tools remain Owner-only, Finance remains unavailable, and session recovery continues to hide protected content. Phone skeleton refreshes affect only the changed sections and preserve desktop captures.
+
+
+## Complimentary admission uses existing held inventory
+
+**Date:** 2026-11-08
+
+**Decision:** Issue named complimentary admissions as sponsor-allocation tickets, with a private issuance batch and one combined admission email. A new batch reserves its quantity; assignment from an existing sponsor hold consumes unassigned seats without adding another reservation. On cancellation, decrement effective allocation quantity and track released quantity separately.
+
+**Why:** Existing checkout, capacity, attendance, and check-in paths already count sponsor-held inventory and issued sponsor tickets. Keeping one effective quantity avoids diverging capacity calculations and avoids creating fictitious paid orders or revenue.
+
+**Boundaries:** Only Owners can issue, preview, test-send, view, or cancel these tickets. A failed delivery keeps the reservation; only unused tickets can release one seat. The individual badge capability is separate from the admission QR, and both are revoked on cancellation. Accepted provider payloads are scrubbed and cannot be blindly resent.

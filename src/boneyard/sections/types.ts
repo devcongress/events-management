@@ -11,6 +11,7 @@ export type SkeletonField = {
 };
 
 export type SkeletonBlock =
+  | { kind: 'complimentary-tickets' }
   | {
       kind: 'ticket-orders';
       rows?: number;

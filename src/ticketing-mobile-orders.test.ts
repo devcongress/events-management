@@ -61,7 +61,7 @@ describe('Ticket orders on phones', () => {
     const navigation = html.match(/<nav\b[^>]*aria-label="Ticketing sections"[\s\S]*?<\/nav>/)?.[0] ?? '';
 
     expect(navigation.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(navigation.match(/aria-current="false"/g)).toHaveLength(4);
+    expect(navigation.match(/aria-current="false"/g)).toHaveLength(5);
   });
 
   it.each([
