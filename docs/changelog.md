@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-08 — Volunteer badge lettering
+
+- Restore **VOLUNTEER** on volunteer conference badge previews and shared or downloaded images. Attendee and speaker badges retain their existing labels.
+
 ## 2026-11-07 — Phone navigation polish
 
 - Add slate icons to every More drawer destination and a distinct Sign out button, retaining permissions and drawer behavior.
