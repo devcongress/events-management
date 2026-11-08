@@ -23,6 +23,8 @@ const props = defineProps<{
   refreshRegistrations?: () => Promise<unknown>;
   managementBusy?: boolean;
   allowRecovery?: boolean;
+  registrationOnly?: boolean;
+  allowCancellation?: boolean;
 }>();
 const recoveredSources = computed(() => new Set(props.registrations?.map((item) => item.recovered_from_id).filter(Boolean)));
 const emit = defineEmits<{ cancel: [registration: ConferenceRegistrationGuest]; recover: [registration: ConferenceRegistrationGuest] }>();
@@ -51,8 +53,11 @@ const workPlan = useQuery({
   queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
 });
 const capabilities = computed(() => workPlan.data.value?.permissions.capabilities ?? []);
-const canManageRegistration = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage']) && props.registrations !== undefined);
-const canCheckIn = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in', 'ticketing.manage']));
+const canManageRegistration = computed(() => !props.registrationOnly
+  && hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage']) && props.registrations !== undefined);
+const canSeeRegistrations = computed(() => canManageRegistration.value || props.registrationOnly);
+const canCancelRegistration = computed(() => props.allowCancellation ?? canManageRegistration.value);
+const canCheckIn = computed(() => !props.registrationOnly && hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in', 'ticketing.manage']));
 const now = ref(new Date());
 const checkInOpen = computed(() => isAnnualConferenceCheckInOpen(workPlan.data.value?.edition.provisional_date, now.value));
 const checkInNotice = computed(() => annualConferenceCheckInNotice(workPlan.data.value?.edition.provisional_date));
@@ -92,7 +97,7 @@ watch(year, () => { emailGuest.value = null; });
 const rosterLoaded = ref(false);
 const visibleAttendees = computed(() => {
   const admissions = emailResults.value ?? (rosterError.value ? [] : attendees.value);
-  const registrations = canManageRegistration.value ? props.registrations : undefined;
+  const registrations = canSeeRegistrations.value ? props.registrations : undefined;
   const matchingRegistrations = emailResults.value === null ? registrations
     : registrations?.filter((registration) => admissions.some((admission) => admission.ticket_id === registration.ticket_id));
 
@@ -100,7 +105,7 @@ const visibleAttendees = computed(() => {
 });
 const statusOptions = computed(() => [
   { value: 'all', label: 'All' },
-  ...(canManageRegistration.value ? [
+  ...(canSeeRegistrations.value ? [
     { value: 'confirmed', label: 'Confirmed' },
     { value: 'waitlisted', label: 'Waitlisted' },
     { value: 'cancelled', label: 'Cancelled' },
@@ -205,7 +210,7 @@ async function loadRoster() {
 async function findByExactEmail(showNoMatch = true) {
   const email = search.value.trim();
 
-  if (!email.includes('@') || email.length < 3 || emailLookupLoading.value) return;
+  if (!canCheckIn.value || !email.includes('@') || email.length < 3 || emailLookupLoading.value) return;
   selectedInitial.value = ALL_REGISTRATION_INITIALS;
   selectedStatus.value = 'all';
   emailLookupLoading.value = true;
@@ -246,7 +251,7 @@ function submitSearch() {
 }
 
 async function refreshAfterAdmission() {
-  await loadRoster();
+  if (canCheckIn.value) await loadRoster();
   await props.refreshRegistrations?.();
   if (emailResults.value !== null && search.value.includes('@')) await findByExactEmail(false);
 }
@@ -448,15 +453,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <section class="ops-panel registration-guest-panel overflow-hidden" aria-label="Conference attendee check-in">
+    <section class="ops-panel registration-guest-panel overflow-hidden" :aria-label="registrationOnly ? 'Conference guests' : 'Conference attendee check-in'">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-dc-border px-4 py-4">
-        <p class="text-sm font-semibold text-dc-gray" aria-live="polite">{{ checkedInCount }} / {{ attendees.length }} checked in</p>
+        <p v-if="canCheckIn" class="text-sm font-semibold text-dc-gray" aria-live="polite">{{ checkedInCount }} / {{ attendees.length }} checked in</p>
         <div class="flex flex-wrap gap-2">
           <button type="button" class="check-in-text-button" :disabled="rosterLoading" @click="refreshAfterAdmission">{{ rosterLoading ? 'Refreshing…' : 'Refresh' }}</button>
-          <button type="button" class="check-in-scan-button" :disabled="busy || managementBusy || (!checkInOpen && !scannerOpen)" @click="scannerOpen ? closeScanner() : openScanner()">{{ scannerOpen ? 'Close scanner' : 'Scan with camera' }}</button>
+          <button v-if="canCheckIn" type="button" class="check-in-scan-button" :disabled="busy || managementBusy || (!checkInOpen && !scannerOpen)" @click="scannerOpen ? closeScanner() : openScanner()">{{ scannerOpen ? 'Close scanner' : 'Scan with camera' }}</button>
         </div>
       </div>
-      <p v-if="!checkInOpen" class="check-in-safety-note" role="status">{{ checkInNotice }}</p>
+      <p v-if="canCheckIn && !checkInOpen" class="check-in-safety-note" role="status">{{ checkInNotice }}</p>
 
       <section v-if="scannerOpen" class="check-in-scanner" aria-label="Optional QR scanner">
         <div class="check-in-scanner-heading">
@@ -498,7 +503,7 @@ onBeforeUnmount(() => {
               @keydown.enter.prevent="submitSearch"
             >
           </div>
-          <button v-if="search.includes('@')" type="button" class="check-in-email-search" :disabled="emailLookupLoading || search.trim().length < 3" @click="findByExactEmail()">
+          <button v-if="canCheckIn && search.includes('@')" type="button" class="check-in-email-search" :disabled="emailLookupLoading || search.trim().length < 3" @click="findByExactEmail()">
             {{ emailLookupLoading ? 'Looking up…' : 'Find exact email' }}
           </button>
           <div class="flex flex-wrap gap-2" aria-label="Guest status filters">
@@ -547,7 +552,7 @@ onBeforeUnmount(() => {
                 <template v-else-if="!guest.admission.attendee_name">Scan the guest’s QR code to admit this ticket.</template>
                 <template v-else>Issued admission</template>
               </p>
-              <p v-else-if="guest.registration?.status === 'confirmed'" class="check-in-ticket-detail">Admission unavailable. Refresh before checking in.</p>
+              <p v-else-if="canCheckIn && guest.registration?.status === 'confirmed'" class="check-in-ticket-detail">Admission unavailable. Refresh before checking in.</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <button
@@ -563,7 +568,7 @@ onBeforeUnmount(() => {
               <button v-else-if="canManageRegistration && allowRecovery && guest.registration?.status === 'cancelled'"
                 type="button" class="check-in-text-button" :disabled="busy || managementBusy"
                 @click="emit('recover', guest.registration)">Recover registration</button>
-              <button v-if="canManageRegistration && guest.registration && guest.registration.status !== 'cancelled' && guest.admission?.status !== 'checked_in'"
+              <button v-if="canCancelRegistration && guest.registration && guest.registration.status !== 'cancelled' && guest.admission?.status !== 'checked_in'"
                 type="button" class="check-in-text-button" :disabled="busy || managementBusy || (guest.registration.status === 'confirmed' && (rosterLoading || Boolean(rosterError)))"
                 @click="emit('cancel', guest.registration)">Cancel registration</button>
             </div>

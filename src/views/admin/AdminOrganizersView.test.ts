@@ -89,9 +89,14 @@ describe('AdminOrganizersView', () => {
   it('shows inherited role permissions alongside delegable additions', async () => {
     const source = await readFile(fileURLToPath(new URL('./AdminOrganizersView.vue', import.meta.url)), 'utf8');
 
-    expect(source).toContain("['Work plan', 'Volunteers', 'Speakers', 'Finance', 'Ticketing']");
+    expect(source).toContain("['Work plan', 'Volunteers', 'Speakers', 'Ticketing', 'Registration', 'Check-in', 'Finance']");
     expect(source).toContain('canDelegateAnnualConferenceCapability(definition.value, responsibilityMember.value.role)');
     expect(source).toContain('Role default · editable for this edition');
+    expect(source).toContain('Restricted member');
+    expect(source).toContain('<details v-for="group in responsibilitySections"');
+    expect(source).toContain("|| 'No access'");
+    expect(source).toContain('Changes save immediately.');
+    expect(source).toContain('Unable to save access. Please try again.');
     expect(source).not.toContain('responsibilityIsInherited(definition.value) || responsibilityUpdating');
   });
 

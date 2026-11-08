@@ -142,16 +142,20 @@ export function createAnnualConferenceTaskResourceService(
       );
     }
     const permissions = annualConferenceCapabilities(editionActor, workspace.edition);
-    const canManageAll = actor.role !== 'volunteer' && (
-      permissions.can_edit_all_tasks || assigned
-    );
-    const canAdd = canManageAll || assigned;
+
+    if (actor.role === 'member' && !permissions.capabilities.includes('work_plan.view_all')) {
+      throw new AnnualConferenceTaskResourceServiceError('forbidden', 'Work plan access required.');
+    }
+    const canManageAll = actor.role !== 'volunteer'
+      && (permissions.can_edit_all_tasks || (actor.role !== 'member' && assigned));
+    const canAdd = canManageAll || (actor.role !== 'member' && assigned);
 
     return { actorEmail, canAdd, canManageAll, task, workspace };
   }
 
   function canEdit(resource: AnnualConferenceTaskResource, actorEmail: string, canManageAll: boolean): boolean {
-    return canManageAll || normalizeTaskResourceActorEmail(resource.created_by_email) === actorEmail;
+    return canManageAll
+      || (actor.role !== 'member' && normalizeTaskResourceActorEmail(resource.created_by_email) === actorEmail);
   }
 
   return {

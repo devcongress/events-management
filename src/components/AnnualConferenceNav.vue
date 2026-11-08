@@ -9,6 +9,8 @@ import {
   annualConferenceRegistrationTarget,
   annualConferenceEditionsForNavigation,
   annualConferencePath,
+  RESTRICTED_CONFERENCE_HOME,
+  restrictedConferencePlaces,
   canCreateConferenceBadge,
 } from '@/src/annual-conference';
 import {
@@ -58,6 +60,7 @@ const sessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
 });
+const isRestricted = computed(() => sessionQuery.data.value?.user?.role === 'member');
 const isVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volunteer');
 const canManageEditions = computed(() => {
   const role = sessionQuery.data.value?.user?.role;
@@ -108,7 +111,10 @@ const canViewSpeakers = computed(() => hasAnyAnnualConferenceCapability(
   ['speakers.view', 'speakers.manage'],
 ));
 const registrationTarget = computed(() => annualConferenceRegistrationTarget(capabilities.value, year.value));
-const links = computed<AnnualConferenceNavLink[]>(() => [
+const links = computed<AnnualConferenceNavLink[]>(() => isRestricted.value ? [
+  { href: RESTRICTED_CONFERENCE_HOME, label: 'Your access', icon: 'overview' },
+  ...restrictedConferencePlaces(year.value, capabilities.value),
+] : [
   { href: annualConferencePath('', year.value), label: 'Overview', icon: 'overview' },
   ...(sessionQuery.data.value?.authenticated && canCreateConferenceBadge(year.value, sessionQuery.data.value.user?.role)
     ? [{ href: `${annualConferencePath('', year.value)}?section=badge`, label: 'Conference badge', icon: 'tickets' as const }]

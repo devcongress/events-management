@@ -5,7 +5,7 @@ DevCon-Comm uses Supabase Auth with Google OAuth for organizer and annual-confer
 ## Production Flow
 
 1. An owner adds an organizer email in `/organizer-console/organizers`.
-2. The email is stored in `public.admin_memberships` with role `owner`, `organizer`, or `volunteer`.
+2. The email is stored in `public.admin_memberships` with role `owner`, `organizer`, `volunteer`, or `member`.
 3. The organizer signs in from `/organizer-console/login`.
 4. The organizer chooses Google sign-in from `/organizer-console/login`.
 5. Supabase handles the Google OAuth redirect and returns to `/api/auth/admin/callback` with an authorization code.
@@ -91,11 +91,13 @@ Organizer access still depends on `admin_memberships`. A successful Google login
 
 ## Access requests
 
-An unapproved person may choose **Request access** from the same Google sign-in surface. Google verification creates only a separate, opaque, HTTP-only request-session cookie with a 30-minute lifetime; it never satisfies `requireAdmin` or opens organizer routes. The request form uses that server-derived identity, accepts an optional bounded reason, and explicitly submits a pending request without sending email. Owners review the queue in People & Access and may approve only Organizer or Volunteer roles, or decline. Approval atomically checks the current owner, request, and email identity; it will not overwrite, reactivate, or otherwise change an existing disabled membership. An approved person signs in normally afterwards.
+An unapproved person may choose **Request access** from the same Google sign-in surface. Google verification creates only a separate, opaque, HTTP-only request-session cookie with a 30-minute lifetime; it never satisfies `requireAdmin` or opens organizer routes. The request form uses that server-derived identity, accepts an optional bounded reason, and explicitly submits a pending request without sending email. Owners review the queue in People & Access and may approve Organizer, Volunteer, or Restricted member roles, or decline. Approval atomically checks the current owner, request, and email identity; it will not overwrite, reactivate, or otherwise change an existing disabled membership. An approved person signs in normally afterwards.
 
 The owner review queue is a full-width searchable table with ten requests per page, submission dates, request details in a right drawer, and stacked mobile rows. Clicking a row or its Review button opens the right drawer. Approval and decline close the drawer before opening their existing confirmation dialogs; keyboard focus returns to the queue after a completed decision. Applicants see a request-received summary with their account, submission date, and a manual status check; failed refreshes preserve the last known request. Successful submissions populate the confirmation directly from the submission response before refreshing. No email notifications are introduced.
 
-Only owners can change an existing member between the Organizer and Volunteer roles. The People & Access directory exposes this as an inline role selector only to owners, the API repeats the owner check, and a successful role change revokes the member's existing app sessions so the narrower or broader access takes effect on their next sign-in.
+A Restricted member can sign in but starts with no conference workspaces. Owners use **People & Access → Access** to choose an edition and assign permissions. The member sees only granted workspaces and the API checks the current grants on each protected request. Ticketing, Registration, and Check-in are independent for this role. Existing Organizer and Volunteer permissions are retained. Switching to or from Restricted member, or disabling the membership, clears conference grants in the same database transaction.
+
+Only owners can change an existing member between the Organizer, Volunteer, and Restricted member roles. The People & Access directory exposes this as an inline role selector only to owners, the API repeats the owner check, and a successful role change revokes the member's existing app sessions so the narrower or broader access takes effect on their next sign-in.
 
 For local development, keep Google OAuth pinned to `http://localhost:5173`. The login screen blocks Google sign-in on other local ports or `127.0.0.1` so Supabase does not fall back to the deployed Site URL.
 

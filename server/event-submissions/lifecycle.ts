@@ -1,3 +1,4 @@
+import type { AdminRole } from '@/types/supabase';
 import type {
   EventSubmission,
   EventSubmissionAmendment,
@@ -20,7 +21,7 @@ import type {
 export type EventSubmissionActor = {
   email: string;
   userId?: string | null;
-  role?: 'owner' | 'organizer' | 'volunteer' | null;
+  role?: AdminRole | null;
 };
 
 export type EventSubmissionAuditEvent = {

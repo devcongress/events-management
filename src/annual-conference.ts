@@ -42,13 +42,31 @@ export function annualConferencePath(path = '', year: string = ACTIVE_ANNUAL_CON
 }
 
 export function annualConferenceEditionsForNavigation(
-  role: 'owner' | 'organizer' | 'volunteer' | undefined,
+  role: AdminRole | undefined,
   editions: AnnualConferenceEdition[],
   currentEdition?: AnnualConferenceEdition,
 ): AnnualConferenceEdition[] {
-  if (role !== 'volunteer') return editions;
+  if (role !== 'volunteer' && role !== 'member') return editions;
 
   return currentEdition ? [currentEdition] : [];
+}
+
+export const RESTRICTED_CONFERENCE_HOME = adminPath('conference-access');
+
+const RESTRICTED_CONFERENCE_PLACES = [
+  { path: 'work-plan', label: 'Work plan', icon: 'work-plan', capabilities: ['work_plan.view_all'] },
+  { path: 'volunteers', label: 'Volunteers', icon: 'volunteers', capabilities: VOLUNTEER_SECTION_CAPABILITIES },
+  { path: 'speakers', label: 'Speakers', icon: 'speakers', capabilities: ['speakers.view'] },
+  { path: 'ticketing', label: 'Ticketing', icon: 'tickets', capabilities: ['ticketing.view'] },
+  { path: 'registrations', label: 'Registration', icon: 'tickets', capabilities: ['registration.view'] },
+  { path: 'check-in', label: 'Check-in', icon: 'tickets', capabilities: ['ticketing.check_in'] },
+  { path: 'finance', label: 'Finance', icon: 'finance', capabilities: ['finance.view'] },
+] as const;
+
+export function restrictedConferencePlaces(year: string, capabilities: readonly AnnualConferenceCapability[]) {
+  return RESTRICTED_CONFERENCE_PLACES
+    .filter((place) => hasAnyAnnualConferenceCapability(capabilities, place.capabilities))
+    .map(({ path, label, icon }) => ({ href: annualConferencePath(path, year), label, icon }));
 }
 
 export function volunteerCanAccessOrganizerPath(

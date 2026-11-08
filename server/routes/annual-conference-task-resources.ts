@@ -67,7 +67,7 @@ function routeParams(c: Context<AppBindings>) {
 
 export function registerAnnualConferenceTaskResourceRoutes(app: Hono<AppBindings>): void {
   app.get('/api/annual-conference/:year/work-plan/:taskId/resources', async (c) => {
-    const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
     if (adminError) return adminError;
     const params = routeParams(c);
@@ -81,7 +81,7 @@ export function registerAnnualConferenceTaskResourceRoutes(app: Hono<AppBindings
   });
 
   app.post('/api/annual-conference/:year/work-plan/:taskId/resources', async (c) => {
-    const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
     if (adminError) return adminError;
     const params = routeParams(c);
@@ -98,7 +98,7 @@ export function registerAnnualConferenceTaskResourceRoutes(app: Hono<AppBindings
   });
 
   app.patch('/api/annual-conference/:year/work-plan/:taskId/resources/:resourceId', async (c) => {
-    const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
     if (adminError) return adminError;
     const params = routeParams(c);
@@ -123,7 +123,7 @@ export function registerAnnualConferenceTaskResourceRoutes(app: Hono<AppBindings
   });
 
   app.delete('/api/annual-conference/:year/work-plan/:taskId/resources/:resourceId', async (c) => {
-    const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
     if (adminError) return adminError;
     const params = routeParams(c);

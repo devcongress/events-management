@@ -27,13 +27,13 @@ const mobileSource = readFileSync(
 );
 
 describe('annual conference ticketing operations UI', () => {
-  it('disables Finance navigation without deleting its implementation', () => {
+  it('keeps the general Finance link disabled and allows the scoped member route', () => {
     expect(navSource).toContain("label: 'Finance', icon: 'finance' as const, disabled: true");
     expect(navSource.indexOf("label: 'Registration'")).toBeLessThan(navSource.indexOf("label: 'Finance'"));
     expect(navSource).not.toContain('>Disabled</span>');
     expect(mobileSource).not.toContain('<small>Disabled</small>');
     expect(mobileSource).not.toContain("<span>Finance</span>");
-    expect(routerSource).toMatch(/name: "admin-annual-conference-finance",\s*redirect: \(to\) => annualConferencePath\("", String\(to.params.year\)\)/);
+    expect(routerSource).toMatch(/name: "admin-annual-conference-finance",\s*component:[^\n]+\s*beforeEnter: \(to\) => restrictedConferenceSession\(\)/);
     expect(readFileSync(new URL('./views/admin/AdminAnnualConferenceFinanceView.vue', import.meta.url), 'utf8')).toContain('fetchAnnualConferenceFinance');
   });
 

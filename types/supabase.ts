@@ -28,7 +28,7 @@ export type EventBlastStatus =
 export type ShortLinkDestination =
   | 'monthly_cfp' | 'event_registration' | 'event_feedback' | 'conference_cfp' | 'conference_ticket_purchase' | 'volunteer_intake' | 'volunteer_follow_up_test';
 export type ShortLinkStatus = 'active' | 'revoked';
-export type AdminRole = 'owner' | 'organizer' | 'volunteer';
+export type AdminRole = 'owner' | 'organizer' | 'volunteer' | 'member';
 export type AdminMembershipStatus = 'active' | 'disabled';
 export type AdminAccessRequestStatus = 'pending' | 'approved' | 'declined';
 export type AnnualConferenceCapability =
@@ -42,8 +42,11 @@ export type AnnualConferenceCapability =
   | 'speakers.view'
   | 'speakers.manage'
   | 'finance.view'
+  | 'ticketing.view'
   | 'ticketing.manage'
-  | 'ticketing.check_in';
+  | 'ticketing.check_in'
+  | 'registration.view'
+  | 'registration.manage';
 export type AnnualConferenceTaskStatus =
   | 'not_started' | 'in_progress' | 'blocked' | 'done';
 export type AnnualConferenceWorkstream =

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  annualConferenceCapabilityChanges,
+  ANNUAL_CONFERENCE_CAPABILITIES,
   effectiveAnnualConferenceCapabilities,
   canDelegateAnnualConferenceCapability,
   hasAnnualConferenceCapability,
@@ -46,7 +48,7 @@ describe('annual conference capabilities', () => {
 
     const owner = effectiveAnnualConferenceCapabilities({ role: 'owner' });
 
-    expect(owner).toHaveLength(12);
+    expect(owner).toEqual(ANNUAL_CONFERENCE_CAPABILITIES);
     expect(owner).toContain('ticketing.check_in');
     expect(owner).toContain('finance.view');
     expect(owner).toContain('ticketing.manage');
@@ -67,6 +69,24 @@ describe('annual conference capabilities', () => {
     expect(canDelegateAnnualConferenceCapability('finance.view', 'volunteer')).toBe(false);
     expect(canDelegateAnnualConferenceCapability('ticketing.manage', 'organizer')).toBe(true);
     expect(canDelegateAnnualConferenceCapability('ticketing.manage', 'volunteer')).toBe(false);
+  });
+
+  it('keeps restricted membership empty without explicit edition grants', () => {
+    expect(effectiveAnnualConferenceCapabilities({ role: 'member', isPlanningOwner: true })).toEqual([]);
+    expect(effectiveAnnualConferenceCapabilities({
+      role: 'member',
+      grants: ['ticketing.manage', 'phases.manage'],
+    })).toEqual(['ticketing.view', 'ticketing.manage']);
+    expect(effectiveAnnualConferenceCapabilities({
+      role: 'member',
+      grants: ['registration.manage'],
+    })).toEqual(['registration.view', 'registration.manage']);
+  });
+
+  it('removes a restricted manage grant when the associated view is turned off', () => {
+    expect(annualConferenceCapabilityChanges('member', 'ticketing.view', false)).toEqual(['ticketing.view', 'ticketing.manage']);
+    expect(annualConferenceCapabilityChanges('member', 'registration.manage', true)).toEqual(['registration.view', 'registration.manage']);
+    expect(annualConferenceCapabilityChanges('member', 'ticketing.manage', false)).toEqual(['ticketing.manage']);
   });
 
   it('rejects capabilities outside the code-owned catalogue', () => {

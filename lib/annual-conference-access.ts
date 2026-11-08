@@ -88,6 +88,8 @@ export function annualConferenceTasksForMember(
     actor.role !== 'volunteer' || hasAnnualConferenceCapability(capabilities, 'work_plan.manage')
   );
 
+  if (actor.role === 'member' && !canViewAll) return [];
+
   return tasks
     .filter((task) => canViewAll || isAnnualConferenceTaskAssignedTo(task, actor.email))
     .map((task) => canViewInternalNotes ? task : { ...task, internal_note: null });
@@ -108,7 +110,7 @@ export function annualConferenceCapabilities(
   edition: Pick<AnnualConferenceEdition, 'task_creator_email'>,
 ): AnnualConferenceCapabilities {
   const actorIdentity = normalizedIdentity(actor.email);
-  const planningOwner = actor.role !== 'volunteer'
+  const planningOwner = (actor.role === 'organizer' || actor.role === 'owner')
     && Boolean(actorIdentity)
     && actorIdentity === normalizedIdentity(edition.task_creator_email);
   const capabilities = effectiveAnnualConferenceCapabilities({
@@ -127,7 +129,7 @@ export function annualConferenceCapabilities(
     can_delete_tasks: canManageTasks,
     can_manage_phases: hasAnnualConferenceCapability(capabilities, 'phases.manage'),
     can_edit_all_tasks: canManageTasks,
-    can_edit_assigned_tasks: actor.role !== 'volunteer',
+    can_edit_assigned_tasks: actor.role === 'organizer' || actor.role === 'owner',
     can_update_all_task_status: canManageTasks,
     can_update_assigned_task_status: actor.role === 'volunteer' && !canManageTasks,
     access_scope: canViewAll ? 'all' : 'assigned',
@@ -144,7 +146,7 @@ export function canUpdateAnnualConferenceTaskStatus(
   const capabilities = annualConferenceCapabilities(actor, edition);
 
   return capabilities.can_update_all_task_status
-    || isAnnualConferenceTaskAssignedTo(task, actor.email);
+    || (actor.role !== 'member' && isAnnualConferenceTaskAssignedTo(task, actor.email));
 }
 
 export function presentAnnualConferenceTask(
@@ -213,6 +215,7 @@ export function canUpdateAnnualConferenceTask(
 
   if (changes.status !== undefined && changes.status !== task.status && !canUpdateAnnualConferenceTaskStatus(actor, edition, task)) return false;
   if (capabilities.can_edit_all_tasks) return Boolean(normalizedIdentity(actor.email));
+  if (actor.role === 'member') return false;
   if (actor.role === 'volunteer') {
     return volunteerCanUpdateAssignedTask(task, changes, actor.email);
   }

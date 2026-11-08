@@ -99,7 +99,7 @@ describe("admin API role policy", () => {
     ]);
     expect(
       adminRolesForApiRequest("/api/annual-conference/2026/finance", "GET"),
-    ).toEqual(["owner", "organizer"]);
+    ).toEqual(["owner", "organizer", "member"]);
     expect(
       adminRolesForApiRequest("/api/annual-conference/2026/finance", "GET"),
     ).not.toContain("volunteer");

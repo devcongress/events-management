@@ -42,6 +42,7 @@ import {
 } from '@/lib/annual-conference-ticket-payments';
 import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
 import { getAnnualConferenceEditionByYear, requireAnnualConferenceCapability } from '@/server/annual-conference-request';
+import { requireConferenceCheckIn } from '@/server/routes/annual-conference-check-in';
 import { CONFERENCE_CHECK_IN_UNAVAILABLE, isAnnualConferenceCheckInOpen } from '@/lib/annual-conference-check-in';
 import { envValue } from '@/server/env';
 import type { AppBindings } from '@/server/http/app-bindings';
@@ -107,10 +108,15 @@ function ticketingUnavailable(c: Context<AppBindings>) {
   return c.json({ error: 'Ticketing storage is not configured for this environment.' }, 503);
 }
 
-async function requireTicketingManagement(c: Context<AppBindings>, year: number) {
-  const sessionError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+async function requireTicketingAccess(c: Context<AppBindings>, year: number, readOnly = false) {
+  const sessionError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (sessionError) return sessionError;
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+
+  if (readOnly && session.authenticated && session.role === 'member') {
+    return requireAnnualConferenceCapability(c, year, 'ticketing.view');
+  }
 
   return requireAnnualConferenceCapability(c, year, 'ticketing.manage');
 }
@@ -595,7 +601,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
     const year = yearSchema.safeParse(c.req.param('year'));
 
     if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
-    const accessError = await requireTicketingManagement(c, Number(year.data));
+    const accessError = await requireTicketingAccess(c, Number(year.data), true);
 
     if (accessError) return accessError;
 
@@ -617,7 +623,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
 
     if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
     if (!query.success) return c.json({ error: query.error.issues[0]?.message ?? 'Ticket order filters are invalid.' }, 400);
-    const accessError = await requireTicketingManagement(c, Number(year.data));
+    const accessError = await requireTicketingAccess(c, Number(year.data), true);
 
     if (accessError) return accessError;
 
@@ -652,16 +658,9 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
 
     if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
     if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? 'Ticket code is invalid.' }, 400);
-    const sessionError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+    const scanError = await requireConferenceCheckIn(c, Number(year.data));
 
-    if (sessionError) return sessionError;
-    const scanError = await requireAnnualConferenceCapability(c, Number(year.data), 'ticketing.check_in');
-
-    if (scanError) {
-      const managementError = await requireTicketingManagement(c, Number(year.data));
-
-      if (managementError) return scanError;
-    }
+    if (scanError) return scanError;
 
     try {
       const ticketing = await getSupabaseAnnualConferenceTicketing(Number(year.data), c);
@@ -704,7 +703,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
 
     if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
     if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? 'Enter a valid capacity.' }, 400);
-    const accessError = await requireTicketingManagement(c, Number(year.data));
+    const accessError = await requireTicketingAccess(c, Number(year.data));
 
     if (accessError) return accessError;
 
@@ -753,7 +752,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
 
     if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
     if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? 'Enter valid ticket prices.' }, 400);
-    const accessError = await requireTicketingManagement(c, Number(year.data));
+    const accessError = await requireTicketingAccess(c, Number(year.data));
 
     if (accessError) return accessError;
     if (year.data === '2026') return c.json({ error: 'DevCon26 tickets have one fixed GH₵150 price per person.' }, 409);
@@ -818,7 +817,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
     const year = yearSchema.safeParse(c.req.param('year'));
 
     if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
-    const accessError = await requireTicketingManagement(c, Number(year.data));
+    const accessError = await requireTicketingAccess(c, Number(year.data), true);
 
     if (accessError) return accessError;
     try {
@@ -842,7 +841,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
 
     if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
     if (!query.success) return c.json({ error: query.error.issues[0]?.message ?? 'Email delivery filters are invalid.' }, 400);
-    const accessError = await requireTicketingManagement(c, Number(year.data));
+    const accessError = await requireTicketingAccess(c, Number(year.data), true);
 
     if (accessError) return accessError;
 
@@ -883,7 +882,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
 
     if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
     if (!deliveryId.success) return c.json({ error: deliveryId.error.issues[0]?.message }, 400);
-    const accessError = await requireTicketingManagement(c, Number(year.data));
+    const accessError = await requireTicketingAccess(c, Number(year.data));
 
     if (accessError) return accessError;
 
@@ -932,7 +931,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
 
     if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
     if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? 'Check the sponsor allocation.' }, 400);
-    const accessError = await requireTicketingManagement(c, Number(year.data));
+    const accessError = await requireTicketingAccess(c, Number(year.data));
 
     if (accessError) return accessError;
     try {

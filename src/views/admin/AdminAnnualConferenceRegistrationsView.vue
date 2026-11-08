@@ -35,6 +35,8 @@ const endpoint = computed(() => `/api/annual-conference/${year.value}/registrati
 const activeSection = computed(() => {
   const section = route.query.section;
 
+  if (restricted.value) return section === 'guests' ? 'guests' : 'summary';
+
   return section === 'guests' || section === 'form' || section === 'emails' || section === 'blasts'
     || (section === 'community' && year.value === '2026' && owner.value && canManageRegistration.value) ? section : 'summary';
 });
@@ -60,13 +62,18 @@ const testing = reactive({ enabled: false, emails: '' });
 const modeOptions = [{ value: 'free', label: 'Free registration' }, { value: 'paid', label: 'Paid · Regular only' }];
 const statusOptions = [{ value: 'draft', label: 'Draft' }, { value: 'open', label: 'Open' }, { value: 'closed', label: 'Closed' }];
 const session = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetchAdminSession });
+const restricted = computed(() => session.data.value?.user?.role === 'member');
 const owner = computed(() => session.data.value?.user?.role === 'owner');
 const workPlan = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
   queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
 });
 const capabilities = computed(() => workPlan.data.value?.permissions.capabilities ?? []);
-const canManageRegistration = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage']));
+const canManageRegistration = computed(() => !restricted.value && hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage']));
+const canViewRegistration = computed(() => canManageRegistration.value
+  || (restricted.value && hasAnyAnnualConferenceCapability(capabilities.value, ['registration.view'])));
+const canCancelRegistration = computed(() => canManageRegistration.value
+  || (restricted.value && hasAnyAnnualConferenceCapability(capabilities.value, ['registration.manage'])));
 const canCheckIn = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in', 'ticketing.manage']));
 const ticketing = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceTicketing(year.value)),
@@ -85,7 +92,7 @@ const testingError = computed(() => testerEmails.value.length > 200
     ? 'Check each email address. Use one per line.' : '');
 const registrations = useQuery({
   queryKey: computed(() => ['conference-registrations', year.value]),
-  enabled: canManageRegistration,
+  enabled: canViewRegistration,
   queryFn: async () => {
     const requestEndpoint = endpoint.value;
     const all: Registration[] = [];
@@ -129,6 +136,7 @@ let capacityRequestGeneration = 0;
 let mutationGeneration = 0;
 const blasts = useQuery({
   queryKey: computed(() => ['conference-attendee-blasts', year.value]),
+  enabled: computed(() => session.data.value?.authenticated === true && !restricted.value),
   queryFn: () => fetchJson<{ blasts: Blast[] }>(`${endpoint.value}/blasts`, { credentials: 'include' }),
 });
 const blastHistory = computed(() => blasts.data.value?.blasts ?? []);
@@ -245,7 +253,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
       Object.assign(draft, { subject: '', body: '' });
       blastComposerOpen.value = false;
     }
-    await Promise.all([registrations.refetch(), blasts.refetch(), ...(owner.value ? [testingQuery.refetch()] : [])]);
+    await Promise.all([registrations.refetch(), ...(!restricted.value ? [blasts.refetch()] : []), ...(owner.value ? [testingQuery.refetch()] : [])]);
   } catch (cause) {
     if (request === mutationGeneration) error.value = cause instanceof Error ? cause.message : 'The change could not be saved.';
   } finally {
@@ -257,7 +265,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
 <template>
   <main class="editorial-page"><div class="editorial-wrap registration-content">
     <AnnualConferenceNav :show-page-heading="false" />
-    <AnnualConferenceRegistrationNav :active="activeSection" :can-manage-registration="canManageRegistration" :can-check-in="canCheckIn" :can-manage-community="owner && canManageRegistration && year === '2026'" />
+    <AnnualConferenceRegistrationNav :active="activeSection" :can-manage-registration="canManageRegistration" :limited-registration="restricted" :can-check-in="canCheckIn" :can-manage-community="owner && canManageRegistration && year === '2026'" />
     <p v-if="message" role="status" aria-live="polite">{{ message }}</p>
     <BoneyardPageSkeleton v-if="registrations.isPending.value && !registrations.data.value" :name="activeSection === 'summary' ? 'annual-conference-registrations' : `annual-conference-registrations-${activeSection}`" label="conference registrations" layout="workspace" />
     <section v-else-if="registrations.isError.value" class="editorial-panel registration-panel"><h2>Registration unavailable</h2><p>Check your access and connection.</p><button @click="registrations.refetch()">Try again</button></section>
@@ -364,6 +372,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
       </section>
       <AnnualConferenceGuests v-if="activeSection === 'guests'" :registrations="guests"
         :refresh-registrations="() => registrations.refetch()" :management-busy="busy" :allow-recovery="owner"
+        :registration-only="restricted" :allow-cancellation="canCancelRegistration"
         @cancel="cancellation = $event" @recover="error = ''; recovery = $event" />
       <ConfirmDialog :open="Boolean(recovery)" :title="'Recover ' + (recovery?.name ?? '') + '’s registration?'" message="Create a fresh registration using this guest’s saved details. Older waitlisted guests keep priority. A new admission QR or waitlist notice will be queued for email. The cancelled registration and its old QR remain cancelled." confirm-label="Recover and queue email" :busy="busy" @cancel="error = ''; recovery = null" @confirm="recovery && mutate('/' + recovery.id + '/recover', { confirmed: true }, 'Registration recovered.')">
         <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>

@@ -1,6 +1,8 @@
+import type { AdminRole } from '@/types/supabase';
 import { adminPath } from "./admin-routes";
 import {
   annualConferencePath,
+  RESTRICTED_CONFERENCE_HOME,
   mobileAnnualConferencePath,
 } from "./annual-conference";
 
@@ -246,9 +248,10 @@ export function matchesOrganizerPhoneViewport(
 
 export function organizerPostAuthLanding(
   target: string,
-  role: "owner" | "organizer" | "volunteer" | undefined,
+  role: AdminRole | undefined,
   isPhone: boolean,
 ): string {
+  if (role === "member") return target.startsWith(adminPath("annual-conference/")) ? target : RESTRICTED_CONFERENCE_HOME;
   if (role === "volunteer") return annualConferencePath();
   if (!isPhone) return target;
 
