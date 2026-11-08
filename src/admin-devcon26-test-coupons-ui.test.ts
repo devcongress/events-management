@@ -52,7 +52,7 @@ async function renderCheckouts(checkouts: Devcon26TestCheckoutLedgerRow[], total
 
 describe('Owner test coupon interface boundary', () => {
   it('keeps coupon operations on the 2026 Owner Ticketing page with test-only copy', () => {
-    expect(ticketing).toContain('<div v-if="year === \'2026\' && testingVisited" v-show="activeSection === \'testing\'" class="min-w-0">');
+    expect(ticketing).toContain('<div v-if="!restricted && year === \'2026\' && testingVisited" v-show="activeSection === \'testing\'" class="min-w-0">');
     expect(ticketing).toContain('<Devcon26TestCoupons :year="year" :active="activeSection === \'testing\'" />');
     expect(source).toContain("watch(() => props.active");
     expect(source).toContain('if (!active) closeCheckoutDetails(false)');

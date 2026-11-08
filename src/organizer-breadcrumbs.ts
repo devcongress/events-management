@@ -1,3 +1,4 @@
+import type { AdminRole } from '@/types/supabase';
 import type { LocationQuery, RouteLocationRaw } from 'vue-router';
 import {
   hasAnyAnnualConferenceCapability,
@@ -6,13 +7,13 @@ import {
   type AnnualConferenceCapability,
 } from '@/lib/annual-conference-capabilities';
 import { adminPath } from './admin-routes';
-import { annualConferencePath, canCreateConferenceBadge, mobileAnnualConferencePath, volunteerCanAccessOrganizerPath } from './annual-conference';
+import { annualConferencePath, canCreateConferenceBadge, mobileAnnualConferencePath, RESTRICTED_CONFERENCE_HOME, volunteerCanAccessOrganizerPath } from './annual-conference';
 import { queryKeys } from './lib/api';
 import { resolveTicketingSection, ticketingSectionLabel } from './ticketing-navigation';
 import { resolveAuditLogSection } from './lib/organizer-workspace-sections';
 import { resolveVolunteerCampaignTab, resolveVolunteerView } from './lib/volunteer-navigation';
 
-export type OrganizerBreadcrumbRole = 'owner' | 'organizer' | 'volunteer' | null;
+export type OrganizerBreadcrumbRole = AdminRole | null;
 
 export type OrganizerBreadcrumb = {
   label: string;
@@ -61,6 +62,7 @@ const breadcrumbRoutes = new Set([
   'admin-annual-conference-registrations',
   'admin-annual-conference-check-in',
   'admin-annual-conference-volunteers',
+  'admin-annual-conference-finance',
 ]);
 
 const eventLeaves: Record<string, string> = {
@@ -374,6 +376,7 @@ export function resolveOrganizerBreadcrumbs(
   const name = String(input.name);
   const labels = input.labels ?? {};
 
+  if (input.role === 'member') return [{ label: 'Your conference access', to: RESTRICTED_CONFERENCE_HOME }];
   if (name.startsWith('admin-annual-conference') || name === 'admin-mobile-annual-conference') return conferenceBreadcrumbs(input, input.role, labels, input.phone);
   if (input.role === 'volunteer') return [];
   if (name === 'admin-mobile') return [{ label: 'Home' }];

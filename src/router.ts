@@ -7,6 +7,8 @@ import {
 } from "./admin-routes";
 import {
   ACTIVE_ANNUAL_CONFERENCE_EDITION,
+  RESTRICTED_CONFERENCE_HOME,
+  restrictedConferencePlaces,
   annualConferenceRegistrationTarget,
   annualConferencePath,
   mobileAnnualConferencePath,
@@ -15,6 +17,7 @@ import {
 import { hasAnyAnnualConferenceCapability } from "@/lib/annual-conference-capabilities";
 import {
   fetchAdminSession,
+  fetchRestrictedConferenceAccess,
   fetchAnnualConferenceWorkPlan,
   fetchEventById,
   queryKeys,
@@ -373,13 +376,18 @@ export const router = createRouter({
       name: "admin-registration-display",
       component: AdminRegistrationDisplayView,
     },
+    {
+      path: RESTRICTED_CONFERENCE_HOME,
+      name: "admin-restricted-conference",
+      component: () => import("./views/admin/AdminRestrictedConferenceView.vue"),
+    },
     { path: adminPath("annual-conference"), redirect: annualConferencePath() },
     {
       path: adminPath("annual-conference/:year(\\d{4})/registrations"),
       name: "admin-annual-conference-registrations",
       component: () => import("./views/admin/AdminAnnualConferenceRegistrationsView.vue"),
       beforeEnter: async (to) => {
-        if (readOrganizerSessionLock()) return true;
+        if (readOrganizerSessionLock() || restrictedConferenceSession()) return true;
 
         const year = String(to.params.year);
         const target = await annualConferenceRegistrationRouteTarget(year);
@@ -392,7 +400,7 @@ export const router = createRouter({
       name: "admin-annual-conference-check-in",
       component: () => import("./views/admin/AdminAnnualConferenceCheckInView.vue"),
       beforeEnter: async (to) => {
-        if (readOrganizerSessionLock()) return true;
+        if (readOrganizerSessionLock() || restrictedConferenceSession()) return true;
 
         const year = String(to.params.year);
         const target = await annualConferenceRegistrationRouteTarget(year);
@@ -441,14 +449,17 @@ export const router = createRouter({
     {
       path: adminPath("annual-conference/:year(\\d{4})/finance"),
       name: "admin-annual-conference-finance",
-      redirect: (to) => annualConferencePath("", String(to.params.year)),
+      component: () => import("./views/admin/AdminAnnualConferenceFinanceView.vue"),
+      beforeEnter: (to) => restrictedConferenceSession()
+        ? true
+        : annualConferencePath("", String(to.params.year)),
     },
     {
       path: adminPath("annual-conference/:year(\\d{4})/ticketing"),
       name: "admin-annual-conference-ticketing",
       component: () => import("./views/admin/AdminAnnualConferenceTicketingView.vue"),
       beforeEnter: async (to) => {
-        if (readOrganizerSessionLock()) return true;
+        if (readOrganizerSessionLock() || restrictedConferenceSession()) return true;
 
         const year = String(to.params.year);
 
@@ -632,6 +643,33 @@ async function canOpenAnnualConferenceTicketingRoute(year: string): Promise<bool
   }
 }
 
+function restrictedConferenceSession() {
+  return queryClient.getQueryData<AdminSessionResponse>(queryKeys.adminSession)?.user?.role === 'member';
+}
+
+async function restrictedConferenceRoute(to: { path: string; params: Record<string, unknown> }) {
+  if (to.path === RESTRICTED_CONFERENCE_HOME) return true;
+  if (typeof to.params.year !== 'string') return RESTRICTED_CONFERENCE_HOME;
+  const year = to.params.year;
+
+  try {
+    const access = await queryClient.fetchQuery({
+      queryKey: queryKeys.restrictedConferenceAccess,
+      queryFn: fetchRestrictedConferenceAccess,
+      staleTime: 0,
+    });
+    const edition = access.editions.find((entry) => String(entry.year) === year);
+    const places = restrictedConferencePlaces(year, edition?.capabilities ?? []);
+
+    if (places.some((place) => place.href === to.path)) return true;
+    if (to.path === annualConferencePath('volunteers/display', year) && edition?.capabilities.includes('volunteers.share_intake')) return true;
+  } catch {
+    // The landing page shows a retry action. Protected destinations fail closed.
+  }
+
+  return RESTRICTED_CONFERENCE_HOME;
+}
+
 registerDevCon26AnnualCfpRedirectGuard(router);
 
 router.beforeEach(async (to, from) => {
@@ -678,6 +716,8 @@ router.beforeEach(async (to, from) => {
   );
 
   if (cachedSession?.authenticated) {
+    if (cachedSession.user?.role === 'member') return restrictedConferenceRoute(to);
+    if (to.path === RESTRICTED_CONFERENCE_HOME) return annualConferencePath();
     const isPhone = matchesOrganizerPhoneViewport();
     const viewportRedirect = organizerViewportRedirect({
       authenticated: true,
@@ -736,6 +776,8 @@ router.beforeEach(async (to, from) => {
     });
 
     if (session.authenticated) {
+      if (session.user?.role === 'member') return restrictedConferenceRoute(to);
+      if (to.path === RESTRICTED_CONFERENCE_HOME) return annualConferencePath();
       const isPhone = matchesOrganizerPhoneViewport();
       const viewportRedirect = organizerViewportRedirect({
         authenticated: true,

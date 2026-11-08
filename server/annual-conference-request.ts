@@ -44,7 +44,7 @@ async function getActivePlanningOwnerEmails(c: Context): Promise<string[] | null
       .from('admin_memberships')
       .select('email')
       .eq('status', 'active')
-      .neq('role', 'volunteer');
+      .in('role', ['owner', 'organizer']);
 
     if (error) return null;
 
@@ -101,7 +101,7 @@ export async function annualConferenceFinanceServiceForRequest(c: Context) {
   });
 }
 
-async function annualConferenceCapabilitiesForRequest(c: Context, year: number): Promise<{
+export async function annualConferenceCapabilitiesForRequest(c: Context, year: number): Promise<{
   capabilities: AnnualConferenceCapability[];
   editionId: string;
 } | undefined> {

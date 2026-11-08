@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-08 — Restricted conference access
+
+- Owners can add or approve a Restricted member and grant specific Annual Conference workspaces for each edition. Restricted members start with no assigned workspaces.
+- People & Access groups permissions by workspace and shows what each member can do. Ticketing, Registration, and Check-in can be granted independently, with separate viewing and management permissions where supported.
+- Give workspace disclosures animated chevrons and indent the permission controls beneath each expanded workspace.
+
 ## 2026-11-08 — Volunteer badge lettering
 
 - Restore **VOLUNTEER** on volunteer conference badge previews and shared or downloaded images. Attendee and speaker badges retain their existing labels.

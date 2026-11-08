@@ -3,6 +3,7 @@ import type { AnnualConferenceCapability, AnnualConferenceCapabilityOverride } f
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 import type { AdminRole, Database } from '@/types/supabase';
 import {
+  annualConferenceCapabilityChanges,
   canDelegateAnnualConferenceCapability,
   effectiveAnnualConferenceCapabilities,
 } from '@/lib/annual-conference-capabilities';
@@ -101,16 +102,47 @@ export async function listAnnualConferenceAccessMembers(year: number, c?: Contex
         capabilities: effectiveAnnualConferenceCapabilities({
           role: member.role,
           overrides: grantsByMember.get(member.id) ?? [],
-          isPlanningOwner: member.role !== 'volunteer' && planningOwner,
+          isPlanningOwner: (member.role === 'owner' || member.role === 'organizer') && planningOwner,
         }),
         overrides: grantsByMember.get(member.id) ?? [],
         inherited_capabilities: effectiveAnnualConferenceCapabilities({
           role: member.role,
-          isPlanningOwner: member.role !== 'volunteer' && planningOwner,
+          isPlanningOwner: (member.role === 'owner' || member.role === 'organizer') && planningOwner,
         }),
       };
     }),
   };
+}
+
+export async function listRestrictedConferenceAccess(membershipId: string, c?: Context) {
+  const client = getSupabaseAdminClient(c);
+  const grants = await client.from('annual_conference_access_grants')
+    .select('edition_id, capability, enabled')
+    .eq('membership_id', membershipId)
+    .eq('enabled', true);
+
+  if (grants.error) throw new Error(grants.error.message);
+  const overrides = new Map<string, AnnualConferenceCapabilityOverride[]>();
+
+  for (const { edition_id, capability, enabled } of grants.data) {
+    const existing = overrides.get(edition_id) ?? [];
+
+    existing.push({ capability, enabled });
+    overrides.set(edition_id, existing);
+  }
+  if (overrides.size === 0) return [];
+  const editions = await client.from('annual_conference_editions')
+    .select('id, year, label')
+    .in('id', Array.from(overrides.keys()))
+    .order('year', { ascending: false });
+
+  if (editions.error) throw new Error(editions.error.message);
+
+  return editions.data.flatMap(({ id, year, label }) => {
+    const capabilities = effectiveAnnualConferenceCapabilities({ role: 'member', overrides: overrides.get(id) });
+
+    return capabilities.length ? [{ year, label, capabilities }] : [];
+  });
 }
 
 export async function setAnnualConferenceAccessGrant(input: {
@@ -146,14 +178,8 @@ export async function setAnnualConferenceAccessGrant(input: {
     enabled: input.enabled,
     granted_by_membership_id: input.grantedByMembershipId,
   };
-  const rows: GrantInsert[] = [row];
-
-  if (input.capability === 'work_plan.view_all' && !input.enabled) {
-    rows.push({ ...row, capability: 'work_plan.manage', enabled: false });
-  }
-  if (input.capability === 'work_plan.manage' && input.enabled) {
-    rows.push({ ...row, capability: 'work_plan.view_all', enabled: true });
-  }
+  const rows = annualConferenceCapabilityChanges(membershipResult.data.role, input.capability, input.enabled)
+    .map(capability => ({ ...row, capability }));
 
   const result = await client
     .from('annual_conference_access_grants')

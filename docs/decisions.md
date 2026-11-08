@@ -1,5 +1,13 @@
 # Architectural Decisions
 
+## ADR-126: Grant restricted access by conference edition and workspace
+
+**Date:** 2026-11-08
+
+**Decision:** A Restricted member has no inherited workspace access. Only explicitly allowed Annual Conference routes admit this role. Existing edition grants define what each person can do, and the server checks them on every protected request. Ticketing, Registration, and Check-in have independent grants. View permissions do not authorize writes, and management includes viewing only its own workspace. Existing Organizer and Volunteer behavior continues.
+
+**Why:** Hiding a navigation item cannot constrain an Organizer’s API permissions. A distinct role and explicit route admission keep unassigned editions and unrelated EMS areas private. The database clears old grants when role or status changes cross the restricted membership boundary.
+
 ## ADR-125: Keep the public attendance counter separate from admissions
 
 **Date:** 2026-11-06

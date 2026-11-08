@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   },
   updateTask: vi.fn(),
   setGrant: vi.fn(),
+  ticketingRead: vi.fn(),
+  registrationReads: vi.fn(),
   grants: [] as Array<import('@/lib/annual-conference-capabilities').AnnualConferenceCapability>,
   applications: [] as VolunteerApplication[],
   team: [] as Array<{ id: string; email: string; display_name: string; role: 'volunteer' }>,
@@ -87,12 +89,18 @@ vi.mock('@/lib/supabase/server', async () => {
   return {
     ...actual,
     getSupabaseAdminClient: vi.fn(() => ({
+      rpc: mocks.registrationReads,
       from: vi.fn(() => {
+        let year = 2026;
         const builder = {
           select: vi.fn(() => builder),
-          eq: vi.fn(() => builder),
+          eq: vi.fn((key: string, value: unknown) => {
+            if (key === 'year') year = Number(value);
+
+            return builder;
+          }),
           maybeSingle: vi.fn(async () => ({
-            data: { id: 'edition-2026', task_creator_email: 'owner@example.com' },
+            data: { id: `edition-${year}`, task_creator_email: 'owner@example.com' },
             error: null,
           })),
         };
@@ -126,10 +134,16 @@ vi.mock('@/lib/supabase/annual-conference-work-plan', () => ({
 
 vi.mock('@/lib/supabase/annual-conference-access-grants', () => ({
   clearAnnualConferenceAccessGrantsForMembership: vi.fn(async () => undefined),
-  getAnnualConferenceAccessGrants: vi.fn(async () => mocks.grants),
+  getAnnualConferenceAccessGrants: vi.fn(async (editionId: string) => editionId === 'edition-2026' ? mocks.grants : []),
+  listRestrictedConferenceAccess: vi.fn(async () => []),
   listAnnualConferenceAccessMembers: vi.fn(),
   listAnnualConferenceVolunteerTeam: vi.fn(async () => mocks.team),
   setAnnualConferenceAccessGrant: mocks.setGrant,
+}));
+
+vi.mock('@/lib/supabase/annual-conference-ticketing', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/supabase/annual-conference-ticketing')>(),
+  getSupabaseAnnualConferenceTicketing: mocks.ticketingRead,
 }));
 
 vi.mock('@/lib/mock-db/volunteer-applications', () => ({
@@ -145,6 +159,13 @@ describe('annual conference volunteer API access', () => {
     mocks.session.role = 'volunteer';
     mocks.updateTask.mockReset();
     mocks.setGrant.mockReset();
+    mocks.ticketingRead.mockReset().mockResolvedValue({ settings: { edition_id: 'edition-2026' } });
+    mocks.registrationReads.mockReset().mockImplementation(async (name: string) => ({
+      data: name === 'get_annual_conference_registration_overview'
+        ? { edition_id: '10000000-0000-4000-8000-000000000001', mode: 'free', status: 'open', capacity: 20, reserved: 0, confirmed: 0, waitlisted: 0 }
+        : [],
+      error: null,
+    }));
     mocks.grants = [];
     mocks.applications = [];
     mocks.team = [];
@@ -408,6 +429,47 @@ describe('annual conference volunteer API access', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'This responsibility cannot be delegated to that member role.',
     });
+  });
+
+  it('scopes restricted ticketing and registration reads to the grant and edition on every request', async () => {
+    const { default: app } = await import('./app');
+
+    mocks.session.role = 'member';
+    const request = (path: string, method = 'GET', body?: unknown) => app.request(`http://localhost/api/${path}`, {
+      method,
+      ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
+    });
+
+    expect((await request('events')).status).toBe(403);
+    expect((await request('admin/organizers')).status).toBe(403);
+    expect((await request('annual-conference/2026/work-plan')).status).toBe(403);
+    mocks.grants = ['ticketing.view'];
+    expect((await request('annual-conference/2026/ticketing')).status).toBe(200);
+    expect((await request('annual-conference/2027/ticketing')).status).toBe(403);
+    expect((await request('annual-conference/2026/registrations')).status).toBe(403);
+    expect((await request('annual-conference/2026/ticketing/capacity', 'PATCH', { public_capacity: 50 })).status).toBe(403);
+    const bootstrap = await request('annual-conference/2026/work-plan');
+
+    expect(bootstrap.status).toBe(200);
+    await expect(bootstrap.json()).resolves.toMatchObject({
+      tasks: [],
+      phases: [],
+      edition: { task_creator_email: '' },
+      permissions: { capabilities: ['ticketing.view'], can_edit_assigned_tasks: false },
+    });
+    expect((await request('annual-conference/2026/work-plan/task-assigned', 'PATCH', { status: 'done' })).status).toBe(403);
+    expect(mocks.updateTask).not.toHaveBeenCalled();
+    mocks.grants = ['ticketing.manage'];
+    expect((await request('annual-conference/2026/check-in/attendees')).status).toBe(403);
+    expect((await request('annual-conference/2026/ticketing/check-in', 'POST', { qr_token: 'f'.repeat(64) })).status).toBe(403);
+    mocks.grants = ['registration.view'];
+    expect((await request('annual-conference/2026/ticketing')).status).toBe(403);
+    expect((await request('annual-conference/2026/registrations')).status).toBe(200);
+    expect((await request('annual-conference/2026/registrations/10000000-0000-4000-8000-000000000001/cancel', 'POST', {})).status).toBe(403);
+    expect((await request('annual-conference/2026/registrations/blasts')).status).toBe(403);
+    expect((await request('annual-conference/2026/check-in/attendees')).status).toBe(403);
+    mocks.grants = [];
+    expect((await request('annual-conference/2026/registrations')).status).toBe(403);
   });
 
   it('marks matching applicants active without exposing team email addresses', async () => {

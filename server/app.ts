@@ -124,6 +124,7 @@ import { ensureActiveShortLink, listShortLinks, regenerateActiveShortLink, resol
 import {
   clearAnnualConferenceAccessGrantsForMembership,
   listAnnualConferenceAccessMembers,
+  listRestrictedConferenceAccess,
   listAnnualConferenceVolunteerTeam,
   setAnnualConferenceAccessGrant,
 } from '@/lib/supabase/annual-conference-access-grants';
@@ -710,17 +711,17 @@ const systemDesignDraftRequestSchema = z.object({
 const addOrganizerSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   display_name: z.string().trim().min(1).max(120),
-  role: z.enum(['owner', 'organizer', 'volunteer']).default('organizer'),
+  role: z.enum(['owner', 'organizer', 'volunteer', 'member']).default('organizer'),
 });
 const adminAccessRequestSchema = z.object({
   display_name: z.string().trim().min(1).max(120),
   reason: z.string().trim().max(1000).optional(),
 }).strict();
 const adminAccessRequestDecisionSchema = z.object({
-  role: z.enum(['organizer', 'volunteer']),
+  role: z.enum(['organizer', 'volunteer', 'member']),
 }).strict();
 const updateOrganizerRoleSchema = z.object({
-  role: z.enum(['organizer', 'volunteer']),
+  role: z.enum(['organizer', 'volunteer', 'member']),
 }).strict();
 const annualConferenceAccessGrantSchema = z.object({
   capability: z.enum(ANNUAL_CONFERENCE_CAPABILITIES),
@@ -5239,7 +5240,7 @@ app.get('/api/admin/volunteer-applications', async (c) => {
 });
 
 app.get('/api/annual-conference/:year/team', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
@@ -5261,7 +5262,7 @@ app.get('/api/annual-conference/:year/team', async (c) => {
 });
 
 app.get('/api/annual-conference/:year/task-members', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (adminError) return adminError;
   const session = c.get('adminSession') ?? await getAdminSession(c);
@@ -5270,7 +5271,7 @@ app.get('/api/annual-conference/:year/task-members', async (c) => {
   const yearParam = c.req.param('year');
 
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
-  if (session.role === 'volunteer') {
+  if (session.role === 'volunteer' || session.role === 'member') {
     const capabilityError = await requireAnnualConferenceCapability(c, Number(yearParam), 'work_plan.manage');
 
     if (capabilityError) return capabilityError;
@@ -5287,7 +5288,7 @@ app.get('/api/annual-conference/:year/task-members', async (c) => {
 });
 
 app.get('/api/annual-conference/:year/volunteer-applications', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
@@ -5380,6 +5381,22 @@ app.patch('/api/annual-conference/:year/access-grants/:membershipId', async (c) 
   }
 });
 
+app.get('/api/annual-conference/my-access', async (c) => {
+  const denied = await requireAdmin(c, ['member']);
+
+  if (denied) return denied;
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+
+  if (!session.authenticated || !session.membership_id) return c.json({ error: 'Conference access required.' }, 401);
+  c.header('Cache-Control', 'no-store');
+
+  try {
+    return c.json({ editions: await listRestrictedConferenceAccess(session.membership_id, c) });
+  } catch (error) {
+    return internalErrorResponse(c, 'restricted_conference_access_read_failed', error, 'Unable to load conference access.');
+  }
+});
+
 app.get('/api/annual-conference/editions', async (c) => {
   const adminError = await requireAdmin(c);
 
@@ -5407,7 +5424,7 @@ app.post('/api/annual-conference/editions', async (c) => {
 });
 
 app.get('/api/annual-conference/:year/work-plan', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (adminError) return adminError;
 
@@ -5447,7 +5464,7 @@ registerVolunteerBroadcastRoutes(app);
 registerSpeakerBlastRoutes(app, { getEvent: getEventById, audience: monthlySpeakerBlastAudience, audit: auditAdminAction });
 
 app.get('/api/annual-conference/:year/finance', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
@@ -5698,7 +5715,7 @@ app.post('/api/internal/annual-conference/phases/rollover', async (c) => {
 });
 
 app.post('/api/annual-conference/:year/work-plan', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (adminError) return adminError;
 
@@ -5724,7 +5741,7 @@ app.post('/api/annual-conference/:year/work-plan', async (c) => {
 });
 
 app.patch('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (adminError) return adminError;
 
@@ -5750,7 +5767,7 @@ app.patch('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
 });
 
 app.delete('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (adminError) return adminError;
 
@@ -5990,8 +6007,8 @@ app.post('/api/admin/organizers', async (c) => {
   }
 
   if (session.role !== 'owner') {
-    if (role === 'owner') {
-      return c.json({ error: 'Only owners can grant owner access.' }, 403);
+    if (role === 'owner' || role === 'member') {
+      return c.json({ error: 'Only owners can grant this role.' }, 403);
     }
 
     if (existingMembership?.role === 'owner') {
@@ -6045,7 +6062,9 @@ app.post('/api/admin/organizers', async (c) => {
     && (existingMembership.role !== data.role || existingMembership.status !== data.status)
   ) {
     try {
-      await clearAnnualConferenceAccessGrantsForMembership(data.id, c);
+      if (existingMembership.role !== 'member' && data.role !== 'member') {
+        await clearAnnualConferenceAccessGrantsForMembership(data.id, c);
+      }
       await revokeAdminSessionsForMembership(c, data.id);
     } catch {
       return c.json({ error: 'Organizer access changed, but previous permissions could not be fully cleared.' }, 500);
@@ -6089,7 +6108,7 @@ app.patch('/api/admin/organizers/:organizerId/role', async (c) => {
   const parsed = updateOrganizerRoleSchema.safeParse(await c.req.json().catch(() => null));
 
   if (!parsed.success) {
-    return c.json({ error: 'Choose Organizer or Volunteer.' }, 400);
+    return c.json({ error: 'Choose Organizer, Volunteer, or Restricted member.' }, 400);
   }
 
   const { data: existingMembership, error: existingMembershipError } = await getSupabaseAdminClient(c)
@@ -6126,7 +6145,9 @@ app.patch('/api/admin/organizers/:organizerId/role', async (c) => {
   }
 
   try {
-    await clearAnnualConferenceAccessGrantsForMembership(data.id, c);
+    if (existingMembership.role !== 'member' && data.role !== 'member') {
+      await clearAnnualConferenceAccessGrantsForMembership(data.id, c);
+    }
     await revokeAdminSessionsForMembership(c, data.id);
   } catch {
     return c.json({ error: 'The role changed, but previous permissions could not be fully cleared.' }, 500);
@@ -6213,7 +6234,7 @@ app.delete('/api/admin/organizers/:organizerId', async (c) => {
     return c.json({ error: 'Organizer was not found.' }, 404);
   }
   try {
-    await clearAnnualConferenceAccessGrantsForMembership(data.id, c);
+    if (data.role !== 'member') await clearAnnualConferenceAccessGrantsForMembership(data.id, c);
     await revokeAdminSessionsForMembership(c, data.id);
   } catch {
     return c.json({ error: 'Organizer access was disabled, but previous permissions could not be fully cleared.' }, 500);

@@ -22,6 +22,13 @@ const MEMBERSHIP_ROLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/role$/;
 const MEMBERSHIP_ENABLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/enable$/;
 const MEMBERSHIP_PERMANENT_REMOVE_PATH =
   /^\/api\/admin\/organizers\/[^/]+\/permanent$/;
+const RESTRICTED_CONFERENCE_ROLES: AdminRole[] = ['owner', 'organizer', 'volunteer', 'member'];
+const RESTRICTED_READ_PATH = /^\/api\/annual-conference\/\d{4}\/(?:work-plan(?:\/[^/]+\/resources)?|task-members|team|volunteer-applications|volunteer-follow-up\/reviews|speakers|speaker-headshots\/[^/]+\/photo|finance|ticketing(?:\/(?:orders|sponsor-allocations|email-deliveries))?|registrations|check-in\/attendees)$/;
+const RESTRICTED_WRITE_PATHS = [
+  ['POST', /^\/api\/annual-conference\/\d{4}\/(?:work-plan(?:\/[^/]+\/resources)?|registrations\/[^/]+\/cancel|check-in\/(?:search|admit)|ticketing\/(?:check-in|sponsor-allocations|email-deliveries\/[^/]+\/retry))$/],
+  ['PATCH', /^\/api\/annual-conference\/\d{4}\/(?:work-plan\/[^/]+(?:\/resources\/[^/]+)?|volunteer-follow-up\/recipients\/[^/]+\/review|speakers\/(?:call|logistics-deadline)|speaker-submissions\/[^/]+|ticketing\/(?:capacity|prices))$/],
+  ['DELETE', /^\/api\/annual-conference\/\d{4}\/work-plan\/[^/]+(?:\/resources\/[^/]+)?$/],
+] as const;
 const LOGOUT_PATH = "/api/auth/logout";
 const EVENT_DELETE_PATH = /^\/api\/events\/[^/]+$/;
 const EVENT_RESTORE_PATH = /^\/api\/events\/[^/]+\/restore$/;
@@ -50,6 +57,18 @@ export function adminRolesForApiRequest(
   path: string,
   method: string,
 ): AdminRole[] {
+  if (method === 'POST' && path === LOGOUT_PATH) return RESTRICTED_CONFERENCE_ROLES;
+  if (method === 'GET' && (path === '/api/annual-conference/my-access' || RESTRICTED_READ_PATH.test(path))) {
+    return [...adminRolesForLegacyApiRequest(path, method), 'member'];
+  }
+  if (RESTRICTED_WRITE_PATHS.some(([verb, pattern]) => method === verb && pattern.test(path))) {
+    return [...adminRolesForLegacyApiRequest(path, method), 'member'];
+  }
+
+  return adminRolesForLegacyApiRequest(path, method);
+}
+
+function adminRolesForLegacyApiRequest(path: string, method: string): AdminRole[] {
   if (method === "GET" && /^\/api\/annual-conference\/\d{4}\/check-in\/attendees$/.test(path)) {
     return CONFERENCE_MEMBER_ROLES;
   }

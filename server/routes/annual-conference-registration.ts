@@ -169,13 +169,25 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
   const privatePath = '/api/annual-conference/:year/registrations';
 
   app.use(`${privatePath}*`, async (c, next) => {
-    const authError = await requireAdmin(c, ['owner', 'organizer']);
+    const authError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (authError) return authError;
     const year = z.coerce.number().int().min(2000).max(2200).safeParse(c.req.param('year'));
 
     if (!year.success) return c.json({ error: 'Invalid conference year.' }, 400);
-    const accessError = await requireAnnualConferenceCapability(c, year.data, 'ticketing.manage');
+    const session = c.get('adminSession') ?? await getAdminSession(c);
+    let capability: 'ticketing.manage' | 'registration.view' | 'registration.manage' = 'ticketing.manage';
+
+    if (session.authenticated && session.role === 'member') {
+      if (c.req.method === 'GET' && /^\/api\/annual-conference\/\d{4}\/registrations$/.test(c.req.path)) {
+        capability = 'registration.view';
+      } else if (c.req.method === 'POST' && /^\/api\/annual-conference\/\d{4}\/registrations\/[^/]+\/cancel$/.test(c.req.path)) {
+        capability = 'registration.manage';
+      } else {
+        return c.json({ error: 'This account does not have access to this registration action.' }, 403);
+      }
+    }
+    const accessError = await requireAnnualConferenceCapability(c, year.data, capability);
 
     if (accessError) return accessError;
     await next();
@@ -195,6 +207,18 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
     if (result.error) return c.json({ error: 'Unable to load registrations.' }, 503);
 
     const registrations = (result.data ?? []) as Array<{ id: string } & Record<string, unknown>>;
+    const session = c.get('adminSession') ?? await getAdminSession(c);
+
+    if (session.authenticated && session.role === 'member') {
+      c.header('Cache-Control', 'no-store');
+
+      return c.json({
+        overview,
+        registrations: registrations.map(({ id, name, email, status, created_at, is_test }) => ({
+          id, name, email, status, created_at, is_test, ticket_id: null,
+        })),
+      });
+    }
     const tickets = registrations.length ? await getSupabaseAdminClient(c)
       .from('annual_conference_tickets')
       .select('id,registration_id')

@@ -12,6 +12,8 @@ import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { formatTicketMoney, parseGhsAmountToMinor, tierSavings, validateAnnualConferenceCapacity, validateAnnualConferenceTicketPrices } from '@/lib/annual-conference-ticketing';
 import {
   createAnnualConferenceSponsorAllocation,
+  fetchAdminSession,
+  fetchAnnualConferenceWorkPlan,
   fetchAnnualConferenceTicketOrders,
   fetchAnnualConferenceTicketEmailDeliveries,
   fetchAnnualConferenceSponsorAllocations,
@@ -44,8 +46,20 @@ const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
 const year = computed(() => String(route.params.year));
-const activeSection = computed(() => resolveTicketingSection(route.query.section, year.value));
-const sectionLinks = computed(() => ticketingSections(year.value).map(section => ({
+const session = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetchAdminSession });
+const restricted = computed(() => session.data.value?.user?.role === 'member');
+const restrictedPlan = useQuery({
+  queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
+  queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
+  enabled: restricted,
+});
+const canManageTicketing = computed(() => !restricted.value
+  || restrictedPlan.data.value?.permissions.capabilities.includes('ticketing.manage') === true);
+const activeSection = computed(() => restricted.value && route.query.section === 'testing'
+  ? 'overview' : resolveTicketingSection(route.query.section, year.value));
+const sectionLinks = computed(() => ticketingSections(year.value)
+  .filter(section => !restricted.value || section.key !== 'testing')
+  .map(section => ({
   ...section,
   to: ticketingSectionLocation(route.path, route.query, section.key),
 })));
@@ -656,14 +670,14 @@ onUnmounted(() => {
               <span class="rounded-full border border-dc-ink px-3 py-1 font-mono text-[10px] font-semibold uppercase">{{ ticketing.settings.ticket_sales_status }}</span>
             </div>
             <p class="mt-3 text-sm leading-6 text-dc-gray">Current capacity: <strong class="text-dc-ink">{{ ticketing.settings.public_capacity }}</strong>. It cannot fall below the <strong class="text-dc-ink">{{ ticketing.inventory.reduction_floor }}</strong> seats already paid, sponsor-held, or in an active checkout hold.</p>
-            <form class="mt-5 flex flex-wrap items-end gap-3" @submit.prevent="saveCapacity">
+            <form v-if="canManageTicketing" class="mt-5 flex flex-wrap items-end gap-3" @submit.prevent="saveCapacity">
               <label for="ticketing-new-capacity" class="min-w-48 flex-1">
                 <span class="editorial-label">New capacity</span>
                 <input id="ticketing-new-capacity" v-model.number="capacity" :min="Math.max(1, ticketing.inventory.reduction_floor)" max="5000" class="editorial-input mt-2" type="number" inputmode="numeric" :aria-describedby="capacityError || capacityValidation ? 'ticketing-capacity-error' : 'ticketing-capacity-help'" @input="capacityError = ''">
               </label>
               <button type="submit" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-xs font-semibold uppercase disabled:cursor-not-allowed disabled:opacity-50" :disabled="capacityMutation.isPending.value || !capacityCanSave">{{ capacityMutation.isPending.value ? 'Saving…' : 'Save capacity' }}</button>
             </form>
-            <p id="ticketing-capacity-help" class="mt-2 text-xs leading-5 text-dc-gray">Enter a changed whole number. The floor is enforced again when you save.</p>
+            <p v-if="canManageTicketing" id="ticketing-capacity-help" class="mt-2 text-xs leading-5 text-dc-gray">Enter a changed whole number. The floor is enforced again when you save.</p>
             <p v-if="capacityError || capacityValidation" id="ticketing-capacity-error" class="mt-2 text-sm font-medium text-dc-pink" role="alert">{{ capacityError || capacityValidation }}</p>
           </section>
 
@@ -677,7 +691,7 @@ onUnmounted(() => {
             </dl>
             <p class="mt-4 text-sm leading-6 text-dc-gray">Next: confirm the merchant account and payment-provider configuration. No attendee can be charged from this workspace.</p>
           </aside>
-          <TicketPurchaseLinkPanel v-if="year === '2026'" />
+          <TicketPurchaseLinkPanel v-if="!restricted && year === '2026'" />
         </div>
 
         <section class="py-5" aria-labelledby="passes-title">
@@ -689,7 +703,7 @@ onUnmounted(() => {
             </div>
             <div class="flex items-center gap-3">
               <span class="rounded-full border border-dc-ink px-3 py-1 font-mono text-[10px] font-semibold uppercase">{{ ticketing.settings.ticket_sales_status }}</span>
-              <button v-if="pricingIsEditable" type="button" class="motion-press min-h-10 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-xs font-semibold uppercase" @click="openPricingEditor">Edit prices</button>
+              <button v-if="canManageTicketing && pricingIsEditable" type="button" class="motion-press min-h-10 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-xs font-semibold uppercase" @click="openPricingEditor">Edit prices</button>
             </div>
           </div>
 
@@ -831,7 +845,7 @@ onUnmounted(() => {
               </div>
               <div class="flex shrink-0 items-center gap-3">
                 <span class="rounded-full border border-dc-border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase text-dc-ink">{{ deliveryStatusLabel(delivery) }}</span>
-                <button v-if="canRetryEmailDelivery(delivery)" type="button" class="motion-press rounded-md border border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase disabled:cursor-not-allowed disabled:opacity-50" :disabled="retryEmailDeliveryMutation.isPending.value" @click="retryEmailDeliveryMutation.mutate(delivery.id)">{{ retryEmailDeliveryMutation.isPending.value ? 'Queuing…' : 'Retry' }}</button>
+                <button v-if="canManageTicketing && canRetryEmailDelivery(delivery)" type="button" class="motion-press rounded-md border border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase disabled:cursor-not-allowed disabled:opacity-50" :disabled="retryEmailDeliveryMutation.isPending.value" @click="retryEmailDeliveryMutation.mutate(delivery.id)">{{ retryEmailDeliveryMutation.isPending.value ? 'Queuing…' : 'Retry' }}</button>
               </div>
             </article>
           </div>
@@ -845,7 +859,7 @@ onUnmounted(() => {
           </footer>
         </section>
 
-        <div v-if="year === '2026' && testingVisited" v-show="activeSection === 'testing'" class="min-w-0">
+        <div v-if="!restricted && year === '2026' && testingVisited" v-show="activeSection === 'testing'" class="min-w-0">
           <Devcon26TestCoupons :year="year" :active="activeSection === 'testing'" />
         </div>
 
@@ -854,7 +868,7 @@ onUnmounted(() => {
           <h2 id="sponsor-title" class="mt-1 text-xl font-semibold text-dc-ink">Reserve private sponsor tickets</h2>
           <p class="mt-2 text-sm leading-6 text-dc-gray">These seats are held in the inventory ledger immediately and are not public pass types. Reserving does not yet issue QR codes or send an email.</p>
 
-          <form class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1.15fr)_8rem]" novalidate @submit.prevent="saveSponsorAllocation">
+          <form v-if="canManageTicketing" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1.15fr)_8rem]" novalidate @submit.prevent="saveSponsorAllocation">
             <label for="sponsor-allocation-name">
               <span class="editorial-label">Sponsor</span>
               <input id="sponsor-allocation-name" v-model.trim="sponsorForm.sponsor_name" name="sponsor_name" autocomplete="organization" class="editorial-input mt-2" :class="sponsorFormErrors.sponsor_name ? 'border-dc-pink' : ''" :aria-invalid="Boolean(sponsorFormErrors.sponsor_name)" :aria-describedby="sponsorFormErrors.sponsor_name ? 'sponsor-name-error' : undefined" @input="clearSponsorFormError('sponsor_name')">

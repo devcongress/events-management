@@ -8,12 +8,15 @@ import type { AppBindings } from '@/server/http/app-bindings';
 import { CONFERENCE_CHECK_IN_UNAVAILABLE, isAnnualConferenceCheckInOpen } from '@/lib/annual-conference-check-in';
 
 export async function requireConferenceCheckIn(c: Context, year: number) {
-  const auth = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const auth = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (auth) return auth;
   const scan = await requireAnnualConferenceCapability(c, year, 'ticketing.check_in');
 
   if (!scan) return null;
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+
+  if (session.authenticated && session.role === 'member') return scan;
 
   return await requireAnnualConferenceCapability(c, year, 'ticketing.manage');
 }

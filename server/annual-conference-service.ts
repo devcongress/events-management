@@ -11,6 +11,7 @@ import {
   type AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
 import {
+  annualConferenceCapabilities,
   canCreateAnnualConferenceEdition,
   canCreateAnnualConferenceTasks,
   canDeleteAnnualConferenceTasks,
@@ -153,7 +154,21 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
     async getWorkspace(year: number) {
       const value = await workspace(year);
 
-      return presentAnnualConferenceWorkspace(value, await actorForEdition(value.edition.id));
+      const editionActor = await actorForEdition(value.edition.id);
+
+      if (editionActor.role !== 'member') return presentAnnualConferenceWorkspace(value, editionActor);
+      const access = annualConferenceCapabilities(editionActor, value.edition);
+
+      if (!access.capabilities.length) {
+        throw new AnnualConferenceServiceError('forbidden', 'You do not have access to this edition.');
+      }
+      if (access.access_scope === 'all') return presentAnnualConferenceWorkspace(value, editionActor);
+
+      return presentAnnualConferenceWorkspace({
+        edition: { ...value.edition, task_creator_email: '', keynote_note: null, venue_note: null, speaker_call_status: undefined, speaker_logistics_deadline: undefined },
+        phases: [],
+        tasks: [],
+      }, editionActor);
     },
 
     async createEdition(input: AnnualConferenceEditionCreateInput) {

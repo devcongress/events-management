@@ -59,6 +59,13 @@ SELECT json_build_object(
       JOIN pg_namespace fn ON fn.oid = p.pronamespace
       WHERE n.nspname = 'public' AND NOT t.tgisinternal
       UNION ALL
+      SELECT json_build_object('kind', 'data', 'schema', 'public', 'name', 'admin_role_member',
+        'value', CASE WHEN EXISTS (
+          SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+          JOIN pg_namespace n ON n.oid = t.typnamespace
+          WHERE n.nspname = 'public' AND t.typname = 'admin_role' AND e.enumlabel = 'member'
+        ) THEN 'present' ELSE 'absent' END)
+      UNION ALL
       SELECT json_build_object('kind', 'data', 'schema', 'public', 'name', 'devcon26_2026_ticket_price_state',
         'value', (
           SELECT s.currency || '|' || s.regular_price_minor || '|' || s.team_3_price_minor || '|'

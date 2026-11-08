@@ -13,6 +13,7 @@ const label = computed(() => ({
   owner: 'Owner',
   organizer: 'Organizer',
   volunteer: 'Volunteer',
+  member: 'Restricted member',
 })[props.role]);
 </script>
 
@@ -27,6 +28,7 @@ const label = computed(() => ({
         'border-dc-yellow/70 bg-dc-yellow/25 text-dc-ink': role === 'owner',
         'border-dc-pink/35 bg-dc-pink/10 text-dc-pink': role === 'organizer',
         'border-dc-info/30 bg-dc-info-soft text-dc-info': role === 'volunteer',
+        'border-dc-border bg-dc-paper-warm text-dc-gray': role === 'member',
       },
     ]"
     :aria-hidden="iconOnly"

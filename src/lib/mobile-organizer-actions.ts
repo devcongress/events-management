@@ -1,3 +1,4 @@
+import type { AdminRole } from '@/types/supabase';
 import { isEventCheckInDay } from '@/lib/event-check-in';
 import { resolveEventStatus } from '@/lib/event-status';
 import type { AnnualConferenceTask } from '@/lib/annual-conference-work-plan';
@@ -18,7 +19,7 @@ export interface MobileOrganizerNextAction {
 }
 
 interface MobileOrganizerActionInput {
-  role: 'owner' | 'organizer' | 'volunteer';
+  role: AdminRole;
   events: CommunityEvent[];
   tasks: AnnualConferenceTask[];
   now?: Date;

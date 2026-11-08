@@ -11,7 +11,10 @@ export const ANNUAL_CONFERENCE_CAPABILITIES = [
   'speakers.view',
   'speakers.manage',
   'finance.view',
+  'ticketing.view',
   'ticketing.manage',
+  'registration.view',
+  'registration.manage',
   'ticketing.check_in',
 ] as const;
 
@@ -23,7 +26,7 @@ export interface AnnualConferenceCapabilityOverride {
 
 export interface AnnualConferenceCapabilityDefinition {
   value: AnnualConferenceCapability;
-  section: 'Work plan' | 'Volunteers' | 'Speakers' | 'Finance' | 'Ticketing';
+  section: 'Work plan' | 'Volunteers' | 'Speakers' | 'Finance' | 'Ticketing' | 'Registration' | 'Check-in';
   label: string;
   description: string;
 }
@@ -31,7 +34,7 @@ export interface AnnualConferenceCapabilityDefinition {
 export const ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS: readonly AnnualConferenceCapabilityDefinition[] = [
   {
     value: 'ticketing.check_in',
-    section: 'Ticketing',
+    section: 'Check-in',
     label: 'Check in attendees',
     description: 'Scan admission QR codes for this edition without access to finances or ticketing administration.',
   },
@@ -84,6 +87,24 @@ export const ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS: readonly AnnualConference
     description: 'See the private GHS budget, expenses, income, and financial summary for this edition.',
   },
   {
+    value: 'ticketing.view',
+    section: 'Ticketing',
+    label: 'View ticketing',
+    description: 'See ticket capacity, prices, orders, delivery status, and sponsor allocations for this edition.',
+  },
+  {
+    value: 'registration.view',
+    section: 'Registration',
+    label: 'View registration',
+    description: 'See the registration summary and guest list for this edition.',
+  },
+  {
+    value: 'registration.manage',
+    section: 'Registration',
+    label: 'Manage registrations',
+    description: 'View the guest list and cancel individual registrations. Campaigns and settings require separate access.',
+  },
+  {
     value: 'ticketing.manage',
     section: 'Ticketing',
     label: 'Manage ticketing',
@@ -122,16 +143,24 @@ export function effectiveAnnualConferenceCapabilities(input: {
   const capabilities = new Set<AnnualConferenceCapability>(annualConferenceRoleCapabilities(input.role));
 
   for (const capability of input.grants ?? []) {
+    if (input.role === 'member' && !canDelegateAnnualConferenceCapability(capability, input.role)) continue;
     if ((capability === 'finance.view' || capability.startsWith('speakers.') || capability === 'ticketing.manage') && input.role === 'volunteer') continue;
     capabilities.add(capability);
   }
-  if (input.isPlanningOwner) {
+  if (input.isPlanningOwner && input.role !== 'member') {
     capabilities.add('work_plan.manage');
     capabilities.add('phases.manage');
   }
   for (const override of input.overrides ?? []) {
+    if (input.role === 'member' && !canDelegateAnnualConferenceCapability(override.capability, input.role)) continue;
     if (override.enabled) capabilities.add(override.capability);
     else capabilities.delete(override.capability);
+  }
+  if (input.role === 'member') {
+    if (capabilities.has('work_plan.manage')) capabilities.add('work_plan.view_all');
+    if (capabilities.has('ticketing.manage')) capabilities.add('ticketing.view');
+    if (capabilities.has('registration.manage')) capabilities.add('registration.view');
+    if (capabilities.has('speakers.manage')) capabilities.add('speakers.view');
   }
 
   return ANNUAL_CONFERENCE_CAPABILITIES.filter((capability) => capabilities.has(capability));
@@ -157,12 +186,35 @@ export const VOLUNTEER_SECTION_CAPABILITIES: readonly AnnualConferenceCapability
   'volunteers.review_applications',
 ];
 
+const WORK_PLAN_PERMISSION_PAIR = ['work_plan.view_all', 'work_plan.manage'] as const;
+const RESTRICTED_PERMISSION_PAIRS = [
+  WORK_PLAN_PERMISSION_PAIR,
+  ['speakers.view', 'speakers.manage'],
+  ['ticketing.view', 'ticketing.manage'],
+  ['registration.view', 'registration.manage'],
+] as const;
+
+export function annualConferenceCapabilityChanges(
+  role: AdminRole,
+  capability: AnnualConferenceCapability,
+  enabled: boolean,
+): AnnualConferenceCapability[] {
+  const pairs = role === 'member' ? RESTRICTED_PERMISSION_PAIRS : [WORK_PLAN_PERMISSION_PAIR];
+  const pair = pairs.find(([view, manage]) => enabled ? capability === manage : capability === view);
+
+  return pair ? [...pair] : [capability];
+}
+
 export function canDelegateAnnualConferenceCapability(
   capability: AnnualConferenceCapability,
   role: AdminRole,
 ): boolean {
-  if (role === 'organizer') {
+  if (role === 'member') {
     return ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS.some((definition) => definition.value === capability);
+  }
+  if (role === 'organizer') {
+    return capability !== 'ticketing.view' && !capability.startsWith('registration.')
+      && ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS.some((definition) => definition.value === capability);
   }
 
   return role === 'volunteer' && (

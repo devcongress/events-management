@@ -548,6 +548,7 @@ export const queryKeys = {
   routeFeedbackInbox: ['route-feedback-inbox'] as const,
   volunteerApplications: (year: string) => ['volunteer-applications', year] as const,
   annualConferenceVolunteerTeam: (year: string) => ['annual-conference-volunteer-team', year] as const,
+  restrictedConferenceAccess: ['restricted-conference-access'] as const,
   annualConferenceAccess: (year: string) => ['annual-conference-access', year] as const,
   annualConferenceTaskMembers: (year: string) => ['annual-conference-task-members', year] as const,
   eventSubmissions: (status: EventSubmissionQueueFilter | 'all') => ['event-submissions', status] as const,
@@ -621,6 +622,13 @@ export function fetchAnnualConferenceTaskMembers(year: string) {
   return fetchJson<OrganizerMembershipsResponse>(`/api/annual-conference/${year}/task-members`, {
     credentials: 'include',
   });
+}
+
+export function fetchRestrictedConferenceAccess() {
+  return fetchJson<{ editions: { year: number; label: string; capabilities: AnnualConferenceCapability[] }[] }>(
+    '/api/annual-conference/my-access',
+    { credentials: 'include' },
+  );
 }
 
 export function fetchAnnualConferenceAccess(year: string) {

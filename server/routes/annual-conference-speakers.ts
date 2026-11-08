@@ -129,7 +129,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   registerSpeakerOutcomeRoutes(app);
   registerSpeakerUpdateRoutes(app);
   app.get('/api/annual-conference/:year/speakers', async (c) => {
-    const adminError = await requireAdmin(c, ['owner', 'organizer']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (adminError) return adminError;
     const yearParam = c.req.param('year');
@@ -222,7 +222,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   });
 
   app.patch('/api/annual-conference/:year/speakers/call', async (c) => {
-    const adminError = await requireAdmin(c, ['owner', 'organizer']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (adminError) return adminError;
     const yearParam = c.req.param('year');
@@ -272,7 +272,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   });
 
   app.patch('/api/annual-conference/:year/speakers/logistics-deadline', async (c) => {
-    const adminError = await requireAdmin(c, ['owner', 'organizer']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (adminError) return adminError;
     const yearParam = c.req.param('year');
@@ -317,7 +317,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   });
 
   app.patch('/api/annual-conference/:year/speaker-submissions/:submissionId', async (c) => {
-    const adminError = await requireAdmin(c, ['owner', 'organizer']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (adminError) return adminError;
     const year = Number(c.req.param('year'));

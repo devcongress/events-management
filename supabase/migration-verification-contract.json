@@ -1457,21 +1457,10 @@
           "table": "annual_conference_access_grants",
           "name": "annual_conference_access_grants_capability_valid",
           "contains": [
-            "ticketing.manage"
+            "ticketing.view",
+            "registration.view",
+            "registration.manage"
           ]
-        },
-        {
-          "kind": "function",
-          "schema": "public",
-          "name": "enforce_annual_conference_access_grant_eligibility",
-          "argumentTypes": "",
-          "bodySha256": "276e975352079082db6ef5cbf4e03e5d59df0739cbadcc71b6ffc6b00f02dc6d",
-          "securityDefiner": false,
-          "private": true,
-          "serviceExecute": true,
-          "searchPath": "public",
-          "language": "plpgsql",
-          "result": "trigger"
         }
       ]
     },
@@ -2091,15 +2080,6 @@
       "sha256": "e7677b2b24a78d7828335206a6705da5ddf552712d390664c4baf94a234a009f",
       "checks": [
         {
-          "kind": "constraint",
-          "schema": "public",
-          "table": "annual_conference_access_grants",
-          "name": "annual_conference_access_grants_capability_valid",
-          "contains": [
-            "CHECK ((capability = ANY (ARRAY['work_plan.view_all'::text, 'work_plan.manage'::text, 'timeline.view'::text, 'phases.manage'::text, 'volunteers.view_team'::text, 'volunteers.share_intake'::text, 'volunteers.review_applications'::text, 'speakers.view'::text, 'speakers.manage'::text, 'finance.view'::text, 'ticketing.manage'::text, 'ticketing.check_in'::text])))"
-          ]
-        },
-        {
           "kind": "function",
           "schema": "public",
           "name": "check_in_annual_conference_named_ticket",
@@ -2111,19 +2091,6 @@
           "private": true,
           "serviceExecute": true,
           "bodySha256": "c6e406f40517cb21ed9a713d98d526850c3423763aadc8874cc049b83373a13a"
-        },
-        {
-          "kind": "function",
-          "schema": "public",
-          "name": "enforce_annual_conference_access_grant_eligibility",
-          "argumentTypes": "",
-          "securityDefiner": false,
-          "result": "trigger",
-          "language": "plpgsql",
-          "searchPath": "public",
-          "private": true,
-          "serviceExecute": true,
-          "bodySha256": "276e975352079082db6ef5cbf4e03e5d59df0739cbadcc71b6ffc6b00f02dc6d"
         },
         {
           "kind": "function",
@@ -6250,6 +6217,86 @@
           "bodySha256": "6dc942f249f16ff7e279a39150ebc22a1302db47757eae686998bd3b47f3fe57",
           "securityDefiner": true,
           "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261108100000_restricted_member_role.sql",
+      "sha256": "2586ae6daa90779373ca47243344714fab65eab1133a30e562986df6d47764ff",
+      "checks": [
+        {
+          "kind": "data",
+          "schema": "public",
+          "name": "admin_role_member",
+          "value": "present"
+        }
+      ]
+    },
+    {
+      "file": "20261108100100_restricted_member_grants.sql",
+      "sha256": "c354f55518264587e12fbb28f42ab2950163ccf8443109f12a2c746dc2b65f4e",
+      "checks": [
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_access_grants",
+          "name": "annual_conference_access_grants_capability_valid",
+          "contains": [
+            "ticketing.view",
+            "registration.view",
+            "registration.manage"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "enforce_annual_conference_access_grant_eligibility",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "2ad76883394c90c70e6dbf49900c9d6404f353de459fb600c54c6f5bf2f877b7",
+          "securityDefiner": false,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "clear_restricted_member_conference_grants",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "ce3f940ffe336386d68906f4a2ec6efe67cdad382f8bf26ec9b52e19584aa05c",
+          "securityDefiner": false,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "admin_memberships",
+          "name": "clear_restricted_member_conference_grants",
+          "function": "clear_restricted_member_conference_grants",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE UPDATE OF role, status",
+            "FOR EACH ROW"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "decide_admin_access_request",
+          "argumentTypes": "uuid, uuid, admin_role, boolean",
+          "result": "admin_access_requests",
+          "language": "plpgsql",
+          "bodySha256": "1836f2e0042110c289bd18a6ee9207e256a01f516d7c4c54b07b7a2d3bc65a81",
+          "securityDefiner": true,
+          "searchPath": "public, pg_temp",
           "private": true,
           "serviceExecute": true
         }

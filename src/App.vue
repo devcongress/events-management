@@ -29,6 +29,7 @@ import {
 } from "./admin-routes";
 import {
   annualConferencePath,
+  RESTRICTED_CONFERENCE_HOME,
   mobileAnnualConferencePath,
 } from "./annual-conference";
 import {
@@ -269,6 +270,9 @@ const isOrganizerAuthenticated = computed(
 const isConferenceVolunteer = computed(
   () => adminSessionQuery.data.value?.user?.role === "volunteer",
 );
+const isRestrictedConferenceMember = computed(
+  () => adminSessionQuery.data.value?.user?.role === 'member',
+);
 const currentOrganizerRole = computed(
   () => adminSessionQuery.data.value?.user?.role ?? null,
 );
@@ -283,6 +287,7 @@ const phoneConferenceRoute = computed(() => phoneViewport.value && typeof route.
 const phoneOrganizerToolRoute = computed(() => phoneViewport.value && typeof route.name === 'string'
   && ['admin-reports', 'admin-organizers', 'admin-audit-log', 'admin-present-forms'].includes(route.name));
 const showConferencePhoneShell = computed(() => isOrganizerAuthenticated.value && !showOrganizerAccessSurface.value
+  && !isRestrictedConferenceMember.value
   && (phoneConferenceRoute.value || phoneOrganizerToolRoute.value));
 
 provide('annual-conference-phone-sign-out', logout);
@@ -305,12 +310,12 @@ const showPrimaryNavigation = computed(
   () =>
     showAppHeader.value &&
     isOrganizerAuthenticated.value &&
-    !isConferenceVolunteer.value,
+    !isConferenceVolunteer.value && !isRestrictedConferenceMember.value,
 );
 const adminLinks = computed(() => {
   const session = adminSessionQuery.data.value;
 
-  if (session?.authenticated && session.user?.role === "volunteer") {
+  if (isConferenceVolunteer.value || isRestrictedConferenceMember.value) {
     return [];
   }
 
@@ -337,7 +342,7 @@ const primaryLinks = computed(() => adminLinks.value);
 const showOrganizerPhoneView = computed(
   () =>
     isOrganizerAuthenticated.value &&
-    !isConferenceVolunteer.value &&
+    !isConferenceVolunteer.value && !isRestrictedConferenceMember.value &&
     isAdminRoute.value &&
     phoneViewport.value &&
     isOrganizerPhoneRouteName(route.name),
@@ -360,7 +365,9 @@ const navGroups = computed(() => {
   return [];
 });
 const brandHomeLink = computed(() =>
-  showOrganizerPhoneView.value
+  isRestrictedConferenceMember.value
+    ? RESTRICTED_CONFERENCE_HOME
+    : showOrganizerPhoneView.value
     ? ORGANIZER_PHONE_ROUTE_PATH
     : isConferenceVolunteer.value
       ? annualConferencePath()
@@ -1055,7 +1062,7 @@ function syncPhoneViewport() {
 }
 
 function syncOrganizerViewportRoute() {
-  if (isConferenceVolunteer.value) return;
+  if (isConferenceVolunteer.value || isRestrictedConferenceMember.value) return;
 
   const redirect = organizerViewportRedirect({
     authenticated: isOrganizerAuthenticated.value,

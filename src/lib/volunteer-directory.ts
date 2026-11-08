@@ -1,3 +1,5 @@
+import type { AdminRole } from '@/types/supabase';
+
 export type VolunteerDirectoryStatusFilter = 'all' | 'active' | 'applicant';
 
 export type VolunteerDirectorySearchRow = {
@@ -30,7 +32,7 @@ export type VolunteerDirectoryAction = {
 };
 
 type VolunteerDirectoryActionOptions = {
-  role: 'owner' | 'organizer' | 'volunteer' | null;
+  role: AdminRole | null;
   year: string;
   canViewAllTasks: boolean;
   canAssignTasks: boolean;
