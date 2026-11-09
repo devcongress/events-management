@@ -4,7 +4,7 @@ import { confirmManagedCheckout } from './managed-conference-checkout';
 
 const mocks = vi.hoisted(() => ({
   environment: {} as Record<string, string | undefined>,
-  testPayment: vi.fn(), livePayment: vi.fn(), confirm: vi.fn(),
+  testPayment: vi.fn(), livePayment: vi.fn(), confirm: vi.fn(), rpc: vi.fn(),
 }));
 
 vi.mock('@/server/env', () => ({ envValue: (key: string) => mocks.environment[key] }));
@@ -13,7 +13,7 @@ vi.mock('@/lib/annual-conference-ticket-payments', () => ({
   inspectPaystackLiveTransaction: mocks.livePayment,
 }));
 vi.mock('@/lib/supabase/annual-conference-ticketing', () => ({ confirmSupabaseAnnualConferenceTicketPayment: mocks.confirm }));
-vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: vi.fn() }));
+vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/server/annual-conference-admission-email-delivery', () => ({ admissionEmailReadiness: vi.fn() }));
 vi.mock('@/server/annual-conference-social-card-email-delivery', () => ({ annualConferenceSocialCardEmailConfigurationForRequest: vi.fn() }));
 
@@ -27,6 +27,7 @@ const charge = { providerEventId: 'charge:123', amountMinor: 15000, currency: 'G
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.rpc.mockResolvedValue({ error: null });
   mocks.environment = { PAYSTACK_TEST_SECRET_KEY: 'sk_test_fixture', PAYSTACK_SECRET_KEY: 'sk_live_fixture' };
   mocks.testPayment.mockResolvedValue({ status: 'verified', ...charge });
   mocks.livePayment.mockResolvedValue({ status: 'success', charge });
@@ -41,7 +42,7 @@ describe('managed checkout stored-order confirmation', () => {
     const opposite = mode === 'test' ? mocks.livePayment : mocks.testPayment;
 
     expect(result).toEqual({ status: 'verified' });
-    expect(selected).toHaveBeenCalledWith({ secretKey: mode === 'test' ? 'sk_test_fixture' : 'sk_live_fixture', paymentReference: reference });
+    expect(selected).toHaveBeenCalledWith(expect.objectContaining({ secretKey: mode === 'test' ? 'sk_test_fixture' : 'sk_live_fixture', paymentReference: reference }));
     expect(opposite).not.toHaveBeenCalled();
     expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({
       providerEventId: `managed:${mode}:charge:123`, amountMinor: 15000, currency: 'GHS',
@@ -91,6 +92,32 @@ describe('managed checkout stored-order confirmation', () => {
     mocks.confirm.mockResolvedValue(stored);
 
     await expect(confirmManagedCheckout(context, order, 'reference')).rejects.toThrow('Payment confirmation mismatch.');
+  });
+
+  it('records a valid observation after successful fulfillment and tolerates storage errors', async () => {
+    const steps: string[] = [];
+
+    mocks.testPayment.mockImplementation(async (input) => {
+      await input.onObservation({ status: 'success', reason: 'Approved' });
+
+      return { status: 'verified', ...charge };
+    });
+    mocks.confirm.mockImplementation(async (input) => {
+      steps.push('confirm');
+
+      return { status: 'paid', amount_paid_minor: input.amountMinor, currency: input.currency, payment_reference: input.paymentReference };
+    });
+    mocks.rpc.mockImplementation(async (_name, args) => {
+      steps.push('diagnostic');
+      expect(args).toMatchObject({ p_status: 'success', p_reason: 'Approved' });
+
+      return { error: { message: 'unavailable' } };
+    });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(await confirmManagedCheckout(context, order, 'reference')).toEqual({ status: 'verified' });
+    expect(steps).toEqual(['confirm', 'diagnostic']);
+    log.mockRestore();
   });
 
   it.each(['test', 'live'] as const)('fails closed when the %s key is missing even when the opposite key exists', async (mode) => {

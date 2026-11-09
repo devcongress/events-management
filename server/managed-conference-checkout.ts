@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { managedCheckoutSettingsSchema, managedPaymentModeSchema, managedPaymentSecret } from '@/lib/managed-conference-checkout';
 import { getSupabaseAdminClient } from '@/lib/supabase/server';
 import { confirmSupabaseAnnualConferenceTicketPayment } from '@/lib/supabase/annual-conference-ticketing';
-import { inspectPaystackLiveTransaction, readPaystackTestTransaction } from '@/lib/annual-conference-ticket-payments';
+import { inspectPaystackLiveTransaction, readPaystackTestTransaction, type PaystackObservation } from '@/lib/annual-conference-ticket-payments';
 import { envValue } from '@/server/env';
 import { admissionEmailReadiness } from '@/server/annual-conference-admission-email-delivery';
 import { annualConferenceSocialCardEmailConfigurationForRequest } from '@/server/annual-conference-social-card-email-delivery';
@@ -77,21 +77,54 @@ export async function confirmManagedCheckout(c: Context, order: z.infer<typeof s
   const secretKey = managedPaymentSecret(managedPaymentEnvironment(c), order.payment_mode);
 
   if (!secretKey) throw new Error('Payment credentials unavailable.');
+  const startedAt = new Date().toISOString();
+  const recordObservation = async (observation: PaystackObservation | null) => {
+    try {
+      await managedCheckoutRpc(c, 'record_managed_paystack_observation', {
+        p_reference: reference, p_started_at: startedAt, p_status: observation?.status ?? null,
+        p_reason: observation?.reason ?? null,
+      });
+    } catch {
+      console.error('Paystack observation could not be stored.');
+    }
+  };
+  let observation: PaystackObservation | null = null;
+  const captureObservation = async (value: PaystackObservation) => {
+    observation = value;
+  };
   let charge: { providerEventId: string; amountMinor: number; currency: string; facts: Record<string, string | number> };
 
   if (order.payment_mode === 'test') {
-    const payment = await readPaystackTestTransaction({ secretKey, paymentReference: reference });
+    const payment = await readPaystackTestTransaction({ secretKey, paymentReference: reference, onObservation: captureObservation })
+      .catch(async (error: unknown) => {
+        await recordObservation(null);
 
-    if (payment.status !== 'verified') return { status: payment.status };
+        throw error;
+      });
+
+    if (payment.status !== 'verified') {
+      await recordObservation(observation);
+
+      return { status: payment.status };
+    }
 
     charge = {
       providerEventId: payment.providerEventId, amountMinor: payment.amountMinor, currency: payment.currency,
       facts: { id: payment.providerEventId.replace(/^charge:/, ''), domain: 'test' },
     };
   } else {
-    const payment = await inspectPaystackLiveTransaction({ secretKey, paymentReference: reference });
+    const payment = await inspectPaystackLiveTransaction({ secretKey, paymentReference: reference, onObservation: captureObservation })
+      .catch(async (error: unknown) => {
+        await recordObservation(null);
 
-    if (payment.status !== 'success') return { status: payment.status };
+        throw error;
+      });
+
+    if (payment.status !== 'success') {
+      await recordObservation(observation);
+
+      return { status: payment.status };
+    }
 
     charge = {
       providerEventId: payment.charge.providerEventId, amountMinor: payment.charge.amountMinor, currency: payment.charge.currency,
@@ -106,7 +139,7 @@ export async function confirmManagedCheckout(c: Context, order: z.infer<typeof s
     orderId: order.id, provider: 'paystack', providerEventId: `managed:${order.payment_mode}:${charge.providerEventId}`,
     eventType: 'charge.success', paymentReference: reference, amountMinor: charge.amountMinor, currency: charge.currency,
     payloadSha256: crypto.createHash('sha256').update(JSON.stringify(facts)).digest('hex'), paymentFacts: facts,
-  }, c);
+  }, c).finally(() => recordObservation(observation));
 
   if (!confirmed) throw new Error('Payment confirmation unavailable.');
   if ((confirmed.status === 'paid' || confirmed.status === 'expired')

@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { createSSRApp } from 'vue';
+import { createMemoryHistory, createRouter } from 'vue-router';
 import { renderToString } from 'vue/server-renderer';
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import { describe, expect, it } from 'vitest';
 import type { Devcon26TestCheckoutLedgerRow, Devcon26TestCouponsResponse } from '@/lib/devcon26-test-coupons';
 import { DEVCON26_TEST_CHECKOUT_PAGE_SIZE } from './lib/api';
 import Devcon26TestCoupons from './components/Devcon26TestCoupons.vue';
+import OrganizerBreadcrumbs from './components/OrganizerBreadcrumbs.vue';
 
 const source = readFileSync(new URL('./components/Devcon26TestCoupons.vue', import.meta.url), 'utf8');
 const ticketing = readFileSync(new URL('./views/admin/AdminAnnualConferenceTicketingView.vue', import.meta.url), 'utf8');
@@ -91,7 +93,7 @@ describe('Owner test coupon interface boundary', () => {
     expect(source).toContain('Latest coupon code');
     expect(source).toContain('<AppCopyButton');
     expect(source).toContain('copyTextToClipboard(code)');
-    expect(source).toContain('copyCoupon(coupon.code)');
+    expect(source).toContain('copyCoupon(selectedCoupon.code)');
     expect(source).toContain('onBeforeUnmount(() => {');
     expect(source).toContain('resetCopyStates();');
     expect(source).toContain(':aria-busy="createMutation.isPending.value"');
@@ -186,7 +188,7 @@ describe('Owner test coupon interface boundary', () => {
       expect(html).toContain('aria-haspopup="dialog"');
       expect(html).toContain('Discount type');
       expect(html).toContain('Expiry (local time)');
-      expect(html).toContain('aria-label="Copy TEST-ABCD-EFGH-JKLM-NPQR"');
+      expect(html).toContain('aria-label="Details for TEST-ABCD-EFGH-JKLM-NPQR"');
       expect(html).not.toContain('<select');
       expect(html).not.toContain('type="datetime-local"');
       expect(html).not.toContain('name="code"');
@@ -196,102 +198,63 @@ describe('Owner test coupon interface boundary', () => {
   });
 });
 
-describe('Five-row test checkout activity table', () => {
-  it.each([5, 6, 11])('renders at most five rows and correct pagination for %i checkouts', async (total) => {
-    const html = await renderCheckouts(Array.from({ length: Math.min(total, 5) }, (_, index) => checkoutFixture(index + 1)), total);
-    const body = html.match(/<tbody[\s\S]*?<\/tbody>/)?.[0] ?? '';
+describe('Coupon monitoring and sandbox activity', () => {
+  it('renders the activity trail with a navigable parent and current page', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] });
+    const client = new QueryClient();
+    const app = createSSRApp(OrganizerBreadcrumbs, { role: 'owner', embedded: true, localTrail: ['Coupons', 'Test checkout activity'] });
 
-    expect((body.match(/<tr\b/g) ?? []).length).toBe(5);
-    expect(html).toContain(`1–5 of ${total} · Page 1 of ${Math.ceil(total / 5)}`);
-    expect(html).toMatch(/aria-label="Previous checkout page" disabled/);
-    if (total === 5) {
-      expect(html).toMatch(/aria-label="Next checkout page" disabled/);
-    } else {
-      expect(html).not.toMatch(/aria-label="Next checkout page" disabled/);
+    app.use(router);
+    app.use(VueQueryPlugin, { queryClient: client });
+    await router.push('/');
+    await router.isReady();
+    try {
+      const html = await renderToString(app);
+
+      expect(html).toMatch(/<nav[^>]*aria-label="Breadcrumb"/);
+      expect(html).toMatch(/<button[^>]*>.*Coupons.*<\/button>/);
+      expect(html).toMatch(/aria-current="page"[^>]*>Test checkout activity<\/span>/);
+    } finally {
+      client.clear();
     }
   });
 
-  it('keeps an oversized response within the five-row display limit', async () => {
-    const html = await renderCheckouts(Array.from({ length: 8 }, (_, index) => checkoutFixture(index + 1)));
+  it('keeps the main empty state focused on coupons while exposing sandbox activity', async () => {
+    const html = await renderCheckouts([checkoutFixture(1)]);
 
-    expect((html.match(/<tr\b/g) ?? []).length).toBe(6);
-    expect(html).not.toContain('devcon26-test-reference-6');
+    expect(html).toContain('No test coupons yet.');
+    expect(html).toContain('Test checkout activity');
+    expect(html).not.toContain('Test purchaser 1');
+    expect(html).not.toContain('devcon26-test-reference-1');
+    expect(html).not.toContain('<table');
   });
 
-  it('provides a labeled, keyboard-scrollable table with a Details control and keeps private data in its drawer', async () => {
-    const reference = `devcon26-test-${'a'.repeat(80)}`;
-    const html = await renderCheckouts([checkoutFixture(1, { payment_reference: reference, coupon_code: 'TEST-LONG-COMMUNITY-CODE' })]);
-    const table = html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? '';
-    const tableSource = source.match(/<section v-else class="mt-3[\s\S]*?<\/section>/)?.[0] ?? '';
-
-    expect(html).toContain('role="region" aria-label="Test checkout activity table" tabindex="0"');
-    expect(html).toContain('overflow-x-auto');
-    expect(html).toContain('min-w-[640px]');
-    expect(html).toMatch(/<caption class="sr-only"[^>]*>Sandbox test checkout activity, up to five checkouts per page<\/caption>/);
-    expect((html.match(/scope="col"/g) ?? []).length).toBe(5);
-    for (const label of ['Checkout', 'Pass / coupon', 'Amount', 'Status', 'Details', 'Team of 3', '3 seats', 'TEST-LONG-COMMUNITY-CODE']) {
-      expect(html).toContain(label);
-    }
-    expect(table).toMatch(/<button type="button" class="[^"]*\bmin-h-11\b[^"]*"[^>]*>Details<\/button>/);
-    expect(table).toContain('Open private sandbox checkout details from');
-    expect(source).toContain('@click="openCheckoutDetails(checkout, $event)"');
-    expect(table).not.toContain('Test purchaser 1');
-    expect(table).not.toContain('purchaser-1@example.test');
-    expect(table).not.toContain(reference);
-    expect(table).not.toContain('checkout-1');
-    expect(tableSource).not.toContain('purchaser_name');
-    expect(tableSource).not.toContain('purchaser_email');
-    expect(tableSource).not.toContain('payment_reference }}</');
-    expect(source).toContain('<Teleport to="body" :disabled="!isBrowser">');
-    expect(source).toContain('role="dialog" aria-modal="true"');
-    expect(source).toContain('ref="checkoutDrawerCloseButton"');
-    expect(source).toContain('checkoutDrawerCloseButton.value?.focus()');
-    expect(source).toContain('aria-label="Close test checkout details"');
-    expect(source).toContain('@click.self="closeCheckoutDetails()"');
-    expect(source).toContain('if (event.key === \'Escape\')');
-    expect(source).toContain('handleCheckoutDrawerKeydown');
-    expect(source).toContain('checkoutDrawerTrigger?.focus()');
-    expect(source).toContain("app?.setAttribute('inert', '')");
-    expect(source).toContain("document.body.style.overflow = 'hidden'");
-    expect(source).toContain('closeCheckoutDetails(false);');
-    expect(source).toContain('Payment reference');
-    expect(source).toContain('Checkout ID');
-    expect(html).toContain('Base amount minus discount');
-    expect(html).toContain('539.99');
-    expect(html).toContain('549.99');
-    expect(html).toContain('10.00');
-  });
-
-  it('retains legacy purchaser fallbacks in the private drawer and attention/failure reasons in the table', async () => {
-    const html = await renderCheckouts([
-      checkoutFixture(1, { purchaser_name: null, purchaser_email: null, status: 'refund_required', resolution_reason: 'coupon_allowance_exhausted' }),
-      checkoutFixture(2, { status: 'rejected', resolution_reason: 'provider_failed' }),
-    ]);
-
-    expect(html).not.toContain('Legacy test checkout');
-    expect(html).not.toContain('Purchaser not collected');
-    expect(html).toContain('No coupon');
-    expect(html).toContain('Needs attention');
-    expect(html).toContain('coupon allowance exhausted');
-    expect(html).toContain('Failed');
-    expect(html).toContain('provider failed');
-    expect(html).toContain('verified test payments never issue admission tickets.');
+  it('keeps the global five-row activity ledger in the page and private details in the drawer', () => {
+    expect(source).toContain('checkouts.slice(0, DEVCON26_TEST_CHECKOUT_PAGE_SIZE)');
+    expect(source).toContain('Sandbox checkout activity only.');
+    expect(source).toContain('Checkout pagination');
+    expect(source).toContain('openCheckoutDetails(checkout, $event)');
+    expect(source).toContain("<OrganizerBreadcrumbs role=\"owner\" embedded :local-trail=\"['Coupons', 'Test checkout activity']\" @navigate=\"showCoupons\" />");
+    expect(source).toContain('activityHeading.value?.focus()');
+    expect(source).toContain('activityButton.value?.focus()');
+    expect(source).toContain('v-if="activityOpen"');
+    expect(source).toContain('Test checkout activity could not be loaded.');
+    expect(source).toContain('Loading test checkout activity…');
     expect(source).toContain("selectedCheckout.purchaser_name ?? 'Legacy test checkout'");
     expect(source).toContain("selectedCheckout.purchaser_email ?? 'Purchaser not collected'");
+    expect(source).toContain('Payment reference');
+    expect(source).toContain('Checkout ID');
   });
 
-  it('renders an empty state without a misleading table or page range', async () => {
-    const html = await renderCheckouts([]);
-
-    expect(html).toContain('No test checkouts have started yet.');
-    expect(html).not.toContain('<table');
-    expect(html).not.toContain('Checkout pagination');
-  });
-
-  it('uses the established transform-and-opacity drawer transition with a reduced-motion override', () => {
-    expect(source).toMatch(/\.checkout-drawer-enter-active,[\s\S]*transition: opacity 180ms cubic-bezier\(0\.4, 0, 0\.2, 1\)/);
-    expect(source).toMatch(/\.checkout-drawer-enter-active \.checkout-drawer,[\s\S]*transition: transform 250ms cubic-bezier\(0\.16, 1, 0\.3, 1\)/);
+  it('provides a dismissible, focus-managed drawer and preserves the form when sections change', () => {
+    expect(source).toContain('role="dialog" aria-modal="true"');
+    expect(source).toContain('checkoutDrawerCloseButton.value?.focus()');
+    expect(source).toContain('checkoutDrawerTrigger?.focus()');
+    expect(source).toContain("if (event.key === 'Escape')");
+    expect(source).toContain("app?.setAttribute('inert', '')");
+    expect(source).toContain("document.body.style.overflow = 'hidden'");
+    expect(source).toContain('if (!active) closeCheckoutDetails(false)');
+    expect(source).toContain('v-show="creationOpen"');
     expect(source).toContain('@media (prefers-reduced-motion: reduce)');
-    expect(source).toMatch(/\.checkout-drawer-enter-from \.checkout-drawer,[\s\S]*transform: none;/);
   });
 });

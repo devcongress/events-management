@@ -49,6 +49,7 @@ import { envValue } from '@/server/env';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import { registerDevcon26TestCouponRoutes } from '@/server/routes/devcon26-test-coupons';
+import { registerAnnualConferencePaymentDiagnostics } from '@/server/routes/annual-conference-payment-diagnostics';
 import { enforcePublicRateLimit, publicClientKey } from '@/server/http/public-intake-protection';
 import { annualConferenceSocialCardEmailConfigurationForRequest } from '@/server/annual-conference-social-card-email-delivery';
 import { devcon26AvailablePaymentProviders } from '@/lib/devcon26-ticket-cart';
@@ -143,6 +144,7 @@ function flexibleCheckoutConfigurationReady(c: Context<AppBindings>, environment
 
 export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>): void {
   registerDevcon26TestCouponRoutes(app);
+  registerAnnualConferencePaymentDiagnostics(app);
 
   const publicCheckoutEnvironment = (c: Context<AppBindings>) => Object.fromEntries([
     'DEVCON26_PUBLIC_CHECKOUT_ENABLED', 'DEVCON26_PUBLIC_CHECKOUT_ORIGINS', 'DEVCON26_PAYMENT_PROVIDER',

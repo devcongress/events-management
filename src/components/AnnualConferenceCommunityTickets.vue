@@ -3,6 +3,7 @@ import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
 import { fetchJson } from '@/src/lib/api';
 import type { CommunityPurchase, CommunitySeat } from '@/lib/annual-conference-community-purchases';
 
@@ -10,6 +11,13 @@ const props = defineProps<{ year: string }>();
 const queryClient = useQueryClient();
 const offset = ref(0);
 const mode = ref<'live' | 'test'>('live');
+const purchasePage = computed({
+  get: () => Math.floor(offset.value / 25) + 1,
+  set: (page: number) => {
+    if (page < purchasePage.value) offset.value = Math.max(0, offset.value - 25);
+    else if (page > purchasePage.value && pool.data.value?.next_offset != null) offset.value = pool.data.value.next_offset;
+  },
+});
 const paymentModeOptions: Array<{ value: 'live' | 'test'; label: string }> = [
   { value: 'live', label: 'Live purchases' },
   { value: 'test', label: 'Test purchases' },
@@ -199,11 +207,7 @@ onBeforeUnmount(unlock);
           </tr>
         </tbody>
       </table>
-      <div class="community-pagination">
-        <button type="button" class="editorial-action" :disabled="offset === 0 || pool.isFetching.value" @click="offset = Math.max(0, offset - 25)">Previous</button>
-        <span>Page {{ Math.floor(offset / 25) + 1 }}</span>
-        <button type="button" class="editorial-action" :disabled="pool.data.value.next_offset === null || pool.isFetching.value" @click="offset = pool.data.value.next_offset!">Next</button>
-      </div>
+      <AppPagination v-model:page="purchasePage" :has-next="pool.data.value.next_offset !== null" :range-start="pool.data.value.purchases.length ? offset + 1 : 0" :range-end="offset + pool.data.value.purchases.length" :disabled="pool.isFetching.value" item-label="purchases" aria-label="Community purchases pagination" />
     </template>
     <Teleport to="body">
       <dialog ref="dialog" class="community-drawer" aria-labelledby="community-drawer-title" @cancel.prevent="close" @click="(event) => { if (event.target === dialog) close(); }">
@@ -256,7 +260,7 @@ onBeforeUnmount(unlock);
   gap: 1.25rem;
 }
 
-.community-heading, .community-pagination, .community-drawer-header, .assignment-actions {
+.community-heading, .community-drawer-header, .assignment-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -307,10 +311,6 @@ onBeforeUnmount(unlock);
   height: 8px;
   margin: .5rem 0;
   accent-color: var(--dc-pink, #d83280);
-}
-
-.community-pagination {
-  justify-content: flex-end;
 }
 
 .community-drawer {
@@ -501,10 +501,6 @@ onBeforeUnmount(unlock);
 
   .community-table .purchase-action {
     padding-top: .75rem;
-  }
-
-  .community-pagination {
-    justify-content: space-between;
   }
 
   .community-drawer {

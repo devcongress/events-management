@@ -443,6 +443,7 @@ export interface AnnualConferenceTicketOrderSeat {
   checked_in_at: string | null;
 }
 export interface AnnualConferenceTicketOrderOverview {
+  paystack_observation?: { status: string | null; reason: string | null; checked_at: string | null; check_failed: boolean; initialization: 'rejected' | 'uncertain' | null } | null;
   payment_mode?: 'live' | 'test';
   id: string;
   purchaser_name: string;
@@ -684,6 +685,13 @@ export function fetchAnnualConferenceTicketOrders(year: string, page: number, vi
   });
 
   return fetchJson<AnnualConferenceTicketOrdersResponse>(`/api/annual-conference/${year}/ticketing/orders?${params}`, {
+    credentials: 'include',
+  });
+}
+
+export function checkAnnualConferencePaystackStatus(year: string, orderId: string) {
+  return fetchJson<{ checked: boolean }>(`/api/annual-conference/${year}/ticketing/orders/${orderId}/paystack-check`, {
+    method: 'POST',
     credentials: 'include',
   });
 }

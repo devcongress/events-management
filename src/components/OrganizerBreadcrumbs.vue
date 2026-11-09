@@ -12,10 +12,12 @@ const props = withDefaults(defineProps<{
   role: OrganizerBreadcrumbRole;
   embedded?: boolean;
   phone?: boolean;
+  localTrail?: string[];
 }>(), {
   embedded: false,
   phone: false,
 });
+const emit = defineEmits<{ navigate: [index: number] }>();
 const route = useRoute();
 const client = useQueryClient();
 const cacheRevision = ref(0);
@@ -27,7 +29,7 @@ let scrollContainer: HTMLElement | null = null;
 watch(breadcrumbElement, (element) => {
   breadcrumbResizeObserver?.disconnect();
   scrollContainer?.style.removeProperty('--organizer-breadcrumb-height');
-  scrollContainer = element?.closest<HTMLElement>('.app-main') ?? null;
+  scrollContainer = props.embedded ? null : element?.closest<HTMLElement>('.app-main') ?? null;
 
   if (!element || props.embedded || !scrollContainer) return;
 
@@ -45,7 +47,9 @@ const labels = computed(() => {
 
   return readOrganizerBreadcrumbLabels(route, key => client.getQueryData(key));
 });
-const breadcrumbs = computed(() => resolveOrganizerBreadcrumbs({
+const breadcrumbs = computed(() => props.localTrail
+  ? props.localTrail.map((label, index) => ({ label, action: index < props.localTrail!.length - 1 }))
+  : resolveOrganizerBreadcrumbs({
   name: route.name,
   params: route.params,
   query: route.query,
@@ -84,7 +88,8 @@ onUnmounted(() => {
         :class="{ 'organizer-breadcrumbs__earlier': index < breadcrumbs.length - (reportEventTrail ? 3 : 2) }"
       >
         <svg v-if="index > 0" class="organizer-breadcrumbs__separator" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" /></svg>
-        <RouterLink v-if="breadcrumb.to && index < breadcrumbs.length - 1" :to="breadcrumb.to" :title="breadcrumb.label" aria-current-value="false"><span class="organizer-breadcrumbs__link-label">{{ breadcrumb.label }}</span></RouterLink>
+        <button v-if="'action' in breadcrumb && breadcrumb.action" type="button" @click="emit('navigate', index)"><span class="organizer-breadcrumbs__link-label">{{ breadcrumb.label }}</span></button>
+        <RouterLink v-else-if="'to' in breadcrumb && breadcrumb.to && index < breadcrumbs.length - 1" :to="breadcrumb.to" :title="breadcrumb.label" aria-current-value="false"><span class="organizer-breadcrumbs__link-label">{{ breadcrumb.label }}</span></RouterLink>
         <span v-else :aria-current="index === breadcrumbs.length - 1 ? 'page' : undefined" :title="breadcrumb.label">{{ breadcrumb.label }}</span>
       </li>
     </ol>

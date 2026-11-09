@@ -4,7 +4,7 @@ import { resolveTicketingSection, ticketingSectionLabel, ticketingSectionLocatio
 
 describe('Ticketing section navigation', () => {
   it('shows the current sections and keeps Testing and Complimentary limited to DevCon26', () => {
-    expect(ticketingSections('2026').map(section => section.label)).toEqual(['Overview', 'Orders', 'Delivery', 'Sponsors', 'Complimentary', 'Testing']);
+    expect(ticketingSections('2026').map(section => section.label)).toEqual(['Overview', 'Orders', 'Delivery', 'Sponsors', 'Complimentary', 'Coupons']);
     expect(ticketingSections('2027').map(section => section.key)).toEqual(['overview', 'orders', 'delivery', 'sponsors']);
     expect(ticketingSectionLabel('delivery')).toBe('Delivery');
   });

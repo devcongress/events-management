@@ -56,6 +56,7 @@ const storedOrder = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.rpc.mockResolvedValue({ data: null, error: null });
   mocks.env = {
     NODE_ENV: 'production', PUBLIC_WEBSITE_ORIGIN: origin,
     PAYSTACK_TEST_SECRET_KEY: 'sk_test_fixture', PAYSTACK_SECRET_KEY: 'sk_live_fixture',
@@ -199,13 +200,18 @@ describe('managed checkout server reconciliation', () => {
   });
 
   it('verifies an old test order with its test key after current settings have changed', async () => {
-    mocks.rpc.mockImplementation(() => { throw new Error('Current checkout settings must not select a historical key.'); });
+    mocks.rpc.mockImplementation(async (name) => {
+      if (name !== 'record_managed_paystack_observation') throw new Error('Current checkout settings must not select a historical key.');
+
+      return { data: null, error: null };
+    });
     const reference = managedPaymentReference(orderId, 'test');
 
     await expect(confirmManagedCheckout(context, storedOrder, reference)).resolves.toEqual({ status: 'verified' });
-    expect(mocks.testPayment).toHaveBeenCalledWith({ secretKey: 'sk_test_fixture', paymentReference: reference });
+    expect(mocks.testPayment).toHaveBeenCalledWith(expect.objectContaining({ secretKey: 'sk_test_fixture', paymentReference: reference, onObservation: expect.any(Function) }));
     expect(mocks.livePayment).not.toHaveBeenCalled();
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledWith('record_managed_paystack_observation', expect.anything());
     expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({
       orderId, providerEventId: 'managed:test:charge:123', paymentFacts: expect.objectContaining({ domain: 'test' }),
     }), context);
@@ -236,7 +242,7 @@ describe('managed checkout server reconciliation', () => {
     } });
 
     await expect(confirmManagedCheckout(context, { ...storedOrder, payment_mode: 'live', checkout_origin: null }, reference)).resolves.toEqual({ status: 'verified' });
-    expect(mocks.livePayment).toHaveBeenCalledWith({ secretKey: 'sk_live_fixture', paymentReference: reference });
+    expect(mocks.livePayment).toHaveBeenCalledWith(expect.objectContaining({ secretKey: 'sk_live_fixture', paymentReference: reference, onObservation: expect.any(Function) }));
     expect(mocks.testPayment).not.toHaveBeenCalled();
     expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ paymentFacts: expect.objectContaining({
       domain: 'live', id: '456', fees: 100, requested_amount: 15000, amount: 15000, currency: 'GHS', fee_mode: 'merchant_absorbs',

@@ -41,7 +41,7 @@ describe('migration contract inventory', () => {
   it('covers the current files with an honest legacy exemption and reviewed contracts', () => {
     expect(validateInventory(contract, sources)).toEqual([]);
     expect(Object.keys(contract.legacyInventory)).toHaveLength(92);
-    expect(contract.verified).toHaveLength(61);
+    expect(contract.verified).toHaveLength(64);
   });
 
   it('checks superseded functions against their final definition in every migration', () => {

@@ -8,7 +8,7 @@ const sections: Array<{ key: TicketingSection; label: string }> = [
   { key: 'delivery', label: 'Delivery' },
   { key: 'sponsors', label: 'Sponsors' },
   { key: 'complimentary', label: 'Complimentary' },
-  { key: 'testing', label: 'Testing' },
+  { key: 'testing', label: 'Coupons' },
 ];
 
 export function ticketingSections(year: string) {

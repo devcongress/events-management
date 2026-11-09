@@ -34,10 +34,11 @@ vi.mock('./components/AppDropdown.vue', () => ({ default: {
 vi.mock('./components/ui/BoneyardPageSkeleton.vue', () => ({ default: { render: () => null } }));
 vi.mock('./components/RegistrationEmailDrawer.vue', () => ({ default: { render: () => null } }));
 vi.mock('./components/AppPagination.vue', () => ({ default: {
-  props: ['page', 'pageCount'],
+  inheritAttrs: false,
+  props: ['page', 'pageCount', 'hasNext'],
   emits: ['update:page'],
-  setup(props: { page: number; pageCount: number }, { emit }: { emit: (name: string, value: number) => void }) {
-    return () => h('button', { 'aria-label': 'Next page', disabled: props.page >= props.pageCount, onClick: () => emit('update:page', props.page + 1) }, 'Next page');
+  setup(props: { page: number; pageCount?: number; hasNext?: boolean }, { emit }: { emit: (name: string, value: number) => void }) {
+    return () => h('button', { 'aria-label': 'Next page', disabled: props.pageCount === undefined ? !props.hasNext : props.page >= props.pageCount, onClick: () => emit('update:page', props.page + 1) }, 'Next page');
   },
 } }));
 
@@ -195,8 +196,8 @@ describe('Conference shared filter dropdowns', () => {
     expect(dropdown.props.teleport).toBe(true);
     expect(dropdown.props.disabled).toBe(false);
     expect(dropdown.props.density).toBeUndefined();
-    await vi.waitFor(() => expect(text(root)).toContain('Next'));
-    const next = descendants(root).find(element => element.tag === 'button' && text(element) === 'Next')!;
+    await vi.waitFor(() => expect(descendants(root).some(element => element.props['aria-label'] === 'Next page' && !element.props.disabled)).toBe(true));
+    const next = descendants(root).find(element => element.props['aria-label'] === 'Next page')!;
 
     (next.props.onClick as () => void)();
     await vi.waitFor(() => expect(fetchJson).toHaveBeenLastCalledWith(expect.stringContaining('mode=live&offset=25'), { credentials: 'include' }));

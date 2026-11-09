@@ -138,11 +138,11 @@ describe('scheduled worker cycle dispatch', () => {
   });
 });
 
-it('enqueues admission and three bounded payment checks each minute', async () => {
+it('enqueues admission, diagnostics and three bounded payment checks each minute', async () => {
   const send = vi.fn().mockResolvedValue(undefined);
 
   await worker.scheduled({ scheduledTime: 0 }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
-  expect(send.mock.calls.map(([body]) => body.kind)).toEqual(['admission-recovery', 'payment-recovery', 'payment-recovery', 'payment-recovery']);
+  expect(send.mock.calls.map(([body]) => body.kind)).toEqual(['admission-recovery', 'payment-diagnostics', 'payment-recovery', 'payment-recovery', 'payment-recovery']);
 });
 
 it('continues admission draining only after productive work', async () => {
@@ -156,4 +156,10 @@ it('continues admission draining only after productive work', async () => {
   appFetch.mockResolvedValueOnce(Response.json({ admissions: { accepted: 0 } }));
   await worker.queue({ messages: [{ body: { kind: 'admission-recovery' } }] }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
   expect(send).not.toHaveBeenCalled();
+});
+
+it('routes diagnostic queue messages through the protected internal endpoint', async () => {
+  appFetch.mockResolvedValueOnce(Response.json({ checked: 0, failed: 0 }));
+  await worker.queue({ messages: [{ body: { kind: 'payment-diagnostics' } }] }, env, context);
+  expect(new URL(appFetch.mock.calls.at(-1)![0].url).pathname).toBe('/api/internal/payment-diagnostics/check');
 });

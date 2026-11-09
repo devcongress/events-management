@@ -1606,3 +1606,14 @@ The DevCon26 website reads an allowlisted projection of the saved 2026 programme
 **Why:** Existing checkout, capacity, attendance, and check-in paths already count sponsor-held inventory and issued sponsor tickets. Keeping one effective quantity avoids diverging capacity calculations and avoids creating fictitious paid orders or revenue.
 
 **Boundaries:** Only Owners can issue, preview, test-send, view, or cancel these tickets. A failed delivery keeps the reservation; only unused tickets can release one seat. The individual badge capability is separate from the admission QR, and both are revoked on cancellation. Accepted provider payloads are scrubbed and cannot be blindly resent.
+
+
+## Automatic ticket totals and separate payment diagnostics
+
+**Date:** 2026-11-09
+
+**Decision:** Derive the public count from a fixed baseline of 20 plus net fulfilled live purchased ticket quantities, including community purchases. Keep Paystack observations and bounded diagnostic retries separate from payment confirmation and fulfillment.
+
+**Why:** A derived total avoids manual estimate/actual drift and duplicate webhook increments. Provider observations explain checkout outcomes without treating an expired inventory hold as a failed payment.
+
+**Boundaries:** Test, pending, unfulfilled, and complimentary orders do not increase the public purchase count; confirmed refund units reduce it. Diagnostics never issue tickets or send emails, and missing or failed checks retain the last known result. Deploy the compatible website reader before changing the public counter response.

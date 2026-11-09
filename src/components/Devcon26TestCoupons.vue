@@ -7,6 +7,8 @@ import { createDevcon26TestCouponSchema, type Devcon26TestCheckoutLedgerRow, typ
 import { createDevcon26TestCoupon, DEVCON26_TEST_CHECKOUT_PAGE_SIZE, fetchDevcon26TestCoupons, toggleDevcon26TestCoupon } from '@/src/lib/api';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import OrganizerBreadcrumbs from '@/src/components/OrganizerBreadcrumbs.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 
@@ -16,7 +18,12 @@ const isBrowser = typeof document !== 'undefined';
 const page = ref(1);
 const checkoutPage = ref(1);
 const selectedCheckout = ref<Devcon26TestCheckoutLedgerRow | null>(null);
+const selectedCoupon = ref<Devcon26TestCoupon | null>(null);
+const activityOpen = ref(false);
+const creationOpen = ref(false);
 const formElement = ref<HTMLFormElement | null>(null);
+const activityHeading = ref<HTMLElement | null>(null);
+const activityButton = ref<HTMLButtonElement | null>(null);
 const checkoutDrawerPanel = ref<HTMLElement | null>(null);
 const checkoutDrawerCloseButton = ref<HTMLButtonElement | null>(null);
 const error = ref('');
@@ -59,6 +66,10 @@ const checkoutStart = computed(() => (checkoutPage.value - 1) * DEVCON26_TEST_CH
 const checkoutEnd = computed(() => checkoutStart.value + checkoutRows.value.length - 1);
 
 watch(() => query.data.value, (data) => {
+  if (data && selectedCoupon.value) {
+    selectedCoupon.value = data.coupons.find((coupon) => coupon.id === selectedCoupon.value?.id) ?? selectedCoupon.value;
+  }
+
   if (data && checkoutPage.value > checkoutPageCount.value) {
     checkoutPage.value = checkoutPageCount.value;
   }
@@ -82,6 +93,7 @@ const createMutation = useMutation({
 const toggleMutation = useMutation({
   mutationFn: (coupon: Devcon26TestCoupon) => toggleDevcon26TestCoupon(props.year, coupon.id, !coupon.enabled),
   onSuccess: async ({ coupon }) => {
+    if (selectedCoupon.value?.id === coupon.id) selectedCoupon.value = { ...selectedCoupon.value, enabled: coupon.enabled };
     feedback.value = coupon.enabled ? 'Test coupon enabled.' : 'Test coupon disabled. Existing reserved checkouts keep their discount.';
     await refresh();
   },
@@ -90,6 +102,7 @@ const toggleMutation = useMutation({
 
 watch(() => props.year, () => {
   closeCheckoutDetails(false);
+  activityOpen.value = false;
   page.value = 1;
   checkoutPage.value = 1;
   error.value = '';
@@ -220,10 +233,33 @@ async function openCheckoutDetails(checkout: Devcon26TestCheckoutLedgerRow, even
   if (props.active && selectedCheckout.value?.id === checkout.id) checkoutDrawerCloseButton.value?.focus();
 }
 
+async function openDrawer(event: Event, coupon: Devcon26TestCoupon) {
+  if (!props.active) return;
+
+  checkoutDrawerTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  selectedCoupon.value = coupon;
+  lockCheckoutDrawerPage();
+  await nextTick();
+  if (props.active) checkoutDrawerCloseButton.value?.focus();
+}
+
+async function showCheckoutActivity() {
+  activityOpen.value = true;
+  await nextTick();
+  activityHeading.value?.focus();
+}
+
+async function showCoupons() {
+  activityOpen.value = false;
+  await nextTick();
+  activityButton.value?.focus();
+}
+
 function closeCheckoutDetails(restoreFocus = true) {
-  if (!selectedCheckout.value) return;
+  if (!selectedCheckout.value && !selectedCoupon.value) return;
 
   selectedCheckout.value = null;
+  selectedCoupon.value = null;
   unlockCheckoutDrawerPage();
 
   if (restoreFocus && props.active && checkoutDrawerTrigger?.isConnected && checkoutDrawerTrigger.getClientRects().length) {
@@ -268,13 +304,17 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <section class="min-w-0 rounded-lg border-2 border-dc-ink bg-dc-paper p-5" aria-labelledby="test-coupons-title">
+  <section class="min-w-0 rounded-lg border border-dc-border bg-dc-paper p-5" aria-labelledby="test-coupons-title">
+    <div v-show="!activityOpen">
     <p class="editorial-eyebrow">Test checkout</p>
     <h2 id="test-coupons-title" class="mt-1 text-xl font-semibold text-dc-ink">Test checkout coupons</h2>
     <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Create discounts for test payments. Coupon uses are reserved for 15 minutes and counted when a payment is verified. These checkouts do not issue admission tickets.</p>
 
-    <details class="mt-5 rounded-md border border-dc-border p-4">
-      <summary class="min-h-11 cursor-pointer py-3 text-sm font-semibold text-dc-ink">Create a test coupon</summary>
+    <div class="mt-5 flex flex-wrap gap-2">
+      <button type="button" class="motion-press min-h-11 rounded-md border border-dc-ink bg-dc-yellow px-4 text-sm font-semibold" :aria-expanded="creationOpen" aria-controls="create-test-coupon" @click="creationOpen = !creationOpen">{{ creationOpen ? 'Close form' : 'Create test coupon' }}</button>
+      <button ref="activityButton" type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-4 text-sm" aria-controls="test-checkout-activity" @click="showCheckoutActivity">Test checkout activity</button>
+    </div>
+    <div v-show="creationOpen" id="create-test-coupon" class="mt-4 rounded-md border border-dc-border p-4">
       <p class="mt-3 text-xs leading-5 text-dc-gray">Terms cannot be edited after creation. You can enable or disable the code.</p>
       <p class="mt-1 text-xs leading-5 text-dc-gray">A unique code is generated automatically when you create the coupon.</p>
       <form ref="formElement" class="mt-4" :aria-busy="createMutation.isPending.value" @submit.prevent="submitCoupon">
@@ -345,7 +385,7 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
           </div>
         </fieldset>
       </form>
-    </details>
+    </div>
 
     <p v-if="error" class="mt-3 text-sm text-dc-pink" role="alert">{{ error }}</p>
     <p v-if="feedback" class="mt-3 text-sm text-dc-ink" role="status">{{ feedback }}</p>
@@ -373,45 +413,41 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
       <button type="button" class="motion-press min-h-11 rounded-md border border-dc-ink px-3 text-sm" @click="query.refetch()">Try again</button>
     </div>
     <template v-else>
-      <p v-if="!query.data.value?.coupons.length" class="py-5 text-sm text-dc-gray">Create a coupon to test a discounted checkout.</p>
-      <div class="mt-4 divide-y divide-dc-border">
-        <article v-for="coupon in query.data.value?.coupons" :key="coupon.id" class="py-4">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="min-w-0">
-              <div class="flex flex-wrap items-center gap-2">
-                <h3 class="select-text break-all font-mono text-base font-semibold text-dc-ink">{{ coupon.code }}</h3>
-                <AppCopyButton
-                  icon-only
-                  :state="copyStates[coupon.code] ?? 'idle'"
-                  :label="`Copy ${coupon.code}`"
-                  class="size-11 shrink-0 rounded-md border border-dc-border bg-dc-paper text-dc-gray"
-                  @click="copyCoupon(coupon.code)"
-                />
-              </div>
-              <p class="mt-1 text-sm text-dc-gray">{{ coupon.discount_type === 'fixed_minor' ? formatTicketMoney(coupon.discount_value) : `${coupon.discount_value / 100}%` }} off · {{ couponState(coupon) }}</p>
-            </div>
-            <button type="button" class="motion-press min-h-11 rounded-md border border-dc-ink px-3 text-sm disabled:opacity-50" :disabled="toggleMutation.isPending.value" :aria-label="`${coupon.enabled ? 'Disable' : 'Enable'} ${coupon.code}`" @click="toggleMutation.mutate(coupon)">{{ coupon.enabled ? 'Disable' : 'Enable' }}</button>
-          </div>
-          <p class="mt-2 text-xs leading-5 text-dc-gray">{{ coupon.eligible_tiers.map(tierLabel).join(', ') }} · Expires {{ dateLabel(coupon.expires_at) }}</p>
-          <dl class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div><dt class="text-xs text-dc-gray">Completed / maximum</dt><dd class="mt-1 font-mono text-sm text-dc-ink">{{ coupon.completed }} / {{ coupon.max_completed }}</dd></div>
-            <div><dt class="text-xs text-dc-gray">Active holds</dt><dd class="mt-1 font-mono text-sm text-dc-ink">{{ coupon.active_holds }}</dd></div>
-            <div><dt class="text-xs text-dc-gray">Remaining uses</dt><dd class="mt-1 font-mono text-sm text-dc-ink">{{ coupon.remaining }}</dd></div>
-            <div><dt class="text-xs text-dc-gray">Needs attention</dt><dd class="mt-1 font-mono text-sm text-dc-ink">{{ coupon.exceptions }}</dd></div>
-          </dl>
-        </article>
-      </div>
-      <div v-if="pageCount > 1" class="flex flex-wrap items-center justify-between gap-3 border-t border-dc-border py-3">
-        <p class="text-xs text-dc-gray">Coupon page {{ page }} of {{ pageCount }}</p>
-        <div class="flex gap-2">
-          <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm disabled:opacity-50" :disabled="page <= 1 || query.isFetching.value" @click="page--">Previous</button>
-          <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm disabled:opacity-50" :disabled="page >= pageCount || query.isFetching.value" @click="page++">Next</button>
+      <p v-if="!query.data.value?.coupons.length" class="py-6 text-sm text-dc-gray">No test coupons yet. Create one to test a discounted checkout.</p>
+      <template v-else>
+        <div class="mt-5 hidden overflow-x-auto rounded-md border border-dc-border md:block">
+          <table class="w-full text-left text-sm">
+            <caption class="sr-only">Test coupons</caption>
+            <thead class="border-b border-dc-border text-xs text-dc-gray"><tr><th scope="col" class="px-4 py-3 font-medium">Code</th><th scope="col" class="px-4 py-3 font-medium">Discount</th><th scope="col" class="px-4 py-3 font-medium">Uses</th><th scope="col" class="px-4 py-3 font-medium">Expires</th><th scope="col" class="px-4 py-3 font-medium">Status</th><th scope="col" class="px-4 py-3 font-medium"><span class="sr-only">Details</span></th></tr></thead>
+            <tbody class="divide-y divide-dc-border">
+              <tr v-for="coupon in query.data.value?.coupons" :key="coupon.id" class="checkout-activity-row">
+                <td class="px-4 py-3 font-mono font-semibold">{{ coupon.code }}</td>
+                <td class="px-4 py-3">{{ coupon.discount_type === 'fixed_minor' ? formatTicketMoney(coupon.discount_value) : `${coupon.discount_value / 100}%` }}</td>
+                <td class="px-4 py-3 tabular-nums">{{ coupon.completed }} / {{ coupon.max_completed }}</td>
+                <td class="px-4 py-3">{{ dateLabel(coupon.expires_at) }}</td>
+                <td class="px-4 py-3">{{ couponState(coupon) }}</td>
+                <td class="px-4 py-3"><button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm" :aria-label="`Details for ${coupon.code}`" @click="openDrawer($event, coupon)">Details</button></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </div>
-
-      <h3 id="test-checkout-activity-title" class="mt-6 text-base font-semibold text-dc-ink">Test checkout activity</h3>
+        <div class="mt-5 divide-y divide-dc-border rounded-md border border-dc-border md:hidden">
+          <article v-for="coupon in query.data.value?.coupons" :key="coupon.id" class="p-4">
+            <div class="flex items-start justify-between gap-3"><div class="min-w-0"><h3 class="break-all font-mono text-sm font-semibold">{{ coupon.code }}</h3><p class="mt-1 text-sm text-dc-gray">{{ coupon.discount_type === 'fixed_minor' ? formatTicketMoney(coupon.discount_value) : `${coupon.discount_value / 100}%` }} off · {{ couponState(coupon) }}</p></div><button type="button" class="motion-press min-h-11 shrink-0 rounded-md border border-dc-border px-3 text-sm" :aria-label="`Details for ${coupon.code}`" @click="openDrawer($event, coupon)">Details</button></div>
+            <p class="mt-2 text-sm text-dc-gray">{{ coupon.completed }} / {{ coupon.max_completed }} uses · Expires {{ dateLabel(coupon.expires_at) }}</p>
+          </article>
+        </div>
+        <AppPagination v-model:page="page" :page-count="pageCount" :total="query.data.value?.total ?? 0" :range-start="(page - 1) * 8 + 1" :range-end="Math.min(page * 8, query.data.value?.total ?? 0)" :disabled="query.isFetching.value" item-label="coupons" aria-label="Coupon pagination" />
+      </template>
+    </template>
+    </div>
+    <div v-if="activityOpen" id="test-checkout-activity">
+      <OrganizerBreadcrumbs role="owner" embedded :local-trail="['Coupons', 'Test checkout activity']" @navigate="showCoupons" />
+      <h2 id="test-checkout-activity-title" ref="activityHeading" tabindex="-1" class="text-xl font-semibold text-dc-ink">Test checkout activity</h2>
       <p class="mt-1 text-xs text-dc-gray">Sandbox checkout activity only. Open a row for private purchaser details and payment references; verified test payments never issue admission tickets.</p>
-      <p v-if="!checkoutRows.length" class="py-4 text-sm text-dc-gray">No test checkouts have started yet.</p>
+      <p v-if="query.isLoading.value && !query.data.value" class="py-4 text-sm text-dc-gray" role="status">Loading test checkout activity…</p>
+      <div v-else-if="query.isError.value" class="flex flex-wrap items-center justify-between gap-3 py-4"><p class="text-sm text-dc-pink" role="alert">Test checkout activity could not be loaded.</p><button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm" @click="query.refetch()">Try again</button></div>
+      <p v-else-if="!checkoutRows.length" class="py-4 text-sm text-dc-gray">No test checkouts have started yet.</p>
       <section v-else class="mt-3 overflow-hidden rounded-md border border-dc-border" aria-labelledby="test-checkout-activity-title">
         <div class="overflow-x-auto" role="region" aria-label="Test checkout activity table" tabindex="0">
           <table class="w-full min-w-[640px] text-left text-sm">
@@ -449,37 +485,47 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
                   <p v-if="checkout.resolution_reason" class="mt-1 max-w-48 break-words text-xs text-dc-pink">{{ checkout.resolution_reason.replaceAll('_', ' ') }}</p>
                 </td>
                 <td class="py-4 pl-4 pr-4">
-                  <button type="button" class="text-action motion-press min-h-11 rounded-md px-1 text-sm text-dc-ink underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink" :aria-label="`Open private sandbox checkout details from ${dateLabel(checkout.created_at)}`" @click="openCheckoutDetails(checkout, $event)">Details</button>
+                  <button type="button" class="text-action motion-press min-h-11 rounded-md px-1 text-sm text-dc-ink underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink" :aria-label="`Open private sandbox checkout details from ${dateLabel(checkout.created_at)}`" :data-checkout-id="checkout.id" @click="openCheckoutDetails(checkout, $event)">Details</button>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <nav class="flex flex-wrap items-center justify-between gap-3 border-t border-dc-border px-4 py-3" aria-label="Checkout pagination">
-          <p class="text-xs text-dc-gray" aria-live="polite">{{ checkoutStart }}–{{ checkoutEnd }} of {{ query.data.value?.checkout_total }} · Page {{ checkoutPage }} of {{ checkoutPageCount }}</p>
-          <div class="flex gap-2">
-            <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm disabled:opacity-50" aria-label="Previous checkout page" :disabled="checkoutPage <= 1 || query.isFetching.value" @click="checkoutPage--">Previous</button>
-            <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm disabled:opacity-50" aria-label="Next checkout page" :disabled="checkoutPage >= checkoutPageCount || query.isFetching.value" @click="checkoutPage++">Next</button>
-          </div>
-        </nav>
+        <AppPagination v-model:page="checkoutPage" :page-count="checkoutPageCount" :total="query.data.value?.checkout_total ?? 0" :range-start="checkoutStart" :range-end="checkoutEnd" :disabled="query.isFetching.value" item-label="checkouts" aria-label="Checkout pagination" />
       </section>
-    </template>
+    </div>
   </section>
 
   <Teleport to="body" :disabled="!isBrowser">
     <Transition name="checkout-drawer">
-      <div v-if="selectedCheckout" class="checkout-drawer-backdrop fixed inset-0 z-[110] flex justify-end" role="presentation" @click.self="closeCheckoutDetails()">
+      <div v-if="selectedCheckout || selectedCoupon" class="checkout-drawer-backdrop fixed inset-0 z-[110] flex justify-end" role="presentation" @click.self="closeCheckoutDetails()">
         <aside ref="checkoutDrawerPanel" class="checkout-drawer flex h-full w-full max-w-xl flex-col border-l border-dc-border bg-dc-paper shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="test-checkout-drawer-title" aria-describedby="test-checkout-drawer-description" tabindex="-1" @keydown="handleCheckoutDrawerKeydown">
           <header class="flex shrink-0 items-start justify-between gap-5 border-b border-dc-border px-5 py-5 sm:px-6">
             <div class="min-w-0">
-              <p class="editorial-eyebrow">Sandbox checkout</p>
-              <h2 id="test-checkout-drawer-title" class="mt-1 text-2xl font-semibold tracking-tight text-dc-ink">Private checkout details</h2>
-              <p id="test-checkout-drawer-description" class="mt-2 text-sm leading-6 text-dc-gray">This sandbox payment is not an admission ticket and cannot be used for event entry.</p>
+              <p class="editorial-eyebrow">Test checkout</p>
+              <h2 id="test-checkout-drawer-title" class="mt-1 text-2xl font-semibold text-dc-ink">{{ selectedCoupon ? 'Coupon details' : 'Private checkout details' }}</h2>
+              <p id="test-checkout-drawer-description" class="mt-2 text-sm leading-6 text-dc-gray">{{ selectedCoupon ? 'These terms apply to test payments only.' : 'Sandbox payments do not issue admission tickets.' }}</p>
             </div>
             <button ref="checkoutDrawerCloseButton" type="button" class="motion-press inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-dc-border text-dc-gray hover:border-dc-ink hover:text-dc-ink" aria-label="Close test checkout details" @click="closeCheckoutDetails()"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" /></svg></button>
           </header>
 
           <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+            <template v-if="selectedCoupon">
+              <div class="flex flex-wrap items-center justify-between gap-3"><p class="select-text break-all font-mono font-semibold">{{ selectedCoupon.code }}</p><AppCopyButton :state="copyStates[selectedCoupon.code] ?? 'idle'" :label="`Copy ${selectedCoupon.code}`" class="min-h-11 rounded-md border border-dc-border px-3 text-sm" @click="copyCoupon(selectedCoupon.code)" /></div>
+              <dl class="mt-4 divide-y divide-dc-border border-y border-dc-border">
+                <div class="py-3"><dt class="text-sm text-dc-gray">Discount</dt><dd>{{ selectedCoupon.discount_type === 'fixed_minor' ? formatTicketMoney(selectedCoupon.discount_value) : `${selectedCoupon.discount_value / 100}%` }}</dd></div>
+                <div class="py-3"><dt class="text-sm text-dc-gray">Status</dt><dd>{{ couponState(selectedCoupon) }}</dd></div>
+                <div class="py-3"><dt class="text-sm text-dc-gray">Eligible passes</dt><dd>{{ selectedCoupon.eligible_tiers.map(tierLabel).join(', ') }}</dd></div>
+                <div class="py-3"><dt class="text-sm text-dc-gray">Expires</dt><dd>{{ dateLabel(selectedCoupon.expires_at) }}</dd></div>
+                <div class="py-3"><dt class="text-sm text-dc-gray">Completed / maximum</dt><dd>{{ selectedCoupon.completed }} / {{ selectedCoupon.max_completed }}</dd></div>
+                <div class="py-3"><dt class="text-sm text-dc-gray">Active holds</dt><dd>{{ selectedCoupon.active_holds }}</dd></div>
+                <div class="py-3"><dt class="text-sm text-dc-gray">Remaining uses</dt><dd>{{ selectedCoupon.remaining }}</dd></div>
+                <div class="py-3"><dt class="text-sm text-dc-gray">Needs attention</dt><dd>{{ selectedCoupon.exceptions }}</dd></div>
+              </dl>
+              <p v-if="feedback" class="mt-3 text-sm" role="status">{{ feedback }}</p><p v-if="error" class="mt-3 text-sm text-dc-pink" role="alert">{{ error }}</p>
+              <button type="button" class="motion-press mt-4 min-h-11 rounded-md border border-dc-ink px-4 text-sm disabled:opacity-50" :disabled="toggleMutation.isPending.value" @click="toggleMutation.mutate(selectedCoupon)">{{ selectedCoupon.enabled ? 'Disable coupon' : 'Enable coupon' }}</button>
+            </template>
+            <template v-else-if="selectedCheckout">
             <dl class="divide-y divide-dc-border border-y border-dc-border">
               <div class="py-3"><dt class="text-sm text-dc-gray">Purchaser</dt><dd class="mt-1 break-words font-semibold text-dc-ink">{{ selectedCheckout.purchaser_name ?? 'Legacy test checkout' }}</dd><dd class="mt-1 break-all text-sm text-dc-gray">{{ selectedCheckout.purchaser_email ?? 'Purchaser not collected' }}</dd></div>
               <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Pass</dt><dd class="text-right font-semibold text-dc-ink">{{ selectedCheckout ? tierLabel(selectedCheckout.tier_key) : '' }} · {{ selectedCheckout.quantity }} {{ selectedCheckout.quantity === 1 ? 'seat' : 'seats' }}</dd></div>
@@ -487,6 +533,7 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
               <div class="py-3"><dt class="text-sm text-dc-gray">Payment reference</dt><dd class="mt-1 break-all font-mono text-xs font-semibold text-dc-ink">{{ selectedCheckout.payment_reference }}</dd></div>
               <div class="py-3"><dt class="text-sm text-dc-gray">Checkout ID</dt><dd class="mt-1 break-all font-mono text-xs font-semibold text-dc-ink">{{ selectedCheckout.id }}</dd></div>
             </dl>
+            </template>
           </div>
         </aside>
       </div>
