@@ -172,3 +172,65 @@ sql(`update public.annual_conference_registration_test_settings set tester_email
 assert.equal(sql(`select public.annual_conference_email_allowed('admission','${testDelivery}','test@example.test',false);`), 't', 'Approved managed test recipients remain allowed.');
 assert.equal(sql(`select public.annual_conference_email_allowed('admission','${testDelivery}','other@example.test',false);`), 'f');
 console.log('Managed live and test recipient policy remains unchanged.');
+
+// Install the forward migration only after the shared fixture has added live/test fields.
+sql(readFileSync(new URL('../supabase/migrations/20261109120000_complimentary_community_supporters.sql', import.meta.url), 'utf8'));
+const supporterEdition = sql("insert into public.annual_conference_editions(year) values (2034) returning id;");
+
+sql(`insert into public.annual_conference_ticketing_settings (edition_id,public_capacity,sales_status,public_mode,regular_price_minor,team_3_price_minor,team_5_price_minor,flexible_checkout_max_amount_minor) values ('${supporterEdition}',20,'open','paid',15000,45000,75000,1000000);`);
+const supportOrder = (name, email, key) => sql(`select id from public.create_annual_conference_flexible_checkout_hold('${supporterEdition}','${name}','${email}',1,'[{"seat_index":1,"kind":"community_managed"}]'::jsonb,'${key}');`);
+const source = supportOrder('Supporter', 'supporter@example.test', '00000000-0000-4000-8000-000000000201');
+const secondSource = supportOrder('Supporter', 'supporter@example.test', '00000000-0000-4000-8000-000000000202');
+
+sql(`update public.annual_conference_ticket_orders set status='paid', paid_at=now() where id in ('${source}','${secondSource}');`);
+const supporterRows = () => JSON.parse(sql(`select coalesce(json_agg(row_to_json(s)), '[]') from public.list_annual_conference_complimentary_supporters('${supporterEdition}',0) s;`));
+
+assert.equal(supporterRows().length, 1, 'Purchases deduplicate before pagination.');
+assert.equal(Number(supporterRows()[0].seats), 2);
+const sourceGuest = `'[{"name":"Supporter","email":"supporter@example.test","supporter_order_id":"${source}"}]'::jsonb`;
+const sourceIssue = (key, input = sourceGuest, allocationId = 'null') => `select public.issue_annual_conference_complimentary_tickets('${supporterEdition}',${allocationId},'Thanks',${input},'owner@example.test','${key}');`;
+
+assert.throws(() => sql(sourceIssue('00000000-0000-4000-8000-000000000203', `'[{"name":"Tampered","email":"supporter@example.test","supporter_order_id":"${source}"}]'::jsonb`)), /supporter_invalid/);
+const supporterBatch = sql(sourceIssue('00000000-0000-4000-8000-000000000204'));
+
+assert.equal(sql(sourceIssue('00000000-0000-4000-8000-000000000204')), supporterBatch);
+assert.throws(() => sql(sourceIssue('00000000-0000-4000-8000-000000000205')), /existing_admission/);
+assert.equal(supporterRows()[0].issued_complimentary, true);
+assert.equal(sql(`select count(*) from public.annual_conference_flexible_ticket_allocations where order_id in ('${source}','${secondSource}') and allocation_kind='community_managed';`), '2');
+const supporterTicket = sql(`select id from public.annual_conference_tickets where complimentary_batch_id='${supporterBatch}';`);
+
+assert.equal(sql(`select complimentary_supporter_order_id from public.annual_conference_tickets where id='${supporterTicket}';`), source);
+sql(`select public.cancel_annual_conference_complimentary_ticket('${supporterEdition}','${supporterTicket}');`);
+assert.equal(supporterRows()[0].existing_admission, false);
+const duplicateCalls = ['206', '207'].map(n => sourceIssue(`00000000-0000-4000-8000-000000000${n}`));
+const duplicateResults = await Promise.allSettled(duplicateCalls.map(call => concurrent('psql', [...args, '-c', call])));
+
+assert.equal(duplicateResults.filter(result => result.status === 'fulfilled').length, 1, 'Concurrent duplicate supporter requests issue only once.');
+console.log('Supporter eligibility, deduplication, tampering, replay, cancellation, concurrency and untouched community pool passed.');
+
+const invalidSource = supportOrder('Other', 'other@example.test', '00000000-0000-4000-8000-000000000208');
+const invalidGuest = `'[{"name":"Other","email":"other@example.test","supporter_order_id":"${invalidSource}"}]'::jsonb`;
+
+assert.throws(() => sql(sourceIssue('00000000-0000-4000-8000-000000000209', invalidGuest)), /supporter_invalid/, 'Unpaid orders are ineligible.');
+sql(`update public.annual_conference_ticket_orders set status='paid', payment_mode='test' where id='${invalidSource}';`);
+assert.throws(() => sql(sourceIssue('00000000-0000-4000-8000-000000000210', invalidGuest)), /supporter_invalid/, 'Test orders are ineligible.');
+sql(`update public.annual_conference_ticket_orders set status='refunded', payment_mode='live', refunded_at=now() where id='${invalidSource}';`);
+assert.throws(() => sql(sourceIssue('00000000-0000-4000-8000-000000000211', invalidGuest)), /supporter_invalid/, 'Refunded orders are ineligible.');
+assert.throws(() => sql(`select public.issue_annual_conference_complimentary_tickets('${policyEdition}',null,'Thanks',${sourceGuest},'owner@example.test','00000000-0000-4000-8000-000000000212');`), /supporter_invalid/, 'Orders from another edition are ineligible.');
+assert.throws(() => sql(sourceIssue('00000000-0000-4000-8000-000000000204', `'[{"name":"Supporter","email":"supporter@example.test","supporter_order_id":"${secondSource}"}]'::jsonb`)), /idempotency_mismatch/);
+
+const heldSource = supportOrder('Held Supporter', 'held-supporter@example.test', '00000000-0000-4000-8000-000000000213');
+
+sql(`update public.annual_conference_ticket_orders set status='paid' where id='${heldSource}';`);
+const heldSupporterGuest = `'[{"name":"Held Supporter","email":"held-supporter@example.test","supporter_order_id":"${heldSource}"}]'::jsonb`;
+const heldSupporterAllocation = sql(`insert into public.annual_conference_sponsor_ticket_allocations(edition_id,sponsor_name,contact_name,contact_email,quantity,created_by_email) values ('${supporterEdition}','Held','Contact','held@example.test',1,'owner@example.test') returning id;`);
+const reservedBeforeHeld = sql(`select public.annual_conference_reserved_seats('${supporterEdition}');`);
+const heldSupporterBatch = sql(sourceIssue('00000000-0000-4000-8000-000000000214', heldSupporterGuest, `'${heldSupporterAllocation}'`));
+
+assert.equal(sql(`select public.annual_conference_reserved_seats('${supporterEdition}');`), reservedBeforeHeld, 'A supporter assigned a sponsor-held seat adds no reservation.');
+assert.equal(sql(`select count(*) from public.annual_conference_tickets where complimentary_batch_id='${heldSupporterBatch}' and order_id is null and complimentary_supporter_order_id='${heldSource}';`), '1');
+const manualSource = supportOrder('Manual Guest', 'manual@example.test', '00000000-0000-4000-8000-000000000215');
+
+sql(`update public.annual_conference_ticket_orders set status='paid' where id='${manualSource}';`);
+sql(sourceIssue('00000000-0000-4000-8000-000000000216', `'[{"name":"Manual Guest","email":"manual@example.test"}]'::jsonb`));
+assert.throws(() => sql(sourceIssue('00000000-0000-4000-8000-000000000217', `'[{"name":"Manual Guest","email":"manual@example.test","supporter_order_id":"${manualSource}"}]'::jsonb`)), /existing_admission/, 'Existing manually issued admission prevents supporter issue.');

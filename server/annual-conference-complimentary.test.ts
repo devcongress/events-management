@@ -67,7 +67,30 @@ describe('complimentary preview and test email', () => {
       expect((await request(path, body)).status).toBe(403);
     }
     expect((await app.request(base)).status).toBe(403);
+    expect((await app.request(`${base}/supporters`)).status).toBe(403);
     expect(mocks.send).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('community supporters', () => {
+  it('loads the owner-only read-only supporter page', async () => {
+    mocks.rpc.mockResolvedValue({ data: [{ order_id: 'source', total_count: 1 }], error: null });
+    const response = await app.request(`${base}/supporters?offset=25`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ supporters: [{ order_id: 'source', total_count: 1 }], has_more: false });
+    expect(mocks.rpc).toHaveBeenCalledWith('list_annual_conference_complimentary_supporters', expect.objectContaining({ p_offset: 25 }));
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.audit).not.toHaveBeenCalled();
+  });
+
+  it('returns an actionable conflict for stale supporter eligibility', async () => {
+    mocks.rpc.mockResolvedValue({ error: { message: 'complimentary_supporter_existing_admission' } });
+    const response = await request(base, { allocation_id: null, reason: 'Thank you', guests: [{ ...guest, supporter_order_id: '10000000-0000-4000-8000-000000000005' }], idempotency_key: '10000000-0000-4000-8000-000000000002' });
+
+    expect(response.status).toBe(409);
+    expect((await response.json() as { error: string }).error).toContain('already has an admission');
+    expect(mocks.send).not.toHaveBeenCalled();
   });
 });

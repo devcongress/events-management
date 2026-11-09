@@ -6302,7 +6302,7 @@
         }
       ]
     },
-{
+    {
       "file": "20261108120000_complimentary_conference_tickets.sql",
       "sha256": "d5798dac5775e343454f10d222b4f717e628630a98dfbd197a4ef8ae1e53e90c",
       "checks": [
@@ -6375,7 +6375,7 @@
           "argumentTypes": "uuid, uuid, text, jsonb, text, uuid",
           "result": "uuid",
           "language": "plpgsql",
-          "bodySha256": "ebe43b1a4d08717b5df159bc1bb32aeeefb0d72dece6fd0ad6180166fed0d339",
+          "bodySha256": "3c3c9523a645d0f469f3a88a171daa9ef775a3dea5b083dc0ead585f826bf043",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -6399,9 +6399,9 @@
           "schema": "public",
           "name": "list_annual_conference_complimentary_tickets",
           "argumentTypes": "uuid, integer",
-          "result": "TABLE(ticket_id uuid, name text, email text, status annual_conference_ticket_status, reason text, allocation_id uuid, allocation_name text, created_at timestamp with time zone, delivery_status annual_conference_ticket_email_status, delivery_id uuid, active_total bigint, total_count bigint)",
+          "result": "TABLE(ticket_id uuid, name text, email text, status annual_conference_ticket_status, reason text, allocation_id uuid, allocation_name text, created_at timestamp with time zone, delivery_status annual_conference_ticket_email_status, delivery_id uuid, active_total bigint, total_count bigint, supporter_order_id uuid)",
           "language": "sql",
-          "bodySha256": "78f09164838bb7c0fcd6c21a3b36649adfab1728cb640a4630aae1b0be7a4429",
+          "bodySha256": "9a72089632893cd6a8e997ec53bac9240b53fb6b333ea09a572dd60c5ce398aa",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -6457,6 +6457,93 @@
             "BEFORE UPDATE",
             "FOR EACH ROW"
           ]
+        }
+      ]
+    },
+    {
+      "file": "20261109120000_complimentary_community_supporters.sql",
+      "sha256": "f2532964283664f12a5d833e3562d597cca7b8053d61111cc7989a7b435556dc",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_tickets",
+          "name": "complimentary_supporter_order_id",
+          "type": "uuid",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_tickets",
+          "name": "annual_conference_tickets_complimentary_supporter_order_fkey",
+          "contains": [
+            "FOREIGN KEY (complimentary_supporter_order_id, edition_id)",
+            "annual_conference_ticket_orders(id, edition_id)"
+          ]
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "annual_conference_tickets",
+          "name": "annual_conference_tickets_active_supporter_email_idx",
+          "contains": [
+            "UNIQUE INDEX",
+            "complimentary_supporter_order_id IS NOT NULL"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "annual_conference_has_named_live_admission",
+          "argumentTypes": "uuid, text",
+          "result": "boolean",
+          "language": "sql",
+          "bodySha256": "d8ac5681a3deb6647e3b7ea3dd146aeec49bbb9b24b0769860f82cdc92eeb6e3",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "list_annual_conference_complimentary_supporters",
+          "argumentTypes": "uuid, integer",
+          "result": "TABLE(order_id uuid, name text, email text, seats bigint, existing_admission boolean, issued_complimentary boolean, total_count bigint)",
+          "language": "sql",
+          "bodySha256": "db0133fd1503af6da24734ee332b8fd4745d178c21f8b5fd7a578e34a5bb0530",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "issue_annual_conference_complimentary_tickets",
+          "argumentTypes": "uuid, uuid, text, jsonb, text, uuid",
+          "result": "uuid",
+          "language": "plpgsql",
+          "bodySha256": "3c3c9523a645d0f469f3a88a171daa9ef775a3dea5b083dc0ead585f826bf043",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "list_annual_conference_complimentary_tickets",
+          "argumentTypes": "uuid, integer",
+          "result": "TABLE(ticket_id uuid, name text, email text, status annual_conference_ticket_status, reason text, allocation_id uuid, allocation_name text, created_at timestamp with time zone, delivery_status annual_conference_ticket_email_status, delivery_id uuid, active_total bigint, total_count bigint, supporter_order_id uuid)",
+          "language": "sql",
+          "bodySha256": "9a72089632893cd6a8e997ec53bac9240b53fb6b333ea09a572dd60c5ce398aa",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
         }
       ]
     }
