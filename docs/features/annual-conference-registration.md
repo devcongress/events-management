@@ -2,6 +2,16 @@
 
 DevCon26 registration is an annual-conference domain, not a monthly meetup or a zero-price payment. Free website intake uses `/api/public/annual-conference/2026/registration`; paid checkout uses the managed contract below. Public duplicate responses never reveal attendee status or admission capabilities.
 
+## Complimentary conference tickets
+
+For DevCon26, an Owner opens Ticketing → Complimentary, enters named guests and an internal reason, chooses new seats or an existing sponsor allocation, and reviews the first guest's personalized appreciation email before issuing. The reason is kept internally and never included in the email. A test send to a chosen address uses the same email template with a clearly marked test PDF containing a non-admission QR and a nonfunctional badge link; it creates no reservation, ticket, card, or real delivery record. Test sending uses the admission sender configuration, an Owner session, same-origin protection, rate limiting, and audit logging.
+
+Issuance locks the edition inventory, reserves new seats or assigns available already-held sponsor seats, creates one named ticket and individual badge capability per guest, and queues one durable admission email per guest atomically. Identical request replays return the original batch; a changed payload with the same key is rejected. An ambiguous request keeps its reviewed draft and request key when an Owner visits another Ticketing section. Complimentary delivery is explicitly live and is not held by registration rehearsal settings or a past test registration; local development dispatch remains blocked. Provider failure retains the reservation and the existing Delivery screen supports only safe pre-acceptance retry. Once accepted, private delivery content is scrubbed and blind resend is unavailable. Provider acceptance is not proof of inbox delivery.
+
+An Owner may cancel an unused complimentary ticket. Cancellation invalidates the QR and badge, terminalizes pending delivery, and releases one seat once; checked-in tickets cannot be cancelled. The effective sponsor allocation quantity decreases and `released_quantity` preserves its original held count, so existing inventory calculations continue to count the remaining seats. Issued complimentary tickets contribute to the actual attendance counter through the existing sponsor-ticket path; estimates and paid revenue are unchanged. A send already in flight may reach a recipient after cancellation, but its QR and badge are revoked.
+
+The forward migration `20261108120000_complimentary_conference_tickets.sql` and its reviewed verification contract must pass the migration delivery gate before deployment. It is not applied automatically by this feature.
+
 ## Public attendance counter
 
 On the DevCon26 Registration summary, an Owner can publish an estimate or start directly with actual counts. Organizers with registration management access see the published count without the Owner controls. The counter loads independently of the registration summary. The estimate begins at 20 and increases by +1, +2, and +3 in a repeating sequence at 48-hour intervals after publication. At midnight in Accra on the conference date, it freezes at the last pre-event value. An Owner can switch to actual counts at any time. The switch is permanent and the displayed value can decrease.

@@ -41,6 +41,7 @@ import {
   verifyPaystackWebhookSignature,
 } from '@/lib/annual-conference-ticket-payments';
 import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
+import { getSupabaseAdminClient } from '@/lib/supabase/server';
 import { getAnnualConferenceEditionByYear, requireAnnualConferenceCapability } from '@/server/annual-conference-request';
 import { requireConferenceCheckIn } from '@/server/routes/annual-conference-check-in';
 import { CONFERENCE_CHECK_IN_UNAVAILABLE, isAnnualConferenceCheckInOpen } from '@/lib/annual-conference-check-in';
@@ -850,6 +851,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
 
       if (ticketing === null) return ticketingUnavailable(c);
       if (!ticketing) return c.json({ error: `Annual conference ${year.data} was not found.` }, 404);
+      const actor = c.get('adminSession') ?? await getAdminSession(c);
       const [result, summary] = await Promise.all([
         listSupabaseAnnualConferenceTicketEmailDeliveries({
           editionId: ticketing.settings.edition_id,
@@ -858,6 +860,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
           status: query.data.status,
           registrationId: query.data.registration_id,
           recipient: query.data.recipient,
+          excludeComplimentary: !actor.authenticated || actor.role !== 'owner',
         }, c),
         getSupabaseAnnualConferenceTicketEmailDeliverySummary(ticketing.settings.edition_id, c),
       ]);
@@ -891,6 +894,14 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
 
       if (ticketing === null) return ticketingUnavailable(c);
       if (!ticketing) return c.json({ error: `Annual conference ${year.data} was not found.` }, 404);
+      const actor = c.get('adminSession') ?? await getAdminSession(c);
+      const kindResult = await getSupabaseAdminClient(c).from('annual_conference_ticket_email_outbox')
+        .select('kind').eq('edition_id', ticketing.settings.edition_id).eq('id', deliveryId.data).maybeSingle();
+
+      if (kindResult.error) return c.json({ error: 'Unable to load ticket email delivery.' }, 503);
+      if (kindResult.data?.kind === 'complimentary_admission_delivery' && (!actor.authenticated || actor.role !== 'owner')) {
+        return c.json({ error: 'Owner access is required.' }, 403);
+      }
       let delivery;
 
       try {

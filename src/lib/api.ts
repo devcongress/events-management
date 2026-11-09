@@ -412,7 +412,7 @@ export type AnnualConferenceTicketEmailDeliveryStatus = 'queued' | 'sending' | '
 export interface AnnualConferenceTicketEmailDelivery {
   id: string;
   order_id: string | null;
-  kind: 'payment_receipt' | 'ticket_delivery' | 'ticket_bundle_delivery' | 'waitlist_notice';
+  kind: 'payment_receipt' | 'ticket_delivery' | 'ticket_bundle_delivery' | 'waitlist_notice' | 'complimentary_admission_delivery';
   recipient_name: string;
   recipient_email: string;
   status: AnnualConferenceTicketEmailDeliveryStatus;

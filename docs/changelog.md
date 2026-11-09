@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-08 — Complimentary conference tickets
+
+- Owners can preview and issue named complimentary tickets in Ticketing, using new seats or unassigned sponsor-held seats. The internal reason remains private; each guest receives a queued appreciation email with a ticket PDF and individual badge link.
+- Owners can send a clearly marked synthetic test email to a chosen address without reserving a seat or creating an admission or badge capability. Unused complimentary tickets can be cancelled, releasing their seat and invalidating their QR and badge.
+- Show complimentary recipients and delivery status separately from paid orders. Failed sends retain their reservation and use the existing safe delivery retry; accepted emails cannot be blindly resent.
+
 ## 2026-11-08 — Restricted conference access
 
 - Owners can add or approve a Restricted member and grant specific Annual Conference workspaces for each edition. Restricted members start with no assigned workspaces.

@@ -2,6 +2,14 @@ import type { SkeletonSection } from './types';
 
 export const conferenceSections: SkeletonSection[] = [
   {
+    id: 'annual-conference-complimentary-tickets',
+    label: 'complimentary tickets',
+    route: '/organizer-console/annual-conference/2026/ticketing?section=complimentary',
+    sourcePaths: ['src/components/AnnualConferenceComplimentaryTickets.vue', 'src/components/ui/BoneyardComplimentaryTicketsFixture.vue'],
+    capture: { maxWidth: 1280, padding: 32, context: 'panel', gap: 24, showHeader: false },
+    blocks: [{ kind: 'complimentary-tickets' }],
+  },
+  {
     "id": "annual-conference-overview",
     "label": "annual conference overview",
     "route": "/organizer-console/annual-conference/2026",

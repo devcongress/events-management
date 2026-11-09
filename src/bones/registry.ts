@@ -220,3 +220,10 @@ registerAutoSkeletonBones3524d53181({
   'annual-conference-ticketing-sponsors': autoSkeletonBones3524d53181_2,
   'annual-conference-ticketing-testing': autoSkeletonBones3524d53181_3,
 });
+
+import { registerBones as registerAutoSkeletonBones0b3a907550 } from 'boneyard-js/vue';
+import autoSkeletonBones0b3a907550_0 from './annual-conference-complimentary-tickets.bones.json';
+
+registerAutoSkeletonBones0b3a907550({
+  'annual-conference-complimentary-tickets': autoSkeletonBones0b3a907550_0,
+});

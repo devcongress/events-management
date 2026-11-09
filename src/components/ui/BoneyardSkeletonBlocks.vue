@@ -8,6 +8,7 @@ import BoneyardLearningLobbyFixture from './BoneyardLearningLobbyFixture.vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import BoneyardConferenceIntakeFixture from './BoneyardConferenceIntakeFixture.vue';
 import BoneyardTicketOrdersFixture from './BoneyardTicketOrdersFixture.vue';
+import BoneyardComplimentaryTicketsFixture from './BoneyardComplimentaryTicketsFixture.vue';
 
 defineProps<{ blocks: SkeletonBlock[]; sectionName?: string }>();
 
@@ -27,6 +28,7 @@ function cellValue(column: SkeletonColumn, row: number) {
   <div class="ems-loading-blocks">
     <template v-for="(block, index) in blocks" :key="index">
       <BoneyardWorkPlanFixture v-if="block.kind === 'work-plan'" :view="block.view" :assigned="block.assigned" />
+      <BoneyardComplimentaryTicketsFixture v-else-if="block.kind === 'complimentary-tickets'" />
       <BoneyardTicketOrdersFixture v-else-if="block.kind === 'ticket-orders'" :rows="block.rows" :panel="block.panel" />
       <BoneyardConferenceIntakeFixture v-else-if="block.kind === 'speaker-conference-intake'" />
       <BoneyardLearningLobbyFixture v-else-if="block.kind === 'learning-lobby'" />

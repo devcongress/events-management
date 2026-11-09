@@ -16,7 +16,7 @@ function safeProtectedPath(value: unknown): string | null {
 
   const parsed = new URL(path, 'https://app.devcongress.invalid');
   const allowedValues: Record<string, readonly string[]> = {
-    section: ['overview', 'volunteers', 'work-plan', 'tasks', 'timeline', 'submissions', 'events', 'attendance', 'feedback', 'summary', 'guests', 'form', 'emails', 'blasts', 'activity', 'email-delivery', 'email-previews', 'short-links', 'archived-events', 'community', 'proposals', 'participation', 'outcome-messages', 'delivery', 'orders', 'testing', 'sponsors'],
+    section: ['overview', 'volunteers', 'work-plan', 'tasks', 'timeline', 'submissions', 'events', 'attendance', 'feedback', 'summary', 'guests', 'form', 'emails', 'blasts', 'activity', 'email-delivery', 'email-previews', 'short-links', 'archived-events', 'community', 'proposals', 'participation', 'outcome-messages', 'delivery', 'orders', 'testing', 'sponsors', 'complimentary'],
     volunteerView: ['directory', 'reviews', 'campaign'],
     campaignTab: ['updates', 'outcomes', 'invitations', 'settings'],
     from: ['attendance', 'feedback'],

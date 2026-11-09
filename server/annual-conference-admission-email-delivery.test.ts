@@ -315,3 +315,26 @@ it('persists provider Retry-After before releasing the shared dispatch lease', a
   expect(mocks.rpc).toHaveBeenLastCalledWith('release_admission_dispatch', expect.any(Object));
   expect(mocks.send).toHaveBeenCalledTimes(1);
 });
+
+it('renders a complimentary PDF and individual badge link without a paid-order lookup', async () => {
+  const capability = 'A'.repeat(43);
+  const content = await admissionEmailContent({ ...delivery, kind: 'complimentary_admission_delivery',
+    payload: { qr_token: 'a'.repeat(64), social_card_capability: capability, ticket_id: delivery.id } },
+  'events@example.test', 'help@example.test', 'https://devcongress.org');
+
+  expect(content.text).toContain('no payment required');
+  expect(content.text).toContain(`https://devcongress.org/devcon26/social-card/#${capability}`);
+  expect(content.attachments).toHaveLength(1);
+  expect(content.attachments?.[0].content_type).toBe('application/pdf');
+  expect(Buffer.from(content.attachments![0].content, 'base64').subarray(0, 5).toString()).toBe('%PDF-');
+  expect(mocks.from).not.toHaveBeenCalled();
+});
+
+it('renders deterministic test PDF bytes for safe provider retries', async () => {
+  const { conferenceTicketPdf } = await import('./conference-ticket-pdf');
+  const input = { token: 'TEST-ONLY-NOT-AN-ADMISSION-CAPABILITY', name: 'Ama Example', seat: 1, isTest: true };
+  const first = await conferenceTicketPdf(input);
+  const second = await conferenceTicketPdf(input);
+
+  expect(Buffer.from(first).equals(Buffer.from(second))).toBe(true);
+});

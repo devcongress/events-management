@@ -1,17 +1,18 @@
 import type { LocationQuery, RouteLocationRaw } from 'vue-router';
 
-export type TicketingSection = 'overview' | 'orders' | 'delivery' | 'sponsors' | 'testing';
+export type TicketingSection = 'overview' | 'orders' | 'delivery' | 'sponsors' | 'complimentary' | 'testing';
 
 const sections: Array<{ key: TicketingSection; label: string }> = [
   { key: 'overview', label: 'Overview' },
   { key: 'orders', label: 'Orders' },
   { key: 'delivery', label: 'Delivery' },
   { key: 'sponsors', label: 'Sponsors' },
+  { key: 'complimentary', label: 'Complimentary' },
   { key: 'testing', label: 'Testing' },
 ];
 
 export function ticketingSections(year: string) {
-  return sections.filter(section => section.key !== 'testing' || year === '2026');
+  return sections.filter(section => !['testing', 'complimentary'].includes(section.key) || year === '2026');
 }
 
 export function resolveTicketingSection(value: unknown, year: string): TicketingSection {

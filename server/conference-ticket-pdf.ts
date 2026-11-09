@@ -68,6 +68,10 @@ export async function conferenceTicketPdf(input: { token: string; name: string; 
   }
   text('Keep this ticket private. Your conference badge is separate.', 28, 42, 9);
   document.setTitle('DevCon26 ticket');
+  if (input.isTest) {
+    document.setCreationDate(new Date('2026-01-01T00:00:00Z'));
+    document.setModificationDate(new Date('2026-01-01T00:00:00Z'));
+  }
 
   return document.save();
 }

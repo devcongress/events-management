@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
+import AnnualConferenceComplimentaryTickets from '@/src/components/AnnualConferenceComplimentaryTickets.vue';
 import TicketPurchaseLinkPanel from '@/src/components/TicketPurchaseLinkPanel.vue';
 import WorkspaceSectionNav from '@/src/components/WorkspaceSectionNav.vue';
 import Devcon26TestCoupons from '@/src/components/Devcon26TestCoupons.vue';
@@ -55,15 +56,16 @@ const restrictedPlan = useQuery({
 });
 const canManageTicketing = computed(() => !restricted.value
   || restrictedPlan.data.value?.permissions.capabilities.includes('ticketing.manage') === true);
-const activeSection = computed(() => restricted.value && route.query.section === 'testing'
+const activeSection = computed(() => (restricted.value && route.query.section === 'testing') || (session.data.value?.user?.role !== 'owner' && route.query.section === 'complimentary')
   ? 'overview' : resolveTicketingSection(route.query.section, year.value));
 const sectionLinks = computed(() => ticketingSections(year.value)
-  .filter(section => !restricted.value || section.key !== 'testing')
+  .filter(section => (!restricted.value || section.key !== 'testing') && (section.key !== 'complimentary' || session.data.value?.user?.role === 'owner'))
   .map(section => ({
   ...section,
   to: ticketingSectionLocation(route.path, route.query, section.key),
 })));
 const testingVisited = ref(activeSection.value === 'testing');
+const complimentaryVisited = ref(activeSection.value === 'complimentary');
 const capacity = ref<number | null>(null);
 const capacityError = ref('');
 const pricingOpen = ref(false);
@@ -212,6 +214,7 @@ watch([() => route.query.section, year], ([value]) => {
 
 watch([activeSection, year], ([section]) => {
   if (section === 'testing') testingVisited.value = true;
+  if (section === 'complimentary') complimentaryVisited.value = true;
   closeDrawersForNavigation();
 }, { flush: 'sync' });
 
@@ -224,6 +227,7 @@ watch(ticketOrderView, () => {
 });
 
 watch(year, () => {
+  complimentaryVisited.value = activeSection.value === 'complimentary';
   ticketOrderPage.value = 1;
   selectedOrder.value = null;
 });
@@ -555,6 +559,7 @@ function deliveryStatusLabel(delivery: AnnualConferenceTicketEmailDelivery) {
 }
 
 function deliveryKindLabel(delivery: AnnualConferenceTicketEmailDelivery) {
+  if (delivery.kind === 'complimentary_admission_delivery') return 'Complimentary ticket';
   if (delivery.kind === 'ticket_bundle_delivery') return 'Ticket bundle delivery';
   if (delivery.kind === 'ticket_delivery') return 'Ticket delivery';
 
@@ -615,6 +620,7 @@ onUnmounted(() => {
             <path v-else-if="item.key === 'orders'" d="M5 3h14v18l-3-2-4 2-4-2-3 2zM8 8h8M8 12h6" />
             <path v-else-if="item.key === 'delivery'" d="M3 5h18v14H3zM3 6l9 7 9-7" />
             <path v-else-if="item.key === 'sponsors'" d="M3 21h18M5 21V7l9-4v18M14 10h5v11M8 9v1M11 8v1M8 13v1M11 12v1M8 17v1M11 16v1" />
+            <path v-else-if="item.key === 'complimentary'" d="M4 7h16v10H4zM8 10h.01M8 14h.01M12 10h5M12 14h5" />
             <path v-else-if="item.key === 'testing'" d="M9 3h6M10 3v7L4 19a1 1 0 0 0 1 2h14a1 1 0 0 0 1-2l-6-9V3M7 15h10" />
           </svg>
         </template>
@@ -629,6 +635,7 @@ onUnmounted(() => {
       </section>
 
       <section v-else-if="ticketing" class="space-y-6">
+        <AnnualConferenceComplimentaryTickets v-if="complimentaryVisited && year === '2026' && session.data.value?.user?.role === 'owner'" v-show="activeSection === 'complimentary'" :year="year" :active="activeSection === 'complimentary'" />
         <div v-if="activeSection === 'overview'" class="space-y-6">
 
         <section aria-labelledby="inventory-ledger-title">

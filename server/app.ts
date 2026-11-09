@@ -272,6 +272,7 @@ import { registerDevcon26CompleteTestCheckout } from '@/server/routes/devcon26-c
 import { COMPLETE_TEST_CHECKOUT_PATH, completeTestConfiguration } from '@/lib/devcon26-complete-test-checkout';
 import { registerAnnualConferenceTicketingRoutes } from '@/server/routes/annual-conference-ticketing';
 import { registerAnnualConferenceFlexibleOperationsRoutes } from '@/server/routes/annual-conference-flexible-operations';
+import { registerAnnualConferenceComplimentaryRoutes } from '@/server/routes/annual-conference-complimentary';
 import { registerAnnualConferenceFlexibleRefundRoutes } from '@/server/routes/annual-conference-flexible-refunds';
 import { registerAnnualConferenceRegistrationRoutes } from '@/server/routes/annual-conference-registration';
 import { registerAnnualConferenceCheckInRoutes } from '@/server/routes/annual-conference-check-in';
@@ -5453,6 +5454,7 @@ registerAnnualConferenceAttendanceCounter(app);
 registerDevcon26CompleteTestCheckout(app);
 registerAnnualConferenceTicketingRoutes(app);
 registerAnnualConferenceFlexibleOperationsRoutes(app);
+registerAnnualConferenceComplimentaryRoutes(app);
 registerAnnualConferenceFlexibleRefundRoutes(app);
 registerAnnualConferenceRegistrationRoutes(app);
 registerAnnualConferenceCheckInRoutes(app);
