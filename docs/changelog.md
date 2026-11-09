@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-09 — Community supporter complimentary admissions
+
+- Owners can select paid live community supporters for their own reviewed complimentary ticket, alongside manually entered guests. Their funded community seats remain available to the community.
+- Validate purchase identity and existing named admissions at issuance, preserve purchase provenance, and allow reissue after cancellation.
+
 ## 2026-11-08 — Complimentary conference tickets
 
 - Owners can preview and issue named complimentary tickets in Ticketing, using new seats or unassigned sponsor-held seats. The internal reason remains private; each guest receives a queued appreciation email with a ticket PDF and individual badge link.

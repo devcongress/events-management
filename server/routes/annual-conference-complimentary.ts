@@ -16,7 +16,7 @@ import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import type { AppBindings } from '@/server/http/app-bindings';
 
 const base = '/api/annual-conference/2026/ticketing/complimentary';
-const guestSchema = z.object({ name: z.string().trim().min(1).max(120), email: z.string().trim().toLowerCase().email().max(254) }).strict();
+const guestSchema = z.object({ name: z.string().trim().min(1).max(120), email: z.string().trim().toLowerCase().email().max(254), supporter_order_id: z.string().uuid().optional() }).strict();
 const issueSchema = z.object({
   allocation_id: z.string().uuid().nullable(),
   reason: z.string().trim().min(1).max(1000),
@@ -93,6 +93,31 @@ export function registerAnnualConferenceComplimentaryRoutes(app: Hono<AppBinding
     return c.json({ accepted: true, recipient: input.data.recipient });
   });
 
+  app.get(`${base}/supporters`, async (c) => {
+    const denied = await owner(c);
+
+    if (denied) return denied;
+    if (!isSupabaseRuntimeEnabled(c)) return c.json({ error: 'Ticketing storage is not configured.' }, 503);
+    const offset = z.coerce.number().int().min(0).max(100_000).safeParse(c.req.query('offset') ?? 0);
+
+    if (!offset.success) return c.json({ error: 'Invalid supporter page.' }, 400);
+    c.header('Cache-Control', 'private, no-store');
+    try {
+      const ticketing = await getSupabaseAnnualConferenceTicketing(2026, c);
+
+      if (!ticketing) return c.json({ error: 'Ticketing is unavailable.' }, 503);
+      const result = await getSupabaseAdminClient(c).rpc('list_annual_conference_complimentary_supporters' as never,
+        { p_edition_id: ticketing.settings.edition_id, p_offset: offset.data } as never);
+
+      if (result.error) return c.json({ error: 'Unable to load community supporters.' }, 503);
+      const rows = Array.isArray(result.data) ? result.data : [];
+
+      return c.json({ supporters: rows.slice(0, 25), has_more: rows.length > 25 });
+    } catch {
+      return c.json({ error: 'Unable to load community supporters.' }, 503);
+    }
+  });
+
   app.get(base, async (c) => {
     const denied = await owner(c);
 
@@ -141,6 +166,9 @@ export function registerAnnualConferenceComplimentaryRoutes(app: Hono<AppBinding
       } as never);
 
       if (result.error) {
+        if (/supporter_existing_admission|supporter_invalid|annual_conference_tickets_active_supporter_email_idx/.test(result.error.message)) {
+          return c.json({ error: 'A selected supporter is no longer eligible or already has an admission. Refresh the supporter list and review their ticket.' }, 409);
+        }
         if (/capacity_exhausted|allocation_exhausted|idempotency_mismatch/.test(result.error.message)) {
           return c.json({ error: 'Seats are unavailable or this request key was already used for different guests.' }, 409);
         }
