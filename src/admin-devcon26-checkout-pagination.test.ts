@@ -1,19 +1,30 @@
 import { readFileSync } from 'node:fs';
-import { compile, createRenderer, nextTick, ssrContextKey } from 'vue';
+import { compile, createRenderer, h, nextTick, ssrContextKey } from 'vue';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import { describe, expect, it, vi } from 'vitest';
 import type { Devcon26TestCheckoutLedgerRow, Devcon26TestCouponsResponse } from '@/lib/devcon26-test-coupons';
 import { fetchDevcon26TestCoupons } from './lib/api';
 import Devcon26TestCoupons from './components/Devcon26TestCoupons.vue';
+import AppPagination from './components/AppPagination.vue';
 
 vi.mock('./lib/api', async (importOriginal) => ({
   ...await importOriginal<typeof import('./lib/api')>(),
   fetchDevcon26TestCoupons: vi.fn(),
 }));
 vi.mock('./components/AppDropdown.vue', () => ({ default: { render: () => null } }));
+vi.mock('./components/OrganizerBreadcrumbs.vue', () => ({ default: {
+  emits: ['navigate'],
+  setup(_props: unknown, { emit }: { emit: (name: string, index: number) => void }) {
+    return () => h('nav', { 'aria-label': 'Breadcrumb' }, [
+      h('button', { onClick: () => emit('navigate', 0) }, 'Coupons'),
+      h('span', { 'aria-current': 'page' }, 'Test checkout activity'),
+    ]);
+  },
+} }));
 vi.mock('./components/ui/AppDatePicker.vue', () => ({ default: { render: () => null } }));
 vi.mock('./components/ui/AppCopyButton.vue', () => ({ default: { render: () => null } }));
+vi.mock('./components/ui/BoneyardPageSkeleton.vue', () => ({ default: { render: () => null } }));
 
 // Vitest's Node transform emits an SSR template; compile the same source for mounted events.
 const { descriptor } = parse(readFileSync(new URL('./components/Devcon26TestCoupons.vue', import.meta.url), 'utf8'));
@@ -23,6 +34,11 @@ const mountedComponent = {
   render: compile(descriptor.template!.content, { bindingMetadata: bindings, prefixIdentifiers: true }),
 };
 
+const paginationDescriptor = parse(readFileSync(new URL('./components/AppPagination.vue', import.meta.url), 'utf8')).descriptor;
+const paginationBindings = compileScript(paginationDescriptor, { id: 'pagination-test' }).bindings;
+
+AppPagination.render = compile(paginationDescriptor.template!.content, { bindingMetadata: paginationBindings, prefixIdentifiers: true });
+
 interface TestNode {
   tag: string;
   tagName: string;
@@ -31,6 +47,8 @@ interface TestNode {
   children: TestNode[];
   parent: TestNode | null;
   addEventListener: () => void;
+  style: Record<string, string>;
+  focus: () => void;
 }
 
 function node(tag: string, text = ''): TestNode {
@@ -42,6 +60,8 @@ function node(tag: string, text = ''): TestNode {
     children: [],
     parent: null,
     addEventListener: () => {},
+    style: {},
+    focus: () => {},
   };
 }
 
@@ -116,7 +136,7 @@ describe('Checkout pagination component interaction', () => {
 
     fetchMock.mockReset();
     fetchMock.mockImplementation(async (_year, page, checkoutPage): Promise<Devcon26TestCouponsResponse> => ({
-      coupons: [], total: 20, page, page_size: 8,
+      coupons: [{ id: 'coupon-1', code: 'TEST-CODE', discount_type: 'fixed_minor', discount_value: 100, eligible_tiers: ['regular'], expires_at: '2099-01-01T00:00:00Z', created_at: '2026-01-01T00:00:00Z', max_completed: 10, enabled: true, completed: 0, active_holds: 0, remaining: 10, exceptions: 0 }], total: 20, page, page_size: 8,
       checkouts: Array.from({ length: total }, (_, index) => fixture(index + 1)).slice((checkoutPage - 1) * 5, checkoutPage * 5),
       checkout_total: total, checkout_page: checkoutPage, checkout_page_size: 5,
     }));
@@ -128,56 +148,60 @@ describe('Checkout pagination component interaction', () => {
     app.provide(ssrContextKey, {});
     app.mount(root);
 
-    async function assertPage(range: string, expectedRowCount: number) {
-      await vi.waitFor(async () => {
-        await nextTick();
-        expect(textContent(root)).toContain(range);
-        const tableBody = descendants(root).find((element) => element.tag === 'tbody');
-        const rows = tableBody?.children.filter((element) => element.tag === 'tr') ?? [];
-
-        expect(rows.length).toBe(expectedRowCount);
-      });
-    }
-
-    function button(label: string) {
-      const element = descendants(root).find((candidate) => candidate.tag === 'button' && candidate.props['aria-label'] === label);
+    function byText(label: string) {
+      const element = descendants(root).find(candidate => candidate.tag === 'button' && textContent(candidate).trim() === label);
 
       expect(element).toBeDefined();
 
       return element!;
     }
 
-    function click(label: string) {
-      const element = button(label);
+    function navigation(label: string) {
+      return descendants(root).find(element => element.tag === 'nav' && element.props['aria-label'] === label);
+    }
 
-      expect(element.props.disabled).toBe(false);
-      (element.props.onClick as () => void)();
+    function clickPage(label: string, direction: string) {
+      const nav = navigation(label);
+      const button = nav && descendants(nav).find(element => element.tag === 'button' && element.props['aria-label'] === `${direction} page`);
+
+      expect(button).toBeDefined();
+      expect(button!.props.disabled).toBe(false);
+      (button!.props.onClick as () => void)();
+    }
+
+    async function assertPage(pageLabel: string, range: string, rows: number) {
+      await vi.waitFor(async () => {
+        await nextTick();
+        expect(textContent(root)).toContain(range);
+        if (pageLabel) expect(textContent(navigation('Checkout pagination')!)).toContain(pageLabel);
+        const region = descendants(root).find(element => element.props['aria-label'] === 'Test checkout activity table');
+        const body = region && descendants(region).find(element => element.tag === 'tbody');
+
+        expect(body?.children.filter(element => element.tag === 'tr')).toHaveLength(rows);
+      });
     }
 
     try {
-      await assertPage('1–5 of 11 · Page 1 of 3', 5);
-      expect(button('Previous checkout page').props.disabled).toBe(true);
-      click('Next checkout page');
-      await assertPage('6–10 of 11 · Page 2 of 3', 5);
+      await vi.waitFor(() => expect(textContent(root)).toContain('Test checkout activity'));
+      (byText('Test checkout activity').props.onClick as () => void)();
+      await assertPage('Page 1 of 3', 'Showing 1-5 of 11 checkouts', 5);
+      clickPage('Checkout pagination', 'Next');
+      await assertPage('Page 2 of 3', 'Showing 6-10 of 11 checkouts', 5);
       expect(fetchMock).toHaveBeenLastCalledWith('2026', 1, 2);
-      click('Next checkout page');
-      await assertPage('11–11 of 11 · Page 3 of 3', 1);
-      expect(button('Next checkout page').props.disabled).toBe(true);
-      click('Previous checkout page');
-      await assertPage('6–10 of 11 · Page 2 of 3', 5);
-
-      const couponNext = descendants(root).find((element) => element.tag === 'button' && !element.props['aria-label'] && textContent(element) === 'Next');
-
-      expect(couponNext?.props.disabled).toBe(false);
-      (couponNext!.props.onClick as () => void)();
+      clickPage('Checkout pagination', 'Next');
+      await assertPage('Page 3 of 3', 'Showing 11-11 of 11 checkouts', 1);
+      clickPage('Checkout pagination', 'Previous');
+      await assertPage('Page 2 of 3', 'Showing 6-10 of 11 checkouts', 5);
+      (byText('Coupons').props.onClick as () => void)();
+      await nextTick();
+      clickPage('Coupon pagination', 'Next');
       await vi.waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith('2026', 2, 2));
-      await assertPage('6–10 of 11 · Page 2 of 3', 5);
+      (byText('Test checkout activity').props.onClick as () => void)();
+      await assertPage('Page 2 of 3', 'Showing 6-10 of 11 checkouts', 5);
       total = 3;
       await queryClient.invalidateQueries({ queryKey: ['devcon26-test-coupons', '2026'] });
-      await assertPage('1–3 of 3 · Page 1 of 1', 3);
-      expect(fetchMock).toHaveBeenLastCalledWith('2026', 2, 1);
-      expect(button('Previous checkout page').props.disabled).toBe(true);
-      expect(button('Next checkout page').props.disabled).toBe(true);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith('2026', 2, 1));
+      await vi.waitFor(() => expect(navigation('Checkout pagination')).toBeUndefined());
     } finally {
       app.unmount();
       queryClient.clear();

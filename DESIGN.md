@@ -124,8 +124,8 @@ same line while preserving touch targets, wrapping, and desktop truncation.
 **Programme outline:** Present saved sessions as compact rows with a non-breaking time range and a restrained type label. In edit mode keep time, title, type, and row actions visible; use the time picker for a start and duration, with an editable minute stepper and an optional previous-session shortcut; disclose descriptions and resources on demand. Keep the programme heading and top editing controls sticky beneath conference navigation on desktop and at the top of the phone scroll region. Keep Add, Save, and Cancel together in that heading. Confirm draft row removal in a desktop dialog or phone bottom sheet; destructive actions use the shared destructive color token.
 
 **Attendance counter:** Place the independent counter on the 2026 Registration
-summary. Use compact neutral controls with icons for publishing and confirming;
-leave the displayed count and source legible at phone widths.
+summary. Show the read-only count and its starting-count and net-purchases breakdown;
+keep the values legible at phone widths.
 
 **Conference scrolling:** On desktop, breadcrumbs stay at the top of the main
 scroll container. The conference header sticks beneath their measured height.
@@ -140,7 +140,7 @@ deadline in a keyboard-accessible disclosure so content remains visible.
 Proposals, Participation, and Delivery use a single thin neutral border, flat
 row dividers, and the shared pagination controls at six entries per page.
 
-**Ticketing and Guests:** Use yellow for the selected order or guest-status filter and pink for keyboard focus. The pre-event check-in notice is compact and shows the conference date in Accra time; a missing or invalid date has a clear unavailable state.
+**Ticketing and Guests:** Keep Ticketing section navigation sticky below the breadcrumbs on desktop and below the app header on phones; the conference navigation and Ticketing heading scroll away. Use a compact neutral Add tickets action for complimentary admissions. Use yellow for the selected order or guest-status filter and pink for keyboard focus. The pre-event check-in notice is compact and shows the conference date in Accra time; a missing or invalid date has a clear unavailable state.
 
 **Phones:** Keep Ticketing on its existing responsive route. Its Mobile Conference
 entry follows existing role/capability rules. Orders use cards below the desktop
@@ -175,6 +175,8 @@ Phone email previews use a recipient picker and position count, with a viewport
 height layout and safe-area spacing. Body and control text must remain readable;
 do not force every phone action to full width or shrink labels to fit desktop
 groups. Size primary actions to their context.
+
+**Pagination:** Use `AppPagination.vue` for paginated lists and tables. Supply the real total when available; for offset APIs without a total, use its next-page mode without inferring a last page. Preserve each list’s page size and loading state.
 
 **Loading:** Resolve by the stable section ID in `src/boneyard/sections/`. Match
 the loaded layout, role, tab, and container. Reuse loaded presentation components

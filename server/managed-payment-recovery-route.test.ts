@@ -108,7 +108,7 @@ it('recovers a missed live webhook using the live key and verified provider amou
   mocks.livePayment.mockResolvedValue({ status: 'success', charge: { providerEventId: 'charge:123', amountMinor: 15000, currency: 'GHS', facts: {} } });
 
   expect(await (await request('/api/internal/managed-payments/reconcile')).json()).toEqual({ checked: 1, resolved: 1, failed: 0 });
-  expect(mocks.livePayment).toHaveBeenCalledWith({ secretKey: 'sk_live_fixture', paymentReference: liveReference });
+  expect(mocks.livePayment).toHaveBeenCalledWith(expect.objectContaining({ secretKey: 'sk_live_fixture', paymentReference: liveReference, onObservation: expect.any(Function) }));
   expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ paymentReference: liveReference, amountMinor: 15000, currency: 'GHS', providerEventId: 'managed:live:charge:123' }), expect.anything());
 });
 
@@ -118,4 +118,16 @@ it('dispatches real queue messages to the private managed recovery handlers', as
   await worker.queue({ messages: [{ body: { kind: 'payment-recovery' } }, { body: { kind: 'admission-recovery' } }] }, env, context);
   expect(mocks.confirm).toHaveBeenCalledOnce();
   expect(mocks.admission).toHaveBeenCalledWith(expect.anything(), { managed: true, scheduled: true });
+});
+
+it('protects the separate diagnostics route and never invokes fulfillment or email', async () => {
+  const path = '/api/internal/payment-diagnostics/check';
+
+  expect((await request(path, env, 'wrong')).status).toBe(404);
+  expect((await app.request(path, { method: 'POST', headers: { 'x-scheduled-job-secret': secret } }, env)).status).toBe(404);
+  expect(await (await request(path, { ...env, MANAGED_PAYMENT_RECOVERY_OWNER_ENABLED: 'false' })).json()).toEqual({ checked: 0 });
+  mocks.rpc.mockImplementation(async (name) => ({ error: null, data: name === 'claim_unresolved_payment_diagnostics' ? [] : null }));
+  expect(await (await request(path)).json()).toEqual({ checked: 0, failed: 0 });
+  expect(mocks.confirm).not.toHaveBeenCalled();
+  expect(mocks.admission).not.toHaveBeenCalled();
 });

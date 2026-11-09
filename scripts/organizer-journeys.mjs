@@ -409,9 +409,9 @@ async function journey(
         },
       };
     } else if (request.method() === "GET" && url.pathname === "/api/public/annual-conference/2026/attendance-counter") {
-      body = { count: null, source: null };
+      body = { count: 25, source: "ticket_count" };
     } else if (request.method() === "GET" && url.pathname === "/api/annual-conference/2026/attendance-counter" && role === "owner") {
-      body = { count: null, source: null, version: 0 };
+      body = { count: 25, source: "ticket_count", baseline: 20, purchases: 5 };
     } else if (request.method() === "GET" && [
       "/api/annual-conference/2026/programme/speakers",
       "/api/annual-conference/2027/programme/speakers",
@@ -528,7 +528,7 @@ try {
 
   for (const width of [320, 390, 1440]) {
     await journey(`devcon26-volunteer-badge-${width}`, async ({ page, responses, requests }) => {
-      responses.set("/api/public/annual-conference/2026/attendance-counter", { body: { count: 21, source: "estimate" } });
+      responses.set("/api/public/annual-conference/2026/attendance-counter", { body: { count: 25, source: "ticket_count" } });
       if (width < 768) await stubBadgeShare(page);
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`${origin}/organizer-console/annual-conference/2026`);
@@ -717,9 +717,8 @@ try {
     assert.equal(requests.some((request) => request.method !== "GET"), false);
   });
 
-  await journey("devcon26-attendance-counter-owner", async ({ page, responses }) => {
+  await journey("devcon26-attendance-counter-owner", async ({ page, responses, requests }) => {
     const ownerPath = "/api/annual-conference/2026/attendance-counter";
-    let state = { count: null, source: null, version: 0 };
 
     responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
     responses.set("/api/admin/organizers", { body: { organizers: [] } });
@@ -728,31 +727,15 @@ try {
     responses.set('/api/annual-conference/2026/registrations', { body: { overview: { mode: 'free', status: 'open', capacity: 150, reserved: 0, confirmed: 0, waitlisted: 0 }, registrations: [] } });
     responses.set('/api/annual-conference/2026/registrations/testing', { body: { enabled: false, tester_emails: [], local_delivery: false } });
     responses.set('/api/annual-conference/2026/registrations/blasts', { body: { blasts: [] } });
-    responses.set(ownerPath, (request) => {
-      if (request.method() === "PATCH") {
-        const body = request.postDataJSON();
-
-        assert.equal(body.confirmed, true);
-        assert.equal(body.version, state.version);
-        state = { count: body.source === "estimate" ? 20 : 12, source: body.source, version: state.version + 1 };
-      }
-
-      return { body: state };
-    });
+    responses.set(ownerPath, { body: { count: 25, source: "ticket_count", baseline: 20, purchases: 5 } });
     await page.goto(`${origin}/organizer-console/annual-conference/2026/registrations`);
-    const counter = page.getByRole("region", { name: "Attendance counter" });
+    const counter = page.getByRole("region", { name: "Public ticket counter" });
 
     await page.getByRole('heading', { name: 'Registration overview' }).waitFor();
-    assert.equal(await counter.getByRole('button', { name: 'Publish estimate' }).locator('svg').count(), 1);
-    assert.equal(await counter.getByRole('button', { name: 'Publish actual' }).locator('svg').count(), 1);
-    await counter.getByRole("button", { name: "Publish estimate" }).click();
-    await counter.getByRole("button", { name: "Confirm" }).click();
-    await counter.getByText("20 people are attending").waitFor();
-    await counter.getByText("Estimated turnout").waitFor();
-    await counter.getByRole("button", { name: "Switch to actual" }).click();
-    await counter.getByRole("button", { name: "Confirm" }).click();
-    await counter.getByText("12 people are attending").waitFor();
-    assert.equal(await counter.getByRole("button", { name: "Switch to actual" }).count(), 0);
+    await counter.getByText('25 displayed').waitFor();
+    await counter.getByText('20 starting count + 5 net purchased tickets').waitFor();
+    assert.equal(await counter.getByRole('button', { name: /publish|switch|confirm/i }).count(), 0);
+    assert.equal(requests.some((request) => request.path === ownerPath && request.method !== 'GET'), false);
   }, { role: "owner" });
 
   await journey('button-hover-feedback', async ({ page, responses }) => {
@@ -5644,7 +5627,11 @@ try {
       } });
     }
     responses.set("/api/annual-conference/2026/ticketing/test-coupons", { body: {
-      coupons: [], total: 0, page: 1, page_size: 8, checkouts: [{
+      coupons: [{
+        id: "coupon-1", code: "TEST-ABCD-EFGH", discount_type: "fixed_minor", discount_value: 500,
+        eligible_tiers: ["regular"], expires_at: "2026-12-19T10:00:00Z", max_completed: 5,
+        enabled: true, completed: 0, active_holds: 0, remaining: 5, exceptions: 0,
+      }], total: 1, page: 1, page_size: 8, checkouts: [{
         id: "sandbox-checkout", payment_reference: "sandbox-reference", purchaser_name: "Sandbox purchaser", purchaser_email: "sandbox@example.test",
         tier_key: "regular", quantity: 1, coupon_code: null, base_amount_minor: 15000, discount_amount_minor: 0,
         amount_minor: 15000, currency: "GHS", status: "verified", resolution_reason: null,
@@ -5765,7 +5752,7 @@ try {
     await filter("Paid orders").click();
     await ordersPanel.getByRole("rowheader", { name: /Abena Mensah/ }).waitFor();
     await assertUnderlineTabGeometry(page, '[aria-label="Ticketing sections"]');
-    assert.deepEqual(await nav.getByRole("link").allTextContents().then(items => items.map(item => item.trim())), ["Overview", "Orders", "Delivery", "Sponsors", "Complimentary", "Testing"]);
+    assert.deepEqual(await nav.getByRole("link").allTextContents().then(items => items.map(item => item.trim())), ["Overview", "Orders", "Delivery", "Sponsors", "Complimentary", "Coupons"]);
     assert.equal(await nav.locator('[aria-current="page"]').innerText(), "Orders");
     assert.equal(requests.some(request => /\/ticketing\/(sponsor-allocations|email-deliveries|test-coupons)$/.test(request.path)), false, "Unvisited section queries stay idle");
     await nav.getByRole("link", { name: "Sponsors", exact: true }).click();
@@ -5782,13 +5769,19 @@ try {
     assert.equal(await page.locator("#app").getAttribute("inert"), null);
     assert.equal(await page.evaluate(() => document.body.style.overflow), "");
     assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('[aria-labelledby="ticket-orders-title"]'))), false, "Back never focuses the hidden order panel");
-    await nav.getByRole("link", { name: "Testing", exact: true }).click();
-    await page.locator("summary").filter({ hasText: "Create a test coupon" }).click();
+    await nav.getByRole("link", { name: "Coupons", exact: true }).click();
+    await page.getByRole("cell", { name: "TEST-ABCD-EFGH", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Create test coupon", exact: true }).click();
     await page.locator("#test-coupon-discount").fill("12.50");
     await nav.getByRole("link", { name: "Overview", exact: true }).click();
     await page.getByRole("heading", { name: "Every reserved seat accounted for", exact: true }).waitFor();
-    await nav.getByRole("link", { name: "Testing", exact: true }).click();
-    assert.equal(await page.locator("#test-coupon-discount").inputValue(), "12.50", "Visited Testing controls keep their unsaved draft");
+    await nav.getByRole("link", { name: "Coupons", exact: true }).click();
+    assert.equal(await page.locator("#test-coupon-discount").inputValue(), "12.50", "Visited Coupons controls keep their unsaved draft");
+    await page.getByRole("button", { name: "Test checkout activity", exact: true }).click();
+    const activityBreadcrumb = page.getByRole("navigation", { name: "Breadcrumb" }).filter({ hasText: "Test checkout activity" });
+
+    await activityBreadcrumb.getByText("Test checkout activity", { exact: true }).waitFor();
+    assert.equal(await activityBreadcrumb.getByText("Test checkout activity", { exact: true }).getAttribute("aria-current"), "page");
     await page.getByRole("button", { name: /^Open private sandbox checkout details/ }).click();
     const sandboxDrawer = page.getByRole("dialog", { name: "Private checkout details", exact: true });
 
@@ -5798,12 +5791,13 @@ try {
     await sandboxDrawer.waitFor({ state: "detached" });
     assert.equal(await page.locator("#app").getAttribute("inert"), null);
     assert.equal(await page.evaluate(() => document.body.style.overflow), "");
-    assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('[aria-labelledby="test-coupons-title"]'))), false, "Leaving Testing never focuses its hidden controls");
-    await nav.getByRole("link", { name: "Testing", exact: true }).click();
+    assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('[aria-labelledby="test-coupons-title"]'))), false, "Leaving Coupons never focuses its hidden controls");
+    await nav.getByRole("link", { name: "Coupons", exact: true }).click();
+    await activityBreadcrumb.getByRole("button", { name: "Coupons", exact: true }).click();
     assert.equal(await page.locator("#test-coupon-discount").inputValue(), "12.50");
     await page.setViewportSize({ width: 320, height: 844 });
     await nav.locator('.app-dropdown-trigger').waitFor();
-    await assertWorkspaceSection(nav, "Testing");
+    await assertWorkspaceSection(nav, "Coupons");
     await page.setViewportSize({ width: 390, height: 844 });
     await chooseWorkspaceSection(page, nav, "Orders");
     const phoneOrders = page.getByRole("list", { name: "Ticket orders", exact: true });
@@ -5845,7 +5839,7 @@ try {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${origin}${nextYear}?section=testing&retained=yes`);
     await page.waitForURL(url => url.searchParams.get("section") === "overview");
-    assert.equal(await nav.getByRole("link", { name: "Testing", exact: true }).count(), 0);
+    assert.equal(await nav.getByRole("link", { name: "Coupons", exact: true }).count(), 0);
     await page.getByRole("button", { name: "Edit prices", exact: true }).waitFor();
     assert.equal(requests.some(request => request.path === "/api/annual-conference/2027/ticketing/orders"), true, "Overview retains the non-2026 pricing eligibility read");
     await nav.getByRole("link", { name: "Orders", exact: true }).click();

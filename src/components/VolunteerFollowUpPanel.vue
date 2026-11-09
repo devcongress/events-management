@@ -6,6 +6,7 @@ import { useRoute, useRouter } from "vue-router";
 import { resolveVolunteerCampaignTab } from "@/src/lib/volunteer-navigation";
 import ConfirmDialog from "@/src/components/ui/ConfirmDialog.vue";
 import AppDropdown from "@/src/components/AppDropdown.vue";
+import AppPagination from "@/src/components/AppPagination.vue";
 import AppDatePicker from "@/src/components/ui/AppDatePicker.vue";
 import VolunteerOutcomeCampaignPanel from "@/src/components/VolunteerOutcomeCampaignPanel.vue";
 import VolunteerBroadcastPanel from "@/src/components/VolunteerBroadcastPanel.vue";
@@ -1058,23 +1059,7 @@ onUnmounted(() => {
                     </p>
                   </div>
 
-                  <nav
-                    v-if="filteredRecipients.length > pageSize"
-                    class="follow-up-pagination"
-                    aria-label="Applicant pages"
-                  >
-                    <button type="button" :disabled="page <= 1" @click="page -= 1">
-                      Previous
-                    </button>
-                    <span>Page {{ page }} of {{ pageCount }}</span>
-                    <button
-                      type="button"
-                      :disabled="page >= pageCount"
-                      @click="page += 1"
-                    >
-                      Next
-                    </button>
-                  </nav>
+                  <AppPagination v-model:page="page" :page-count="pageCount" :total="filteredRecipients.length" :range-start="firstVisible" :range-end="lastVisible" item-label="applicants" aria-label="Applicant pagination" />
                 </div>
               </section>
             </Transition>
@@ -2078,7 +2063,6 @@ onUnmounted(() => {
   transform: scale(0.995);
 }
 .follow-up-recipient:focus-visible,
-.follow-up-pagination button:focus-visible,
 .follow-up-close-detail:focus-visible,
 .follow-up-disclosure:focus-visible,
 .follow-up-button:focus-visible,
@@ -2179,32 +2163,6 @@ onUnmounted(() => {
   color: #666;
   font-size: 0.8rem;
   line-height: 1.5;
-}
-.follow-up-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-}
-.follow-up-pagination span {
-  color: #666;
-  font-family: var(--font-sans), sans-serif;
-  font-size: 0.68rem;
-}
-.follow-up-pagination button {
-  min-height: 2.15rem;
-  padding: 0.35rem 0.65rem;
-  border: 1px solid #c9c4ba;
-  border-radius: 5px;
-  background: #fff;
-  color: #222;
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-.follow-up-pagination button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
 }
 .follow-up-response {
   min-width: 0;

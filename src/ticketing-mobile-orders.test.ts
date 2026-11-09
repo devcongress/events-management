@@ -65,18 +65,62 @@ describe('Ticket orders on phones', () => {
   });
 
   it.each([
-    ['pending_payment', '2000-01-01T00:00:00Z', 'Checkout expired'],
+    ['pending_payment', '2000-01-01T00:00:00Z', 'Checkout hold expired'],
     ['pending_payment', null, 'Awaiting payment'],
     ['pending_payment', 'invalid', 'Awaiting payment'],
     ['pending_payment', '2999-01-01T00:00:00Z', 'Awaiting payment'],
     ['paid', null, 'Paid'],
     ['refunded', null, 'Refunded'],
-    ['expired', null, 'Checkout expired'],
+    ['expired', null, 'Checkout hold expired'],
     ['cancelled', null, 'Cancelled'],
   ] as const)('shows %s payment status in both layouts', async (status, expiresAt, label) => {
     const html = await renderOrders({ ...order, status, expires_at: expiresAt });
 
     expect(html.match(new RegExp(label, 'g'))?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('separates an expired hold from an unknown or successful provider outcome', async () => {
+    const unknown = await renderOrders({ ...order, status: 'expired', paid_at: null });
+    const pending = await renderOrders({ ...order, status: 'pending_payment', paid_at: null });
+    const successful = await renderOrders({ ...order, status: 'expired', paid_at: null, paystack_observation: { status: 'success', reason: null, checked_at: '2026-10-28T12:00:00Z', check_failed: false, initialization: null } });
+
+    expect(unknown).toContain('Checkout hold expired');
+    expect(unknown).toContain('Payment outcome unknown');
+    expect(pending).toContain('Payment outcome unknown');
+    expect(successful).toContain('Checkout hold expired');
+    expect(successful).toContain('Payment successful');
+    expect(successful).not.toContain('Payment confirmed · unfulfilled');
+  });
+
+  it('does not present missing diagnostics as an unknown confirmed payment', async () => {
+    for (const confirmed of [
+      { ...order, status: 'paid' as const },
+      { ...order, status: 'refunded' as const },
+      { ...order, status: 'expired' as const, paid_at: '2026-10-28T12:00:00Z' },
+    ]) {
+      const html = await renderOrders(confirmed);
+
+      expect(html).not.toContain('Payment outcome unknown');
+      expect(html).not.toContain('Paystack:');
+    }
+    const refunded = await renderOrders({ ...order, status: 'refunded' });
+
+    expect(refunded).toContain('Refunded');
+  });
+
+  it('identifies a non-success observation as historical beside confirmed payment', async () => {
+    const html = await renderOrders({ ...order, status: 'paid', paystack_observation: { status: 'failed', reason: null, checked_at: '2026-10-28T12:00:00Z', check_failed: false, initialization: null } });
+
+    expect(html).toContain('Paid');
+    expect(html).toContain('Last observed: Payment failed');
+    expect(html).not.toContain('time unavailable');
+  });
+
+  it('keeps provider reasons concise in both order layouts', async () => {
+    const html = await renderOrders({ ...order, status: 'pending_payment', paystack_observation: { status: 'failed', reason: 'Merchant configuration issue', checked_at: '2026-10-28T12:00:00Z', check_failed: false, initialization: null } });
+
+    expect(html).toMatch(/class="ticket-order-card__note block max-w-52 truncate"[^>]*>Merchant configuration issue/);
+    expect(html).toMatch(/class="block max-w-52 truncate ml-auto"[^>]*>Merchant configuration issue/);
   });
 
   it('distinguishes verified charges, quotes, refunds, and test payments', async () => {

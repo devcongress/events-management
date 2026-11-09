@@ -6201,7 +6201,7 @@
           "argumentTypes": "integer",
           "result": "jsonb",
           "language": "plpgsql",
-          "bodySha256": "f19c3c0091d0466de250e322e7b8e4f748f36398482a6edd6332ecda400601de",
+          "bodySha256": "6d26ea9d7494d8f8d3eb39639da30d60f3d24474fc5f5cf54b1e35af7c41b2af",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -6214,7 +6214,7 @@
           "argumentTypes": "integer, text, integer",
           "result": "jsonb",
           "language": "plpgsql",
-          "bodySha256": "6dc942f249f16ff7e279a39150ebc22a1302db47757eae686998bd3b47f3fe57",
+          "bodySha256": "054fa7fdd18dec884138d0a5b46a3785d5b47113ab07d102c8450da929c2f1c2",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -6540,6 +6540,170 @@
           "result": "TABLE(ticket_id uuid, name text, email text, status annual_conference_ticket_status, reason text, allocation_id uuid, allocation_name text, created_at timestamp with time zone, delivery_status annual_conference_ticket_email_status, delivery_id uuid, active_total bigint, total_count bigint, supporter_order_id uuid)",
           "language": "sql",
           "bodySha256": "9a72089632893cd6a8e997ec53bac9240b53fb6b333ea09a572dd60c5ce398aa",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261109120100_managed_paystack_observations.sql",
+      "sha256": "bf14bd5a54848495b5cba1cfe64ca811ed14e6ba213a8510b4823e080c8a65f1",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_attempts",
+          "name": "paystack_status",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_attempts",
+          "name": "paystack_reason",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_attempts",
+          "name": "paystack_checked_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_attempts",
+          "name": "paystack_check_started_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_attempts",
+          "name": "paystack_check_failed",
+          "type": "boolean",
+          "notNull": true,
+          "defaultExpression": "false"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "record_managed_paystack_observation",
+          "argumentTypes": "text, timestamp with time zone, text, text",
+          "result": "void",
+          "language": "plpgsql",
+          "bodySha256": "608f9aaa9a68b2a0f13d5adf748dfb787c227da0ea41870ee7f984dc855d9a3a",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261109130000_automatic_ticket_counter.sql",
+      "sha256": "8e5f65bbf4333f9c3fe87168292d60794fd621c64d89e03f2904e226cac12329",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "read_annual_conference_attendance_counter",
+          "argumentTypes": "integer",
+          "result": "jsonb",
+          "language": "plpgsql",
+          "bodySha256": "6d26ea9d7494d8f8d3eb39639da30d60f3d24474fc5f5cf54b1e35af7c41b2af",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "configure_annual_conference_attendance_counter",
+          "argumentTypes": "integer, text, integer",
+          "result": "jsonb",
+          "language": "plpgsql",
+          "bodySha256": "054fa7fdd18dec884138d0a5b46a3785d5b47113ab07d102c8450da929c2f1c2",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261109140000_unresolved_payment_diagnostics.sql",
+      "sha256": "3ac8b6169e1f6a5448a78e13792d2051b17fca2fabc7d1c58c64807d9a52ea69",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_attempts",
+          "name": "diagnostic_next_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_attempts",
+          "name": "diagnostic_retries",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "0"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_attempts",
+          "name": "diagnostic_claim",
+          "type": "uuid",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_attempts",
+          "name": "diagnostic_until",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_unresolved_payment_diagnostics",
+          "argumentTypes": "uuid",
+          "result": "TABLE(order_id uuid, payment_reference text, payment_mode text)",
+          "language": "plpgsql",
+          "bodySha256": "e3221ab9a263ec8d54dd0930f9a556e6e2e581a6645bcc1ed00115d785250782",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "finish_unresolved_payment_diagnostic",
+          "argumentTypes": "uuid, uuid",
+          "result": "void",
+          "language": "sql",
+          "bodySha256": "c7dbaed48a656e9a0059e7a4d691d016fb02033ac849c6ea0d03d0849a51de27",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,

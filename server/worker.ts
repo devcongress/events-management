@@ -59,6 +59,7 @@ export default {
       try {
         await Promise.all([
           queue.send({ kind: 'admission-recovery' }),
+          queue.send({ kind: 'payment-diagnostics' }),
           ...Array.from({ length: 3 }, () => queue.send({ kind: 'payment-recovery' })),
         ]);
       } catch {
@@ -81,10 +82,12 @@ export default {
     if (!secret) throw new Error('Missing scheduled-job secret for event blast preparation.');
 
     for (const message of batch.messages) {
-      if (message.body.kind === 'admission-recovery' || message.body.kind === 'payment-recovery') {
+      if (message.body.kind === 'admission-recovery' || message.body.kind === 'payment-recovery' || message.body.kind === 'payment-diagnostics') {
         const path = message.body.kind === 'admission-recovery'
           ? '/api/internal/managed-admission-emails/retry'
-          : '/api/internal/managed-payments/reconcile';
+          : message.body.kind === 'payment-diagnostics'
+            ? '/api/internal/payment-diagnostics/check'
+            : '/api/internal/managed-payments/reconcile';
         const response = await app.fetch(managedRecoveryQueueRequest(`https://events-management.internal${path}`, secret), env, ctx);
 
         if (!response.ok) throw new Error('Checkout recovery job failed.');

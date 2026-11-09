@@ -1,5 +1,37 @@
 # Changelog
 
+- 2026-11-09: Explain when a Paystack status check cannot run because its live or test configuration is missing.
+
+- 2026-11-09: Automatically check unresolved Paystack attempts with bounded diagnostic retries, and keep provider reasons compact in order lists.
+
+- 2026-11-09: Keep confirmed payment and refund states clear when Paystack diagnostics are missing or older.
+
+- 2026-11-09: Let ticketing managers check a stored Paystack attempt and distinguish provider outcomes from an expired checkout hold.
+
+- 2026-11-09: Use a breadcrumb to return from test checkout activity to coupons.
+
+- 2026-11-09: Calculate the public ticket counter from a fixed starting count and net fulfilled live purchases, and replace manual controls with a read-only breakdown.
+
+- 2026-11-09: Add a direct complimentary test-email drawer independent of ticket issuance, and match the complimentary loading skeleton to compact desktop rows and phone content.
+
+- 2026-11-09: Use the shared pagination controls for test checkouts, ticket email delivery, volunteer follow-up, and community purchases, including lists without a known total.
+
+- 2026-11-09: Close complimentary review after a successful test send, show a toast and recent provider-acceptance table, and keep failed sends visible without losing the draft.
+
+- 2026-11-09: Present DevCon26 test coupons in a compact monitoring table with a details drawer, with sandbox checkout activity in an in-page table and individual checkout details in a drawer.
+
+- 2026-11-09: Hide the complimentary seat-source selector when only new seats are available; show a capacity note instead. Keep the selector when sponsor allocations are available.
+
+- 2026-11-09: Show safe Paystack verification status and reasons to ticketing organizers, independently of EMS hold and payment lifecycle.
+
+## 2026-11-09 — Ticketing navigation polish
+
+- Keep Ticketing sections available while scrolling, simplify the heading divider, and use a compact neutral action to add complimentary tickets.
+
+## 2026-11-09 — Complimentary email review drawer
+
+- View issued complimentary tickets in a compact table and open a ticket for details. Add guests, review the email, send a test, and issue or retry tickets in a side drawer; closing it preserves the draft for reopening.
+
 ## 2026-11-09 — Community supporter complimentary admissions
 
 - Owners can select paid live community supporters for their own reviewed complimentary ticket, alongside manually entered guests. Their funded community seats remain available to the community.

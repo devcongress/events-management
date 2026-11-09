@@ -86,6 +86,23 @@ describe('annual conference ticket payment adapter', () => {
       .resolves.toEqual({ status: expectedStatus });
   });
 
+  it('records only safe provider observations after reference and domain validation', async () => {
+    const onObservation = vi.fn(async () => {});
+    const payload = { id: 123, reference: 'ref', amount: 19999, currency: 'GHS', status: 'failed', domain: 'live', gateway_response_code: 'invalid_merchant', gateway_response: 'sensitive provider data' };
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ status: true, data: payload })));
+
+    await inspectPaystackLiveTransaction({ secretKey: 'sk_live_fixture', paymentReference: 'ref', fetcher: fetcher as unknown as typeof fetch, onObservation });
+    expect(onObservation).toHaveBeenCalledWith({ status: 'failed', reason: 'Merchant configuration issue' });
+    onObservation.mockClear();
+    payload.domain = 'test';
+    await expect(inspectPaystackLiveTransaction({ secretKey: 'sk_live_fixture', paymentReference: 'ref', fetcher: fetcher as unknown as typeof fetch, onObservation })).rejects.toThrow();
+    expect(onObservation).not.toHaveBeenCalled();
+    payload.domain = 'live';
+    payload.reference = 'other';
+    await expect(inspectPaystackLiveTransaction({ secretKey: 'sk_live_fixture', paymentReference: 'ref', fetcher: fetcher as unknown as typeof fetch, onObservation })).rejects.toThrow();
+    expect(onObservation).not.toHaveBeenCalled();
+  });
+
   it('only accepts a signed successful charge payload and preserves its server-verifiable facts', () => {
     const rawBody = JSON.stringify({ event: 'charge.success', data: { id: 123, reference: 'devcon26_abc', amount: 19_999, currency: 'GHS', status: 'success', metadata: { order_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } } });
     const signature = crypto.createHmac('sha512', 'test-secret').update(rawBody).digest('hex');

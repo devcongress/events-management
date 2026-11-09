@@ -23,6 +23,8 @@ const paystackWebhookSchema = z.object({
     currency: z.string().trim().length(3),
     status: z.string().trim().min(1).max(80),
     domain: z.enum(['test', 'live']).optional(),
+    gateway_response: z.unknown().optional(),
+    gateway_response_code: z.unknown().optional(),
     metadata: z.object({ order_id: z.string().uuid().optional() }).passthrough().optional(),
   }).passthrough(),
 }).passthrough();
@@ -113,6 +115,25 @@ export function parseVerifiedPaystackCharge(rawBody: string): VerifiedPaystackCh
   };
 }
 
+export type PaystackObservation = { status: string; reason: string | null };
+
+function paystackObservation(transaction: z.infer<typeof paystackTransactionSchema>['data']): PaystackObservation {
+  const allowedStatuses = ['success', 'failed', 'abandoned', 'reversed', 'pending', 'ongoing', 'processing', 'queued'];
+  const allowedReasons = ['Successful', 'Approved', 'Declined', 'Insufficient Funds', 'Insufficient funds', 'Transaction declined', 'Transaction failed', 'Pending'];
+  const reasonsByCode: Record<string, string> = {
+    cvv_verification_failed: 'Card security code verification failed', invalid_merchant: 'Merchant configuration issue',
+    processing_error: 'Payment processing error', expired_card: 'Card expired', insufficient_funds: 'Insufficient funds',
+    do_not_honor: 'Bank declined the payment', transaction_timeout: 'Payment timed out',
+    bank_unavailable: 'Bank unavailable', customer_cancellation: 'Customer cancelled payment',
+  };
+  const code = transaction.gateway_response_code;
+  const codeReason = typeof code === 'string' && Object.hasOwn(reasonsByCode, code) ? reasonsByCode[code] : undefined;
+  const reason = typeof transaction.gateway_response === 'string' && allowedReasons.includes(transaction.gateway_response.trim())
+    ? transaction.gateway_response.trim() : null;
+
+  return { status: allowedStatuses.includes(transaction.status) ? transaction.status : 'other', reason: codeReason ?? reason };
+}
+
 async function readPaystackTransaction(input: {
   secretKey: string;
   paymentReference: string;
@@ -136,6 +157,7 @@ export async function inspectPaystackLiveTransaction(input: {
   secretKey: string;
   paymentReference: string;
   fetcher?: typeof fetch;
+  onObservation?: (observation: PaystackObservation) => Promise<void>;
 }): Promise<PaystackLiveTransactionStatus> {
   if (!input.secretKey.startsWith('sk_live_') || input.secretKey.length <= 8) {
     throw new Error('Live payment configuration is invalid.');
@@ -146,6 +168,8 @@ export async function inspectPaystackLiveTransaction(input: {
   if (transaction.domain !== 'live') {
     throw new Error('Paystack could not verify payment.');
   }
+
+  await input.onObservation?.(paystackObservation(transaction));
 
   if (transaction.status !== 'success') {
     return { status: ['failed', 'abandoned', 'reversed'].includes(transaction.status) ? 'failed' : 'pending' };
@@ -188,11 +212,13 @@ export async function readPaystackTestTransaction(input: {
   secretKey: string;
   paymentReference: string;
   fetcher?: typeof fetch;
+  onObservation?: (observation: PaystackObservation) => Promise<void>;
 }) {
   if (!input.secretKey.startsWith('sk_test_')) throw new Error('Test payment configuration is invalid.');
   const transaction = await readPaystackTransaction(input);
 
   if (transaction.domain !== 'test') throw new Error('Test payment verification is invalid.');
+  await input.onObservation?.(paystackObservation(transaction));
 
   return {
     status: transaction.status === 'success' ? 'verified' as const

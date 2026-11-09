@@ -9865,14 +9865,16 @@
 /* Allow the Programme heading to follow the document scroll on phones. */
 @media (max-width: 767px), (hover: none) and (pointer: coarse) {
   body:has(.programme-heading),
-  body:has(.speakers-header) {
+  body:has(.speakers-header),
+  body:has(.ticketing-section-nav) {
     overflow-x: clip;
     overflow-y: visible;
   }
 }
 
 @media (min-width: 768px) and (hover: none) and (pointer: coarse) {
-  .app-main:has(.speakers-header) > .organizer-breadcrumbs {
+  .app-main:has(.speakers-header) > .organizer-breadcrumbs,
+  .app-main:has(.ticketing-section-nav) > .organizer-breadcrumbs {
     top: var(--app-header-fixed-offset);
   }
 }

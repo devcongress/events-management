@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { adminRolesForApiRequest } from "./admin-api-access";
 
 describe("admin API role policy", () => {
+  it('admits delegated members only to the specific diagnostic POST route', () => {
+    const base = '/api/annual-conference/2026/ticketing/orders/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/paystack-check';
+
+    expect(adminRolesForApiRequest(base, 'POST')).toContain('member');
+    expect(adminRolesForApiRequest(base, 'PATCH')).not.toContain('member');
+    expect(adminRolesForApiRequest(base + '/extra', 'POST')).not.toContain('member');
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/ticketing/orders/other/confirm', 'POST')).not.toContain('member');
+  });
+
   it("keeps the presentation form catalog owner-only", () => {
     expect(
       adminRolesForApiRequest("/api/admin/presentation-forms", "GET"),

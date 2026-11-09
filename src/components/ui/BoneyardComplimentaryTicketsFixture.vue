@@ -1,13 +1,18 @@
 <template>
-  <ul class="mt-4 divide-y divide-dc-border" aria-hidden="true" inert>
-    <li v-for="row in 3" :key="row" class="flex flex-wrap items-start justify-between gap-3 py-4">
-      <div>
-        <p class="font-semibold">Ama Mensah</p>
-        <p class="break-all text-sm text-dc-gray">ama.mensah@example.test</p>
-        <p class="mt-1 text-sm">Issued · Email accepted</p>
-        <p class="mt-1 text-sm text-dc-gray">Complimentary guests · Community support</p>
-      </div>
-      <button type="button" disabled class="min-h-11 px-2 text-sm underline">Cancel ticket</button>
-    </li>
-  </ul>
+  <table class="w-full table-fixed text-left text-sm" aria-hidden="true" inert>
+    <thead>
+      <tr class="border-b border-dc-border text-dc-gray">
+        <th scope="col" class="px-4 py-3 font-semibold">Guest</th>
+        <th scope="col" class="hidden px-4 py-3 font-semibold sm:table-cell">Email</th>
+        <th scope="col" class="w-28 px-4 py-3 font-semibold sm:w-40">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr v-for="row in 2" :key="row" class="border-b border-dc-border last:border-0">
+        <td class="px-4 py-2"><div class="flex min-h-11 items-center"><p class="font-semibold underline">Ama Mensah</p></div></td>
+        <td class="hidden break-all px-4 py-2 sm:table-cell">ama.mensah@example.test</td>
+        <td class="break-words px-4 py-2">Issued</td>
+      </tr>
+    </tbody>
+  </table>
 </template>

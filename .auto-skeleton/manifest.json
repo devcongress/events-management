@@ -8974,7 +8974,7 @@
     },
     "annual-conference-complimentary-tickets": {
       "status": "completed",
-      "inputFingerprint": "97b658f0e65b8732177853862c2d2567ad12c59050b736c4f8ea8ae2a72f0de8",
+      "inputFingerprint": "8521f1ad84797d3f0836b9e581d700d01cf48d69217923c07dca9c53d411ea29",
       "sourcePaths": [
         "lib/annual-conference-owner-avatar.ts",
         "lib/annual-conference-task-board-order.ts",
@@ -9026,7 +9026,7 @@
         "src/bones/annual-conference-complimentary-tickets.bones.json"
       ],
       "artifactHashes": {
-        "src/bones/annual-conference-complimentary-tickets.bones.json": "28ef7d583c80e9b86602e5b46e445abb050323dea6bcb2e9d3234e7e85bd373b"
+        "src/bones/annual-conference-complimentary-tickets.bones.json": "e6b00f5fbf6ecbb406f49d507c21c295e3414dfe0ced45b0670c66549e12e78d"
       },
       "captureConfig": {
         "breakpoints": [

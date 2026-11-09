@@ -456,7 +456,16 @@ export interface AnnualConferenceTicketOrderSeat {
   checked_in_at: string | null;
 }
 
+export interface PaystackOrderObservation {
+  status: string | null;
+  reason: string | null;
+  checked_at: string | null;
+  check_failed: boolean;
+  initialization: 'rejected' | 'uncertain' | null;
+}
+
 export interface AnnualConferenceTicketOrderOverview {
+  paystack_observation?: PaystackOrderObservation | null;
   payment_mode?: 'live' | 'test';
   id: string;
   purchaser_name: string;
@@ -478,7 +487,7 @@ export interface AnnualConferenceTicketOrderOverview {
   refunded_seat_count: number;
 }
 
-type AnnualConferenceTicketOrderRow = Omit<AnnualConferenceTicketOrderOverview, 'seats' | 'delivery_status' | 'refund_status' | 'refunded_seat_count'>;
+type AnnualConferenceTicketOrderRow = Omit<AnnualConferenceTicketOrderOverview, 'seats' | 'delivery_status' | 'refund_status' | 'refunded_seat_count' | 'paystack_observation'>;
 
 /**
  * Operator order reads deliberately omit QR hashes, email payloads, provider
@@ -521,7 +530,7 @@ export async function listSupabaseAnnualConferenceTicketOrders(input: {
 
   if (!orderIds.length) return { orders: [], total: orderResult.count ?? 0 };
 
-  const [seatsResult, deliveriesResult, refundsResult, flexibleRefundsResult] = await Promise.all([
+  const [seatsResult, deliveriesResult, refundsResult, attemptsResult, flexibleRefundsResult] = await Promise.all([
     client
       .from('annual_conference_tickets')
       .select('id, order_id, order_seat_number, status, issued_at, checked_in_at')
@@ -537,6 +546,10 @@ export async function listSupabaseAnnualConferenceTicketOrders(input: {
       .select('order_id, status')
       .in('order_id', orderIds),
     client
+      .from('annual_conference_ticket_payment_attempts')
+      .select('order_id, provider, initialization_failure, paystack_status, paystack_reason, paystack_checked_at, paystack_check_failed')
+      .in('order_id', orderIds),
+    client
       .from('annual_conference_flexible_ticket_refunds')
       .select('order_id')
       .in('order_id', orderIds)
@@ -546,6 +559,7 @@ export async function listSupabaseAnnualConferenceTicketOrders(input: {
   if (seatsResult.error) throw new Error(seatsResult.error.message);
   if (deliveriesResult.error) throw new Error(deliveriesResult.error.message);
   if (refundsResult.error) throw new Error(refundsResult.error.message);
+  if (attemptsResult.error) throw new Error(attemptsResult.error.message);
   if (flexibleRefundsResult.error) throw new Error(flexibleRefundsResult.error.message);
 
   const seatsByOrder = new Map<string, AnnualConferenceTicketOrderSeat[]>();
@@ -586,9 +600,16 @@ export async function listSupabaseAnnualConferenceTicketOrders(input: {
     refundedSeatCounts.set(orderId, (refundedSeatCounts.get(orderId) ?? 0) + 1);
   }
 
+  const attempts = (attemptsResult.data ?? []) as unknown as Array<{ order_id: string; provider: string; initialization_failure: 'rejected' | 'uncertain' | null; paystack_status: string | null; paystack_reason: string | null; paystack_checked_at: string | null; paystack_check_failed: boolean }>;
+  const attemptsByOrder = new Map(attempts.filter((attempt) => attempt.provider === 'paystack').map((attempt) => [attempt.order_id, {
+    status: attempt.paystack_status, reason: attempt.paystack_reason, checked_at: attempt.paystack_checked_at, check_failed: attempt.paystack_check_failed,
+    initialization: attempt.initialization_failure,
+  }]));
+
   return {
     orders: orderRows.map((order) => ({
       ...order,
+      paystack_observation: attemptsByOrder.get(order.id) ?? null,
       seats: seatsByOrder.get(order.id) ?? [],
       delivery_status: deliveryStatusByOrder.get(order.id) ?? null,
       refund_status: refundStatusByOrder.get(order.id) ?? null,

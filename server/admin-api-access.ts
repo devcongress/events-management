@@ -25,7 +25,7 @@ const MEMBERSHIP_PERMANENT_REMOVE_PATH =
 const RESTRICTED_CONFERENCE_ROLES: AdminRole[] = ['owner', 'organizer', 'volunteer', 'member'];
 const RESTRICTED_READ_PATH = /^\/api\/annual-conference\/\d{4}\/(?:work-plan(?:\/[^/]+\/resources)?|task-members|team|volunteer-applications|volunteer-follow-up\/reviews|speakers|speaker-headshots\/[^/]+\/photo|finance|ticketing(?:\/(?:orders|sponsor-allocations|email-deliveries))?|registrations|check-in\/attendees)$/;
 const RESTRICTED_WRITE_PATHS = [
-  ['POST', /^\/api\/annual-conference\/\d{4}\/(?:work-plan(?:\/[^/]+\/resources)?|registrations\/[^/]+\/cancel|check-in\/(?:search|admit)|ticketing\/(?:check-in|sponsor-allocations|email-deliveries\/[^/]+\/retry))$/],
+  ['POST', /^\/api\/annual-conference\/\d{4}\/(?:work-plan(?:\/[^/]+\/resources)?|registrations\/[^/]+\/cancel|check-in\/(?:search|admit)|ticketing\/(?:check-in|sponsor-allocations|email-deliveries\/[^/]+\/retry|orders\/[^/]+\/paystack-check))$/],
   ['PATCH', /^\/api\/annual-conference\/\d{4}\/(?:work-plan\/[^/]+(?:\/resources\/[^/]+)?|volunteer-follow-up\/recipients\/[^/]+\/review|speakers\/(?:call|logistics-deadline)|speaker-submissions\/[^/]+|ticketing\/(?:capacity|prices))$/],
   ['DELETE', /^\/api\/annual-conference\/\d{4}\/work-plan\/[^/]+(?:\/resources\/[^/]+)?$/],
 ] as const;

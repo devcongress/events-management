@@ -12,6 +12,7 @@ import Devcon26TestCoupons from '@/src/components/Devcon26TestCoupons.vue';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { formatTicketMoney, parseGhsAmountToMinor, tierSavings, validateAnnualConferenceCapacity, validateAnnualConferenceTicketPrices } from '@/lib/annual-conference-ticketing';
 import {
+  checkAnnualConferencePaystackStatus,
   createAnnualConferenceSponsorAllocation,
   fetchAdminSession,
   fetchAnnualConferenceWorkPlan,
@@ -75,6 +76,8 @@ const pricingDrawerCloseButton = ref<HTMLButtonElement | null>(null);
 const orderDrawerPanel = ref<HTMLElement | null>(null);
 const orderDrawerCloseButton = ref<HTMLButtonElement | null>(null);
 const selectedOrder = ref<AnnualConferenceTicketOrderOverview | null>(null);
+const checkingPaystack = ref(false);
+const paystackCheckMessage = ref('');
 const ticketOrderPage = ref(1);
 const ticketOrderView = ref<Exclude<AnnualConferenceTicketOrderView, 'all'>>('paid');
 const orderViews = [
@@ -143,6 +146,15 @@ const ticketOrderQuery = useQuery({
     return result;
   },
   enabled: computed(() => activeSection.value === 'orders'),
+  refetchInterval: computed(() => activeSection.value === 'orders' && (ticketOrderView.value === 'attempts' || ticketOrderView.value === 'test') ? 15000 : false),
+});
+
+watch(() => ticketOrderQuery.data.value?.orders, (orders) => {
+  if (!selectedOrder.value) return;
+  const refreshed = orders?.find((order) => order.id === selectedOrder.value?.id);
+
+  if (refreshed) selectedOrder.value = refreshed;
+  else if (orders) closeTicketOrder();
 });
 const allOrdersQuery = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceTicketOrders(year.value, 1)),
@@ -446,6 +458,7 @@ function orderAmount(order: AnnualConferenceTicketOrderOverview) {
 
 async function openTicketOrder(order: AnnualConferenceTicketOrderOverview, event: Event) {
   orderDrawerTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  paystackCheckMessage.value = '';
   selectedOrder.value = order;
   lockPricingDrawerPage();
   await nextTick();
@@ -585,10 +598,60 @@ function paymentStatus(order: AnnualConferenceTicketOrderOverview): string {
   if (order.status === 'pending_payment') {
     const expiresAt = order.expires_at ? Date.parse(order.expires_at) : NaN;
 
-    return Number.isFinite(expiresAt) && expiresAt <= orderExpiryClock.value ? 'Checkout expired' : 'Awaiting payment';
+    return Number.isFinite(expiresAt) && expiresAt <= orderExpiryClock.value ? 'Checkout hold expired' : 'Awaiting payment';
   }
 
-  return { paid: 'Paid', refunded: 'Refunded', expired: 'Checkout expired', cancelled: 'Cancelled' }[order.status];
+  return { paid: 'Paid', refunded: 'Refunded', expired: 'Checkout hold expired', cancelled: 'Cancelled' }[order.status];
+}
+
+function hasConfirmedPayment(order: AnnualConferenceTicketOrderOverview): boolean {
+  return order.status === 'paid' || order.status === 'refunded' || Boolean(order.paid_at);
+}
+
+function showPaystackInOrderList(order: AnnualConferenceTicketOrderOverview): boolean {
+  return !hasConfirmedPayment(order) || Boolean(order.paystack_observation?.status);
+}
+
+function paystackStatus(order: AnnualConferenceTicketOrderOverview): string {
+  const observation = order.paystack_observation;
+  const confirmed = hasConfirmedPayment(order);
+
+  if (!observation?.status && confirmed) return observation?.check_failed ? 'Diagnostic unavailable; no result recorded' : 'No diagnostic result recorded';
+  if (!observation) return 'Payment outcome unknown';
+  const labels: Record<string, string> = { success: 'Payment successful', failed: 'Payment failed', abandoned: 'Checkout incomplete', reversed: 'Payment reversed', pending: 'Payment in progress', ongoing: 'Payment in progress', processing: 'Payment in progress', queued: 'Payment in progress', other: 'Other status' };
+  const status = observation.status ? labels[observation.status] ?? 'Other status' : 'Payment outcome unknown';
+
+  if (confirmed && observation.status && observation.status !== 'success') {
+    const checkedAt = observation.checked_at ? formatTicketDate(observation.checked_at) : 'time unavailable';
+
+    return `Last observed: ${status} · ${checkedAt}${observation.check_failed ? ' · verification unavailable' : ''}`;
+  }
+  if (observation.check_failed) return observation.status ? `Last observed: ${status} · verification unavailable` : 'Verification unavailable';
+  if (!observation.status && observation.initialization === 'rejected') return 'Checkout initialization rejected';
+  if (!observation.status && observation.initialization === 'uncertain') return 'Checkout initialization uncertain';
+
+  return status;
+}
+
+async function checkPaystackStatus() {
+  if (!selectedOrder.value || checkingPaystack.value) return;
+  const orderId = selectedOrder.value.id;
+  const requestYear = year.value;
+
+  checkingPaystack.value = true;
+  paystackCheckMessage.value = '';
+  try {
+    await checkAnnualConferencePaystackStatus(requestYear, orderId);
+    if (selectedOrder.value?.id !== orderId || year.value !== requestYear) return;
+    paystackCheckMessage.value = 'Paystack status checked. EMS fulfillment is unchanged.';
+  } catch (error) {
+    if (selectedOrder.value?.id === orderId && year.value === requestYear) {
+      paystackCheckMessage.value = error instanceof Error ? error.message : 'Paystack status check is unavailable.';
+    }
+  } finally {
+    if (year.value === requestYear) await ticketOrderQuery.refetch();
+    checkingPaystack.value = false;
+  }
 }
 
 function sponsorContactLabel(allocation: AnnualConferenceSponsorAllocation) {
@@ -607,13 +670,13 @@ onUnmounted(() => {
       <AnnualConferenceNav :show-page-heading="false" />
 
       <h1 class="sr-only md:hidden">Ticketing</h1>
-      <header class="hidden border-b-2 border-dc-ink pb-5 md:block">
+      <header class="hidden pb-5 md:block">
           <p class="editorial-eyebrow">DevCon{{ year.slice(-2) }} · paid tickets</p>
           <h1 class="mt-2 text-3xl font-semibold tracking-tight text-dc-ink">Ticketing</h1>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Review purchases, track ticket emails, and manage available seats.</p>
         </header>
 
-      <WorkspaceSectionNav class="mb-6" :active="activeSection" label="Ticketing sections" :items="sectionLinks">
+      <WorkspaceSectionNav class="ticketing-section-nav mb-6" :active="activeSection" label="Ticketing sections" :items="sectionLinks">
         <template #icon="{ item }">
           <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path v-if="item.key === 'overview'" d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" />
@@ -750,7 +813,7 @@ onUnmounted(() => {
               :show-header="false"
               preview-max-height="min(25rem, 60svh)"
             />
-            <div v-else-if="ticketOrderQuery.isError.value" class="flex flex-wrap items-center justify-between gap-3 px-5 py-5">
+            <div v-else-if="ticketOrderQuery.isError.value && !ticketOrderQuery.data.value" class="flex flex-wrap items-center justify-between gap-3 px-5 py-5">
               <p class="text-sm text-dc-pink" role="alert">Ticket orders could not be loaded.</p>
               <button type="button" class="motion-press rounded-md border border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase" @click="ticketOrderQuery.refetch()">Try again</button>
             </div>
@@ -766,6 +829,7 @@ onUnmounted(() => {
                 <dl class="ticket-order-card__facts">
                   <div><dt>Pass</dt><dd>{{ ticketTierLabel(order.tier_key) }}<span class="ticket-order-card__note">{{ order.quantity }} {{ order.quantity === 1 ? 'seat' : 'seats' }}</span></dd></div>
                   <div><dt>Payment</dt><dd>{{ orderAmount(order) }}<span class="ticket-order-card__note">{{ paymentStatus(order) }}</span></dd></div>
+                  <div v-if="showPaystackInOrderList(order)"><dt>Paystack</dt><dd>{{ paystackStatus(order) }}<span v-if="order.paystack_observation?.reason" class="ticket-order-card__note block max-w-52 truncate" :title="order.paystack_observation.reason">{{ order.paystack_observation.reason }}</span></dd></div>
                   <div v-if="ticketOrderView === 'attempts'"><dt>Started</dt><dd>{{ formatTicketDate(order.created_at) }}</dd></div>
                   <div v-else><dt>Latest order email</dt><dd>{{ orderEmailStatus(order) }}</dd></div>
                 </dl>
@@ -780,7 +844,7 @@ onUnmounted(() => {
                 <tr v-for="order in ticketOrderQuery.data.value?.orders" :key="order.id" class="group">
                   <th scope="row" class="px-5 py-4 pr-4 font-normal"><p class="font-semibold text-dc-ink">{{ order.purchaser_name }} <span v-if="order.payment_mode === 'test'" class="text-xs font-normal text-dc-gray">· TEST PAYMENT</span></p><p class="mt-1 max-w-[16rem] truncate text-xs text-dc-gray">{{ order.purchaser_email }}</p></th>
                   <td class="px-4 py-4"><p class="font-semibold text-dc-ink">{{ ticketTierLabel(order.tier_key) }}</p><p class="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-dc-gray">{{ order.quantity }} {{ order.quantity === 1 ? 'seat' : 'seats' }}</p></td>
-                  <td class="px-4 py-4 text-right font-semibold text-dc-ink">{{ orderAmount(order) }}<span class="block text-xs font-normal">{{ paymentStatus(order) }}</span></td>
+                  <td class="px-4 py-4 text-right font-semibold text-dc-ink">{{ orderAmount(order) }}<span class="block text-xs font-normal">{{ paymentStatus(order) }}</span><span v-if="showPaystackInOrderList(order)" class="block text-xs font-normal text-dc-gray">Paystack: {{ paystackStatus(order) }}<span v-if="order.paystack_observation?.reason" class="block max-w-52 truncate ml-auto" :title="order.paystack_observation.reason">{{ order.paystack_observation.reason }}</span></span></td>
                   <td v-if="ticketOrderView === 'attempts'" class="px-4 py-4 text-dc-gray">{{ formatTicketDate(order.created_at) }}</td>
                   <td v-else class="px-4 py-4 text-center text-dc-ink">{{ orderEmailStatus(order) }}</td>
                   <td class="px-5 py-4 pl-4 text-right"><button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray hover:border-dc-ink hover:text-dc-ink" @click="openTicketOrder(order, $event)">Details</button></td>
@@ -857,13 +921,7 @@ onUnmounted(() => {
             </article>
           </div>
 
-          <footer v-if="(emailDeliveryQuery.data.value?.total ?? 0) > 0" class="flex items-center justify-between gap-3 border-t border-dc-border px-5 py-3">
-            <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Page {{ emailDeliveryPage }} of {{ emailDeliveryPageCount }}</p>
-            <div class="flex gap-2">
-              <button type="button" class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray disabled:cursor-not-allowed disabled:opacity-50" :disabled="emailDeliveryPage <= 1 || emailDeliveryQuery.isFetching.value" @click="emailDeliveryPage -= 1">Previous</button>
-              <button type="button" class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray disabled:cursor-not-allowed disabled:opacity-50" :disabled="emailDeliveryPage >= emailDeliveryPageCount || emailDeliveryQuery.isFetching.value" @click="emailDeliveryPage += 1">Next</button>
-            </div>
-          </footer>
+          <AppPagination v-model:page="emailDeliveryPage" :page-count="emailDeliveryPageCount" :total="emailDeliveryQuery.data.value?.total ?? 0" :range-start="(emailDeliveryPage - 1) * 8 + 1" :range-end="Math.min(emailDeliveryPage * 8, emailDeliveryQuery.data.value?.total ?? 0)" :disabled="emailDeliveryQuery.isFetching.value" item-label="deliveries" aria-label="Ticket email delivery pagination" />
         </section>
 
         <div v-if="!restricted && year === '2026' && testingVisited" v-show="activeSection === 'testing'" class="min-w-0">
@@ -958,11 +1016,20 @@ onUnmounted(() => {
               <dl class="grid gap-1">
                 <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Pass</dt><dd class="text-right font-semibold text-dc-ink">{{ ticketTierLabel(selectedOrder.tier_key) }} · {{ selectedOrder.quantity }} {{ selectedOrder.quantity === 1 ? 'seat' : 'seats' }}</dd></div>
                 <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">{{ selectedOrder.payment_mode !== 'test' && selectedOrder.amount_paid_minor != null ? 'Amount received' : 'Payment' }}</dt><dd class="text-right font-semibold text-dc-ink">{{ orderAmount(selectedOrder) }}</dd></div>
-                <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Payment status</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ paymentStatus(selectedOrder) }}</dd></div>
+                <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">EMS status</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ paymentStatus(selectedOrder) }}</dd></div>
+                <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Paystack</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ paystackStatus(selectedOrder) }}</dd></div>
+                <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Paystack reason</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ selectedOrder.paystack_observation?.reason ?? 'No provider reason available' }}</dd></div>
+                <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Last Paystack check</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ selectedOrder.paystack_observation?.checked_at ? formatTicketDate(selectedOrder.paystack_observation.checked_at) : 'Not yet checked' }}</dd></div>
+
                 <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Created</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ formatTicketDate(selectedOrder.created_at) }}</dd></div>
                 <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Payment reference</dt><dd class="max-w-[16rem] break-all text-right font-mono text-xs font-semibold text-dc-ink">{{ selectedOrder.payment_reference ?? 'Not available' }}</dd></div>
                 <div v-if="selectedOrder.delivery_status || selectedOrder.status === 'paid'" class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Latest order email</dt><dd class="text-sm font-semibold text-dc-ink">{{ orderEmailStatus(selectedOrder) }}</dd></div>
               </dl>
+                <div v-if="canManageTicketing" class="py-3">
+                  <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm font-semibold" :disabled="checkingPaystack" @click="checkPaystackStatus">{{ checkingPaystack ? 'Checking Paystack…' : 'Check Paystack status' }}</button>
+                  <p v-if="paystackCheckMessage" class="mt-2 text-sm text-dc-gray" role="status">{{ paystackCheckMessage }}</p>
+                  <p class="mt-2 text-sm text-dc-gray">A successful Paystack payment does not confirm EMS fulfillment.</p>
+                </div>
 
             </div>
           </aside>
@@ -1007,6 +1074,25 @@ onUnmounted(() => {
 <style scoped src="@/src/styles/ticket-order-cards.css"></style>
 
 <style scoped>
+.ticketing-section-nav {
+  position: sticky;
+  top: var(--organizer-breadcrumb-height, 0px);
+  z-index: 30;
+  background: var(--surface-canvas, #f5f2e8);
+}
+
+@media (max-width: 767px) {
+  .ticketing-section-nav {
+    top: var(--app-header-fixed-offset);
+  }
+}
+
+@media (min-width: 768px) and (hover: none) and (pointer: coarse) {
+  .ticketing-section-nav {
+    top: calc(var(--app-header-fixed-offset) + var(--organizer-breadcrumb-height, 0px));
+  }
+}
+
 @media (max-width: 767px) {
   .ticket-delivery-summary > :nth-child(even) {
     border-left: 1px solid var(--dc-border, #e0ddd4);

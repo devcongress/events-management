@@ -37,6 +37,7 @@ li {
 }
 
 li > a,
+li > button,
 li > span {
   display: inline-flex;
   min-height: 36px;
@@ -45,7 +46,8 @@ li > span {
   padding-block: 8px;
 }
 
-a {
+a,
+button {
   overflow: hidden;
   max-width: min(32rem, 48vw);
   border-radius: 6px;
@@ -60,12 +62,14 @@ a {
   white-space: nowrap;
 }
 
-a:focus-visible {
+a:focus-visible,
+button:focus-visible {
   outline: 2px solid #e8117f;
   outline-offset: 3px;
 }
 
-a:active {
+a:active,
+button:active {
   transform: scale(0.97);
 }
 
@@ -90,7 +94,8 @@ li > span {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  a:hover {
+  a:hover,
+  button:hover {
     color: #111111;
     text-decoration: underline;
     text-decoration-color: #e8117f;
@@ -112,11 +117,13 @@ li > span {
 
 @media (pointer: coarse) {
   li > a,
+  li > button,
   li > span {
     min-height: 44px;
   }
 
-  li > a {
+  li > a,
+  li > button {
     min-width: 44px;
   }
 }
@@ -145,21 +152,25 @@ li > span {
   }
 
   li > a,
+  li > button,
   li > span {
     min-height: 44px;
   }
 
-  li > a {
+  li > a,
+  li > button {
     min-width: 44px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  a {
+  a,
+  button {
     transition: none;
   }
 
-  a:active {
+  a:active,
+  button:active {
     transform: none;
   }
 }
