@@ -3,9 +3,9 @@ import type { Context, Hono } from 'hono';
 import { z } from 'zod';
 import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
-import { annualConferenceSpeakerWorkspaceToken, annualConferenceSpeakerWorkspaceTokenMatches, getAnnualConferenceSpeakerIntakeLinkById, getAnnualConferenceSpeakerSubmissions } from '@/lib/annual-conference-speakers';
+import { annualConferenceSpeakerWorkspaceToken, annualConferenceSpeakerWorkspaceTokenMatches, getAnnualConferenceSpeakerIntakeLinkById, getAnnualConferenceSpeakerSubmissions, getAnnualConferenceSessionUpdateDetails } from '@/lib/annual-conference-speakers';
 import { defaultSpeakerUpdate, renderSpeakerUpdate, type SpeakerUpdateRecipient } from '@/lib/annual-conference-speaker-updates';
-import { getSpeakerUpdate, getSpeakerUpdatePreview, listSpeakerUpdateDeliveries, listSpeakerUpdates, queueSpeakerUpdate, saveSpeakerUpdate, saveSpeakerUpdatePreview, suppressedSpeakerUpdateEmails } from '@/lib/annual-conference-speaker-update-store';
+import { getSpeakerUpdate, getSpeakerUpdatePreview, listSpeakerUpdateDeliveries, listSpeakerUpdateDeliveryStatuses, listSpeakerUpdates, queueSpeakerUpdate, saveSpeakerUpdate, saveSpeakerUpdatePreview, suppressedSpeakerUpdateEmails } from '@/lib/annual-conference-speaker-update-store';
 import { secureSharedSecret } from '@/lib/security/shared-secret';
 import { sendResendEmailBatch } from '@/lib/email/resend';
 import { recordResendEmailHealth } from '@/lib/email/delivery-health';
@@ -76,9 +76,34 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
       if (!edition) return c.json({ error: 'Conference edition not found.' }, 404);
       const [campaigns, audience] = await Promise.all([listSpeakerUpdates(edition.id), candidates(c, edition.id)]);
 
+      const [deliveryStatuses, sessions] = await Promise.all([
+        listSpeakerUpdateDeliveryStatuses(campaigns.filter(campaign => campaign.state !== 'draft').map(campaign => campaign.id)),
+        getAnnualConferenceSessionUpdateDetails(audience.flatMap(({ submission }) => submission.selected_session_id ? [submission.selected_session_id] : [])),
+      ]);
+      const summaries = new Map<string, { total: number; statuses: Record<string, number> }>();
+
+      for (const delivery of deliveryStatuses) {
+        const summary = summaries.get(delivery.update_id) ?? { total: 0, statuses: {} };
+
+        summary.total += 1;
+        summary.statuses[delivery.status] = (summary.statuses[delivery.status] ?? 0) + 1;
+        summaries.set(delivery.update_id, summary);
+      }
+      const sessionById = new Map(sessions.map(session => [session.id, session]));
+      const history = campaigns.map(campaign => ({ ...campaign, delivery_summary: summaries.get(campaign.id) ?? { total: 0, statuses: {} } }));
+      const candidateDetails = audience.map(({ id, name, email, eligible, reason, submission }) => {
+        const session = submission.selected_session_id ? sessionById.get(submission.selected_session_id) : undefined;
+        const missing = session ? [
+          ...(!session.availability_confirmed ? ['confirmation'] : []),
+          ...(!session.headshot_url?.trim() && !session.headshot_photo_path?.trim() ? ['headshot'] : []),
+          ...(!session.social_handle?.trim() ? ['socials'] : []),
+        ] : null;
+
+        return { id, name, email, eligible, reason, missing_workspace_details: missing };
+      });
       const enabled = sendingEnabled(c);
 
-      return c.json({ campaigns, candidates: audience.map(({ id, name, email, eligible, reason }) => ({ id, name, email, eligible, reason })), default_draft: defaultSpeakerUpdate(edition.year), sending_enabled: enabled, send_unavailable_reason: enabled ? null : 'Sending becomes available after follow-up delivery is enabled and configured.' });
+      return c.json({ campaigns: history, candidates: candidateDetails, default_draft: defaultSpeakerUpdate(edition.year), sending_enabled: enabled, send_unavailable_reason: enabled ? null : 'Sending becomes available after follow-up delivery is enabled and configured.' });
     } catch (error) {
       return internalErrorResponse(c, 'speaker_updates_load_failed', error, 'Unable to load speaker updates.');
     }

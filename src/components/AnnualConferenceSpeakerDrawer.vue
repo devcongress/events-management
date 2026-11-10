@@ -62,6 +62,7 @@ const panelRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLButtonElement | null>(null);
 const correctedEmail = ref('');
 const emailConfirmation = ref<'workspace' | 'decision' | null>(null);
+const contentRef = ref<HTMLElement | null>(null);
 
 watch(() => props.submission?.id, () => { emailConfirmation.value = null; headshotError.value = ''; });
 
@@ -126,9 +127,7 @@ const statusLabel = computed(() => {
   return props.submission.status === 'not_selected' ? 'Not selected' : props.submission.status;
 });
 const kindLabel = computed(() => props.submission && 'session_type' in props.submission ? props.submission.session_type : props.submission?.kind === 'product_demo' ? 'Product demo' : 'Talk proposal');
-const drawerTitle = computed(() => props.mode && props.mode !== 'proposal'
-  ? `${props.mode === 'participation' ? 'Participation' : 'Delivery'} · ${props.submission?.speaker_name ?? ''}`
-  : props.submission?.title ?? 'Speaker proposal');
+const drawerTitle = computed(() => props.submission?.speaker_name ?? 'Speaker proposal');
 const closeLabel = computed(() => props.mode === 'participation'
   ? 'Close participation details'
   : props.mode === 'delivery' ? 'Close delivery details' : 'Close speaker proposal');
@@ -142,6 +141,12 @@ const learningOutcomes = computed(() => props.submission && 'learning_outcomes' 
 const annualSubmission = computed(() => props.submission && 'proposal_schema_version' in props.submission
   ? props.submission as AnnualConferenceSpeakerSubmissionWithLogistics
   : null);
+
+watch([() => props.submission?.id, () => props.mode, () => props.open], () => {
+  emailConfirmation.value = null;
+  if (contentRef.value) contentRef.value.scrollTop = 0;
+}, { immediate: true });
+
 const canRetryDecisionEmail = computed(() => annualSubmission.value?.decision_email_retryable !== false
   || annualSubmission.value?.decision_email_last_error === 'Automatic email retries were exhausted. Review the recipient and retry manually.');
 
@@ -150,10 +155,10 @@ function formatDate(value: string): string {
 }
 
 function statusClass(status: SpeakerSubmissionStatus): string {
-  if (status === 'selected') return 'border-[#15803d] bg-[#effcf3] text-[#15803d]';
+  if (status === 'selected') return 'border-dc-success bg-dc-success-soft text-dc-success';
   if (status === 'not_selected') return 'border-dc-border bg-dc-paper-warm text-dc-gray';
 
-  return 'border-dc-pink bg-[#fff1f7] text-dc-pink';
+  return 'border-dc-pink bg-dc-pink/5 text-dc-pink';
 }
 
 function lockPage() {
@@ -196,8 +201,8 @@ function handleKeydown(event: KeyboardEvent) {
   if (event.key !== 'Tab' || !panelRef.value) return;
 
   const focusable = [...panelRef.value.querySelectorAll<HTMLElement>(
-    'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-  )];
+    'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )].filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
 
   if (!focusable.length) {
     event.preventDefault();
@@ -242,18 +247,19 @@ onUnmounted(() => {
   <Teleport to="body">
     <Transition name="annual-speaker-drawer">
       <div v-if="open && submission" class="fixed inset-0 z-[130] flex justify-end bg-black/30" role="presentation" @click.self="requestClose">
-        <section ref="panelRef" class="flex h-full w-full max-w-[var(--organizer-detail-drawer-width)] flex-col border-l-2 border-dc-ink bg-dc-paper shadow-[-10px_0_0_rgba(17,17,17,0.14)]" role="dialog" aria-modal="true" aria-labelledby="annual-conference-speaker-drawer-title" tabindex="-1">
-          <header class="flex shrink-0 items-start justify-between gap-4 border-b-2 border-dc-ink bg-dc-yellow px-5 py-4 sm:px-6">
+        <section ref="panelRef" class="flex h-full w-full max-w-[var(--organizer-detail-drawer-width)] flex-col border-l border-dc-border bg-dc-cream text-dc-ink shadow-xl" role="dialog" aria-modal="true" aria-labelledby="annual-conference-speaker-drawer-mode annual-conference-speaker-drawer-title" tabindex="-1">
+          <header class="flex shrink-0 items-start justify-between gap-4 border-b border-dc-border bg-dc-paper-warm px-5 py-4 sm:px-6">
             <div class="min-w-0">
-              <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-ink">{{ kindLabel }}</p>
+              <p id="annual-conference-speaker-drawer-mode" class="editorial-eyebrow">{{ mode === 'participation' ? 'Participation' : mode === 'delivery' ? 'Delivery' : kindLabel }}</p>
               <h2 id="annual-conference-speaker-drawer-title" class="mt-1 break-words text-2xl font-bold leading-tight tracking-tight text-dc-ink">{{ drawerTitle }}</h2>
-              <p v-if="mode && mode !== 'proposal'" class="mt-1 text-sm font-medium text-dc-ink">{{ submission.title }}</p>
+              <p class="mt-1 line-clamp-2 break-words text-sm font-medium text-dc-gray">{{ submission.title }}</p>
             </div>
-            <button ref="closeButtonRef" type="button" class="motion-press grid min-h-11 min-w-11 shrink-0 place-items-center rounded-md border-2 border-dc-ink bg-dc-paper font-mono text-lg font-semibold text-dc-ink shadow-[2px_2px_0_#111111]" :disabled="submitting" :aria-label="closeLabel" @click="requestClose">×</button>
+            <button ref="closeButtonRef" type="button" class="motion-press grid min-h-11 min-w-11 shrink-0 place-items-center rounded-md text-2xl font-semibold text-dc-pink hover:bg-dc-pink/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink disabled:opacity-50" :disabled="submitting" :aria-label="closeLabel" @click="requestClose">×</button>
           </header>
 
-          <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">
-            <template v-if="!mode || mode === 'proposal'">
+          <div ref="contentRef" class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">
+            <section v-if="mode !== 'participation' && mode !== 'delivery'" aria-label="Proposal">
+              <h3 class="mb-4 break-words text-xl font-bold leading-tight">{{ submission.title }}</h3>
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <span class="rounded-md border px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]" :class="statusClass(submission.status)">{{ statusLabel }}</span>
                 <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray">Submitted {{ formatDate(submission.created_at) }}</span>
@@ -263,7 +269,7 @@ onUnmounted(() => {
                 This proposal predates the complete conference form and cannot be accepted. Ask the speaker to submit a new proposal with the required track, session type, bio, abstract, and learning outcomes.
               </section>
 
-              <section class="mt-6 border-t-2 border-dc-ink pt-5">
+              <section class="mt-6 border-t border-dc-border pt-5">
                 <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Abstract</p>
                 <p class="mt-2 whitespace-pre-line text-base font-medium leading-7" :class="submission.abstract ? 'text-dc-ink' : 'text-dc-gray'">{{ submission.abstract ?? 'No abstract was provided.' }}</p>
               </section>
@@ -288,99 +294,108 @@ onUnmounted(() => {
                 </ol>
               </section>
 
-              <section v-if="submission.bio" class="mt-6 rounded-md border border-dc-border bg-dc-paper-warm p-4">
+              <section v-if="submission.bio" class="mt-6 rounded-md border border-dc-border bg-dc-paper p-4">
                 <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Speaker bio</p>
                 <p class="mt-2 whitespace-pre-line text-sm leading-6 text-dc-gray">{{ submission.bio }}</p>
               </section>
 
-              <section v-if="!('session_type' in submission)" class="mt-6 rounded-md border border-dc-border bg-dc-paper-warm p-4">
+              <section v-if="!('session_type' in submission)" class="mt-6 rounded-md border border-dc-border bg-dc-paper p-4">
                 <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">{{ submission.kind === 'product_demo' ? 'Demo link' : 'Presentation link' }}</p>
                 <a v-if="resourceUrl" :href="resourceUrl" target="_blank" rel="noopener noreferrer nofollow" class="mt-2 inline-block text-sm font-semibold text-dc-pink underline decoration-dc-border underline-offset-4 hover:text-dc-ink">Open submitted resource ↗</a>
                 <p v-else class="mt-2 text-sm leading-6 text-dc-gray">No resource link was submitted.</p>
               </section>
-            </template>
-
-            <section v-if="mode !== 'delivery' && submission.status === 'selected'" class="mt-6 first:mt-0">
-              <h3 class="text-base font-bold">Speaker information</h3>
-              <dl class="mt-3 grid gap-4 border-t border-dc-border pt-4 text-sm sm:grid-cols-2">
-                <div><dt class="text-dc-gray">Participation</dt><dd class="font-semibold">{{ annualSubmission?.logistics?.availability_confirmed === true ? 'Confirmed' : annualSubmission?.logistics?.availability_confirmed === false ? 'Not yet confirmed' : 'Awaiting response' }}</dd></div>
-                <div>
-                  <dt class="text-dc-gray">Headshot</dt>
-                  <dd class="font-semibold">{{ annualSubmission?.logistics?.headshot_photo_available ? 'Photo uploaded' : annualSubmission?.logistics?.headshot_url?.trim() ? 'Link provided' : 'Missing' }}</dd>
-                  <dd v-if="annualSubmission?.logistics?.headshot_photo_available && annualSubmission.selected_session_id && year"><button type="button" :disabled="downloadingHeadshot" class="text-action font-semibold text-dc-pink underline" @click="downloadHeadshot">{{ downloadingHeadshot ? 'Downloading…' : 'Download original photo' }}</button><p v-if="headshotError" role="alert" class="text-red-700">{{ headshotError }}</p></dd>
-                  <dd v-if="annualSubmission?.logistics?.headshot_url?.trim()"><a :href="annualSubmission.logistics.headshot_url" target="_blank" rel="noopener noreferrer nofollow" class="font-semibold text-dc-pink underline">Open submitted link ↗</a></dd>
-                </div>
-                <div><dt class="text-dc-gray">Social handle</dt><dd class="whitespace-pre-line font-semibold">{{ annualSubmission?.logistics?.social_handle?.trim() || 'Missing' }}</dd></div>
-                <div class="sm:col-span-2"><dt class="text-dc-gray">Technical/setup requirements</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission?.logistics?.technical_requirements?.trim() || 'Not provided' }}</dd></div>
-                <div class="sm:col-span-2"><dt class="text-dc-gray">Accessibility support</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission?.logistics?.accessibility_requirements?.trim() || 'Not provided' }}</dd></div>
-                <div v-if="annualSubmission?.logistics?.workshop_prerequisites" class="sm:col-span-2"><dt class="text-dc-gray">Workshop prerequisites</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission.logistics.workshop_prerequisites }}</dd></div>
-                <div v-if="annualSubmission?.logistics?.required_software_equipment" class="sm:col-span-2"><dt class="text-dc-gray">Software/equipment</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission.logistics.required_software_equipment }}</dd></div>
-                <div v-if="annualSubmission?.logistics"><dt class="text-dc-gray">Participant laptops</dt><dd class="font-semibold">{{ annualSubmission.logistics.participants_need_laptops === true ? 'Required' : annualSubmission.logistics.participants_need_laptops === false ? 'Not required' : 'Not answered' }}</dd></div>
-                <div v-if="annualSubmission?.logistics?.preferred_workshop_capacity"><dt class="text-dc-gray">Workshop capacity</dt><dd class="font-semibold">{{ annualSubmission.logistics.preferred_workshop_capacity }}</dd></div>
-                <div v-if="annualSubmission?.logistics?.slides_url"><dt class="text-dc-gray">Slides/resources</dt><dd><a :href="annualSubmission.logistics.slides_url" target="_blank" rel="noopener noreferrer nofollow" class="font-semibold text-dc-pink underline">Open link ↗</a></dd></div>
-              </dl>
-              <div class="mt-5 border-t border-dc-border pt-4">
-                <h3 class="font-bold">Speaker workspace</h3>
-                <p v-if="annualSubmission && annualSubmission.workspace_access !== 'active'" class="mt-2 text-sm font-semibold text-dc-ink">Workspace access {{ annualSubmission.workspace_access === 'revoked' ? 'revoked' : 'unavailable' }}.</p>
-                <p v-else-if="annualSubmission" class="mt-2 text-sm leading-6 text-dc-gray">The workspace remains available after the logistics due date.</p>
-                <p v-if="mode !== 'participation' && 'decision_email_status' in submission" class="mt-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">Workspace email: {{ submission.decision_email_status ?? 'pending' }}</p>
-                <div v-if="annualSubmission && canManage && annualSubmission.workspace_access === 'active'" class="mt-3 flex flex-wrap gap-2">
-                  <button type="button" class="editorial-action" @click="emit('openWorkspace', annualSubmission)">Open workspace</button>
-                  <button type="button" class="editorial-action editorial-action--neutral" @click="emit('copyWorkspace', annualSubmission)">Copy workspace link</button>
-                  <button type="button" class="text-action min-h-11 px-2 text-sm font-semibold text-red-700 underline" @click="emit('revokeWorkspace', annualSubmission)">Revoke workspace access</button>
-                </div>
-              </div>
-              <details v-if="annualSubmission && year" class="mt-5 border-t border-dc-border pt-4">
-                <summary class="min-h-11 cursor-pointer font-bold">Badge and materials</summary>
-                <div v-if="annualSubmission.selected_session_id && String(year) === '2026'" class="mt-2">
-                  <h4 class="mb-3 font-bold">Speaker badge</h4>
-                  <SpeakerBadgePreview :key="annualSubmission.selected_session_id" :year="Number(year)" :session-id="annualSubmission.selected_session_id" />
-                </div>
-                <SpeakerMaterialsOrganizer :year="year" :submission-id="annualSubmission.id" class="mt-4 border-t border-dc-border pt-4" />
-              </details>
             </section>
 
-            <section v-if="mode !== 'participation' && annualSubmission && annualSubmission.status !== 'submitted'" class="mt-6 rounded-md border border-dc-border bg-dc-paper-warm p-4">
-              <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-pink">{{ annualSubmission.status === 'selected' ? 'Workspace email' : 'Decision email' }}</p>
-              <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-                <div><dt class="text-dc-gray">Status</dt><dd class="font-semibold text-dc-ink">{{ emailStatusLabel() }}</dd></div>
-                <div><dt class="text-dc-gray">Attempts</dt><dd class="font-semibold text-dc-ink">{{ annualSubmission.decision_email_attempt_count ?? 0 }}</dd></div>
-                <div v-if="annualSubmission.decision_email_next_retry_at"><dt class="text-dc-gray">{{ annualSubmission.decision_email_attempt_count ? 'Next automatic retry eligible' : 'Queued since' }}</dt><dd>{{ emailTime(annualSubmission.decision_email_next_retry_at) }}</dd></div>
-                <div v-if="annualSubmission.decision_email_last_attempt_at"><dt class="text-dc-gray">Last attempt</dt><dd>{{ emailTime(annualSubmission.decision_email_last_attempt_at) }}</dd></div>
-                <div v-if="annualSubmission.decision_email_sent_at"><dt class="text-dc-gray">Accepted by provider</dt><dd>{{ emailTime(annualSubmission.decision_email_sent_at) }}</dd></div>
-                <div v-if="annualSubmission.decision_email_delivered_at"><dt class="text-dc-gray">Delivered</dt><dd>{{ emailTime(annualSubmission.decision_email_delivered_at) }}</dd></div>
-                <div class="sm:col-span-2"><dt class="text-dc-gray">Delivery address</dt><dd class="mt-1 font-semibold text-dc-ink">{{ annualSubmission.decision_email_recipient ?? annualSubmission.speaker_email }}</dd></div>
-                <div v-if="annualSubmission.decision_email_last_error" class="sm:col-span-2"><dt class="text-dc-gray">Needs attention</dt><dd class="mt-1 text-red-700">{{ annualSubmission.decision_email_last_error }}</dd></div>
-              </dl>
-              <p v-if="!decisionEmailConfigured" class="mt-3 text-sm text-red-700">Email sending is not configured. The decision is saved; no email will be sent until configuration is ready and you confirm sending.</p>
-              <form v-if="canSendEmail" class="mt-4 flex flex-col gap-2 border-t border-dc-border pt-4 sm:flex-row" @submit.prevent="emit('correctDecisionEmail', annualSubmission, correctedEmail)">
-                <label class="min-w-0 flex-1">
-                  <span class="sr-only">Correct decision email address</span>
-                  <input v-model.trim="correctedEmail" type="email" autocomplete="email" required class="app-form-control min-h-11 w-full border-2 border-dc-ink px-3 text-sm" aria-label="Correct decision email address">
-                </label>
-                <button type="submit" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[10px] font-semibold uppercase" :disabled="submitting || correctedEmail === (annualSubmission.decision_email_recipient ?? annualSubmission.speaker_email)">Save address</button>
-              </form>
+            <div v-if="mode !== 'delivery' && submission.status === 'selected'" class="grid gap-6 lg:grid-cols-2" :class="{ 'mt-6 border-t border-dc-border pt-5': mode !== 'participation' }">
+              <div class="min-w-0 space-y-6">
+                <section>
+                  <h3 class="text-base font-bold">Logistics</h3>
+                  <dl class="mt-3 grid grid-cols-2 gap-4 border-t border-dc-border pt-4 text-sm [overflow-wrap:anywhere] [&>div]:min-w-0">
+                    <div><dt class="text-dc-gray">Participation</dt><dd class="font-semibold">{{ annualSubmission?.logistics?.availability_confirmed === true ? 'Confirmed' : annualSubmission?.logistics?.availability_confirmed === false ? 'Not yet confirmed' : 'Awaiting response' }}</dd></div>
+                    <div><dt class="text-dc-gray">Social handle</dt><dd class="whitespace-pre-line font-semibold">{{ annualSubmission?.logistics?.social_handle?.trim() || 'Missing' }}</dd></div>
+                    <div class="col-span-2"><dt class="text-dc-gray">Technical/setup requirements</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission?.logistics?.technical_requirements?.trim() || 'Not provided' }}</dd></div>
+                    <div class="col-span-2"><dt class="text-dc-gray">Accessibility support</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission?.logistics?.accessibility_requirements?.trim() || 'Not provided' }}</dd></div>
+                    <div v-if="annualSubmission?.logistics?.workshop_prerequisites" class="col-span-2"><dt class="text-dc-gray">Workshop prerequisites</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission.logistics.workshop_prerequisites }}</dd></div>
+                    <div v-if="annualSubmission?.logistics?.required_software_equipment" class="col-span-2"><dt class="text-dc-gray">Software/equipment</dt><dd class="mt-1 whitespace-pre-line">{{ annualSubmission.logistics.required_software_equipment }}</dd></div>
+                    <div v-if="annualSubmission?.logistics"><dt class="text-dc-gray">Participant laptops</dt><dd class="font-semibold">{{ annualSubmission.logistics.participants_need_laptops === true ? 'Required' : annualSubmission.logistics.participants_need_laptops === false ? 'Not required' : 'Not answered' }}</dd></div>
+                    <div v-if="annualSubmission?.logistics?.preferred_workshop_capacity"><dt class="text-dc-gray">Workshop capacity</dt><dd class="font-semibold">{{ annualSubmission.logistics.preferred_workshop_capacity }}</dd></div>
+                    <div v-if="annualSubmission?.logistics?.slides_url"><dt class="text-dc-gray">Slides/resources</dt><dd><a :href="annualSubmission.logistics.slides_url" target="_blank" rel="noopener noreferrer nofollow" class="font-semibold text-dc-pink underline">Open link ↗</a></dd></div>
+                  </dl>
+                </section>
+
+                <section class="space-y-2 border-t border-dc-border pt-5">
+                  <h3 class="font-bold">Speaker workspace</h3>
+                  <p v-if="annualSubmission && annualSubmission.workspace_access !== 'active'" class="mt-2 text-sm font-semibold text-dc-ink">Workspace access {{ annualSubmission.workspace_access === 'revoked' ? 'revoked' : 'unavailable' }}.</p>
+                  <p v-else-if="annualSubmission" class="mt-2 text-sm leading-6 text-dc-gray">The workspace remains available after the logistics due date.</p>
+                  <div v-if="annualSubmission && canManage && annualSubmission.workspace_access === 'active'" class="mt-3 flex flex-wrap gap-2">
+                    <button type="button" class="motion-press min-h-11 rounded-md bg-dc-pink px-4 text-sm font-semibold text-white hover:brightness-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dc-pink" @click="emit('openWorkspace', annualSubmission)">Open workspace</button>
+                    <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border bg-dc-paper px-4 text-sm font-semibold text-dc-ink hover:bg-dc-paper-warm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dc-pink" @click="emit('copyWorkspace', annualSubmission)">Copy workspace link</button>
+                    <button type="button" class="text-action min-h-11 px-2 text-sm font-semibold text-red-700 underline" @click="emit('revokeWorkspace', annualSubmission)">Revoke workspace access</button>
+                  </div>
+                </section>
+              </div>
+              <section v-if="annualSubmission && year" class="min-w-0 space-y-4 border-t border-dc-border pt-5 [overflow-wrap:anywhere] lg:border-t-0 lg:pt-0">
+                <h3 class="text-base font-bold">Assets</h3>
+                <div v-if="annualSubmission.selected_session_id && String(year) === '2026'">
+                  <h3 class="mb-3 font-bold">Speaker badge</h3>
+                  <SpeakerBadgePreview :key="annualSubmission.selected_session_id" :year="Number(year)" :session-id="annualSubmission.selected_session_id" />
+                </div>
+                <div class="space-y-5">
+                  <dl class="text-sm">
+                    <dt class="text-dc-gray">Headshot</dt>
+                    <dd class="font-semibold">{{ annualSubmission?.logistics?.headshot_photo_available ? 'Photo uploaded' : annualSubmission?.logistics?.headshot_url?.trim() ? 'Link provided' : 'Missing' }}</dd>
+                    <dd v-if="annualSubmission?.logistics?.headshot_photo_available && annualSubmission.selected_session_id && year"><button type="button" :disabled="downloadingHeadshot" class="text-action font-semibold text-dc-pink underline" @click="downloadHeadshot">{{ downloadingHeadshot ? 'Downloading…' : 'Download original photo' }}</button><p v-if="headshotError" role="alert" class="text-red-700">{{ headshotError }}</p></dd>
+                    <dd v-if="annualSubmission?.logistics?.headshot_url?.trim()"><a :href="annualSubmission.logistics.headshot_url" target="_blank" rel="noopener noreferrer nofollow" class="font-semibold text-dc-pink underline">Open submitted link ↗</a></dd>
+                  </dl>
+                  <SpeakerMaterialsOrganizer :year="year" :submission-id="annualSubmission.id" class="border-t border-dc-border pt-4" />
+                </div>
+              </section>
+            </div>
+
+            <section v-if="mode !== 'participation' && annualSubmission && annualSubmission.status !== 'submitted'" :class="{ 'mt-6 border-t border-dc-border pt-5': mode !== 'delivery' }">
+              <h3 class="mb-3 text-base font-bold">Email</h3>
+              <div class="rounded-md border border-dc-border bg-dc-paper p-4">
+                <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-pink">{{ annualSubmission.status === 'selected' ? 'Workspace email' : 'Decision email' }}</p>
+                <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                  <div><dt class="text-dc-gray">Status</dt><dd class="font-semibold text-dc-ink">{{ emailStatusLabel() }}</dd></div>
+                  <div><dt class="text-dc-gray">Attempts</dt><dd class="font-semibold text-dc-ink">{{ annualSubmission.decision_email_attempt_count ?? 0 }}</dd></div>
+                  <div v-if="annualSubmission.decision_email_next_retry_at"><dt class="text-dc-gray">{{ annualSubmission.decision_email_attempt_count ? 'Next automatic retry eligible' : 'Queued since' }}</dt><dd>{{ emailTime(annualSubmission.decision_email_next_retry_at) }}</dd></div>
+                  <div v-if="annualSubmission.decision_email_last_attempt_at"><dt class="text-dc-gray">Last attempt</dt><dd>{{ emailTime(annualSubmission.decision_email_last_attempt_at) }}</dd></div>
+                  <div v-if="annualSubmission.decision_email_sent_at"><dt class="text-dc-gray">Accepted by provider</dt><dd>{{ emailTime(annualSubmission.decision_email_sent_at) }}</dd></div>
+                  <div v-if="annualSubmission.decision_email_delivered_at"><dt class="text-dc-gray">Delivered</dt><dd>{{ emailTime(annualSubmission.decision_email_delivered_at) }}</dd></div>
+                  <div class="sm:col-span-2"><dt class="text-dc-gray">Delivery address</dt><dd class="mt-1 font-semibold text-dc-ink">{{ annualSubmission.decision_email_recipient ?? annualSubmission.speaker_email }}</dd></div>
+                  <div v-if="annualSubmission.decision_email_last_error" class="sm:col-span-2"><dt class="text-dc-gray">Needs attention</dt><dd class="mt-1 text-red-700">{{ annualSubmission.decision_email_last_error }}</dd></div>
+                </dl>
+                <p v-if="!decisionEmailConfigured" class="mt-3 text-sm text-red-700">Email sending is not configured. The decision is saved; no email will be sent until configuration is ready and you confirm sending.</p>
+                <form v-if="canSendEmail" class="mt-4 flex flex-col gap-2 border-t border-dc-border pt-4 sm:flex-row" @submit.prevent="emit('correctDecisionEmail', annualSubmission, correctedEmail)">
+                  <label class="min-w-0 flex-1">
+                    <span class="sr-only">Correct decision email address</span>
+                    <input v-model.trim="correctedEmail" type="email" autocomplete="email" required class="app-form-control min-h-11 w-full border-2 border-dc-ink px-3 text-sm" aria-label="Correct decision email address">
+                  </label>
+                  <button type="submit" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[10px] font-semibold uppercase" :disabled="submitting || correctedEmail === (annualSubmission.decision_email_recipient ?? annualSubmission.speaker_email)">Save address</button>
+                </form>
+                <section v-if="emailConfirmation && annualSubmission" class="mt-4 w-full rounded-md border border-dc-border p-3" aria-label="Confirm speaker email">
+                  <h3 class="font-bold">Send {{ emailConfirmation }} email?</h3>
+                  <p class="mt-2 break-words text-sm">{{ annualSubmission.speaker_name }} · {{ annualSubmission.decision_email_recipient ?? annualSubmission.speaker_email }}</p>
+                  <p class="mt-2 text-sm text-dc-gray">{{ emailConfirmation === 'workspace' ? 'Includes the acceptance and private speaker workspace link.' : 'Notifies the speaker that this proposal was not selected.' }} Failed attempts may be retried automatically after you send.</p>
+                  <div class="mt-3 flex justify-end gap-2"><button type="button" class="editorial-action" @click="emailConfirmation = null">Cancel</button><button type="button" class="editorial-action" :disabled="submitting || !decisionEmailConfigured" @click="confirmEmail">Send email</button></div>
+                </section>
+                <div v-if="canSendEmail && 'session_type' in submission" class="mt-4 flex flex-wrap gap-2">
+                  <button v-if="submission.status === 'not_selected' && submission.decision_email_attempt_count > 0 && submission.decision_email_status === 'failed' && canRetryDecisionEmail" type="button" class="editorial-action" :disabled="submitting || !decisionEmailConfigured" @click="emailConfirmation = 'decision'">{{ submission.decision_email_attempt_count ? 'Retry decision email' : 'Send decision email' }}</button>
+                  <button v-if="submission.status === 'selected' && submission.decision_email_attempt_count > 0 && canResendWorkspaceEmail" type="button" class="editorial-action" :disabled="submitting || !decisionEmailConfigured" @click="emailConfirmation = 'workspace'">{{ submission.decision_email_attempt_count ? 'Retry workspace email' : 'Send workspace email' }}</button>
+                  <button v-if="submission.status === 'selected' && (annualSubmission?.workspace_access === 'revoked' || ['accepted', 'delivered', 'failed'].includes(submission.decision_email_status ?? ''))" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink" :disabled="submitting" @click="emit('replaceWorkspaceEmail', submission)">Replace private link</button>
+                </div>
+              </div>
             </section>
           </div>
 
-          <footer v-if="mode !== 'participation'" class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t-2 border-dc-ink bg-dc-paper px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
-            <section v-if="emailConfirmation && annualSubmission" class="w-full rounded-md border border-dc-border p-3" aria-label="Confirm speaker email">
-              <h3 class="font-bold">Send {{ emailConfirmation }} email?</h3>
-              <p class="mt-2 break-words text-sm">{{ annualSubmission.speaker_name }} · {{ annualSubmission.decision_email_recipient ?? annualSubmission.speaker_email }}</p>
-              <p class="mt-2 text-sm text-dc-gray">{{ emailConfirmation === 'workspace' ? 'Includes the acceptance and private speaker workspace link.' : 'Notifies the speaker that this proposal was not selected.' }} Failed attempts may be retried automatically after you send.</p>
-              <div class="mt-3 flex justify-end gap-2"><button type="button" class="editorial-action" @click="emailConfirmation = null">Cancel</button><button type="button" class="editorial-action" :disabled="submitting || !decisionEmailConfigured" @click="confirmEmail">Send email</button></div>
-            </section>
-            <template v-if="mode !== 'delivery' && submission.status === 'submitted' && canManage && !isLegacyConferenceProposal">
+          <footer v-if="mode !== 'participation' && mode !== 'delivery' && submission.status === 'submitted'" class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-dc-border bg-dc-paper px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
+            <template v-if="submission.status === 'submitted' && canManage && !isLegacyConferenceProposal">
               <p v-if="approvalBlockedReason" class="mr-auto w-full text-xs font-semibold leading-5 text-red-700">{{ approvalBlockedReason }}</p>
               <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink disabled:opacity-50" :disabled="submitting" @click="emit('reject', submission)">Reject</button>
               <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink shadow-[2px_2px_0_#111111] disabled:opacity-50" :disabled="submitting || Boolean(approvalBlockedReason)" @click="emit('approve', submission)">{{ submitting ? 'Saving…' : 'Approve' }}</button>
             </template>
-            <button v-else-if="mode !== 'delivery' && submission.status === 'submitted' && canManage && isLegacyConferenceProposal" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink disabled:opacity-50" :disabled="submitting" @click="emit('reject', submission)">Reject legacy proposal</button>
-            <template v-else-if="canSendEmail && 'session_type' in submission">
-              <button v-if="submission.status === 'not_selected' && submission.decision_email_attempt_count > 0 && submission.decision_email_status === 'failed' && canRetryDecisionEmail" type="button" class="editorial-action" :disabled="submitting || !decisionEmailConfigured" @click="emailConfirmation = 'decision'">{{ submission.decision_email_attempt_count ? 'Retry decision email' : 'Send decision email' }}</button>
-              <button v-if="submission.status === 'selected' && submission.decision_email_attempt_count > 0 && canResendWorkspaceEmail" type="button" class="editorial-action" :disabled="submitting || !decisionEmailConfigured" @click="emailConfirmation = 'workspace'">{{ submission.decision_email_attempt_count ? 'Retry workspace email' : 'Send workspace email' }}</button>
-              <button v-if="submission.status === 'selected' && (annualSubmission?.workspace_access === 'revoked' || ['accepted', 'delivered', 'failed'].includes(submission.decision_email_status ?? ''))" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink" :disabled="submitting" @click="emit('replaceWorkspaceEmail', submission)">Replace private link</button>
-            </template>
+            <button v-else-if="submission.status === 'submitted' && canManage && isLegacyConferenceProposal" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink disabled:opacity-50" :disabled="submitting" @click="emit('reject', submission)">Reject legacy proposal</button>
             <p v-else-if="submission.status === 'submitted'" class="mr-auto text-xs font-semibold leading-5 text-dc-gray">Only organizers with speaker-review access can make a decision.</p>
           </footer>
         </section>
@@ -395,8 +410,8 @@ onUnmounted(() => {
   transition: opacity 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.annual-speaker-drawer-enter-active section,
-.annual-speaker-drawer-leave-active section {
+.annual-speaker-drawer-enter-active > section,
+.annual-speaker-drawer-leave-active > section {
   transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform;
 }
@@ -406,21 +421,21 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-.annual-speaker-drawer-enter-from section,
-.annual-speaker-drawer-leave-to section {
+.annual-speaker-drawer-enter-from > section,
+.annual-speaker-drawer-leave-to > section {
   transform: translate3d(100%, 0, 0);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .annual-speaker-drawer-enter-active,
   .annual-speaker-drawer-leave-active,
-  .annual-speaker-drawer-enter-active section,
-  .annual-speaker-drawer-leave-active section {
+  .annual-speaker-drawer-enter-active > section,
+  .annual-speaker-drawer-leave-active > section {
     transition-duration: 0.01ms;
   }
 
-  .annual-speaker-drawer-enter-from section,
-  .annual-speaker-drawer-leave-to section {
+  .annual-speaker-drawer-enter-from > section,
+  .annual-speaker-drawer-leave-to > section {
     transform: none;
   }
 }

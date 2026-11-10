@@ -4103,7 +4103,9 @@ try {
       responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
       responses.set("/api/annual-conference/2026/speakers", { body: { edition: { ...edition, name: "DevCongress Annual Conference" }, call: { open: true, public_path: "/speak/c/2026", logistics_deadline: null }, permissions: { can_manage: true, can_send_email: true }, email_delivery: { configured: true, workspace_links_configured: true }, counts: { submitted: 0, selected: 0, not_selected: 0, withdrawn: 0 }, submissions: [] } });
       responses.set("/api/annual-conference/2026/speaker-outcomes/messages", { body: { messages: [] } });
-      responses.set(base, async () => ({ body: { campaigns: [campaign], candidates, default_draft: defaultDraft, sending_enabled: sendingEnabled, send_unavailable_reason: sendingEnabled ? null : "Speaker update delivery is not enabled." } }));
+      const sentCampaign = { ...campaign, id: "10000000-0000-4000-8000-000000000002", subject: "Programme details", state: "complete", delivery_summary: { total: 2, statuses: { delivered: 1, failed: 1 } } };
+
+      responses.set(base, async () => ({ body: { campaigns: [campaign, sentCampaign], candidates, default_draft: defaultDraft, sending_enabled: sendingEnabled, send_unavailable_reason: sendingEnabled ? null : "Speaker update delivery is not enabled." } }));
       responses.set(`${base}/${campaign.id}`, async (request) => {
         if (request.method() === "PUT") campaign = { ...campaign, ...JSON.parse(request.postData()), version: campaign.version + 1 };
 
@@ -4128,18 +4130,26 @@ try {
  return { body: { queued: 1 } }; });
       await page.setViewportSize({ width: mobile ? 390 : 1440, height: 844 });
       await page.goto(`${origin}/organizer-console/annual-conference/2026/speakers?section=outcome-messages&messageView=updates`);
-      await page.getByRole("button", { name: /DevCon26 speaker update.*Draft/ }).click();
+      await page.getByRole("button", { name: /DevCon26 speaker update/ }).waitFor();
+      await page.getByRole("heading", { name: "Speaker updates", exact: true }).evaluate(el => el.closest("section").scrollIntoView({ block: "start" }));
+      await page.screenshot({ path: `${artifacts}/speaker-updates-${mobile ? "mobile" : "desktop"}-history.png`, animations: "disabled" });
+      await page.getByRole("button", { name: "New update" }).click();
+      await page.getByRole("button", { name: /Start with/ }).click();
+      await page.getByRole("option", { name: "Workspace reminder" }).click();
+      await page.getByRole("listbox").waitFor({ state: "hidden" });
+      await page.getByLabel("Subject", { exact: true }).waitFor();
+      await page.screenshot({ path: `${artifacts}/speaker-updates-${mobile ? "mobile" : "desktop"}-reminder.png`, animations: "disabled" });
+      page.once("dialog", dialog => dialog.accept());
+      await page.getByRole("button", { name: "Close update" }).click();
+      await page.getByRole("button", { name: /DevCon26 speaker update/ }).click();
       await page.getByLabel("Subject").fill("Updated details");
-      await page.getByRole("button", { name: /DevCon26 speaker update.*Draft/ }).click();
       assert.equal(await page.getByLabel("Subject").inputValue(), "Updated details");
-      await page.getByText("Save your changes before previewing or testing.").waitFor();
+      await page.getByText("Save this update before previewing or testing.").waitFor();
       await page.getByRole("button", { name: "Save update" }).click();
       await page.getByLabel(/Ada Example/).check();
       await page.getByLabel(/Ama Example/).check();
       assert.equal(await page.getByLabel(/Esi Example/).isDisabled(), true);
       await page.getByText("Private workspace access is revoked.").waitFor();
-      await page.getByRole("heading", { name: "Speaker updates", exact: true }).scrollIntoViewIfNeeded();
-      await page.getByRole("button", { name: /Updated details.*Draft/ }).scrollIntoViewIfNeeded();
       await page.screenshot({ path: `${artifacts}/speaker-updates-${mobile ? "mobile" : "desktop"}-draft.png`, animations: "disabled" });
       const testAction = page.getByRole("button", { name: "Send test email" });
 
@@ -4184,14 +4194,15 @@ try {
       await testDrawer.getByRole("button", { name: "Send test email" }).click();
       await testDrawer.waitFor({ state: "hidden" });
       await page.getByText("Test email sent to test@example.test.").waitFor();
-      await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Send test email");
       const testRequests = requests.filter((request) => request.path.endsWith("/test"));
       const testPayload = JSON.parse(testRequests[0].body);
 
       assert.deepEqual({ ...testPayload, request_id: "uuid" }, { preview_id: "20000000-0000-4000-8000-000000000001", recipient_id: ids[0], email: "test@example.test", request_id: "uuid" });
       assert.equal(JSON.parse(testRequests[1].body).request_id, testPayload.request_id);
       assert.equal(requests.some((request) => request.path.endsWith("/send")), false);
-      assert.equal(await testAction.evaluate((button) => document.activeElement === button), true);
+      await page.getByRole("button", { name: /Updated details/ }).click();
+      await page.getByLabel(/Ada Example/).check();
+      await page.getByLabel(/Ama Example/).check();
       await page.getByRole("button", { name: "Preview 2 selected" }).click();
       const drawer = page.getByRole("dialog", { name: "Review speaker updates" });
 
@@ -4227,7 +4238,7 @@ try {
       await drawer.getByText("Speaker update delivery is not enabled.").waitFor();
       sendingEnabled = true;
       await page.reload();
-      await page.getByRole("button", { name: /Updated details.*Draft/ }).click();
+      await page.getByRole("button", { name: /Updated details/ }).click();
       await page.getByLabel(/Ada Example/).check();
       await page.getByLabel(/Ama Example/).check();
       await page.getByRole("button", { name: "Preview 2 selected" }).click();
@@ -4317,7 +4328,7 @@ try {
       });
       await page.setViewportSize({ width: mobile ? 390 : 1440, height: 844 });
       await page.goto(`${origin}/organizer-console/annual-conference/2026/speakers?section=outcome-messages&messageView=updates`);
-      await page.getByRole("button", { name: /DevCon26 speaker update.*Draft/ }).click();
+      await page.getByRole("button", { name: /DevCon26 speaker update/ }).click();
       const selectAll = page.getByLabel("Select all eligible");
       const pagination = page.getByRole("navigation", { name: "Speaker update recipients" });
 
@@ -4400,7 +4411,7 @@ try {
       await drawer.getByRole("button", { name: "Close" }).click();
       sendingEnabled = true;
       await page.reload();
-      await page.getByRole("button", { name: /DevCon26 speaker update.*Draft/ }).click();
+      await page.getByRole("button", { name: /DevCon26 speaker update/ }).click();
       await page.getByLabel("Select all eligible").check();
       await page.getByRole("button", { name: "Preview 7 selected" }).click();
       await drawer.waitFor();
@@ -4580,6 +4591,8 @@ try {
             ? { availability_confirmed: false, headshot_photo_available: false, headshot_url: "https://example.test/headshot.png", social_handle: "@guest" }
             : { availability_confirmed: null, headshot_photo_available: false, headshot_url: null, social_handle: null },
           selected_session_id: index === 1 ? "session-badge" : "session-ada",
+          decision_email_status: ["pending", "delivered"][index] ?? accepted.decision_email_status,
+          decision_email_attempt_count: index === 0 ? 0 : accepted.decision_email_attempt_count,
         }));
 
         async function checkSecondPage(lastRow) {
@@ -4597,12 +4610,17 @@ try {
         const storageResponse = { body: { speaker_photo_count: 1, speaker_photo_bytes: 566231, shared_bucket_bytes: 14229176 } };
 
         responses.set(storagePath, { status: 503, body: { error: "Unavailable" } });
-        responses.set("/api/annual-conference/2026/speaker-submissions/tracking-accepted/materials", { body: { materials: [] } });
+        const fileName = `ConferenceSlides${"LongName".repeat(10)}.pdf`;
+
+        responses.set("/api/annual-conference/2026/speaker-submissions/tracking-accepted/materials", { body: { materials: [{ id: "fixture-slides", file_name: fileName }] } });
         responses.set("/api/annual-conference/2026/speaker-submissions/tracking-extra-0/materials", { body: { materials: [] } });
         responses.set("/api/annual-conference/2026/speaker-submissions/tracking-extra-1/materials", { body: { materials: [] } });
         responses.set("/api/annual-conference/2026/speaker-badges/session-badge", { body: { card: { display_name: "Guest 2", role: "speaker", crop: { x: 0.5, y: 0.5, scale: 1 }, photo_available: true, photo_version: "badge-v1" } } });
         await page.route('**/api/annual-conference/2026/speaker-badges/session-badge/photo', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/aS8AAAAASUVORK5CYII=', 'base64') }));
-        responses.set("/api/annual-conference/2026/speaker-badges/session-ada", { body: { card: { display_name: "Ada Example", role: "speaker", crop: { x: 0.5, y: 0.5, scale: 1 }, photo_available: false, photo_version: null } } });
+        const badgePath = "/api/annual-conference/2026/speaker-badges/session-ada";
+        const badgeResponse = { body: { card: { display_name: "Ada Example", role: "speaker", crop: { x: 0.5, y: 0.5, scale: 1 }, photo_available: false, photo_version: null } } };
+
+        responses.set(badgePath, badgeResponse);
         responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
         responses.set("/api/annual-conference/2026/speakers", { body: {
           edition: { ...edition, name: "DevCongress Annual Conference" },
@@ -4634,6 +4652,72 @@ try {
         }
         await page.getByRole("button", { name: "Approved", exact: true }).click();
         await checkSecondPage(page.locator(".speaker-queue").getByText("Session 6", { exact: true }).filter({ visible: true }));
+        if (!mobile) {
+          const queue = page.locator(".speaker-proposal-table");
+          const labels = ["Ready to preview", "Delivered", "Needs attention"];
+          const icons = [];
+
+          for (const label of labels) {
+            const status = queue.getByRole("cell", { name: label, exact: true }).first();
+            const icon = status.locator("svg");
+
+            await status.waitFor();
+            assert.equal(await icon.getAttribute("aria-hidden"), "true");
+            icons.push(await icon.locator("path").getAttribute("d"));
+            const [iconBox, labelBox] = await Promise.all([icon.boundingBox(), status.getByText(label, { exact: false }).last().boundingBox()]);
+
+            assert.ok(iconBox && labelBox && iconBox.x + iconBox.width < labelBox.x, `Expected icon before ${label}`);
+          }
+          assert.equal(new Set(icons).size, labels.length);
+          await queue.screenshot({ path: `${artifacts}/speaker-proposal-statuses.png`, animations: "disabled" });
+        }
+        const acceptedProposal = page.locator(".speaker-queue").getByText("Reliable systems", { exact: true }).filter({ visible: true });
+
+        const proposal = page.getByRole("dialog", { name: "Talk Ada Example", exact: true });
+
+        if (!mobile && !canSendEmail) {
+          const badgeResponseGate = createSaveGate();
+
+          responses.set(badgePath, async () => {
+            await badgeResponseGate.response;
+
+            return badgeResponse;
+          });
+          try {
+            const backingRequested = page.waitForRequest(
+              request => new URL(request.url()).pathname.endsWith("/devcon26-v11-base-1080x1350.webp"),
+              { timeout: 4000 },
+            );
+
+            await Promise.all([acceptedProposal.click(), backingRequested]);
+            await proposal.getByText("Loading badge…", { exact: true }).waitFor();
+            assert.equal(await proposal.getByRole("button", { name: "Download badge PNG" }).count(), 0);
+          } finally {
+            responses.set(badgePath, badgeResponse);
+            badgeResponseGate.release();
+          }
+          await proposal.getByRole("button", { name: "Download badge PNG" }).waitFor();
+        } else {
+          await acceptedProposal.click();
+        }
+
+        await proposal.getByText("Fixture abstract", { exact: true }).waitFor();
+        await proposal.getByText("Delivery address", { exact: true }).waitFor();
+        assert.equal(await proposal.getByText("Fixture abstract", { exact: true }).isVisible(), true);
+        assert.equal(await proposal.locator("nav, details, [aria-haspopup='listbox']").count(), 0);
+        assert.equal(await proposal.getByRole("textbox", { name: "Correct decision email address" }).count(), canSendEmail ? 1 : 0);
+        const closeProposal = proposal.getByRole("button", { name: "Close speaker proposal" });
+
+        if (mobile) {
+          await closeProposal.focus();
+          await page.keyboard.press("Shift+Tab");
+          assert.equal(await proposal.evaluate((element) => element.contains(document.activeElement)), true);
+          assert.equal(await closeProposal.evaluate((element) => element === document.activeElement), false);
+          await page.keyboard.press("Tab");
+          assert.equal(await closeProposal.evaluate((element) => element === document.activeElement), true);
+        }
+        await page.keyboard.press("Escape");
+        await proposal.waitFor({ state: "hidden" });
         await chooseWorkspaceSection(page, nav, "Participation");
         await page.waitForURL(/section=participation/);
         await assertWorkspaceSection(nav, "Participation");
@@ -4677,22 +4761,55 @@ try {
         await participationPanel.screenshot({ path: `${artifacts}/speaker-monitoring-${mobile ? 'phone' : 'desktop'}-list.png`, animations: 'disabled' });
         await page.setViewportSize({ width: mobile ? 390 : 1440, height: 844 });
         await linkRow.click();
-        const linked = page.getByRole("dialog", { name: "Participation · Guest 1", exact: true });
+        const linked = page.getByRole("dialog", { name: "Participation Guest 1", exact: true });
 
-        assert.equal(await linked.getByRole("link", { name: /Open submitted link/ }).getAttribute('href'), 'https://example.test/headshot.png');
+        assert.equal(await linked.getByRole("link", { name: /Open submitted link/ }).getAttribute("href"), "https://example.test/headshot.png");
         await linked.getByRole("button", { name: "Close participation details" }).click();
         await missingRow.click();
-        const missing = page.getByRole("dialog", { name: "Participation · Guest 2", exact: true });
+        const missing = page.getByRole("dialog", { name: "Participation Guest 2", exact: true });
 
+        await missing.getByRole("heading", { name: "Assets", exact: true }).waitFor();
         await missing.getByText("Missing", { exact: true }).first().waitFor();
+        await missing.getByText("No files uploaded.", { exact: true }).waitFor();
         await missing.getByRole("button", { name: "Close participation details" }).click();
         await ada.click();
-        const logistics = page.getByRole("dialog", { name: "Participation · Ada Example", exact: true });
+        const logistics = page.getByRole("dialog", { name: "Participation Ada Example", exact: true });
 
+        await logistics.getByText("Reliable systems", { exact: true }).waitFor();
         await logistics.getByText("Slides/resources", { exact: true }).waitFor();
-        await logistics.getByText("Photo uploaded", { exact: true }).waitFor();
         await logistics.getByText("@ada", { exact: true }).waitFor();
-        await logistics.screenshot({ path: `${artifacts}/speaker-monitoring-${mobile ? 'phone' : 'desktop'}-drawer.png`, animations: 'disabled' });
+        assert.equal(await logistics.locator("nav, details, [aria-haspopup='listbox']").count(), 0);
+        for (const name of ["Logistics", "Assets", "Speaker workspace"]) {
+          await logistics.getByRole("heading", { name, exact: true }).waitFor();
+        }
+        assert.equal(await logistics.getByRole("button", { name: "Copy workspace link" }).count(), canSendEmail ? 1 : 0);
+        await logistics.getByText("Photo uploaded", { exact: true }).waitFor();
+        const file = logistics.getByRole("link", { name: fileName, exact: true });
+
+        await file.waitFor();
+        assert.equal(await file.evaluate(element => {
+          const drawerRight = element.closest("[role='dialog']").getBoundingClientRect().right;
+
+          return [...element.getClientRects()].every(rect => rect.right <= drawerRight + 1);
+        }), true, "Long filenames wrap inside the drawer");
+        const logisticsHeading = await logistics.getByRole("heading", { name: "Logistics", exact: true }).boundingBox();
+        const assetsHeading = await logistics.getByRole("heading", { name: "Assets", exact: true }).boundingBox();
+
+        assert.ok(logisticsHeading && assetsHeading);
+        assert.ok(mobile ? assetsHeading.y > logisticsHeading.y : assetsHeading.x > logisticsHeading.x);
+        assert.equal(await logistics.evaluate(element => element.scrollWidth <= element.clientWidth), true, "The drawer fits its width");
+        const badgeButton = logistics.getByRole("button", { name: "Download badge PNG" });
+
+        await badgeButton.waitFor();
+        await logistics.screenshot({ path: `${artifacts}/speaker-drawer-${canSendEmail ? "sender" : "viewer"}-${mobile ? "phone" : "desktop"}.png`, animations: "disabled" });
+        const badgeDownload = page.waitForEvent("download");
+
+        await badgeButton.click();
+        const exportedBadge = await badgeDownload;
+        const png = await readFile(await exportedBadge.path());
+
+        assert.equal(exportedBadge.suggestedFilename(), "devcon26-speaker-badge.png");
+        assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [1080, 1350]);
         await page.route('**/api/annual-conference/2026/speaker-headshots/session-ada/photo', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('fixture photo') }));
         const download = page.waitForEvent('download');
 
@@ -4723,10 +4840,11 @@ try {
           } else {
             await deliveryRow.getByRole("button").click();
           }
-          const delivery = page.getByRole("dialog", { name: "Delivery · Ada Example", exact: true });
+          const delivery = page.getByRole("dialog", { name: "Delivery Ada Example", exact: true });
 
           await delivery.getByText("Fixture delivery failure", { exact: true }).waitFor();
           await delivery.getByText("Delivery address", { exact: true }).waitFor();
+          assert.equal(await delivery.getByRole("navigation", { name: "Speaker details sections" }).count(), 0);
           await delivery.getByRole("button", { name: "Retry workspace email" }).click();
           await delivery.getByRole("heading", { name: "Send workspace email?" }).waitFor();
           await delivery.getByRole("button", { name: "Cancel", exact: true }).click();

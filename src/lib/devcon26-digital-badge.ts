@@ -14,7 +14,7 @@ const INK = '#111111';
 const PINK = '#ed008c';
 const PHOTO = { x: 134, y: 300, width: 810, height: 810 * 740 / 920 };
 
-export const PHYSICAL_BADGE_PATH = '/images/devcon26/social-card/devcon26-v11-base-1080x1350.png';
+export const PHYSICAL_BADGE_PATH = '/images/devcon26/social-card/devcon26-v11-base-1080x1350.webp';
 let logoPromise: Promise<HTMLImageElement> | undefined;
 let backingPromise: Promise<HTMLImageElement> | undefined;
 let fontPromise: Promise<void> | undefined;
@@ -161,6 +161,12 @@ function loadBadgeBacking(): Promise<HTMLImageElement> {
   return backingPromise;
 }
 
+export async function loadDigitalBadgeAssets() {
+  const [logo, backing] = await Promise.all([loadBadgeLogo(), loadBadgeBacking(), loadDigitalBadgeFont()]);
+
+  return { logo, backing };
+}
+
 /** Keep names complete and readable, with at most two balanced lines. */
 export function layoutDigitalBadgeName(context: CanvasRenderingContext2D, value: string): NameLayout {
   const normalized = value.trim().replace(/\s+/g, ' ');
@@ -202,7 +208,7 @@ export async function paintDigitalBadge(
   // Sharing labels are decorative; EMS alone determines admission eligibility.
   role: DigitalBadgeRole | null = null,
 ): Promise<NameLayout> {
-  const [logo, backing] = await Promise.all([loadBadgeLogo(), loadBadgeBacking(), loadDigitalBadgeFont()]);
+  const { logo, backing } = await loadDigitalBadgeAssets();
 
   canvas.width = 1080;
   canvas.height = 1350;
