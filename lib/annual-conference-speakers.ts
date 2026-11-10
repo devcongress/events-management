@@ -747,6 +747,26 @@ export async function createAnnualConferenceSession(
   return session;
 }
 
+export async function getAnnualConferenceSessionUpdateDetails(ids: string[]) {
+  const uniqueIds = [...new Set(ids)];
+
+  if (!uniqueIds.length) return [];
+  if (isSupabaseRuntimeEnabled()) {
+    const { data, error } = await getSupabaseAdminClient().from('annual_conference_sessions')
+      .select('id, availability_confirmed, headshot_url, headshot_photo_path, social_handle')
+      .in('id', uniqueIds);
+
+    if (error) throw new Error('Unable to load conference session details.');
+
+    return data;
+  }
+  const wanted = new Set(uniqueIds);
+
+  return (await readData<AnnualConferenceSession>(SESSIONS_FILE))
+    .filter(session => wanted.has(session.id))
+    .map(({ id, availability_confirmed, headshot_url, headshot_photo_path, social_handle }) => ({ id, availability_confirmed, headshot_url, headshot_photo_path, social_handle }));
+}
+
 export async function getAnnualConferenceSession(id: string): Promise<AnnualConferenceSession | undefined> {
   if (isSupabaseRuntimeEnabled()) {
     const { data, error } = await getSupabaseAdminClient().from('annual_conference_sessions').select('*').eq('id', id).maybeSingle();

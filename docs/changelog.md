@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-10 — Clarify managed checkout outcomes
+
+- Return buyer-safe hold, provider observation and whole-order refund context after checkout authorization, while preserving existing verification statuses and treating unresolved checks as unresolved.
+- Prefer durable paid or refund records to stale provider observations and recheck after verification errors or concurrent payment reconciliation.
+- 2026-11-10: Load speaker badge artwork alongside private badge data, use a smaller lossless backing image, and export the already rendered preview.
+
+- 2026-11-10: Show compact inline icons for speaker proposal email states, with proposal decisions visible in the mixed list.
+
+- 2026-11-10: Organize speaker drawer details into one page with compact sections and the EMS cream, paper, and pink palette.
+
 - 2026-11-09: Explain when a Paystack status check cannot run because its live or test configuration is missing.
 
 - 2026-11-09: Automatically check unresolved Paystack attempts with bounded diagnostic retries, and keep provider reasons compact in order lists.
@@ -23,6 +33,11 @@
 - 2026-11-09: Hide the complimentary seat-source selector when only new seats are available; show a capacity note instead. Keep the selector when sponsor allocations are available.
 
 - 2026-11-09: Show safe Paystack verification status and reasons to ticketing organizers, independently of EMS hold and payment lifecycle.
+
+## 2026-11-10 — Speaker update history and composer
+
+- Browse filtered, paginated speaker update history in a desktop table or labeled phone list, with recipient delivery summaries, and open drafts or immutable delivery details in a drawer. Use the compact message-type selector beneath the main speaker navigation. Update and preview drawers use the speaker workspace colors, focus treatment and restrained scrollbars.
+- Start a local blank, workspace reminder, or copied update; save before creating a record, and choose all eligible, missing-details, or individual recipients while retaining existing frozen preview and retry safeguards.
 
 ## 2026-11-09 — Ticketing navigation polish
 

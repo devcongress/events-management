@@ -3,16 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppBindings } from '@/server/http/app-bindings';
 
 const mocks = vi.hoisted(() => ({
-  admin: vi.fn(), session: vi.fn(), capability: vi.fn(), edition: vi.fn(), submissions: vi.fn(), link: vi.fn(), matches: vi.fn(),
-  list: vi.fn(), campaign: vi.fn(), deliveries: vi.fn(), save: vi.fn(), savePreview: vi.fn(), preview: vi.fn(), queue: vi.fn(), suppressed: vi.fn(),
+  admin: vi.fn(), session: vi.fn(), capability: vi.fn(), edition: vi.fn(), submissions: vi.fn(), link: vi.fn(), workspace: vi.fn(), matches: vi.fn(),
+  list: vi.fn(), campaign: vi.fn(), deliveries: vi.fn(), deliveryStatuses: vi.fn(), save: vi.fn(), savePreview: vi.fn(), preview: vi.fn(), queue: vi.fn(), suppressed: vi.fn(),
   audit: vi.fn(), env: vi.fn(), envelope: vi.fn(), configured: vi.fn(), rate: vi.fn(), send: vi.fn(), health: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/admin-auth', () => ({ requireAdmin: mocks.admin, getAdminSession: mocks.session }));
 vi.mock('@/lib/supabase/server', () => ({ isSupabaseRuntimeEnabled: () => true, getSupabaseAdminClient: vi.fn() }));
 vi.mock('@/server/annual-conference-request', () => ({ requireAnnualConferenceCapability: mocks.capability, getAnnualConferenceEditionByYear: mocks.edition }));
-vi.mock('@/lib/annual-conference-speakers', () => ({ getAnnualConferenceSpeakerSubmissions: mocks.submissions, getAnnualConferenceSpeakerIntakeLinkById: mocks.link, annualConferenceSpeakerWorkspaceTokenMatches: mocks.matches, annualConferenceSpeakerWorkspaceToken: () => 'token' }));
-vi.mock('@/lib/annual-conference-speaker-update-store', () => ({ listSpeakerUpdates: mocks.list, getSpeakerUpdate: mocks.campaign, listSpeakerUpdateDeliveries: mocks.deliveries, saveSpeakerUpdate: mocks.save, saveSpeakerUpdatePreview: mocks.savePreview, getSpeakerUpdatePreview: mocks.preview, queueSpeakerUpdate: mocks.queue, suppressedSpeakerUpdateEmails: mocks.suppressed }));
+vi.mock('@/lib/annual-conference-speakers', () => ({ getAnnualConferenceSpeakerSubmissions: mocks.submissions, getAnnualConferenceSessionUpdateDetails: mocks.workspace, getAnnualConferenceSpeakerIntakeLinkById: mocks.link, annualConferenceSpeakerWorkspaceTokenMatches: mocks.matches, annualConferenceSpeakerWorkspaceToken: () => 'token' }));
+vi.mock('@/lib/annual-conference-speaker-update-store', () => ({ listSpeakerUpdates: mocks.list, getSpeakerUpdate: mocks.campaign, listSpeakerUpdateDeliveries: mocks.deliveries, listSpeakerUpdateDeliveryStatuses: mocks.deliveryStatuses, saveSpeakerUpdate: mocks.save, saveSpeakerUpdatePreview: mocks.savePreview, getSpeakerUpdatePreview: mocks.preview, queueSpeakerUpdate: mocks.queue, suppressedSpeakerUpdateEmails: mocks.suppressed }));
 vi.mock('@/server/protected-mutation', () => ({ recordProtectedMutationAudit: mocks.audit }));
 vi.mock('@/server/env', () => ({ envValue: mocks.env }));
 vi.mock('@/server/routes/annual-conference-speakers/delivery', () => ({ annualConferenceSpeakerEmailEnvelope: mocks.envelope, annualConferenceEmailConfigured: mocks.configured }));
@@ -46,6 +46,8 @@ describe('speaker update owner routes', () => {
     mocks.edition.mockResolvedValue({ id: 'edition', year: 2026, label: 'DevCon26' });
     mocks.submissions.mockResolvedValue([submission]);
     mocks.link.mockResolvedValue(link);
+    mocks.workspace.mockResolvedValue([{ id: id2, availability_confirmed: true, headshot_url: null, headshot_photo_path: null, social_handle: null }]);
+    mocks.deliveryStatuses.mockResolvedValue([]);
     mocks.matches.mockReturnValue(true);
     mocks.list.mockResolvedValue([]);
     mocks.campaign.mockResolvedValue(campaign);
@@ -62,14 +64,27 @@ describe('speaker update owner routes', () => {
     const body = await response.json();
 
     expect(body.candidates).toEqual([
-      { id, name: 'Ama', email: 'ama@example.test', eligible: true, reason: null },
-      { id: id2, name: 'Ama', email: 'ama@example.test', eligible: false, reason: 'The private workspace link is unavailable.' },
+      { id, name: 'Ama', email: 'ama@example.test', eligible: true, reason: null, missing_workspace_details: ['headshot', 'socials'] },
+      { id: id2, name: 'Ama', email: 'ama@example.test', eligible: false, reason: 'The private workspace link is unavailable.', missing_workspace_details: ['headshot', 'socials'] },
     ]);
     mocks.suppressed.mockResolvedValue(new Set(['ama@example.test']));
     expect((await (await request('')).json()).candidates[0].reason).toContain('suppressed');
     mocks.suppressed.mockResolvedValue(new Set());
     mocks.link.mockResolvedValue({ ...link, revoked_at: '2026-11-04T00:00:00Z' });
     expect((await (await request('')).json()).candidates[0].eligible).toBe(false);
+  });
+
+  it('summarizes delivery statuses and workspace details using batched reads', async () => {
+    mocks.list.mockResolvedValue([{ ...campaign, state: 'complete' }]);
+    mocks.deliveryStatuses.mockResolvedValue([{ update_id: id, status: 'delivered' }, { update_id: id, status: 'failed' }]);
+    const response = await request('');
+    const body = await response.json();
+
+    expect(body.campaigns[0].delivery_summary).toEqual({ total: 2, statuses: { delivered: 1, failed: 1 } });
+    expect(body.candidates[0].missing_workspace_details).toEqual(['headshot', 'socials']);
+    expect(mocks.deliveryStatuses).toHaveBeenCalledOnce();
+    expect(mocks.workspace).toHaveBeenCalledOnce();
+    expect(mocks.deliveries).not.toHaveBeenCalled();
   });
 
   it('freezes personalized preview and rejects changed audience before enqueue', async () => {

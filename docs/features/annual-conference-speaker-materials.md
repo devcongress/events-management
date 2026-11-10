@@ -23,3 +23,5 @@ The local migration `20261103130000_speaker_private_details.sql` adds the three 
 The Participation storage readout requires the forward migration `20261103140000_speaker_badge_storage_usage.sql`. Its aggregate is callable only by the service role; the organizer endpoint requires `speakers.view`. If the query is unavailable, the readout offers a retry without blocking participation management.
 
 The headshot workspace requires `20261105130000_speaker_headshot_workspace.sql`. It adds a private photo reference and revision to conference sessions and prevents a saved upload and external link from being selected simultaneously. Existing links remain intact. Apply and verify this additive migration through the migration delivery process before deploying this feature; implementation and browser previews do not apply it.
+
+Organizers can find the badge preview, headshot, and uploaded files together in the speaker drawer’s Assets section. The Assets section is visible alongside Logistics and Speaker workspace in the Participation drawer.
