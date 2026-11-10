@@ -340,3 +340,21 @@ it('renders deterministic test PDF bytes for safe provider retries', async () =>
 
   expect(Buffer.from(first).equals(Buffer.from(second))).toBe(true);
 });
+
+it('uses the injected database and provider for a standalone batch', async () => {
+  const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => ({
+    error: null,
+    data: name === 'lease_admission_dispatch' || name === 'admission_send_slot' || name === 'annual_conference_email_allowed' ? true
+      : name === 'claim_annual_conference_ticket_email_outbox' ? [delivery]
+        : name === 'complete_test_email_context' ? { is_test: false, allowed: true }
+          : name === 'freeze_annual_conference_admission_email' ? args.p_payload : null,
+  }));
+  const client = { rpc, from: vi.fn() } as unknown as ReturnType<typeof import('@/lib/supabase/server').getSupabaseAdminClient>;
+  const fetcher = vi.fn() as unknown as typeof fetch;
+
+  expect(await retryAnnualConferenceAdmissionEmails({} as Context, { managed: true, client, fetcher })).toMatchObject({ accepted: 1 });
+  expect(rpc).toHaveBeenCalledWith('complete_test_email_context', expect.any(Object));
+  expect(rpc).toHaveBeenCalledWith('annual_conference_email_allowed', expect.any(Object));
+  expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ fetcher }));
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});

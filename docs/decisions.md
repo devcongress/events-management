@@ -1617,3 +1617,13 @@ The DevCon26 website reads an allowlisted projection of the saved 2026 programme
 **Why:** A derived total avoids manual estimate/actual drift and duplicate webhook increments. Provider observations explain checkout outcomes without treating an expired inventory hold as a failed payment.
 
 **Boundaries:** Test, pending, unfulfilled, and complimentary orders do not increase the public purchase count; confirmed refund units reduce it. Diagnostics never issue tickets or send emails, and missing or failed checks retain the last known result. Deploy the compatible website reader before changing the public counter response.
+
+## Standalone admission recovery ownership
+
+**Date:** 2026-11-10
+
+**Decision:** Allow a separately operated Bun process to own background ticket-email recovery through PostgreSQL, using the existing delivery policy, frozen provider payload, idempotency key, and database dispatch lease. Keep immediate email attempts and payment and broadcast queue paths unchanged.
+
+**Why:** An independent, due-aware recovery loop avoids coupling ticket recovery cadence to the shared broadcast queue while preserving its established delivery safety boundaries.
+
+**Boundaries:** The Worker defaults to queue ownership until explicitly switched. Definite provider rejections require operator review; ambiguous outcomes retain retry with the original key within 23 hours. A migration and separately verified target configuration precede any deployment or ownership change.

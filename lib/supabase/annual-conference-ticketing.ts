@@ -431,6 +431,8 @@ export interface AnnualConferenceTicketEmailDelivery {
   provider_email_id: string | null;
   last_error: string | null;
   next_attempt_at: string;
+  failure_kind?: string | null;
+  first_attempt_at?: string | null;
   accepted_at: string | null;
   delivered_at: string | null;
   created_at: string;
@@ -681,6 +683,8 @@ export function ticketEmailDeliveryForOperator(row: AnnualConferenceTicketEmailD
     provider_email_id: row.provider_email_id,
     last_error: row.last_error,
     next_attempt_at: row.next_attempt_at,
+    failure_kind: row.failure_kind,
+    first_attempt_at: row.first_attempt_at,
     accepted_at: row.accepted_at,
     delivered_at: row.delivered_at,
     created_at: row.created_at,
@@ -704,7 +708,7 @@ export async function listSupabaseAnnualConferenceTicketEmailDeliveries(input: {
   let query = getSupabaseAdminClient(c)
     .from('annual_conference_ticket_email_outbox')
     // Never expose the email payload, idempotency key, QR capability, or claim lease.
-    .select('id, order_id, kind, recipient_name, recipient_email, status, attempt_count, provider_email_id, last_error, next_attempt_at, accepted_at, delivered_at, created_at, updated_at', { count: 'exact' })
+    .select('id, order_id, kind, recipient_name, recipient_email, status, attempt_count, provider_email_id, last_error, next_attempt_at, failure_kind, first_attempt_at, accepted_at, delivered_at, created_at, updated_at', { count: 'exact' })
     .eq('edition_id', input.editionId)
     .order('created_at', { ascending: false })
     .range(from, to);
@@ -719,7 +723,7 @@ export async function listSupabaseAnnualConferenceTicketEmailDeliveries(input: {
   if (result.error) throw new Error(result.error.message);
 
   return {
-    deliveries: (result.data ?? []).map((delivery) => ticketEmailDeliveryForOperator(delivery as AnnualConferenceTicketEmailDeliveryRow)),
+    deliveries: (result.data ?? []).map((delivery) => ticketEmailDeliveryForOperator(delivery as unknown as AnnualConferenceTicketEmailDeliveryRow)),
     total: result.count ?? 0,
   };
 }

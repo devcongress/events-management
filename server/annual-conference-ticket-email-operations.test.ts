@@ -75,3 +75,13 @@ describe('annual conference ticket email delivery operations', () => {
     expect(delivery).toMatchObject({ id: 'delivery-1', status: 'queued', attempt_count: 2 });
   });
 });
+
+it('parks definite rejections without reviving cancelled or aged deliveries', () => {
+  const recovery = readFileSync(new URL('../supabase/migrations/20261110120000_admission_recovery_runner.sql', import.meta.url), 'utf8');
+
+  expect(recovery).toContain("when p_kind = 'rejected' then 'infinity'::timestamptz");
+  expect(recovery).toContain("delivery.last_error = 'Delivery needs review before retry.'");
+  expect(recovery).toContain('delivery.provider_payload is not null');
+  expect(recovery).toContain("delivery.first_attempt_at > now() - interval '23 hours'");
+  expect(recovery).toContain('next_annual_conference_admission_recovery_at');
+});

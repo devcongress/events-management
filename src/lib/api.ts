@@ -420,6 +420,8 @@ export interface AnnualConferenceTicketEmailDelivery {
   provider_email_id: string | null;
   last_error: string | null;
   next_attempt_at: string;
+  failure_kind?: string | null;
+  first_attempt_at?: string | null;
   accepted_at: string | null;
   delivered_at: string | null;
   created_at: string;

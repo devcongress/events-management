@@ -158,7 +158,7 @@ describe('annual conference ticketing operations UI', () => {
 
   it('preserves status choices, filtered counts, and page resets through the dropdown', () => {
     for (const [value, label] of [
-      ['all', 'All'], ['failed', 'Needs review'], ['queued', 'Queued'], ['accepted', 'Accepted'], ['delivered', 'Delivered'],
+      ['all', 'All'], ['failed', 'Failed'], ['queued', 'Queued'], ['accepted', 'Accepted'], ['delivered', 'Delivered'],
     ]) {
       expect(ticketingSource).toContain(`{ value: '${value}', label: '${label}' }`);
     }

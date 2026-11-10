@@ -85,7 +85,18 @@ export async function sendResendAttachedEmail(input: {
   }).catch(() => { throw new ResendDeliveryError('ambiguous'); });
 
   if (!response.ok) {
-    throw new ResendDeliveryError(response.status === 429 ? 'throttled' : response.status >= 500 ? 'ambiguous' : 'rejected', resendRetryAfter(response.headers.get('retry-after')));
+    const body = await response.json().catch(() => null);
+    const name = typeof body?.name === 'string' ? body.name : '';
+    const definiteRejections = new Set([
+      'validation_error', 'invalid_from_address', 'missing_required_field', 'invalid_parameter',
+      'invalid_api_key', 'restricted_api_key', 'invalid_access', 'domain_not_found',
+    ]);
+    const kind = response.status === 429 ? 'throttled'
+      : response.status === 408 || response.status >= 500 ? 'ambiguous'
+        : response.status === 409 ? (name === 'invalid_idempotent_request' ? 'rejected' : 'ambiguous')
+          : response.status >= 400 && response.status < 500 && definiteRejections.has(name) ? 'rejected' : 'ambiguous';
+
+    throw new ResendDeliveryError(kind, resendRetryAfter(response.headers.get('retry-after')));
   }
 
   const parsed = resendIdResponseSchema.safeParse(await response.json().catch(() => null));

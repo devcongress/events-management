@@ -9,6 +9,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "deploy:worker": "pnpm verify:migrations && wrangler deploy",
     "start": "bun run server/index.ts",
+    "ticket-email-recovery": "bun --no-env-file run server/ticket-email-recovery/runner.ts",
     "atlas": "SCENARIO_ATLAS_PORT=4178 bun run tools/scenario-atlas/server.ts",
     "atlas:test": "vitest run tools/scenario-atlas && bun test tools/scenario-atlas/engine/database.bun.test.ts",
     "typecheck": "vue-tsc --noEmit && tsc -p scripts/tsconfig.migration-gate.json",

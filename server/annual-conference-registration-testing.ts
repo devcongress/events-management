@@ -34,8 +34,7 @@ export function localRegistrationRequest(c: Context) {
   return envValue('NODE_ENV', c) === 'development' && loopback(c.req.url) && loopback(c.req.header('Origin'));
 }
 
-export async function allowConferenceEmail(c: Context, kind: 'admission' | 'social' | 'update', id: string, email: string, claim: string) {
-  const client = getSupabaseAdminClient(c);
+export async function allowConferenceEmail(c: Context, kind: 'admission' | 'social' | 'update', id: string, email: string, claim: string, client = getSupabaseAdminClient(c)) {
   const result = await client.rpc('annual_conference_email_allowed' as never, {
     p_kind: kind, p_id: id, p_email: email, p_testing_only: envValue('NODE_ENV', c) === 'development',
   } as never);

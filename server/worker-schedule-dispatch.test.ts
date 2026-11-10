@@ -202,3 +202,22 @@ it('isolates seed and continuation enqueue failures while retaining HTTP retry b
   await expect(worker.queue({ messages: [{ body: { kind: 'payment-recovery' } }] }, env, context)).rejects.toThrow('Checkout recovery job failed.');
   log.mockRestore();
 });
+
+it('transfers only admission recovery ownership to postgres', async () => {
+  appFetch.mockClear();
+  const send = vi.fn().mockResolvedValue(undefined);
+  const postgresEnv = { ...env, ADMISSION_RECOVERY_OWNER: 'postgres', EVENT_BLAST_PREPARATION_QUEUE: { send } };
+
+  await worker.scheduled({ scheduledTime: 0 }, postgresEnv, context);
+  expect(send.mock.calls.map(([body]) => body.kind)).toEqual(['payment-diagnostics', 'payment-recovery']);
+  appFetch.mockClear();
+  await worker.queue({ messages: [{ body: { kind: 'admission-recovery' } }] }, postgresEnv, context);
+  expect(appFetch).not.toHaveBeenCalled();
+  expect(send).toHaveBeenCalledTimes(2);
+  appFetch.mockResolvedValueOnce(Response.json({ checked: 0, failed: 0 }));
+  await worker.queue({ messages: [{ body: { kind: 'payment-recovery' } }] }, postgresEnv, context);
+  expect(new URL(appFetch.mock.calls[0][0].url).pathname).toBe('/api/internal/managed-payments/reconcile');
+  appFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+  await worker.queue({ messages: [{ body: { event_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', blast_id: '11111111-1111-4111-8111-111111111111', offset: 0 } }] }, postgresEnv, context);
+  expect(new URL(appFetch.mock.calls[1][0].url).pathname).toBe('/api/internal/event-blasts/prepare');
+});

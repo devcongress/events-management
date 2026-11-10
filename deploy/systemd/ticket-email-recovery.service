@@ -1,0 +1,21 @@
+[Unit]
+Description=EMS admission email recovery runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ems-recovery
+WorkingDirectory=/opt/events-management
+EnvironmentFile=/etc/ems/ticket-email-recovery.env
+ExecStart=/usr/local/bin/bun --no-env-file run server/ticket-email-recovery/runner.ts
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=600
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
