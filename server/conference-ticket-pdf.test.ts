@@ -24,6 +24,8 @@ describe('combined preview ticket email', () => {
     expect(attachment.content_type).toBe('application/pdf');
     expect((await PDFDocument.load(Buffer.from(attachment.content, 'base64'))).getPages()).toHaveLength(1);
     expect(email.text).toContain(badgeUrl);
+    expect(email.text).toContain('Accra Digital Center');
+    expect(email.html).toContain('Accra Digital Center');
     expect(email.subject.startsWith('[TEST]')).toBe(isTest);
     expect(email.text.includes('TEST ONLY')).toBe(isTest);
     expect(email.html.includes('No money was charged')).toBe(isTest);

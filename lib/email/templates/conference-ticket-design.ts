@@ -9,3 +9,5 @@ export const conferenceTicketDesign = {
   radius: 8,
   space: 8,
 } as const;
+
+export const DEVCON26_TICKET_VENUE = 'Accra Digital Center';

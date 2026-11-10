@@ -243,7 +243,7 @@ it('includes the private badge editor and event details alongside the preview QR
   expect(email.text).toContain(badgeUrl);
   expect(email.html).toContain('Create your conference badge');
   expect(email.text).toContain('19 December 2026');
-  expect(email.text).toContain('Ghana Digital Center, Accra');
+  expect(email.text).toContain('Accra Digital Center');
   expect(email.attachments).toHaveLength(1);
   const png = PNG.sync.read(Buffer.from(email.attachments![0].content, 'base64'));
 
@@ -276,7 +276,7 @@ it('sends ticket QR and independent badge access after the separate badge email 
   const grant = decodeURIComponent(email.html.match(/buyer_grant=([^"]+)/)![1]);
 
   expect(verifyAnnualConferenceSocialCardBuyerGrant({ grant, origin: 'https://preview.account.workers.dev', secretKey: 'sk_test_fixture' })).toMatchObject({ order_id: delivery.id, seat_numbers: [3] });
-  expect(email.html).toContain('Ghana Digital Center');
+  expect(email.html).toContain('Accra Digital Center');
   expect(mocks.rpc).toHaveBeenCalledWith('finalize_complete_test_only_admission_email', expect.objectContaining({ p_origin: 'https://preview.account.workers.dev', p_status: 'accepted' }));
 });
 
@@ -323,6 +323,8 @@ it('renders a complimentary PDF and individual badge link without a paid-order l
   'events@example.test', 'help@example.test', 'https://devcongress.org');
 
   expect(content.text).toContain('no payment required');
+  expect(content.text).toContain('Accra Digital Center');
+  expect(content.html).toContain('Accra Digital Center');
   expect(content.text).toContain(`https://devcongress.org/devcon26/social-card/#${capability}`);
   expect(content.attachments).toHaveLength(1);
   expect(content.attachments?.[0].content_type).toBe('application/pdf');
