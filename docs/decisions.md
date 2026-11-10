@@ -1,5 +1,13 @@
 # Architectural Decisions
 
+## ADR-127: Keep the editable starting count separate from net ticket purchases
+
+**Date:** 2026-11-10
+
+**Decision:** Store an Owner-editable starting count per edition and default to 20. The public total adds the starting count to the existing net live paid quantity. Writes use the settings version so a stale edit cannot overwrite a newer one.
+
+**Why:** Organizers can adjust the public display while payments and refunds remain authoritative for the purchased portion. A separate read RPC preserves compatibility with older EMS instances during rollout, and the website keeps its existing public response shape.
+
 ## ADR-126: Grant restricted access by conference edition and workspace
 
 **Date:** 2026-11-08

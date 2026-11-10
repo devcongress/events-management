@@ -719,6 +719,9 @@ try {
 
   await journey("devcon26-attendance-counter-owner", async ({ page, responses, requests }) => {
     const ownerPath = "/api/annual-conference/2026/attendance-counter";
+    let saved = { count: 25, source: "ticket_count", baseline: 20, purchases: 5, version: 0 };
+    let saveUnavailable = true;
+    let saveConflict = false;
 
     responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
     responses.set("/api/admin/organizers", { body: { organizers: [] } });
@@ -727,15 +730,84 @@ try {
     responses.set('/api/annual-conference/2026/registrations', { body: { overview: { mode: 'free', status: 'open', capacity: 150, reserved: 0, confirmed: 0, waitlisted: 0 }, registrations: [] } });
     responses.set('/api/annual-conference/2026/registrations/testing', { body: { enabled: false, tester_emails: [], local_delivery: false } });
     responses.set('/api/annual-conference/2026/registrations/blasts', { body: { blasts: [] } });
-    responses.set(ownerPath, { body: { count: 25, source: "ticket_count", baseline: 20, purchases: 5 } });
+    responses.set(ownerPath, (request) => {
+      if (request.method() === "GET") return { body: saved };
+      assert.equal(request.method(), "PATCH");
+      const input = request.postDataJSON();
+
+      if (saveConflict) {
+        assert.deepEqual(input, { baseline: 40, version: 1 });
+        saved = { ...saved, count: 41, baseline: 36, version: 2 };
+
+        return { status: 409, body: { error: "Conflict" } };
+      }
+      assert.deepEqual(input, { baseline: 32, version: 0 });
+      if (saveUnavailable) return { status: 503, body: { error: "Ticket counter is temporarily unavailable." } };
+      saved = { ...saved, count: input.baseline + saved.purchases, baseline: input.baseline, version: 1 };
+
+      return { body: saved };
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`${origin}/organizer-console/annual-conference/2026/registrations`);
     const counter = page.getByRole("region", { name: "Public ticket counter" });
 
     await page.getByRole('heading', { name: 'Registration overview' }).waitFor();
     await counter.getByText('25 displayed').waitFor();
-    await counter.getByText('20 starting count + 5 net purchased tickets').waitFor();
-    assert.equal(await counter.getByRole('button', { name: /publish|switch|confirm/i }).count(), 0);
-    assert.equal(requests.some((request) => request.path === ownerPath && request.method !== 'GET'), false);
+    await counter.getByText('20 starting + 5 net purchased').waitFor();
+    const startingCount = counter.getByRole("spinbutton", { name: "Starting count", exact: true });
+    const edit = counter.getByRole("button", { name: "Edit", exact: true });
+    const save = counter.getByRole("button", { name: "Save", exact: true });
+
+    await edit.click();
+    assert.equal(await startingCount.evaluate((element) => element === document.activeElement), true);
+    const inputBox = await startingCount.boundingBox();
+    const saveBox = await save.boundingBox();
+    const cancelBox = await counter.getByRole("button", { name: "Cancel", exact: true }).boundingBox();
+
+    assert.ok(inputBox && saveBox && cancelBox);
+    assert.ok(Math.abs(inputBox.y - saveBox.y) < 10 && Math.abs(inputBox.y - cancelBox.y) < 10, JSON.stringify({ inputBox, saveBox, cancelBox }));
+    assert.equal(await startingCount.inputValue(), "20");
+    assert.equal(await save.isDisabled(), true);
+    assert.equal(requests.some((request) => request.path === ownerPath && request.method !== "GET"), false);
+    await startingCount.fill("30");
+    await counter.getByRole("button", { name: "Cancel", exact: true }).click();
+    assert.equal(await edit.evaluate((element) => element === document.activeElement), true);
+    await edit.click();
+    assert.equal(await startingCount.inputValue(), "20");
+    await startingCount.fill("32");
+    await save.click();
+    await counter.getByRole("alert").waitFor();
+    assert.equal(await startingCount.inputValue(), "32");
+    assert.equal(await counter.getByText("25 displayed").isVisible(), true);
+    saveUnavailable = false;
+    await save.click();
+    await counter.getByText("37 displayed").waitFor();
+    await counter.getByText("32 starting + 5 net purchased").waitFor();
+    assert.equal(requests.filter((request) => request.path === ownerPath && request.method === "PATCH").length, 2);
+    await page.reload();
+    await counter.getByText("37 displayed").waitFor();
+    await edit.click();
+    assert.equal(await startingCount.inputValue(), "32");
+    saveConflict = true;
+    await startingCount.fill("40");
+    await save.click();
+    await counter.getByRole("alert").waitFor();
+    assert.equal(await startingCount.inputValue(), "40");
+    await counter.getByRole("button", { name: "Reload latest count" }).click();
+    await counter.getByText("41 displayed").waitFor();
+    assert.equal(await edit.evaluate((element) => element === document.activeElement), true);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await edit.evaluate((element) => element.scrollIntoView({ block: "end" }));
+    const editGeometry = await edit.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      const navigationTop = document.querySelector(".conference-phone-bottom")?.getBoundingClientRect().top ?? window.innerHeight;
+
+      return { top: rect.top, bottom: rect.bottom, navigationTop, hit: hit?.outerHTML.slice(0, 200), visible: rect.left >= 0 && rect.right <= window.innerWidth && rect.top >= 0
+        && rect.bottom <= navigationTop && (hit === element || element.contains(hit)) };
+    });
+
+    assert.equal(editGeometry.visible, true, JSON.stringify(editGeometry));
   }, { role: "owner" });
 
   await journey('button-hover-feedback', async ({ page, responses }) => {

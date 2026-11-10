@@ -22,9 +22,11 @@ The forward migration `20261108120000_complimentary_conference_tickets.sql`, `20
 
 ## Public ticket counter
 
-The DevCon26 Registration summary shows the public count and, for Owners, its read-only breakdown: a starting count of 20 plus fulfilled live ticket quantities, less confirmed refunded units. All historical and future paid orders count, including unclaimed flexible and community tickets. Pending, failed, unfulfillable, refunded and test orders, free registrations, and complimentary tickets do not count. This display does not affect capacity or check-in.
+The DevCon26 **Registration → Summary** page shows the public count. Owners can edit the starting count in **Public ticket counter**. It defaults to 20. The displayed count is the saved starting count plus fulfilled live ticket quantities, less confirmed refunded units. All historical and future paid orders count, including unclaimed flexible and community tickets. Pending, failed, unfulfillable, fully refunded and test orders, free registrations, and complimentary tickets do not count. Editing the starting count changes the public display only.
 
-The public `GET /api/public/annual-conference/2026/attendance-counter` returns only `{ "count": 20, "source": "ticket_count" }` and uses `Cache-Control: no-store`. Hide the display on an error. Deploy the compatible website reader and relay first, then apply and verify `20261109130000_automatic_ticket_counter.sql` and deploy the matching EMS route. Manual configuration is disabled by the migration.
+The public `GET /api/public/annual-conference/2026/attendance-counter` continues to return only `{ "count": 20, "source": "ticket_count" }` with `Cache-Control: no-store`. The website picks up the saved total on its existing refresh cycle. The Owner route returns the starting count, net purchases and settings version. A stale save returns a conflict so the Owner can reload the latest setting.
+
+Apply and verify `20261110130000_editable_attendance_baseline.sql` before deploying the matching EMS route. The migration preserves the original counter RPC so older EMS instances can still serve their fixed-baseline total during rollout.
 
 ## Test coupon monitoring (2026-11-09)
 

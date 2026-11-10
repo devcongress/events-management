@@ -124,8 +124,9 @@ same line while preserving touch targets, wrapping, and desktop truncation.
 **Programme outline:** Present saved sessions as compact rows with a non-breaking time range and a restrained type label. In edit mode keep time, title, type, and row actions visible; use the time picker for a start and duration, with an editable minute stepper and an optional previous-session shortcut; disclose descriptions and resources on demand. Keep the programme heading and top editing controls sticky beneath conference navigation on desktop and at the top of the phone scroll region. Keep Add, Save, and Cancel together in that heading. Confirm draft row removal in a desktop dialog or phone bottom sheet; destructive actions use the shared destructive color token.
 
 **Attendance counter:** Place the independent counter on the 2026 Registration
-summary. Show the read-only count and its starting-count and net-purchases breakdown;
-keep the values legible at phone widths.
+summary as one compact row. Keep the total and starting-count/net-purchases
+breakdown legible at phone widths. Owners reveal the inline starting-count field
+with a quiet Edit action; keep the total visible while editing.
 
 **Conference scrolling:** On desktop, breadcrumbs stay at the top of the main
 scroll container. The conference header sticks beneath their measured height.
