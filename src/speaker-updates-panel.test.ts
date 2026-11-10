@@ -75,6 +75,7 @@ async function mount(count: number) {
   const candidates = Array.from({ length: count }, (_, index) => ({ id: String(index), name: `Speaker ${index}`, email: `${index}@example.com`, eligible: index !== 1 }));
 
   vi.mocked(fetchJson).mockResolvedValue({ campaigns: [], candidates, default_draft: {}, sending_enabled: true });
+  vi.stubGlobal('HTMLElement', class {});
   vi.stubGlobal('document', { body: { style: {} }, documentElement: { style: {} }, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   const { descriptor } = parse(readFileSync(new URL('./components/SpeakerUpdatesPanel.vue', import.meta.url), 'utf8'));
   const bindings = compileScript(descriptor, { id: 'speaker-updates-test' }).bindings;
@@ -119,6 +120,54 @@ describe('speaker update recipients', () => {
     expect(state.selected.at(-1)).toBe('100');
     expect(state.partiallySelected).toBe(true);
     expect(state.allEligibleSelected).toBe(false);
+  });
+
+  it('starts locally, copies content, and selects only eligible speakers missing details', async () => {
+    const { state } = await mount(3);
+    const callsBefore = vi.mocked(fetchJson).mock.calls.length;
+
+    state.candidates[0].missing_workspace_details = ['headshot'];
+    state.candidates[1].missing_workspace_details = ['socials'];
+    state.campaigns = [{ id: 'prior', subject: 'Previous', message: 'Visit {workspace_url}', state: 'complete', version: 1, created_at: '', updated_at: '' }];
+    state.createDraft();
+    expect(state.campaign.id).toBe('');
+    expect(vi.mocked(fetchJson).mock.calls.length).toBe(callsBefore);
+    state.applyStartingPoint('prior');
+    expect(state.campaign.subject).toBe('Previous');
+    expect(state.campaign.id).toBe('');
+    state.setAudience('missing');
+    expect(state.selected).toEqual(['0']);
+    state.historyFilter = 'sent';
+    expect(state.filteredCampaigns.map((item: { id: string }) => item.id)).toEqual(['prior']);
+  });
+
+  it('discards a closed draft and resets audience when reopening', async () => {
+    const { state } = await mount(2);
+    const campaign = { id: 'draft', subject: 'Saved', message: 'Visit {workspace_url}', state: 'draft', version: 1, created_at: '', updated_at: '' };
+
+    vi.stubGlobal('window', { confirm: () => true });
+    vi.mocked(fetchJson).mockResolvedValueOnce({ campaign, deliveries: [] });
+    await state.openCampaign('draft');
+    state.campaign.subject = 'Changed';
+    state.audienceMode = 'all';
+    state.closeDetails();
+    expect(state.campaign).toBeNull();
+    vi.mocked(fetchJson).mockResolvedValueOnce({ campaign: { ...campaign, subject: 'Saved' }, deliveries: [] });
+    await state.openCampaign('draft');
+    expect(state.campaign.subject).toBe('Saved');
+    expect(state.audienceMode).toBe('selected');
+    expect(state.selected).toEqual([]);
+  });
+
+  it('shows draft delivery without repeating the status and preserves delivery counts', async () => {
+    const { state } = await mount(2);
+    const draft = { state: 'draft' };
+    const sent = { state: 'complete', delivery_summary: { total: 2, statuses: { delivered: 1, failed: 1 } } };
+
+    expect(state.historyLabel(draft)).toBe('Draft');
+    expect(state.historySummary(draft)).toBe('Not sent');
+    expect(state.historyLabel(sent)).toBe('Needs attention');
+    expect(state.historySummary(sent)).toBe('2 recipients · 1 delivered, 1 failed');
   });
 
   it('only renders the test recipient form in test mode', async () => {

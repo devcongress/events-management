@@ -5,6 +5,7 @@ import { cors } from 'hono/cors';
 import { z } from 'zod';
 import { MANAGED_CHECKOUT_PATH as path, MANAGED_PAYMENT_WEBHOOK_PATH, MANAGED_PROCESSING_FEE_POLICY, MANAGED_PROCESSING_FEE_ROUNDING, managedCheckoutInitializeSchema, managedCheckoutMaximumQuantity, managedCheckoutOrigin, managedCheckoutProcessingFeeQuote, managedCheckoutVerifySchema, managedPaymentReference, managedPaymentSecret } from '@/lib/managed-conference-checkout';
 import { createPaystackHostedCheckout, isPaystackCheckoutUrl, verifyPaystackWebhookSignature } from '@/lib/annual-conference-ticket-payments';
+import { managedCheckoutOutcome } from '@/server/managed-checkout-outcome';
 import { devcon26CartAllocationsForStorage, devcon26AvailablePaymentProviders, PAYSTACK_MAX_TRANSACTION_MINOR } from '@/lib/devcon26-ticket-cart';
 import { createDevcon26FlexibleCheckoutGrant, verifyDevcon26FlexibleCheckoutGrant } from '@/lib/devcon26-flexible-checkout-grant';
 import { createAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
@@ -226,9 +227,26 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
       const orderLimit = await enforcePublicRateLimit(c, { action: 'managed-checkout-order-verify', clientKey: order.id, maxAttempts: 20, windowSeconds: 300 }, 'Please wait before checking this payment again.');
 
       if (orderLimit) return orderLimit;
-      const confirmation = await confirmManagedCheckout(c, order, input.data.reference);
+      let outcome = await managedCheckoutOutcome(c, order.id);
+      let confirmation: { status: string };
 
-      if (confirmation.status !== 'verified') return c.json({ mode: order.payment_mode, status: confirmation.status === 'expired' ? 'failed' : confirmation.status });
+      if (outcome.refund_status) confirmation = { status: 'refund_required' };
+      else if (outcome.checkout_hold.status === 'paid') confirmation = { status: 'verified' };
+      else {
+        try {
+          confirmation = await confirmManagedCheckout(c, order, input.data.reference);
+        } catch {
+          outcome = await managedCheckoutOutcome(c, order.id);
+          if (outcome.refund_status) confirmation = { status: 'refund_required' };
+          else if (outcome.checkout_hold.status === 'paid') confirmation = { status: 'verified' };
+          else return c.json({ error: 'Checkout is temporarily unavailable. No new payment was confirmed.', ...outcome }, 503);
+        }
+        outcome = await managedCheckoutOutcome(c, order.id);
+        if (outcome.refund_status) confirmation = { status: 'refund_required' };
+        else if (outcome.checkout_hold.status === 'paid') confirmation = { status: 'verified' };
+      }
+
+      if (confirmation.status !== 'verified') return c.json({ mode: order.payment_mode, status: confirmation.status === 'expired' ? 'failed' : confirmation.status, ...outcome });
       await dispatchManagedConferenceEmails(c);
       const summary = await getSupabaseAnnualConferencePaidOrderSummary(order.id, c);
 
@@ -243,7 +261,7 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
         ? { card_quantity: 1, can_return_later: true, buyer_grant: createAnnualConferenceSocialCardBuyerGrant({ orderId: order.id, verifier: input.data.checkout_verifier, origin, secretKey, seatNumbers: [seat] }) }
         : { card_quantity: 0 };
 
-      return c.json({ ...summary, ...badge, mode: order.payment_mode, status: 'verified' });
+      return c.json({ ...summary, ...badge, mode: order.payment_mode, status: 'verified', ...outcome });
     } catch (error) {
       return managedCheckoutFailure(c, error);
     }

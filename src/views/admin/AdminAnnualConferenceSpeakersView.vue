@@ -382,15 +382,34 @@ function formatSubmittedAt(value: string): string {
   return new Intl.DateTimeFormat('en-GH', { day: 'numeric', month: 'short' }).format(new Date(value));
 }
 
-function deliveryLabel(submission: ConferenceSubmission): string {
-  if (!['selected', 'not_selected'].includes(submission.status)) return 'No decision email';
-  if (submission.decision_email_status === 'pending' && !submission.decision_email_attempt_count) return submission.decision_email_queued_at ? 'Queued' : 'Ready to preview';
-  const labels: Record<string, string> = {
-    pending: 'Sending', accepted: 'Accepted by provider', delivered: 'Delivered', delayed: 'Delivery delayed',
-    failed: 'Needs attention', bounced: 'Bounced', suppressed: 'Suppressed', complained: 'Complaint',
-  };
+type ProposalStatusDisplay = { label: string; icon: string; tone?: string };
 
-  return labels[submission.decision_email_status ?? ''] ?? 'Not sent';
+const deliveryStatuses = {
+  preview: { label: 'Ready to preview', icon: 'M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Zm12.5 0a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z' },
+  queued: { label: 'Queued', icon: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2' },
+  pending: { label: 'Sending', icon: 'm22 2-7 20-4-9-9-4 20-7ZM22 2 11 13' },
+  accepted: { label: 'Accepted by provider', icon: 'M3 6h18v12H3zM3 7l9 6 9-6' },
+  delivered: { label: 'Delivered', icon: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM8 12l3 3 5-6', tone: 'text-emerald-700' },
+  delayed: { label: 'Delivery delayed', icon: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM10 8v8m4-8v8', tone: 'text-amber-700' },
+  failed: { label: 'Needs attention', icon: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v6m0 3h.01', tone: 'text-red-700' },
+  bounced: { label: 'Bounced', icon: 'M9 6l-5 5 5 5M4 11h10a5 5 0 0 1 5 5v2', tone: 'text-red-700' },
+  suppressed: { label: 'Suppressed', icon: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM6 6l12 12', tone: 'text-red-700' },
+  complained: { label: 'Complaint', icon: 'M5 21V4c6-4 8 4 14 0v10c-6 4-8-4-14 0', tone: 'text-red-700' },
+  unsent: { label: 'Not sent', icon: 'M3 6h18v12H3zM9 12h6' },
+};
+
+function deliveryStatus(submission: ConferenceSubmission): ProposalStatusDisplay {
+  if (submission.decision_email_status === 'pending' && !submission.decision_email_attempt_count) {
+    return submission.decision_email_queued_at ? deliveryStatuses.queued : deliveryStatuses.preview;
+  }
+
+  return deliveryStatuses[submission.decision_email_status ?? 'unsent'] ?? deliveryStatuses.unsent;
+}
+
+function deliveryLabel(submission: ConferenceSubmission): string {
+  if (submission.status !== 'selected' && submission.status !== 'not_selected') return 'No decision email';
+
+  return deliveryStatus(submission).label;
 }
 
 const deliveryTime = new Intl.DateTimeFormat('en-GH', {
@@ -423,9 +442,24 @@ function mobileProposalStatusLabel(status: SpeakerSubmissionStatus): string {
   return { submitted: 'Pending', selected: 'Approved', not_selected: 'Rejected', withdrawn: 'Withdrawn' }[status];
 }
 
-function proposalStatusLabel(status: SpeakerSubmissionStatus): string {
-  return status === 'not_selected' ? 'Not selected' : status;
-}
+const proposalRows = computed(() => paginatedSubmissions.value.map((submission) => {
+  const decision = mobileProposalStatusLabel(submission.status);
+
+  if (submission.status === 'selected' || submission.status === 'not_selected') {
+    return { submission, decision, status: deliveryStatus(submission) };
+  }
+
+  return {
+    submission,
+    decision: '',
+    status: {
+      label: decision,
+      icon: submission.status === 'withdrawn'
+        ? 'M6 6l12 12M18 6 6 18'
+        : 'M5 3h10l4 4v14H5zM14 3v5h5M8 12h8m-8 4h5',
+    },
+  };
+}));
 
 function toLocalDateTimeInput(value: string): string {
   const date = new Date(value);
@@ -448,7 +482,7 @@ function toLocalDateTimeInput(value: string): string {
       <BoneyardPageSkeleton v-else-if="speakersQuery.isLoading.value" name="annual-conference-speakers" label="conference speakers" layout="table" />
 
       <template v-else-if="speakersQuery.data.value">
-        <div class="speakers-header">
+        <div class="speakers-header" :class="{ 'speakers-header--messages': activeSection === 'outcome-messages' }">
           <section class="speakers-heading border-b-2 border-dc-ink pb-3">
             <div>
               <p class="editorial-eyebrow">{{ speakersQuery.data.value.edition.label }}</p>
@@ -499,6 +533,7 @@ function toLocalDateTimeInput(value: string): string {
               </svg>
             </template>
           </WorkspaceSectionNav>
+          <WorkspaceSectionNav v-if="canSendEmail && activeSection === 'outcome-messages'" class="speaker-message-nav" label="Speaker message type" :active="messageView" :items="messageLinks" />
         </div>
 
         <section v-if="activeSection === 'participation'" class="speaker-list-panel mt-2 overflow-hidden">
@@ -588,7 +623,6 @@ function toLocalDateTimeInput(value: string): string {
         </section>
 
         <div v-if="canSendEmail" v-show="activeSection === 'outcome-messages'">
-          <WorkspaceSectionNav class="mt-4" label="Speaker message type" :active="messageView" :items="messageLinks" />
           <SpeakerOutcomePanel v-show="messageView === 'outcomes'" class="speaker-outcome-panel" :year="year" :submissions="submissions" :configured="speakersQuery.data.value.email_delivery.configured" @sent="speakersQuery.refetch()" />
           <SpeakerUpdatesPanel v-if="updatesVisited" v-show="messageView === 'updates'" :year="year" :configured="speakersQuery.data.value.email_delivery.configured" :active="activeSection === 'outcome-messages' && messageView === 'updates'" />
         </div>
@@ -644,16 +678,16 @@ function toLocalDateTimeInput(value: string): string {
                 <caption class="sr-only">Conference speaker proposals</caption>
                 <thead class="border-b border-dc-border bg-dc-paper font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-pink">
                   <tr>
-                    <th scope="col" class="w-[40%] px-4 py-3">Proposal</th>
+                    <th scope="col" class="w-[35%] px-4 py-3">Proposal</th>
                     <th scope="col" class="w-[20%] px-4 py-3">Speaker</th>
                     <th scope="col" class="w-[10%] px-4 py-3">Type</th>
                     <th scope="col" class="w-[11%] px-4 py-3">Submitted</th>
-                    <th scope="col" class="w-[12%] px-4 py-3">Status</th>
+                    <th scope="col" class="w-[17%] px-4 py-3">Status</th>
                     <th scope="col" class="w-[7%] px-4 py-3 text-right"><span class="sr-only">Open proposal</span></th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-dc-border bg-white">
-                  <tr v-for="submission in paginatedSubmissions" :key="submission.id" tabindex="0" class="h-14 cursor-pointer outline-none hover:bg-dc-paper-warm/40 focus-visible:bg-dc-paper-warm focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dc-pink" :aria-label="`Open proposal: ${submission.title}`" @click="openProposal(submission.id)" @keydown.enter.prevent="openProposal(submission.id)" @keydown.space.prevent="openProposal(submission.id)">
+                  <tr v-for="{ submission, decision, status } in proposalRows" :key="submission.id" tabindex="0" class="h-14 cursor-pointer outline-none hover:bg-dc-paper-warm/40 focus-visible:bg-dc-paper-warm focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dc-pink" :aria-label="`Open proposal: ${submission.title}`" @click="openProposal(submission.id)" @keydown.enter.prevent="openProposal(submission.id)" @keydown.space.prevent="openProposal(submission.id)">
                     <th scope="row" class="truncate px-5 py-2 text-sm font-semibold text-dc-ink sm:px-6" :title="submission.title">
                       {{ submission.title }}
                     </th>
@@ -661,11 +695,14 @@ function toLocalDateTimeInput(value: string): string {
                     <td class="px-4 py-2 font-mono text-[10px] font-semibold leading-4 text-dc-gray">{{ submission.session_type }}</td>
                     <td class="px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray">{{ formatSubmittedAt(submission.created_at) }}</td>
                     <td class="px-4 py-2">
-                      <span v-if="submission.status !== 'submitted'" class="mb-1 block text-xs text-dc-gray">{{ deliveryLabel(submission) }}</span>
-                      <span class="inline-flex size-8 items-center justify-center rounded-md border" :class="submission.status === 'selected' ? 'border-[#86efac] text-[#15803d]' : submission.status === 'not_selected' ? 'border-[#fda4af] text-dc-pink' : 'border-dc-border text-dc-gray'" role="img" :aria-label="proposalStatusLabel(submission.status)" :title="proposalStatusLabel(submission.status)">
-                        <svg v-if="submission.status === 'selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m7.5 12.5 3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                        <svg v-else-if="submission.status === 'not_selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m8.5 8.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
-                        <svg v-else viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1.8" /><path d="M12 8.5v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                      <span class="flex items-baseline gap-1.5 text-sm leading-tight text-dc-gray">
+                        <svg viewBox="0 0 24 24" fill="none" class="h-[1.3cap] w-auto shrink-0" :class="status.tone ?? 'text-dc-ink'" aria-hidden="true">
+                          <path :d="status.icon" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <span>
+                          {{ status.label }}
+                          <span v-if="decision && statusFilter === 'all'" class="mt-1 block text-xs">{{ decision }}</span>
+                        </span>
                       </span>
                     </td>
                     <td class="px-5 py-2 text-right sm:px-6">
@@ -907,6 +944,53 @@ function toLocalDateTimeInput(value: string): string {
   z-index: 30;
   background: var(--surface-canvas, #f5f2e8);
   padding-bottom: 16px;
+}
+
+.speakers-header--messages {
+  padding-bottom: 4px;
+}
+
+.speaker-message-nav.underline-section-nav {
+  margin-top: 4px;
+  border-bottom: 0;
+}
+
+.speaker-message-nav :deep(.workspace-section-nav__measurement) {
+  gap: 4px;
+  /* Include the group and navigation padding in the overflow measurement. */
+  padding-inline: 6px;
+}
+
+.speaker-message-nav :deep(.workspace-section-nav__measurement .workspace-section-nav__link) {
+  padding-inline: 12px;
+}
+
+.speaker-message-nav :deep(.workspace-section-nav__viewport) {
+  width: max-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  gap: 4px;
+  margin-bottom: 0;
+  border-radius: 8px;
+  padding: 4px;
+  background: #eae7dd;
+}
+
+.speaker-message-nav :deep(.workspace-section-nav__link) {
+  min-height: 44px;
+  align-items: center;
+  border-radius: 6px;
+  padding: 0 12px;
+  color: #25231f;
+}
+
+.speaker-message-nav :deep(.workspace-section-nav__link::after) {
+  display: none;
+}
+
+.speaker-message-nav :deep(.workspace-section-nav__link[aria-current='page']) {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #d8d4ca;
 }
 
 .speaker-outcome-panel {

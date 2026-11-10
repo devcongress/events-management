@@ -10,7 +10,7 @@ import type { AppBindings } from './http/app-bindings';
 const mocks = vi.hoisted(() => ({
   env: {} as Record<string, string>,
   settings: vi.fn(), readiness: vi.fn(), rpc: vi.fn(), order: vi.fn(), confirm: vi.fn(),
-  testers: vi.fn(), initialize: vi.fn(), summary: vi.fn(), from: vi.fn(), card: vi.fn(),
+  outcome: vi.fn(), testers: vi.fn(), initialize: vi.fn(), summary: vi.fn(), from: vi.fn(), card: vi.fn(),
   challenge: vi.fn(), limit: vi.fn(), assess: vi.fn(), dispatch: vi.fn(),
   admin: vi.fn(), session: vi.fn(), audit: vi.fn(),
   cachedUrl: null as string | null,
@@ -24,6 +24,7 @@ vi.mock('@/server/managed-conference-checkout', () => ({
   managedCheckoutOrder: mocks.order,
   confirmManagedCheckout: mocks.confirm,
 }));
+vi.mock('@/server/managed-checkout-outcome', () => ({ managedCheckoutOutcome: mocks.outcome }));
 vi.mock('@/lib/annual-conference-ticket-payments', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/lib/annual-conference-ticket-payments')>(),
   createPaystackHostedCheckout: mocks.initialize,
@@ -98,6 +99,7 @@ beforeEach(() => {
   mocks.assess.mockResolvedValue({ status: 'deliverable' });
   mocks.order.mockResolvedValue({ ...storedOrder });
   mocks.confirm.mockResolvedValue({ status: 'verified' });
+  mocks.outcome.mockResolvedValue({ checkout_hold: { status: 'active', expires_at: '2026-12-01T00:00:00Z' }, payment_observation: null, refund_status: null });
   mocks.summary.mockResolvedValue({ status: 'paid', tier_key: 'regular_flexible', quantity: 2, ticket_amount_minor: 30000, amount_paid_minor: 30000, currency: 'GHS' });
   mocks.from.mockImplementation(() => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }) }));
   mocks.card.mockResolvedValue(null);
@@ -267,6 +269,95 @@ describe('EMS-managed public checkout', () => {
 
     expect(response.status).toBe(404);
     expect(mocks.confirm).not.toHaveBeenCalled();
+    expect(mocks.outcome).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['pending', 'pending'],
+    ['failed', 'failed'],
+    ['expired', 'failed'],
+  ])('keeps legacy %s verification mapped to %s', async (result, expected) => {
+    mocks.confirm.mockResolvedValue({ status: result });
+    const verifier = 'a'.repeat(43);
+    const reference = managedPaymentReference(orderId, 'test');
+    const grant = createDevcon26FlexibleCheckoutGrant({ orderId, verifier, origin, secretKey: 'sk_test_fixture' });
+    const response = await request(`${path}/verify`, { reference, checkout_grant: grant, checkout_verifier: verifier });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ status: expected, mode: 'test' });
+    expect(mocks.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('returns separate buyer-safe hold and provider observation without changing the legacy status', async () => {
+    const outcome = { checkout_hold: { status: 'expired', expires_at: '2026-11-01T00:00:00Z' }, payment_observation: { status: 'abandoned', reason: 'customer_cancelled', checked_at: '2026-11-01T00:00:00Z', check_failed: false }, refund_status: null };
+
+    mocks.outcome.mockResolvedValue(outcome);
+    mocks.confirm.mockResolvedValue({ status: 'failed' });
+    const verifier = 'a'.repeat(43);
+    const reference = managedPaymentReference(orderId, 'test');
+    const grant = createDevcon26FlexibleCheckoutGrant({ orderId, verifier, origin, secretKey: 'sk_test_fixture' });
+    const response = await request(`${path}/verify`, { reference, checkout_grant: grant, checkout_verifier: verifier });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ mode: 'test', status: 'failed', ...outcome });
+    expect(mocks.confirm).toHaveBeenCalledOnce();
+  });
+
+  it.each(['required', 'processing', 'refunded', 'failed', 'needs_attention'])('preserves durable full-order refund status %s without provider verification', async (refundStatus) => {
+    mocks.outcome.mockResolvedValue({ checkout_hold: { status: 'expired', expires_at: null }, payment_observation: null, refund_status: refundStatus });
+    const verifier = 'a'.repeat(43);
+    const reference = managedPaymentReference(orderId, 'test');
+    const grant = createDevcon26FlexibleCheckoutGrant({ orderId, verifier, origin, secretKey: 'sk_test_fixture' });
+    const response = await request(`${path}/verify`, { reference, checkout_grant: grant, checkout_verifier: verifier });
+
+    expect(await response.json()).toMatchObject({ status: 'refund_required', refund_status: refundStatus });
+    expect(mocks.confirm).not.toHaveBeenCalled();
+    expect(mocks.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('returns durable paid status despite stale provider failure', async () => {
+    mocks.outcome.mockResolvedValue({ checkout_hold: { status: 'paid', expires_at: null }, payment_observation: { status: 'failed', reason: 'declined', checked_at: '2026-11-01T00:00:00Z', check_failed: true }, refund_status: null });
+    const verifier = 'a'.repeat(43);
+    const reference = managedPaymentReference(orderId, 'test');
+    const grant = createDevcon26FlexibleCheckoutGrant({ orderId, verifier, origin, secretKey: 'sk_test_fixture' });
+    const response = await request(`${path}/verify`, { reference, checkout_grant: grant, checkout_verifier: verifier });
+
+    expect(await response.json()).toMatchObject({ status: 'verified' });
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
+
+  it('prefers a concurrent full-order refund to a pending provider result', async () => {
+    const pending = { checkout_hold: { status: 'active', expires_at: '2026-12-01T00:00:00Z' }, payment_observation: null, refund_status: null };
+    const refund = { ...pending, checkout_hold: { status: 'expired', expires_at: null }, refund_status: 'required' };
+
+    mocks.outcome.mockResolvedValueOnce(pending).mockResolvedValue(refund);
+    mocks.confirm.mockResolvedValue({ status: 'pending' });
+    const verifier = 'a'.repeat(43);
+    const reference = managedPaymentReference(orderId, 'test');
+    const grant = createDevcon26FlexibleCheckoutGrant({ orderId, verifier, origin, secretKey: 'sk_test_fixture' });
+    const response = await request(`${path}/verify`, { reference, checkout_grant: grant, checkout_verifier: verifier });
+
+    expect(await response.json()).toMatchObject({ status: 'refund_required', refund_status: 'required' });
+    expect(mocks.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('rechecks durable state after provider failure and leaves unresolved errors as 503', async () => {
+    const pending = { checkout_hold: { status: 'active', expires_at: '2026-12-01T00:00:00Z' }, payment_observation: null, refund_status: null };
+    const paid = { ...pending, checkout_hold: { status: 'paid', expires_at: null } };
+
+    mocks.outcome.mockResolvedValueOnce(pending).mockResolvedValue(paid);
+    mocks.confirm.mockRejectedValue(new Error('Provider unavailable'));
+    const verifier = 'a'.repeat(43);
+    const reference = managedPaymentReference(orderId, 'test');
+    const grant = createDevcon26FlexibleCheckoutGrant({ orderId, verifier, origin, secretKey: 'sk_test_fixture' });
+    const body = { reference, checkout_grant: grant, checkout_verifier: verifier };
+
+    expect(await (await request(`${path}/verify`, body)).json()).toMatchObject({ status: 'verified' });
+    mocks.outcome.mockResolvedValue(pending);
+    const unresolved = await request(`${path}/verify`, body);
+
+    expect(unresolved.status).toBe(503);
+    expect(await unresolved.json()).toMatchObject(pending);
   });
 });
 

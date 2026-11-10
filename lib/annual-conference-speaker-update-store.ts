@@ -72,6 +72,32 @@ export async function saveSpeakerUpdate(editionId: string, input: { id?: string;
   return (result.data as unknown as SpeakerUpdateCampaign | null) ?? undefined;
 }
 
+export async function listSpeakerUpdateDeliveryStatuses(updateIds: string[]): Promise<Array<{ update_id: string; status: string }>> {
+  const ids = [...new Set(updateIds)];
+
+  if (!ids.length) return [];
+  if (!isSupabaseRuntimeEnabled()) {
+    const wanted = new Set(ids);
+
+    return (await state()).deliveries.filter(item => wanted.has(item.update_id)).map(({ update_id, status }) => ({ update_id, status }));
+  }
+  const statuses: Array<{ update_id: string; status: string }> = [];
+  const pageSize = 1000;
+
+  for (let offset = 0; ; offset += pageSize) {
+    const result = await getSupabaseAdminClient().from('annual_conference_speaker_update_deliveries' as never)
+      .select('id,update_id,status').in('update_id', ids).order('id').range(offset, offset + pageSize - 1);
+
+    if (result.error) throw new Error('Unable to load speaker update delivery statuses.');
+    const page = result.data as unknown as Array<{ update_id: string; status: string }>;
+
+    statuses.push(...page.map(({ update_id, status }) => ({ update_id, status })));
+    if (page.length < pageSize) break;
+  }
+
+  return statuses;
+}
+
 export async function listSpeakerUpdateDeliveries(updateId: string): Promise<SpeakerUpdateDelivery[]> {
   if (!isSupabaseRuntimeEnabled()) return (await state()).deliveries.filter((item) => item.update_id === updateId);
   const result = await getSupabaseAdminClient().from('annual_conference_speaker_update_deliveries' as never).select('*').eq('update_id', updateId);
