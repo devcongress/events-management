@@ -1,5 +1,6 @@
 import { ResendDeliveryError } from '@/lib/email/resend-delivery-error';
 import { conferenceTicketEmail } from '@/lib/email/templates/conference-ticket';
+import { DEVCON26_TICKET_VENUE } from '@/lib/email/templates/conference-ticket-design';
 import { conferenceTicketPdf } from './conference-ticket-pdf';
 import { createAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
 import { completeTestDispatchOrigin } from '@/server/complete-test-dispatch';
@@ -175,8 +176,8 @@ export async function admissionEmailContent(
 
     return {
       ...base, subject: 'Your DevCon26 test QR codes', attachments,
-      html: `<p>Hi ${name},</p><p>${explanation}</p><p><strong>DevCon26 · 19 December 2026</strong><br>Ghana Digital Center, Accra</p>${attachments.map((attachment) => `<p><img src="cid:${attachment.content_id}" width="300" height="360" alt="Private test ticket QR" /></p>`).join('')}${badgeUrl ? `<p><a href="${escapeHtml(badgeUrl)}">Create your conference badge</a> (private link expires after 30 days)</p>` : ''}<p>Save the attached QR image. Keep this email and its private links.</p>`,
-      text: `Hi ${delivery.recipient_name},\n\n${explanation}\n\nDevCon26 · 19 December 2026\nGhana Digital Center, Accra\n${badgeUrl ? `\nCreate your conference badge: ${badgeUrl}\n` : ''}\nSave the attached QR image. Keep this email and its private links.`,
+      html: `<p>Hi ${name},</p><p>${explanation}</p><p><strong>DevCon26 · 19 December 2026</strong><br>${DEVCON26_TICKET_VENUE}</p>${attachments.map((attachment) => `<p><img src="cid:${attachment.content_id}" width="300" height="360" alt="Private test ticket QR" /></p>`).join('')}${badgeUrl ? `<p><a href="${escapeHtml(badgeUrl)}">Create your conference badge</a> (private link expires after 30 days)</p>` : ''}<p>Save the attached QR image. Keep this email and its private links.</p>`,
+      text: `Hi ${delivery.recipient_name},\n\n${explanation}\n\nDevCon26 · 19 December 2026\n${DEVCON26_TICKET_VENUE}\n${badgeUrl ? `\nCreate your conference badge: ${badgeUrl}\n` : ''}\nSave the attached QR image. Keep this email and its private links.`,
     };
   }
 

@@ -1,4 +1,4 @@
-import { conferenceTicketDesign as design } from './conference-ticket-design';
+import { conferenceTicketDesign as design, DEVCON26_TICKET_VENUE } from './conference-ticket-design';
 import { renderSpeakerEmailLayout } from './speaker-email-layout';
 
 function escapeHtml(value: string): string {
@@ -34,7 +34,7 @@ export function conferenceTicketEmail(input: {
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="email-session-card" bgcolor="#F5F2E8" style="background:#F5F2E8;border:1px solid #D8D2C4;border-radius:8px;margin:0 0 24px;">
       <tr><td style="padding:20px;">
         <p class="email-session-title" style="margin:0 0 8px;font-weight:700;color:#111111;font-size:18px;">Saturday, 19 December 2026</p>
-        <p class="email-session-event" style="margin:0;color:#666666;font-size:14px;line-height:1.6;">Ghana Digital Center, Accra<br>One ticket. One person. A day of building what’s next.</p>
+        <p class="email-session-event" style="margin:0;color:#666666;font-size:14px;line-height:1.6;">${DEVCON26_TICKET_VENUE}<br>One ticket. One person. A day of building what’s next.</p>
       </td></tr>
     </table>
     ${primaryUrl ? `<table role="presentation" cellspacing="0" cellpadding="0"><tr><td bgcolor="#C80068" style="border-radius:6px;background:#C80068;"><a href="${escapeHtml(primaryUrl)}" style="display:inline-block;padding:15px 20px;color:#FFFFFF;-webkit-text-fill-color:#FFFFFF;font-weight:700;font-size:15px;line-height:1.4;text-decoration:none;">${primaryLabel} &rarr;</a></td></tr></table>` : ''}
@@ -63,7 +63,7 @@ export function conferenceTicketEmail(input: {
       @media (prefers-color-scheme:dark) { .email-shell { border-color:#3A3A3A !important; } }
       [data-ogsc] .email-shell { border-color:#3A3A3A !important; }
     </style>`),
-    text: [`Hi ${input.name},`, explanation, 'DevCon26 | Saturday, 19 December 2026', 'Ghana Digital Center, Accra',
+    text: [`Hi ${input.name},`, explanation, 'DevCon26 | Saturday, 19 December 2026', DEVCON26_TICKET_VENUE,
       primaryUrl ? `${primaryLabel}: ${primaryUrl}` : '', input.badgeUrl && input.managementUrl ? `Manage your tickets: ${input.managementUrl}` : '',
       input.complimentary ? 'Add your name and photo, then download and share your attendee badge. Keep this email private. Your badge is separate from admission. Reply to this email if you need a hand.' : 'Keep this email private. Your badge is separate from admission. Badge links expire after 30 days.',
       input.isTest ? 'TEST ONLY — No money was charged. These tickets and badges are for testing, not admission to DevCon26.' : ''].filter(Boolean).join('\n\n'),

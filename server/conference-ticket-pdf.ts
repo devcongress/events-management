@@ -1,7 +1,7 @@
 import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, rgb } from 'pdf-lib';
 import QRCode from 'qrcode';
-import { conferenceTicketDesign } from '@/lib/email/templates/conference-ticket-design';
+import { conferenceTicketDesign, DEVCON26_TICKET_VENUE } from '@/lib/email/templates/conference-ticket-design';
 import { ticketFont, ticketLogo, ticketBoldFont } from './assets/conference-ticket-assets';
 
 export async function conferenceTicketPdf(input: { token: string; name: string; seat: number; isTest: boolean }): Promise<Uint8Array> {
@@ -26,7 +26,7 @@ export async function conferenceTicketPdf(input: { token: string; name: string; 
   page.drawText('YOUR CONFERENCE TICKET', { x: 28, y: 551, size: 9, font: bold, color: pink });
   page.drawText('DevCon26', { x: 28, y: 513, size: 30, font: bold, color: ink });
   text('Saturday, 19 December 2026', 28, 487, 12);
-  text('Ghana Digital Center, Accra', 28, 468, 11);
+  text(DEVCON26_TICKET_VENUE, 28, 468, 11);
   page.drawLine({ start: { x: 28, y: 450 }, end: { x: 392, y: 450 }, thickness: 0.7, color: color(conferenceTicketDesign.border) });
 
   const name = input.name.replace(/[\r\n\t]/g, ' ').trim();
