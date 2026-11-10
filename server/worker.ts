@@ -33,6 +33,9 @@ const SCHEDULED_JOBS = [
 ] as const;
 
 const SCHEDULE_CYCLE_MINUTES = 15;
+const RECOVERY_INTERVAL_MINUTES = 5;
+const RECOVERY_MAX_BATCHES = 3;
+const PAYMENT_BATCH_SIZE = 8;
 
 function scheduledJobFor(controller: ScheduledController) {
   if (!Number.isFinite(controller.scheduledTime)) return null;
@@ -53,20 +56,23 @@ export default {
 
     if (!job) return;
 
-    const queue = env.EVENT_BLAST_PREPARATION_QUEUE;
+    const scheduledMinute = Math.floor(Number(controller.scheduledTime) / 60_000);
 
-    if (queue) {
-      try {
-        await Promise.all([
-          queue.send({ kind: 'admission-recovery' }),
-          queue.send({ kind: 'payment-diagnostics' }),
-          ...Array.from({ length: 3 }, () => queue.send({ kind: 'payment-recovery' })),
-        ]);
-      } catch {
-        console.error(JSON.stringify({ event: 'checkout_recovery_enqueue_failed' }));
+    if (scheduledMinute % RECOVERY_INTERVAL_MINUTES === 0) {
+      const queue = env.EVENT_BLAST_PREPARATION_QUEUE;
+
+      if (queue) {
+        const kinds = ['admission-recovery', 'payment-diagnostics', 'payment-recovery'] as const;
+        const results = await Promise.allSettled(kinds.map(async (kind) => queue.send({ kind })));
+
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.error(JSON.stringify({ event: 'checkout_recovery_enqueue_failed', kind: kinds[index] }));
+          }
+        });
+      } else {
+        console.error(JSON.stringify({ event: 'checkout_recovery_queue_missing' }));
       }
-    } else {
-      console.error(JSON.stringify({ event: 'checkout_recovery_queue_missing' }));
     }
 
     const response = await app.fetch(new Request(`https://events-management.internal${job.path}`, {
@@ -91,10 +97,20 @@ export default {
         const response = await app.fetch(managedRecoveryQueueRequest(`https://events-management.internal${path}`, secret), env, ctx);
 
         if (!response.ok) throw new Error('Checkout recovery job failed.');
-        const result = await response.json() as { admissions?: { accepted?: number } };
+        const result = await response.json() as { admissions?: { accepted?: number; failed?: number }; checked?: number; failed?: number };
+        const batchNumber = message.body.batch ?? 1;
+        const validBatch = Number.isInteger(batchNumber) && batchNumber >= 1 && batchNumber < RECOVERY_MAX_BATCHES;
+        const productive = message.body.kind === 'admission-recovery'
+          ? (result.admissions?.accepted ?? 0) > 0 && result.admissions?.failed === 0
+          : result.checked === PAYMENT_BATCH_SIZE && result.failed === 0;
 
-        if (message.body.kind === 'admission-recovery' && (result.admissions?.accepted ?? 0) > 0) {
-          await env.EVENT_BLAST_PREPARATION_QUEUE?.send({ kind: 'admission-recovery' }, { delaySeconds: 1 });
+        if (validBatch && productive) {
+          try {
+            if (!env.EVENT_BLAST_PREPARATION_QUEUE) throw new Error('Queue unavailable.');
+            await env.EVENT_BLAST_PREPARATION_QUEUE.send({ kind: message.body.kind, batch: batchNumber + 1 }, { delaySeconds: 1 });
+          } catch {
+            console.error(JSON.stringify({ event: 'checkout_recovery_continuation_enqueue_failed', kind: message.body.kind }));
+          }
         }
         continue;
       }

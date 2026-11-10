@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-11-10: Schedule managed admission recovery, payment reconciliation, and payment diagnostics every five minutes, with bounded productive queue continuations.
+
 ## 2026-11-10 — Clarify managed checkout outcomes
 
 - Return buyer-safe hold, provider observation and whole-order refund context after checkout authorization, while preserving existing verification statuses and treating unresolved checks as unresolved.

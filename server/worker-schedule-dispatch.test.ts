@@ -138,28 +138,67 @@ describe('scheduled worker cycle dispatch', () => {
   });
 });
 
-it('enqueues admission, diagnostics and three bounded payment checks each minute', async () => {
+it('seeds one recovery job of each kind every five scheduled minutes', async () => {
   const send = vi.fn().mockResolvedValue(undefined);
 
-  await worker.scheduled({ scheduledTime: 0 }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
-  expect(send.mock.calls.map(([body]) => body.kind)).toEqual(['admission-recovery', 'payment-diagnostics', 'payment-recovery', 'payment-recovery', 'payment-recovery']);
+  for (let minute = 0; minute < 16; minute += 1) {
+    await worker.scheduled({ scheduledTime: minute * 60_000 }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
+    expect(send).toHaveBeenCalledTimes((Math.floor(minute / 5) + 1) * 3);
+  }
+
+  expect(send.mock.calls.map(([body]) => body.kind)).toEqual(Array(4).fill(['admission-recovery', 'payment-diagnostics', 'payment-recovery']).flat());
 });
 
-it('continues admission draining only after productive work', async () => {
+it.each([
+  ['admission-recovery', '/api/internal/managed-admission-emails/retry', { admissions: { accepted: 3, failed: 0 } }],
+  ['payment-recovery', '/api/internal/managed-payments/reconcile', { checked: 8, failed: 0 }],
+  ['payment-diagnostics', '/api/internal/payment-diagnostics/check', { checked: 8, failed: 0 }],
+] as const)('bounds productive %s continuations to three batches', async (kind, path, result) => {
   const send = vi.fn().mockResolvedValue(undefined);
 
-  appFetch.mockResolvedValueOnce(Response.json({ admissions: { accepted: 3 } }));
-  await worker.queue({ messages: [{ body: { kind: 'admission-recovery' } }] }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
-  expect(new URL(appFetch.mock.calls.at(-1)![0].url).pathname).toBe('/api/internal/managed-admission-emails/retry');
-  expect(send).toHaveBeenCalledWith({ kind: 'admission-recovery' }, { delaySeconds: 1 });
-  send.mockClear();
-  appFetch.mockResolvedValueOnce(Response.json({ admissions: { accepted: 0 } }));
-  await worker.queue({ messages: [{ body: { kind: 'admission-recovery' } }] }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
+  for (const batch of [undefined, 2, 3, 0, 1.5]) {
+    appFetch.mockResolvedValueOnce(Response.json(result));
+    await worker.queue({ messages: [{ body: { kind, batch } }] }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
+    expect(new URL(appFetch.mock.calls.at(-1)![0].url).pathname).toBe(path);
+  }
+
+  expect(send.mock.calls).toEqual([
+    [{ kind, batch: 2 }, { delaySeconds: 1 }],
+    [{ kind, batch: 3 }, { delaySeconds: 1 }],
+  ]);
+});
+
+it.each([
+  ['admission-recovery', { admissions: { accepted: 3, failed: 1 } }],
+  ['admission-recovery', { admissions: { accepted: 0, failed: 0 } }],
+  ['payment-recovery', { checked: 8, failed: 1 }],
+  ['payment-recovery', { checked: 7, failed: 0 }],
+  ['payment-diagnostics', { checked: 8, failed: 1 }],
+  ['payment-diagnostics', { checked: 7, failed: 0 }],
+] as const)('does not continue %s after partial or failed work', async (kind, result) => {
+  const send = vi.fn().mockResolvedValue(undefined);
+
+  appFetch.mockResolvedValueOnce(Response.json(result));
+  await worker.queue({ messages: [{ body: { kind } }] }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
   expect(send).not.toHaveBeenCalled();
 });
 
-it('routes diagnostic queue messages through the protected internal endpoint', async () => {
-  appFetch.mockResolvedValueOnce(Response.json({ checked: 0, failed: 0 }));
-  await worker.queue({ messages: [{ body: { kind: 'payment-diagnostics' } }] }, env, context);
-  expect(new URL(appFetch.mock.calls.at(-1)![0].url).pathname).toBe('/api/internal/payment-diagnostics/check');
+it('isolates seed and continuation enqueue failures while retaining HTTP retry behavior', async () => {
+  appFetch.mockClear();
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const send = vi.fn().mockRejectedValueOnce(new Error('unavailable')).mockResolvedValue(undefined);
+
+  await worker.scheduled({ scheduledTime: 0 }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
+  expect(send).toHaveBeenCalledTimes(3);
+  expect(appFetch).toHaveBeenCalledTimes(1);
+  expect(log).toHaveBeenCalledWith(expect.stringContaining('checkout_recovery_enqueue_failed'));
+
+  send.mockRejectedValueOnce(new Error('unavailable'));
+  appFetch.mockResolvedValueOnce(Response.json({ checked: 8, failed: 0 }));
+  await expect(worker.queue({ messages: [{ body: { kind: 'payment-recovery' } }] }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context)).resolves.toBeUndefined();
+  expect(log).toHaveBeenCalledWith(expect.stringContaining('checkout_recovery_continuation_enqueue_failed'));
+
+  appFetch.mockResolvedValueOnce(new Response(null, { status: 503 }));
+  await expect(worker.queue({ messages: [{ body: { kind: 'payment-recovery' } }] }, env, context)).rejects.toThrow('Checkout recovery job failed.');
+  log.mockRestore();
 });
