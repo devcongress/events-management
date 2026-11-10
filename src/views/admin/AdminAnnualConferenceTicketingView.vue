@@ -31,6 +31,7 @@ import {
   type AnnualConferenceSponsorAllocation,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
+import { ticketEmailStatusLabel } from '@/src/lib/ticket-email-status';
 import { useTicketOrderExpiry } from '@/src/lib/ticket-order-expiry';
 import { ticketOrderPageAfterResponse } from '@/src/lib/ticket-order-pagination';
 import { resolveTicketingSection, ticketingSectionLocation, ticketingSections } from '@/src/ticketing-navigation';
@@ -94,7 +95,7 @@ const emailDeliveryPage = ref(1);
 const emailDeliveryStatus = ref<AnnualConferenceTicketEmailDeliveryStatus | 'all'>('all');
 const emailDeliveryFilters: Array<{ value: AnnualConferenceTicketEmailDeliveryStatus | 'all'; label: string }> = [
   { value: 'all', label: 'All' },
-  { value: 'failed', label: 'Needs review' },
+  { value: 'failed', label: 'Failed' },
   { value: 'queued', label: 'Queued' },
   { value: 'accepted', label: 'Accepted' },
   { value: 'delivered', label: 'Delivered' },
@@ -559,16 +560,11 @@ function saveSponsorAllocation() {
 
 function canRetryEmailDelivery(delivery: AnnualConferenceTicketEmailDelivery) {
   return delivery.status === 'failed'
-    && Number.isFinite(Date.parse(delivery.next_attempt_at))
+    && (!delivery.first_attempt_at || Date.parse(delivery.first_attempt_at) > Date.now() - 23 * 60 * 60 * 1000)
+    && (Number.isFinite(Date.parse(delivery.next_attempt_at))
+      || (delivery.failure_kind === 'rejected' && delivery.last_error === 'Delivery needs review before retry.' && !!delivery.first_attempt_at))
     && !delivery.provider_email_id
     && !delivery.accepted_at;
-}
-
-function deliveryStatusLabel(delivery: AnnualConferenceTicketEmailDelivery) {
-  if (delivery.status === 'accepted') return 'Accepted by provider';
-  if (delivery.status === 'sending') return 'Sending';
-
-  return delivery.status;
 }
 
 function deliveryKindLabel(delivery: AnnualConferenceTicketEmailDelivery) {
@@ -886,7 +882,7 @@ onUnmounted(() => {
               ['Queued', emailDeliverySummary.queued],
               ['Accepted', emailDeliverySummary.accepted],
               ['Delivered', emailDeliverySummary.delivered],
-              ['Needs review', emailDeliverySummary.failed],
+              ['Failed', emailDeliverySummary.failed],
             ]" :key="item[0]" class="px-5 py-3">
               <dt class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">{{ item[0] }}</dt>
               <dd class="mt-1 font-mono text-xl font-semibold text-dc-ink">{{ item[1] }}</dd>
@@ -915,7 +911,7 @@ onUnmounted(() => {
                 <p v-if="delivery.last_error" class="mt-1 text-xs leading-5 text-dc-pink">{{ delivery.last_error }}</p>
               </div>
               <div class="flex shrink-0 items-center gap-3">
-                <span class="rounded-full border border-dc-border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase text-dc-ink">{{ deliveryStatusLabel(delivery) }}</span>
+                <span class="rounded-full border border-dc-border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase text-dc-ink">{{ ticketEmailStatusLabel(delivery) }}</span>
                 <button v-if="canManageTicketing && canRetryEmailDelivery(delivery)" type="button" class="motion-press rounded-md border border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase disabled:cursor-not-allowed disabled:opacity-50" :disabled="retryEmailDeliveryMutation.isPending.value" @click="retryEmailDeliveryMutation.mutate(delivery.id)">{{ retryEmailDeliveryMutation.isPending.value ? 'Queuing…' : 'Retry' }}</button>
               </div>
             </article>

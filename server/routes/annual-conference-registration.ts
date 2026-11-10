@@ -87,7 +87,10 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
     if (!expected || !received || Buffer.byteLength(expected) !== Buffer.byteLength(received)
       || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) return c.json({ error: 'Not found.' }, 404);
     if (!isManagedRecoveryQueueRequest(c.req.raw)) return c.json({ error: 'Not found.' }, 404);
-    if (envValue('MANAGED_PAYMENT_RECOVERY_OWNER_ENABLED', c) !== 'true') return c.json({ admissions: { accepted: 0 } });
+    const owner = envValue('ADMISSION_RECOVERY_OWNER', c);
+
+    if ((owner !== undefined && owner !== 'queue')
+      || envValue('MANAGED_PAYMENT_RECOVERY_OWNER_ENABLED', c) !== 'true') return c.json({ admissions: { accepted: 0 } });
 
     try {
       const admissions = await retryAnnualConferenceAdmissionEmails(c, { managed: true, scheduled: true });
@@ -104,6 +107,10 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
 
     if (!expected || !received || Buffer.byteLength(expected) !== Buffer.byteLength(received)
       || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) return c.json({ error: 'Not found.' }, 404);
+
+    const owner = envValue('ADMISSION_RECOVERY_OWNER', c);
+
+    if (owner !== undefined && owner !== 'queue') return c.json({ admissions: { accepted: 0, failed: 0 }, updates: { configured: false, accepted: 0, failed: 0 } });
 
     try {
       const admissions = await retryAnnualConferenceAdmissionEmails(c, { scheduled: true });

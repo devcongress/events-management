@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-11-10: Add standalone PostgreSQL-backed admission recovery, preserve immediate sends, and park definite provider rejections for explicit review and safe retry.
+
 - 2026-11-10: Use Accra Digital Center in paid and complimentary DevCon26 ticket PDFs and emails.
 
 - 2026-11-10: Schedule managed admission recovery, payment reconciliation, and payment diagnostics every five minutes, with bounded productive queue continuations.

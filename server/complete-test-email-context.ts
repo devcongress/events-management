@@ -19,8 +19,8 @@ const contextSchema = z.discriminatedUnion('is_test', [
   z.object({ is_test: z.literal(true), allowed: z.boolean(), origin: originSchema }),
 ]);
 
-export async function completeTestEmailContext(c: Context, kind: 'admission' | 'social', id: string) {
-  const result = await getSupabaseAdminClient(c).rpc('complete_test_email_context' as never, { p_kind: kind, p_id: id } as never);
+export async function completeTestEmailContext(c: Context, kind: 'admission' | 'social', id: string, client = getSupabaseAdminClient(c)) {
+  const result = await client.rpc('complete_test_email_context' as never, { p_kind: kind, p_id: id } as never);
 
   if (result.error) throw new Error('Test email policy is unavailable.');
 

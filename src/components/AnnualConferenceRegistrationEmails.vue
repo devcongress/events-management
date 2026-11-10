@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import RegistrationEmailDrawer from '@/src/components/RegistrationEmailDrawer.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import { ticketEmailStatusLabel } from '@/src/lib/ticket-email-status';
 import {
   fetchAnnualConferenceTicketEmailDeliveries,
   retryAnnualConferenceTicketEmailDelivery,
@@ -65,8 +66,10 @@ function updateDeliveryStatus(value: string | number) {
 }
 
 function canRetry(delivery: AnnualConferenceTicketEmailDelivery) {
-  return delivery.status === 'failed' && delivery.attempt_count < 5
-    && Number.isFinite(Date.parse(delivery.next_attempt_at))
+  return delivery.status === 'failed'
+    && (!delivery.first_attempt_at || Date.parse(delivery.first_attempt_at) > Date.now() - 23 * 60 * 60 * 1000)
+    && (Number.isFinite(Date.parse(delivery.next_attempt_at))
+      || (delivery.failure_kind === 'rejected' && delivery.last_error === 'Delivery needs review before retry.' && !!delivery.first_attempt_at))
     && !delivery.provider_email_id && !delivery.accepted_at;
 }
 
@@ -172,7 +175,7 @@ watch(pages, (count) => { page.value = Math.min(page.value, count); });
             <p class="mt-1 font-mono text-[10px] uppercase text-dc-gray">{{ kindLabel(delivery) }}</p>
           </div>
           <div class="flex items-center gap-3">
-            <span class="rounded-sm border border-dc-border px-2 py-1 font-mono text-[10px] uppercase">{{ delivery.status === 'accepted' ? 'Accepted by provider' : delivery.status }}</span>
+            <span class="rounded-sm border border-dc-border px-2 py-1 font-mono text-[10px] uppercase">{{ ticketEmailStatusLabel(delivery) }}</span>
             <button v-if="canRetry(delivery)" class="editorial-action" :disabled="busy" @click="selected = delivery; error = ''">Retry</button>
             <button type="button" class="editorial-action" aria-haspopup="dialog" @click="detailId = delivery.id">Details</button>
           </div>
@@ -186,7 +189,7 @@ watch(pages, (count) => { page.value = Math.min(page.value, count); });
         <p class="mt-1 break-all text-sm text-dc-gray">{{ detail.recipient_email }}</p>
         <div class="mt-4 flex flex-wrap items-center gap-3">
           <p class="font-mono text-xs uppercase text-dc-gray">{{ kindLabel(detail) }}</p>
-          <span class="rounded border border-dc-border px-2 py-1 font-mono text-xs uppercase">{{ detail.status === 'accepted' ? 'Accepted by provider' : detail.status }}</span>
+          <span class="rounded border border-dc-border px-2 py-1 font-mono text-xs uppercase">{{ ticketEmailStatusLabel(detail) }}</span>
         </div>
         <div v-if="detail" class="mt-5 border-t border-dc-border pt-5 text-sm">
           <dl class="grid gap-2 sm:grid-cols-2">

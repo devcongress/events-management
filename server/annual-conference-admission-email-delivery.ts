@@ -202,9 +202,8 @@ export async function admissionEmailContent(
   };
 }
 
-async function admissionBadgeUrl(c: Context, delivery: z.infer<typeof deliverySchema>, origin: string, isTest: boolean): Promise<string> {
+async function admissionBadgeUrl(c: Context, delivery: z.infer<typeof deliverySchema>, origin: string, isTest: boolean, client: ReturnType<typeof getSupabaseAdminClient>): Promise<string> {
   const ticketId = z.string().uuid().parse(delivery.payload.ticket_id);
-  const client = getSupabaseAdminClient(c);
   const card = await client.from('annual_conference_social_cards' as never)
     .select('id,is_test,revoked_at').eq('ticket_id', ticketId).single() as unknown as {
       data: { id: string; is_test: boolean; revoked_at: string | null } | null; error: unknown;
@@ -248,7 +247,9 @@ export function admissionEmailReadiness(c: Context) {
   return { enabled, configured, ready: enabled && configured };
 }
 
-async function deliverAdmissionEmail(c: Context, options: Readonly<{ managed?: boolean }>, dispatchToken: string, seen: Set<string>) {
+type AdmissionDeliveryOptions = Readonly<{ managed?: boolean; scheduled?: boolean; client?: ReturnType<typeof getSupabaseAdminClient>; fetcher?: typeof fetch }>;
+
+async function deliverAdmissionEmail(c: Context, options: AdmissionDeliveryOptions, dispatchToken: string, seen: Set<string>) {
   const apiKey = envValue('RESEND_API_KEY', c)?.trim();
   const from = envValue('DEVCON26_ADMISSION_EMAIL_FROM', c)?.trim();
   const replyTo = envValue('DEVCON26_ADMISSION_EMAIL_REPLY_TO', c)?.trim();
@@ -257,7 +258,7 @@ async function deliverAdmissionEmail(c: Context, options: Readonly<{ managed?: b
   if (envValue('DEVCON26_ADMISSION_EMAILS_ENABLED', c) !== 'true' || !apiKey || !from || !replyTo) {
     return { configured: false, accepted: 0, failed: 0 };
   }
-  const client = getSupabaseAdminClient(c);
+  const client = options.client ?? getSupabaseAdminClient(c);
   const claim = crypto.randomUUID();
   const previewOrigin = completeTestDispatchOrigin(c, options);
   const result = await client.rpc((previewOrigin ? 'claim_complete_test_only_admission_emails' : 'claim_annual_conference_ticket_email_outbox') as never, {
@@ -285,9 +286,9 @@ async function deliverAdmissionEmail(c: Context, options: Readonly<{ managed?: b
     let stage = 'recipient_policy';
 
     try {
-      if (!await allowConferenceEmail(c, 'admission', delivery.id, delivery.recipient_email, claim)) continue;
+      if (!await allowConferenceEmail(c, 'admission', delivery.id, delivery.recipient_email, claim, client)) continue;
       stage = 'test_policy';
-      const testContext = await completeTestEmailContext(c, 'admission', delivery.id);
+      const testContext = await completeTestEmailContext(c, 'admission', delivery.id, client);
 
       if (!testContext.allowed) continue;
 
@@ -301,7 +302,7 @@ async function deliverAdmissionEmail(c: Context, options: Readonly<{ managed?: b
         const messageOrigin = testContext.is_test ? testContext.origin : websiteOrigin;
         const badgeUrl = delivery.kind === 'flexible_admission_delivery'
           && (testContext.is_test || delivery.payload.email_version === 2)
-          ? await admissionBadgeUrl(c, delivery, messageOrigin ?? '', testContext.is_test) : undefined;
+          ? await admissionBadgeUrl(c, delivery, messageOrigin ?? '', testContext.is_test, client) : undefined;
 
         stage = 'content';
         const original = await admissionEmailContent(delivery, from, replyTo, messageOrigin, testContext.is_test, badgeUrl);
@@ -317,8 +318,8 @@ async function deliverAdmissionEmail(c: Context, options: Readonly<{ managed?: b
       const payload = frozenSchema.safeParse(frozen.data);
 
       if (frozen.error || !payload.success || payload.data.to[0] !== delivery.recipient_email) throw new Error('Admission lease unavailable.');
-      if (!await allowConferenceEmail(c, 'admission', delivery.id, payload.data.to[0], claim)) continue;
-      if (!(await completeTestEmailContext(c, 'admission', delivery.id)).allowed) continue;
+      if (!await allowConferenceEmail(c, 'admission', delivery.id, payload.data.to[0], claim, client)) continue;
+      if (!(await completeTestEmailContext(c, 'admission', delivery.id, client)).allowed) continue;
 
       const slot = await client.rpc('admission_send_slot' as never, { p_token: dispatchToken } as never);
 
@@ -326,7 +327,7 @@ async function deliverAdmissionEmail(c: Context, options: Readonly<{ managed?: b
       if (slot.data !== true) throw new ResendDeliveryError('throttled', 1);
 
       stage = 'provider';
-      providerId = await sendResendAttachedEmail({ apiKey, idempotencyKey: delivery.idempotency_key, email: payload.data });
+      providerId = await sendResendAttachedEmail({ apiKey, idempotencyKey: delivery.idempotency_key, email: payload.data, fetcher: options.fetcher });
     } catch (error) {
       console.error(JSON.stringify({ event: 'admission_email_failed', stage }));
       const kind = error instanceof ResendDeliveryError ? error.kind : 'ambiguous';
@@ -363,11 +364,11 @@ async function deliverAdmissionEmail(c: Context, options: Readonly<{ managed?: b
   return counts;
 }
 
-export async function retryAnnualConferenceAdmissionEmails(c: Context, options: Readonly<{ managed?: boolean; scheduled?: boolean }> = {}) {
+export async function retryAnnualConferenceAdmissionEmails(c: Context, options: AdmissionDeliveryOptions = {}) {
   const counts = { configured: admissionEmailReadiness(c).ready, accepted: 0, failed: 0 };
 
   if (!counts.configured) return counts;
-  const client = getSupabaseAdminClient(c);
+  const client = options.client ?? getSupabaseAdminClient(c);
   const token = crypto.randomUUID();
   const started = Date.now();
   const lease = await client.rpc('lease_admission_dispatch' as never, { p_token: token, p_seconds: options.scheduled ? 60 : 30 } as never);

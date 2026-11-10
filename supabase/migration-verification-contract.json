@@ -1817,7 +1817,7 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true,
-          "bodySha256": "efd04ceb600e0c8c7b486f6c405199a9429f5910d6281cd035cb96d0cb594139"
+          "bodySha256": "c088043ca9c182afd895419c2a1054818b2fb3a05c911c0c0ec089252be33dda"
         },
         {
           "kind": "function",
@@ -2789,7 +2789,7 @@
           "argumentTypes": "uuid, uuid",
           "result": "annual_conference_ticket_email_outbox",
           "language": "plpgsql",
-          "bodySha256": "2ae341b28eeb42c2ab64c8a89111df954ba51849d3b4d1e49598d1838a66fc50",
+          "bodySha256": "b3964f9b8b42e773400a10704c9e1d9987543215577fab66a9108ad04e617ed5",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -4683,7 +4683,7 @@
           "argumentTypes": "",
           "result": "trigger",
           "language": "plpgsql",
-          "bodySha256": "efd04ceb600e0c8c7b486f6c405199a9429f5910d6281cd035cb96d0cb594139",
+          "bodySha256": "c088043ca9c182afd895419c2a1054818b2fb3a05c911c0c0ec089252be33dda",
           "securityDefiner": false,
           "searchPath": "public",
           "private": true,
@@ -4722,7 +4722,7 @@
           "argumentTypes": "uuid, uuid, text, integer",
           "result": "void",
           "language": "plpgsql",
-          "bodySha256": "1c2523345cd92ba9ea6c210bf76cbec17072bebc985a6b7c2c6c37dcce3cef77",
+          "bodySha256": "07ac1391c5d393dce39389d6c57ce9e268105e3345a34e2ff2f42022fa69d189",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -4787,7 +4787,7 @@
           "argumentTypes": "uuid, uuid",
           "result": "annual_conference_ticket_email_outbox",
           "language": "plpgsql",
-          "bodySha256": "2ae341b28eeb42c2ab64c8a89111df954ba51849d3b4d1e49598d1838a66fc50",
+          "bodySha256": "b3964f9b8b42e773400a10704c9e1d9987543215577fab66a9108ad04e617ed5",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -6440,7 +6440,7 @@
           "argumentTypes": "",
           "result": "trigger",
           "language": "plpgsql",
-          "bodySha256": "efd04ceb600e0c8c7b486f6c405199a9429f5910d6281cd035cb96d0cb594139",
+          "bodySha256": "c088043ca9c182afd895419c2a1054818b2fb3a05c911c0c0ec089252be33dda",
           "securityDefiner": false,
           "searchPath": "public",
           "private": true,
@@ -6708,6 +6708,82 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261110120000_admission_recovery_runner.sql",
+      "sha256": "2cb0678e4ef822c8cd0a7b8ede3cc322351059ed42f024b8b6a9a2b2f27e977e",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "next_annual_conference_admission_recovery_at",
+          "argumentTypes": "",
+          "result": "timestamp with time zone",
+          "language": "sql",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "77fa1d00a899711f52ff12aae36ba7c80ab77dc14cf53aa987add3aef9829142"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "scrub_annual_conference_admission_payload",
+          "argumentTypes": "",
+          "securityDefiner": false,
+          "result": "trigger",
+          "language": "plpgsql",
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "c088043ca9c182afd895419c2a1054818b2fb3a05c911c0c0ec089252be33dda"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "retry_annual_conference_ticket_email_outbox",
+          "argumentTypes": "uuid, uuid",
+          "result": "annual_conference_ticket_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "b3964f9b8b42e773400a10704c9e1d9987543215577fab66a9108ad04e617ed5",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "defer_admission_delivery",
+          "argumentTypes": "uuid, uuid, text, integer",
+          "result": "void",
+          "language": "plpgsql",
+          "bodySha256": "07ac1391c5d393dce39389d6c57ce9e268105e3345a34e2ff2f42022fa69d189",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "annual_conference_ticket_email_outbox",
+          "name": "annual_conference_admission_recovery_due",
+          "contains": [
+            "next_attempt_at"
+          ]
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "annual_conference_ticket_email_outbox",
+          "name": "annual_conference_admission_recovery_lease",
+          "contains": [
+            "claimed_until"
+          ]
         }
       ]
     }

@@ -62,7 +62,9 @@ export default {
       const queue = env.EVENT_BLAST_PREPARATION_QUEUE;
 
       if (queue) {
-        const kinds = ['admission-recovery', 'payment-diagnostics', 'payment-recovery'] as const;
+        const kinds: CheckoutRecoveryMessage['kind'][] = env.ADMISSION_RECOVERY_OWNER !== undefined && env.ADMISSION_RECOVERY_OWNER !== 'queue'
+          ? ['payment-diagnostics', 'payment-recovery']
+          : ['admission-recovery', 'payment-diagnostics', 'payment-recovery'];
         const results = await Promise.allSettled(kinds.map(async (kind) => queue.send({ kind })));
 
         results.forEach((result, index) => {
@@ -88,6 +90,7 @@ export default {
     if (!secret) throw new Error('Missing scheduled-job secret for event blast preparation.');
 
     for (const message of batch.messages) {
+      if (message.body.kind === 'admission-recovery' && env.ADMISSION_RECOVERY_OWNER !== undefined && env.ADMISSION_RECOVERY_OWNER !== 'queue') continue;
       if (message.body.kind === 'admission-recovery' || message.body.kind === 'payment-recovery' || message.body.kind === 'payment-diagnostics') {
         const path = message.body.kind === 'admission-recovery'
           ? '/api/internal/managed-admission-emails/retry'
