@@ -37,10 +37,8 @@ jobs:
       - name: Install dependencies without lifecycle scripts
         run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes postgresql-client
+      - name: Verify PostgreSQL client is available
+        run: psql --version
 
       - name: Verify schema without applying migrations
         env:

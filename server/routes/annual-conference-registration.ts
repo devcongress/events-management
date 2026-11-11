@@ -9,7 +9,7 @@ import { CONFERENCE_REGISTRATION_ACTION, CONFERENCE_REGISTRATION_PATH, CONFERENC
 import { getSupabaseAdminClient } from '@/lib/supabase/server';
 import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
 import { annualConferenceCapabilitiesForRequest, requireAnnualConferenceCapability } from '@/server/annual-conference-request';
-import { hasAnnualConferenceCapability, type AnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
+import { ANNUAL_CONFERENCE_CAPABILITY_GATES, evaluateAnnualConferenceCapabilityGate, hasAnnualConferenceCapability, type AnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
 import { assessPublicSubmissionEmail, enforcePublicRateLimit, publicClientKey, publicEmailErrorPayload, requirePublicTurnstile } from '@/server/http/public-intake-protection';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
@@ -229,11 +229,11 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
 
       if (!access) return c.json({ error: 'Conference not found.' }, 404);
       if (section && !['summary', 'guests', 'form'].includes(section)) return c.json({ error: 'Unknown registration section.' }, 400);
-      const required = section ? [`registration.${section}.view` as AnnualConferenceCapability]
-        : ['registration.summary.view', 'registration.guests.view', 'registration.form.view'] as const;
+      const allowed = section
+        ? hasAnnualConferenceCapability(access.capabilities, `registration.${section}.view` as AnnualConferenceCapability)
+        : evaluateAnnualConferenceCapabilityGate(access.capabilities, ANNUAL_CONFERENCE_CAPABILITY_GATES['registration.read']);
 
-      if (!required
-        .some((permission) => hasAnnualConferenceCapability(access.capabilities, permission))) {
+      if (!allowed) {
         return c.json({ error: 'This account has not been assigned that conference responsibility.' }, 403);
       }
       await next();
@@ -266,8 +266,9 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
     const access = await annualConferenceCapabilitiesForRequest(c, Number(c.req.param('year')));
     const canViewGuests = Boolean((!c.req.query('section') || c.req.query('section') === 'guests')
       && access && hasAnnualConferenceCapability(access.capabilities, 'registration.guests.view'));
-    const canViewOverview = Boolean(access && (hasAnnualConferenceCapability(access.capabilities, 'registration.summary.view')
-      || hasAnnualConferenceCapability(access.capabilities, 'registration.form.view')));
+    const canViewOverview = Boolean(access && evaluateAnnualConferenceCapabilityGate(
+      access.capabilities, ANNUAL_CONFERENCE_CAPABILITY_GATES['registration.overview'],
+    ));
 
     c.header('Cache-Control', 'no-store');
     if (!canViewGuests) return c.json({ overview: canViewOverview ? overview : null, registrations: [] });
@@ -280,8 +281,9 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
     const registrations = (result.data ?? []) as Array<{ id: string } & Record<string, unknown>>;
     const session = c.get('adminSession') ?? await getAdminSession(c);
 
-    if (!canViewOverview || !access || !hasAnnualConferenceCapability(access.capabilities, 'registration.emails.view')
-      || !hasAnnualConferenceCapability(access.capabilities, 'ticketing.check_in')
+    if (!canViewOverview || !access || !evaluateAnnualConferenceCapabilityGate(
+      access.capabilities, ANNUAL_CONFERENCE_CAPABILITY_GATES['registration.ticketDetails'],
+    )
       || (session.authenticated && session.role === 'member')) {
       return c.json({
         overview: canViewOverview ? overview : null,

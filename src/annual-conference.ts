@@ -3,7 +3,10 @@ import { adminPath } from './admin-routes';
 import { TICKETING_VIEW_CAPABILITIES } from './ticketing-navigation';
 import type { AnnualConferenceEdition } from '@/lib/annual-conference-work-plan';
 import {
+  ANNUAL_CONFERENCE_CAPABILITY_GATES,
+  evaluateAnnualConferenceCapabilityGate,
   hasAnyAnnualConferenceCapability,
+  REGISTRATION_VIEW_CAPABILITIES,
   type AnnualConferenceCapability,
   VOLUNTEER_SECTION_CAPABILITIES,
 } from '@/lib/annual-conference-capabilities';
@@ -54,10 +57,7 @@ export function annualConferenceEditionsForNavigation(
 
 export const RESTRICTED_CONFERENCE_HOME = adminPath('conference-access');
 
-export const REGISTRATION_VIEW_CAPABILITIES = [
-  'registration.summary.view', 'registration.guests.view', 'registration.form.view',
-  'registration.emails.view', 'registration.community.view', 'registration.blasts.view',
-] as const;
+export { REGISTRATION_VIEW_CAPABILITIES } from '@/lib/annual-conference-capabilities';
 
 export const SPEAKER_VIEW_CAPABILITIES = [
   'speakers.proposals.view', 'speakers.participation.view',
@@ -77,7 +77,9 @@ const RESTRICTED_CONFERENCE_PLACES = [
 
 export function restrictedConferencePlaces(year: string, capabilities: readonly AnnualConferenceCapability[]) {
   return RESTRICTED_CONFERENCE_PLACES
-    .filter((place) => hasAnyAnnualConferenceCapability(capabilities, place.capabilities))
+    .filter((place) => place.path === 'registrations'
+      ? evaluateAnnualConferenceCapabilityGate(capabilities, ANNUAL_CONFERENCE_CAPABILITY_GATES['registration.workspace'])
+      : hasAnyAnnualConferenceCapability(capabilities, place.capabilities))
     .map(({ path, label, icon }) => ({ href: annualConferencePath(path, year), label, icon }));
 }
 
@@ -91,7 +93,7 @@ export function volunteerCanAccessOrganizerPath(
     || (/^\/organizer-console\/annual-conference\/\d{4}\/check-in$/.test(path)
       && hasAnyAnnualConferenceCapability(capabilities, ['ticketing.check_in']))
     || (/^\/organizer-console\/annual-conference\/\d{4}\/registrations$/.test(path)
-      && hasAnyAnnualConferenceCapability(capabilities, REGISTRATION_VIEW_CAPABILITIES))
+      && evaluateAnnualConferenceCapabilityGate(capabilities, ANNUAL_CONFERENCE_CAPABILITY_GATES['registration.workspace']))
     || /^\/organizer-console\/annual-conference\/\d{4}\/work-plan$/.test(path)
     || /^\/organizer-console\/mobile\/annual-conference\/\d{4}$/.test(path)
     || (/^\/organizer-console\/annual-conference\/\d{4}\/timeline$/.test(path)
@@ -112,7 +114,7 @@ export function annualConferenceRegistrationTarget(
   capabilities: readonly AnnualConferenceCapability[],
   year: string = ACTIVE_ANNUAL_CONFERENCE_EDITION.year,
 ): string | null {
-  if (hasAnyAnnualConferenceCapability(capabilities, REGISTRATION_VIEW_CAPABILITIES)) {
+  if (evaluateAnnualConferenceCapabilityGate(capabilities, ANNUAL_CONFERENCE_CAPABILITY_GATES['registration.workspace'])) {
     return annualConferencePath('registrations', year);
   }
 

@@ -121,3 +121,6 @@ There is no shared-password fallback. When Supabase organizer auth is incomplete
 - Annual Conference grants are resolved from the database for each protected request, so removing a responsibility does not depend on a cached browser role.
 - OAuth failure states are mapped from allowlisted status categories rather than displaying provider or server response bodies, and external, protocol-relative, or backslash-based redirect targets are rejected.
 - The Supabase service-role key is used only on the server and must never use a `VITE_` prefix.
+
+
+Annual Conference registration uses reviewed, code-owned logical gates over explicit edition/member leaf grants. The database stores each grant's enabled state and provenance; it does not store arbitrary expressions. Gates support nonempty AND/OR groups and no NOT. The server authorizes requests and sensitive ticket details; client visibility only guides navigation.

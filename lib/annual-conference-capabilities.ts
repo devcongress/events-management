@@ -55,6 +55,66 @@ export const ANNUAL_CONFERENCE_CAPABILITIES = [
 ] as const;
 
 export type LeafAnnualConferenceCapability = typeof ANNUAL_CONFERENCE_CAPABILITIES[number];
+
+export type AnnualConferenceCapabilityGate =
+  | { readonly capability: LeafAnnualConferenceCapability }
+  | { readonly all: readonly AnnualConferenceCapabilityGate[] }
+  | { readonly any: readonly AnnualConferenceCapabilityGate[] };
+
+export const REGISTRATION_VIEW_CAPABILITIES = [
+  'registration.summary.view', 'registration.guests.view', 'registration.form.view',
+  'registration.emails.view', 'registration.community.view', 'registration.blasts.view',
+] as const;
+
+export const ANNUAL_CONFERENCE_CAPABILITY_GATES = {
+  'registration.workspace': { any: REGISTRATION_VIEW_CAPABILITIES.map((capability) => ({ capability })) },
+  'registration.read': { any: [
+    { capability: 'registration.summary.view' }, { capability: 'registration.guests.view' },
+    { capability: 'registration.form.view' },
+  ] },
+  'registration.overview': { any: [
+    { capability: 'registration.summary.view' }, { capability: 'registration.form.view' },
+  ] },
+  'registration.ticketDetails': { all: [
+    { capability: 'registration.guests.view' }, { capability: 'registration.emails.view' },
+    { capability: 'ticketing.check_in' },
+  ] },
+} as const satisfies Record<string, AnnualConferenceCapabilityGate>;
+
+export type AnnualConferenceCapabilityGateId = keyof typeof ANNUAL_CONFERENCE_CAPABILITY_GATES;
+
+/** Evaluate untrusted gate shapes without expanding legacy or action dependencies. */
+export function evaluateAnnualConferenceCapabilityGate(
+  capabilities: readonly AnnualConferenceCapability[],
+  gate: unknown,
+): boolean {
+  const ancestors = new Set<object>();
+  const evaluate = (node: unknown): boolean | null => {
+    if (!node || typeof node !== 'object' || Array.isArray(node) || ancestors.has(node)) return null;
+    const keys = Reflect.ownKeys(node);
+
+    if (keys.length !== 1 || typeof keys[0] !== 'string') return null;
+    const key = keys[0];
+    const value = (node as Record<string, unknown>)[key];
+
+    if (key === 'capability') return isAnnualConferenceCapability(value) ? capabilities.includes(value) : null;
+    if ((key !== 'all' && key !== 'any') || !Array.isArray(value) || value.length === 0) return null;
+    ancestors.add(node);
+    const results = Array.from(value, evaluate);
+
+    ancestors.delete(node);
+    if (results.includes(null)) return null;
+
+    return key === 'all' ? results.every(Boolean) : results.some(Boolean);
+  };
+
+  try {
+    return evaluate(gate) === true;
+  } catch {
+    return false;
+  }
+}
+
 export const LEGACY_ANNUAL_CONFERENCE_CAPABILITY_MAP = {
   'work_plan.view_all': ['work_plan.tasks.view'],
   'work_plan.manage': ['work_plan.tasks.view', 'work_plan.tasks.manage'],

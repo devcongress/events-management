@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), role: 'owner', ca
 vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
 vi.mock('@/lib/supabase/admin-auth', () => ({
   requireAdmin: async (c: Context, roles: string[]) => roles.includes(mocks.role) ? null : c.json({ error: 'Forbidden' }, 403),
-  getAdminSession: async () => ({ authenticated: true, email: 'owner@example.test' }),
+  getAdminSession: async () => ({ authenticated: true, role: mocks.role, email: 'owner@example.test' }),
 }));
 vi.mock('@/server/annual-conference-request', () => ({
   requireAnnualConferenceCapability: async (c: Context) => mocks.capability && !(mocks.role === 'volunteer' && c.req.path.includes('/registrations')) ? null : c.json({ error: 'Forbidden' }, 403),
@@ -83,6 +83,32 @@ describe('annual conference registration access and privacy', () => {
     expect((await app.request(`${privatePath}?section=summary`)).status).toBe(200);
     expect((await app.request(`${privatePath}?section=guests`)).status).toBe(403);
     expect(mocks.rpc.mock.calls.some(([name]) => name === 'list_annual_conference_registrations')).toBe(false);
+  });
+
+  it.each([
+    ['missing overview', 'owner', ['registration.guests.view', 'registration.emails.view', 'ticketing.check_in']],
+    ['missing emails', 'owner', ['registration.summary.view', 'registration.guests.view', 'ticketing.check_in']],
+    ['missing check-in', 'owner', ['registration.summary.view', 'registration.guests.view', 'registration.emails.view']],
+    ['member', 'member', ['registration.summary.view', 'registration.guests.view', 'registration.emails.view', 'ticketing.check_in']],
+  ])('sanitizes ticket details for %s without querying ticket tables', async (_case, role, capabilities) => {
+    mocks.role = role;
+    mocks.capabilities = capabilities;
+    mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'get_annual_conference_registration_overview' ? overview : [{ id: 'registration-1', name: 'Ada', secret: 'private' }], error: null }));
+    const response = await app.request(privatePath);
+    const body = await response.json() as { overview: unknown; registrations: Array<Record<string, unknown>> };
+
+    expect(response.status).toBe(200);
+    expect(body.overview).toEqual(capabilities.includes('registration.summary.view') ? overview : null);
+    expect(body.registrations).toEqual([{ id: 'registration-1', name: 'Ada', ticket_id: null }]);
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('denies a workspace-only capability on the registration read endpoint', async () => {
+    mocks.capabilities = ['registration.emails.view'];
+
+    expect((await app.request(privatePath)).status).toBe(403);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it('joins manager registrations to minimal admission identities within the edition', async () => {
