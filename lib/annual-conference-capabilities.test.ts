@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   ANNUAL_CONFERENCE_CAPABILITIES,
+  ANNUAL_CONFERENCE_CAPABILITY_GATES,
+  evaluateAnnualConferenceCapabilityGate,
   LEGACY_ANNUAL_CONFERENCE_CAPABILITY_MAP,
   annualConferenceCapabilityChanges,
   canDelegateAnnualConferenceCapability,
@@ -72,5 +74,38 @@ describe('annual conference leaf capabilities', () => {
       { capability: 'volunteers.reviews.view', enabled: false },
       { capability: 'volunteers.reviews.manage', enabled: false },
     ] })).not.toContain('volunteers.reviews.manage');
+  });
+});
+
+describe('annual conference capability gates', () => {
+  it('evaluates nested AND and OR without deriving dependencies', () => {
+    const gate = { all: [{ capability: 'registration.guests.view' }, { any: [
+      { capability: 'registration.summary.view' }, { capability: 'registration.form.view' },
+    ] }] };
+
+    expect(evaluateAnnualConferenceCapabilityGate([], gate)).toBe(false);
+    expect(evaluateAnnualConferenceCapabilityGate(['registration.guests.view'], gate)).toBe(false);
+    expect(evaluateAnnualConferenceCapabilityGate(['registration.guests.view', 'registration.form.view'], gate)).toBe(true);
+    expect(evaluateAnnualConferenceCapabilityGate(['registration.guests.manage'], { capability: 'registration.guests.view' })).toBe(false);
+  });
+
+  it('rejects every malformed tree even when an OR sibling passes', () => {
+    const cycle: { any: unknown[] } = { any: [] };
+
+    cycle.any.push(cycle);
+    for (const invalid of [null, {}, { all: [] }, { any: [] }, { not: { capability: 'finance.view' } },
+      { capability: 'registration.view' }, { capability: 'unknown' }, { capability: 'finance.view', any: [] }, cycle]) {
+      expect(evaluateAnnualConferenceCapabilityGate(['finance.view'], invalid)).toBe(false);
+      expect(evaluateAnnualConferenceCapabilityGate(['finance.view'], { any: [{ capability: 'finance.view' }, invalid] })).toBe(false);
+    }
+  });
+
+  it('keeps workspace, read and sensitive ticket gates distinct', () => {
+    const gates = ANNUAL_CONFERENCE_CAPABILITY_GATES;
+
+    expect(evaluateAnnualConferenceCapabilityGate(['registration.emails.view'], gates['registration.workspace'])).toBe(true);
+    expect(evaluateAnnualConferenceCapabilityGate(['registration.emails.view'], gates['registration.read'])).toBe(false);
+    expect(evaluateAnnualConferenceCapabilityGate(['registration.guests.view', 'registration.emails.view'], gates['registration.ticketDetails'])).toBe(false);
+    expect(evaluateAnnualConferenceCapabilityGate(['registration.guests.view', 'registration.emails.view', 'ticketing.check_in'], gates['registration.ticketDetails'])).toBe(true);
   });
 });

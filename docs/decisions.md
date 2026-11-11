@@ -1646,3 +1646,12 @@ The DevCon26 website reads an allowlisted projection of the saved 2026 programme
 **Why:** A broad permission must not silently authorize newly added sibling features. A forward migration maps existing decisions to their established behavior, including explicit denials and provenance.
 
 **Boundaries:** Existing coarse route checks require all mapped leaves until replaced. Database migration and rollout are separate operations; the offline gate cannot establish that a target has been migrated.
+
+
+## Reviewed logical capability gates
+
+**Date:** 2026-11-11
+
+**Decision:** Keep edition/member leaf grants, enabled state and provenance in the database; define reviewed AND/OR gates in code. The server remains authoritative and UI visibility only guides navigation.
+
+**Boundaries:** Do not store arbitrary database expressions or support NOT. Invalid gate trees fail closed, and sensitive registration ticket details retain their additional overview and role restrictions.
