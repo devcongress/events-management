@@ -28,12 +28,12 @@ import {
 import type { AdminRole } from '@/types/supabase';
 import {
   ANNUAL_CONFERENCE_CAPABILITY_SECTIONS,
-  annualConferenceCapabilityChanges,
   canDelegateAnnualConferenceCapability,
   type AnnualConferenceCapability,
 } from '@/lib/annual-conference-capabilities';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
 import { notify } from '@/src/lib/notify';
+import { subtabAccessChanges, subtabAccessState } from './conference-subtab-access';
 
 const addOrganizerSchema = z.object({
   email: z.string().trim().email('Enter a valid email.'),
@@ -432,11 +432,15 @@ const updateResponsibilityMutation = useMutation({
     memberId: string;
     changes: { capability: AnnualConferenceCapability; enabled: boolean }[];
   }) => updateAnnualConferenceAccessGrants(year, memberId, changes),
-  onError: (caught) => {
-    notifyActionError(caught, 'Unable to update conference responsibilities.');
+  onError: (caught, variables) => {
+    if (variables.memberId === responsibilityMemberId.value && variables.year === responsibilityYear.value) {
+      notifyActionError(caught, 'Unable to update conference responsibilities.');
+    }
   },
   onSettled: (_data, _error, variables) => queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceAccess(variables.year) }),
 });
+
+watch([responsibilityMemberId, responsibilityYear], () => updateResponsibilityMutation.reset());
 
 const disableOrganizerMutation = useMutation({
   mutationFn: async (organizerId: string) => {
@@ -654,37 +658,35 @@ function handleResponsibilityPanelKeydown(event: KeyboardEvent) {
   }
 }
 
-function responsibilityIsInherited(capability: AnnualConferenceCapability): boolean {
-  return responsibilityAccessMember.value?.inherited_capabilities.includes(capability) ?? false;
+function subsectionCapabilities(subsection: typeof responsibilitySections.value[number]['subsections'][number]): AnnualConferenceCapability[] {
+  return subsection.actions.map(([capability]) => capability);
 }
 
-function responsibilityIsEnabled(capability: AnnualConferenceCapability): boolean {
-  return responsibilityAccessMember.value?.capabilities.includes(capability) ?? false;
+function subsectionState(subsection: typeof responsibilitySections.value[number]['subsections'][number]) {
+  return subtabAccessState(
+    subsectionCapabilities(subsection),
+    responsibilityAccessMember.value?.capabilities ?? [],
+    responsibilityAccessMember.value?.inherited_capabilities ?? [],
+  );
+}
+
+function sectionSummary(group: typeof responsibilitySections.value[number]) {
+  const states = group.subsections.map(subsectionState);
+  const enabled = states.filter((state) => state.checked).length;
+  const limited = states.filter((state) => state.limited).length;
+
+  return `${enabled} of ${states.length} enabled${limited ? ` · ${limited} limited` : ''}`;
 }
 
 function toggleResponsibilities(capabilities: readonly AnnualConferenceCapability[], enabled: boolean) {
   if (updateResponsibilityMutation.isPending.value || !responsibilityMemberId.value || !responsibilityMember.value) return;
-  const role = responsibilityMember.value.role;
-  const changes = [...new Set(capabilities.flatMap((capability) => annualConferenceCapabilityChanges(role, capability, enabled)))]
-    .filter((capability) => canDelegateAnnualConferenceCapability(capability, role))
-    .map((capability) => ({ capability, enabled }));
+  const changes = subtabAccessChanges(capabilities, responsibilityMember.value.role, enabled);
 
   updateResponsibilityMutation.mutate({
     year: responsibilityYear.value,
     memberId: responsibilityMemberId.value,
     changes,
   });
-}
-
-function sectionCapabilities(group: typeof responsibilitySections.value[number]): AnnualConferenceCapability[] {
-  return group.subsections.flatMap((subsection) => subsection.actions.map(([capability]) => capability));
-}
-
-function sectionState(group: typeof responsibilitySections.value[number]): 'true' | 'false' | 'mixed' {
-  const capabilities = sectionCapabilities(group);
-  const enabled = capabilities.filter(responsibilityIsEnabled).length;
-
-  return enabled === 0 ? 'false' : enabled === capabilities.length ? 'true' : 'mixed';
 }
 
 function formatDateTime(value: string | null): string {
@@ -1110,7 +1112,7 @@ onUnmounted(() => {
       >
         <aside
           ref="responsibilityPanel"
-          class="responsibility-drawer flex h-full w-full max-w-xl flex-col border-l border-dc-border bg-dc-paper shadow-2xl"
+          class="responsibility-drawer flex h-full w-full max-w-2xl flex-col border-l border-dc-border bg-dc-paper shadow-2xl"
           role="dialog"
           aria-modal="true"
           aria-labelledby="conference-responsibilities-title"
@@ -1121,7 +1123,7 @@ onUnmounted(() => {
             <div class="min-w-0">
               <p class="editorial-eyebrow">Annual Conference</p>
               <div class="mt-1 flex flex-wrap items-center gap-2">
-                <h2 id="conference-responsibilities-title" class="truncate text-xl font-semibold text-dc-ink">
+                <h2 id="conference-responsibilities-title" class="break-words text-xl font-semibold text-dc-ink">
                   Delegate to {{ memberName(responsibilityMember) }}
                 </h2>
                 <OrganizerRoleBadge :role="responsibilityMember.role" />
@@ -1130,7 +1132,7 @@ onUnmounted(() => {
                 {{ responsibilityMember.role === 'member'
                   ? 'Only these places are available to this member for the selected edition.'
                   : 'Set access for this conference edition. Role access elsewhere in EMS is unchanged.' }}
-                Changes save immediately.
+                Enabling a sub-tab enables all available actions. Changes save immediately.
               </p>
             </div>
             <button
@@ -1146,7 +1148,7 @@ onUnmounted(() => {
             </button>
           </header>
 
-          <div class="border-b border-dc-border px-5 py-4 sm:px-6">
+          <div class="px-5 py-4 sm:px-6">
             <AppDropdown
               v-model="responsibilityYear"
               :disabled="updateResponsibilityMutation.isPending.value"
@@ -1164,43 +1166,55 @@ onUnmounted(() => {
             <div v-else-if="accessQuery.isError.value" class="rounded-md border border-red-700 bg-red-50 p-4 text-sm text-red-800" role="alert">
               Unable to load conference responsibilities.
             </div>
-            <div v-else class="divide-y divide-dc-border border-y border-dc-border">
-              <section v-for="group in responsibilitySections" :key="group.section" class="py-2">
-                <div class="flex min-h-11 items-center justify-between gap-3">
-                  <h3 class="font-bold text-dc-ink">{{ group.section }}</h3>
+            <div v-else class="responsibility-groups">
+              <details v-for="(group, groupIndex) in responsibilitySections" :key="group.section" class="responsibility-section">
+                <summary class="responsibility-summary flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-2">
+                  <span class="min-w-0">
+                    <span class="responsibility-section-title block font-bold text-dc-ink">{{ group.section }}</span>
+                    <span class="block text-xs text-dc-gray">{{ sectionSummary(group) }}</span>
+                  </span>
+                  <span class="responsibility-chevron flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-dc-gray" aria-hidden="true">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" /></svg>
+                  </span>
+                </summary>
+                <div class="responsibility-subsections ml-2 pb-2 pl-4">
                   <button
+                    v-for="(subsection, subsectionIndex) in group.subsections"
+                    :key="subsection.label"
                     type="button"
-                    role="checkbox"
-                    class="min-h-11 rounded-md px-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink disabled:opacity-50"
-                    :aria-label="`All ${group.section} access`"
-                    :aria-checked="sectionState(group)"
+                    role="switch"
+                    class="responsibility-access-control flex min-h-16 w-full items-center justify-between gap-3 py-2 text-left disabled:opacity-50"
                     :disabled="updateResponsibilityMutation.isPending.value"
-                    @click="toggleResponsibilities(sectionCapabilities(group), sectionState(group) !== 'true')"
+                    :aria-checked="subsectionState(subsection).checked"
+                    :aria-label="`${group.section}: ${subsection.label} access`"
+                    :aria-describedby="`access-${groupIndex}-${subsectionIndex}`"
+                    @click="toggleResponsibilities(subsectionCapabilities(subsection), !subsectionState(subsection).checked)"
                   >
-                    <span aria-hidden="true">{{ sectionState(group) === 'true' ? '☑' : sectionState(group) === 'mixed' ? '⊟' : '☐' }}</span> All
+                    <span class="min-w-0">
+                      <span class="block text-sm font-semibold text-dc-ink">{{ subsection.label }}</span>
+                      <span :id="`access-${groupIndex}-${subsectionIndex}`" class="block text-xs text-dc-gray">
+                        {{ subsectionState(subsection).label }}<template v-if="subsectionState(subsection).provenance"> · {{ subsectionState(subsection).provenance }}</template>
+                      </span>
+                    </span>
+                    <span class="-mr-2.5 flex h-11 w-11 shrink-0 items-center justify-center" aria-hidden="true">
+                      <span
+                        class="responsibility-state-box flex h-5 w-5 items-center justify-center rounded-[4px] border"
+                        :class="subsectionState(subsection).limited
+                          ? 'responsibility-state-box--limited'
+                          : subsectionState(subsection).checked
+                            ? 'responsibility-state-box--on'
+                            : 'responsibility-state-box--off'"
+                      >
+                        <span v-if="subsectionState(subsection).limited" class="h-0.5 w-2.5 rounded-full bg-current" />
+                        <svg v-else-if="subsectionState(subsection).checked" class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="m3.5 8 3 3 6-6" />
+                        </svg>
+                      </span>
+                    </span>
                   </button>
                 </div>
-                <div v-for="subsection in group.subsections" :key="subsection.label" class="flex flex-wrap items-center justify-between gap-x-2 border-t border-dc-border py-1 pl-2">
-                  <span class="text-sm font-semibold">{{ subsection.label }}</span>
-                  <div class="flex flex-wrap items-center">
-                    <button
-                      v-for="[capability, action] in subsection.actions"
-                      :key="capability"
-                      type="button"
-                      class="min-h-11 rounded-md px-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink disabled:opacity-50"
-                      :class="responsibilityIsEnabled(capability) ? 'font-semibold text-dc-pink' : 'text-dc-gray'"
-                      :disabled="updateResponsibilityMutation.isPending.value"
-                      :aria-pressed="responsibilityIsEnabled(capability)"
-                      :aria-label="`${action} ${group.section} ${subsection.label}: ${responsibilityIsEnabled(capability) ? 'enabled' : 'disabled'}${responsibilityIsInherited(capability) ? ', role default' : ', edition access'}`"
-                      @click="toggleResponsibilities([capability], !responsibilityIsEnabled(capability))"
-                    >
-                      {{ action }}<span v-if="responsibilityIsInherited(capability)" class="ml-0.5" aria-hidden="true">*</span>
-                    </button>
-                  </div>
-                </div>
-              </section>
+              </details>
             </div>
-            <p v-if="!accessQuery.isPending.value && !accessQuery.isError.value" class="mt-3 text-xs text-dc-gray">Pink actions are enabled. * Role default; changes apply to this edition.</p>
             <p v-if="updateResponsibilityMutation.isPending.value" class="mt-3 text-xs text-dc-gray" role="status">Saving access…</p>
             <p v-else-if="updateResponsibilityMutation.isError.value" class="mt-3 text-xs text-red-800" role="alert">Unable to save access. Please try again.</p>
           </div>
@@ -1276,6 +1290,15 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.responsibility-drawer {
+  --responsibility-accent: #a8115e;
+  --responsibility-accent-soft: #fcecf4;
+}
+
+.responsibility-drawer .editorial-eyebrow {
+  color: var(--responsibility-accent);
+}
+
 .access-disclosure {
   display: flex;
   width: 100%;
@@ -1322,8 +1345,19 @@ onUnmounted(() => {
   display: none;
 }
 
-.responsibility-section[open] .responsibility-chevron {
-  @apply border-dc-pink bg-dc-paper-warm text-dc-pink;
+.responsibility-section + .responsibility-section {
+  border-top: 1px solid rgb(17 17 17 / 8%);
+}
+
+.responsibility-summary:focus-visible {
+  outline: none;
+}
+
+.responsibility-summary:focus-visible .responsibility-section-title {
+  text-decoration-line: underline;
+  text-decoration-color: var(--responsibility-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
 }
 
 .responsibility-section[open] .responsibility-chevron svg {
@@ -1334,35 +1368,38 @@ onUnmounted(() => {
   .responsibility-chevron svg {
     transition: transform 160ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-
-  @supports selector(::details-content) and (transition-behavior: allow-discrete) and (interactivity: inert) {
-    .responsibility-section:not([open])::details-content {
-      interactivity: inert;
-    }
-
-    .responsibility-section::details-content {
-      opacity: 0;
-      transform: translateY(-4px);
-      transition: opacity 160ms ease-out, transform 160ms cubic-bezier(0.16, 1, 0.3, 1), content-visibility 160ms allow-discrete;
-    }
-
-    .responsibility-section[open]::details-content {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
 }
 
-.responsibility-toggle-knob {
-  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+.responsibility-access-control:focus-visible {
+  outline: none;
+}
+
+.responsibility-access-control:focus-visible .responsibility-state-box {
+  outline: 2px solid var(--responsibility-accent);
+  outline-offset: 3px;
+}
+
+.responsibility-state-box--on {
+  border-color: var(--responsibility-accent);
+  background: var(--responsibility-accent);
+  color: white;
+}
+
+.responsibility-state-box--limited {
+  border-color: var(--responsibility-accent);
+  background: var(--responsibility-accent-soft);
+  color: var(--responsibility-accent);
+}
+
+.responsibility-state-box--off {
+  @apply border-dc-gray bg-dc-paper text-transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .responsibility-overlay-enter-active,
   .responsibility-overlay-leave-active,
   .responsibility-overlay-enter-active .responsibility-drawer,
-  .responsibility-overlay-leave-active .responsibility-drawer,
-  .responsibility-toggle-knob {
+  .responsibility-overlay-leave-active .responsibility-drawer {
     transition-duration: 0.01ms;
   }
 

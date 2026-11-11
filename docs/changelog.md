@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-11-11: Simplify Annual Conference delegation to expandable sections with one immediate-save switch per sub-tab, while showing limited existing access.
+
 - 2026-11-11: Centralize reviewed Annual Conference registration capability gates while preserving section and sensitive ticket access boundaries.
 
 - 2026-11-11: Verify migration inventory against reviewed filenames instead of a growing count.
