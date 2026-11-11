@@ -41,7 +41,9 @@ describe('migration contract inventory', () => {
   it('covers the current files with an honest legacy exemption and reviewed contracts', () => {
     expect(validateInventory(contract, sources)).toEqual([]);
     expect(Object.keys(contract.legacyInventory)).toHaveLength(92);
-    expect(contract.verified).toHaveLength(67);
+    expect(contract.verified.map((migration) => migration.file).sort()).toEqual(
+      sources.filter((source) => !Object.hasOwn(contract.legacyInventory, source.file)).map((source) => source.file).sort(),
+    );
   });
 
   it('checks superseded functions against their final definition in every migration', () => {
