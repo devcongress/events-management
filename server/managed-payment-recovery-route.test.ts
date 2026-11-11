@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { managedPaymentReference } from '@/lib/managed-conference-checkout';
-import { managedRecoveryQueueRequest } from './managed-recovery-request';
+import { managedRecoveryQueueRequest, paymentDiagnosticsDueRequest } from './managed-recovery-request';
 import { registerAnnualConferenceRegistrationRoutes } from './routes/annual-conference-registration';
 import worker from './worker';
 import type { ExecutionContext } from 'hono';
@@ -130,4 +130,24 @@ it('protects the separate diagnostics route and never invokes fulfillment or ema
   expect(await (await request(path)).json()).toEqual({ checked: 0, failed: 0 });
   expect(mocks.confirm).not.toHaveBeenCalled();
   expect(mocks.admission).not.toHaveBeenCalled();
+});
+
+it('limits the due probe to scheduled provenance and strictly validates the database result', async () => {
+  const path = '/api/internal/payment-diagnostics/due';
+  const scheduled = (bindings = env, token = secret) => app.fetch(paymentDiagnosticsDueRequest(`https://events-management.internal${path}`, token), bindings);
+
+  expect((await scheduled(env, 'wrong')).status).toBe(404);
+  expect((await request(path)).status).toBe(404);
+  expect((await app.request(path, { method: 'POST', headers: { 'x-scheduled-job-secret': secret } }, env)).status).toBe(404);
+  expect(await (await scheduled({ ...env, MANAGED_PAYMENT_RECOVERY_OWNER_ENABLED: 'false' })).json()).toEqual({ due: false });
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  for (const value of [true, false]) {
+    mocks.rpc.mockResolvedValueOnce({ data: value, error: null });
+    expect(await (await scheduled()).json()).toEqual({ due: value });
+  }
+  mocks.rpc.mockResolvedValueOnce({ data: 'true', error: null });
+  expect((await scheduled()).status).toBe(503);
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'failure' } });
+  expect((await scheduled()).status).toBe(503);
+  expect((await app.fetch(paymentDiagnosticsDueRequest('https://events-management.internal/api/internal/payment-diagnostics/check', secret), env)).status).toBe(404);
 });

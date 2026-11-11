@@ -21,7 +21,7 @@ try {
     create table public.annual_conference_ticket_orders (id uuid primary key, status text not null, paid_at timestamptz, payment_mode text not null);
     create table public.annual_conference_ticket_payment_attempts (id uuid primary key, order_id uuid unique references public.annual_conference_ticket_orders(id), provider text, payment_reference text unique);
   `);
-  for (const migration of ['20261109120100_managed_paystack_observations.sql', '20261109140000_unresolved_payment_diagnostics.sql']) {
+  for (const migration of ['20261109120100_managed_paystack_observations.sql', '20261109140000_unresolved_payment_diagnostics.sql', '20261111120000_payment_diagnostics_due.sql']) {
     sql(readFileSync(new URL(`../supabase/migrations/${migration}`, import.meta.url), 'utf8'));
   }
   sql(`
@@ -41,11 +41,17 @@ try {
   const first = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const second = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const claim = (id) => JSON.parse(sql(`select coalesce(json_agg(row_to_json(q)), '[]') from public.claim_unresolved_payment_diagnostics('${id}') q`));
+  const due = () => sql('select public.unresolved_payment_diagnostics_due()');
+
+  assert.equal(due(), 't');
+  assert.equal(sql("select has_function_privilege('anon', 'public.unresolved_payment_diagnostics_due()', 'execute') or has_function_privilege('authenticated', 'public.unresolved_payment_diagnostics_due()', 'execute')"), 'f');
+  assert.equal(sql("select has_function_privilege('service_role', 'public.unresolved_payment_diagnostics_due()', 'execute')"), 't');
   const initial = claim(first);
 
   assert.deepEqual(initial.map((row) => row.order_id).sort(), ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002']);
   assert.equal(initial.find((row) => row.order_id.endsWith('2')).payment_mode, 'test');
   assert.equal(claim(second).length, 0, 'active leases and recent observations suppress duplicate work');
+  assert.equal(due(), 'f', 'leases and other ineligible attempts do not trigger a seed');
   sql(`select public.finish_unresolved_payment_diagnostic('00000000-0000-4000-8000-000000000001','${second}')`);
   assert.equal(sql("select diagnostic_claim is not null from public.annual_conference_ticket_payment_attempts where id='00000000-0000-4000-8000-000000000001'"), 't');
   sql(`select public.finish_unresolved_payment_diagnostic('00000000-0000-4000-8000-000000000001','${first}')`);
@@ -56,6 +62,7 @@ try {
     assert.equal(sql(`select diagnostic_next_at between now() + interval '${minutes} minutes' - interval '5 seconds' and now() + interval '${minutes} minutes' from public.annual_conference_ticket_payment_attempts where id='00000000-0000-4000-8000-000000000001'`), 't');
   }
   sql(`update public.annual_conference_ticket_payment_attempts set diagnostic_until=now()-interval '1 second' where id='00000000-0000-4000-8000-000000000002'`);
+  assert.equal(due(), 't', 'expired leases restore eligibility');
   assert.equal(claim(second).some((row) => row.order_id.endsWith('2')), true, 'expired leases are recoverable');
   sql(`select public.record_managed_paystack_observation('00000000-0000-4000-8000-000000000002', now(), 'success', 'Successful'); select public.finish_unresolved_payment_diagnostic('00000000-0000-4000-8000-000000000002','${second}')`);
   assert.equal(sql("select diagnostic_next_at = 'infinity'::timestamptz from public.annual_conference_ticket_payment_attempts where id='00000000-0000-4000-8000-000000000002'"), 't');

@@ -1316,6 +1316,7 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
       || path === '/api/internal/annual-conference-admission-emails/retry'
       || path === '/api/internal/managed-payments/reconcile'
       || path === '/api/internal/payment-diagnostics/check'
+      || path === '/api/internal/payment-diagnostics/due'
       || path === '/api/internal/managed-admission-emails/retry'
       || path === '/api/internal/annual-conference-attendee-updates/retry'
       || path === '/api/internal/event-blasts/prepare'

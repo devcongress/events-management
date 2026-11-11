@@ -6837,6 +6837,32 @@
           "serviceExecute": true
         }
       ]
+    },
+    {
+      "file": "20261111120000_payment_diagnostics_due.sql",
+      "sha256": "886afedc6274a4cd09664875a3d772172d031c9c188be0b365f5678b89fdaf70",
+      "checks": [
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "annual_conference_ticket_payment_attempts",
+          "name": "annual_conference_payment_diagnostics_due_idx",
+          "contains": ["diagnostic_next_at", "paystack_status"]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "unresolved_payment_diagnostics_due",
+          "argumentTypes": "",
+          "result": "boolean",
+          "language": "sql",
+          "bodySha256": "38f7d04886ad6cf4abf6ef932a08ce1960b9b41cd809c54420ea8bb82954fd38",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
     }
   ]
 }
