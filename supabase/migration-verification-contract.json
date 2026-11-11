@@ -6786,6 +6786,57 @@
           ]
         }
       ]
+    },
+    {
+      "file": "20261110130000_editable_attendance_baseline.sql",
+      "sha256": "6ee4b6d17506339079c577628ed0738cb809eec1c8ab89576f9ef5cbcf1d769b",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_attendance_counters",
+          "name": "baseline",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "20"
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_attendance_counters",
+          "name": "annual_conference_attendance_counters_baseline_nonnegative",
+          "contains": [
+            "CHECK",
+            "baseline >= 0"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "read_annual_conference_ticket_counter",
+          "argumentTypes": "integer",
+          "result": "jsonb",
+          "language": "plpgsql",
+          "bodySha256": "3f1b7cfd700e99767648b4215ed2cc1ea2b149196e8842bec9e63429b16c3644",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "set_annual_conference_attendance_baseline",
+          "argumentTypes": "integer, integer, integer",
+          "result": "jsonb",
+          "language": "plpgsql",
+          "bodySha256": "5a421a5ff116bc2c62239f4ed51285b5e323aed30a9006d6b37d05a4576fd614",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
     }
   ]
 }
