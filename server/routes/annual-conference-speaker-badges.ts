@@ -26,7 +26,7 @@ async function resolveCard(c: Context<AppBindings>, organizer: boolean) {
 
   if (year !== '2026') return null;
   if (organizer) {
-    const denied = await requireAnnualConferenceCapability(c, Number(year), 'speakers.view');
+    const denied = await requireAnnualConferenceCapability(c, Number(year), 'speakers.participation.view');
 
     if (denied) return denied;
   }
@@ -62,7 +62,7 @@ export function registerAnnualConferenceSpeakerBadgeRoutes(app: Hono<AppBindings
     const year = c.req.param('year');
 
     if (year !== '2026') return c.json({ error: 'Speaker badge storage is unavailable for this edition.' }, 404);
-    const denied = await requireAnnualConferenceCapability(c, Number(year), 'speakers.view');
+    const denied = await requireAnnualConferenceCapability(c, Number(year), 'speakers.participation.view');
 
     if (denied) return denied;
     try {

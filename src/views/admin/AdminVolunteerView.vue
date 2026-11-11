@@ -66,15 +66,15 @@ const capabilities = computed(
   () => workPlanQuery.data.value?.permissions.capabilities ?? [],
 );
 const canViewTeam = computed(() =>
-  hasAnnualConferenceCapability(capabilities.value, "volunteers.view_team"),
+  hasAnnualConferenceCapability(capabilities.value, "volunteers.directory.view"),
 );
 const canShareIntake = computed(() =>
-  hasAnnualConferenceCapability(capabilities.value, "volunteers.share_intake"),
+  hasAnnualConferenceCapability(capabilities.value, "volunteers.intake.share"),
 );
 const canReviewApplications = computed(() =>
   hasAnnualConferenceCapability(
     capabilities.value,
-    "volunteers.review_applications",
+    "volunteers.reviews.view",
   ),
 );
 const canLoadVolunteerApplications = computed(
@@ -84,7 +84,7 @@ const canViewReviews = computed(
   () => canReviewApplications.value && year.value === "2026",
 );
 const canViewCampaign = computed(
-  () => canViewReviews.value && sessionQuery.data.value?.user?.role === "owner",
+  () => year.value === "2026" && hasAnnualConferenceCapability(capabilities.value, "volunteers.campaign.view"),
 );
 
 watch(
@@ -97,7 +97,8 @@ watch(
     }
   },
 );
-const volunteerView = useVolunteerView(canViewReviews, canViewCampaign);
+const canViewDirectory = computed(() => canViewTeam.value || canShareIntake.value);
+const volunteerView = useVolunteerView(canViewReviews, canViewCampaign, canViewDirectory, computed(() => workPlanQuery.isSuccess.value));
 const visitedVolunteerViews = ref(
   new Set<VolunteerView>(["directory"]),
 );
@@ -397,6 +398,7 @@ function clearVolunteerFilters() {
           v-model="volunteerView"
           :reviews-visible="canViewReviews"
           :campaign-visible="canViewCampaign"
+          :directory-visible="canViewDirectory"
           id-prefix="admin-volunteers"
         />
 
@@ -420,6 +422,7 @@ function clearVolunteerFilters() {
             tabindex="0"
           >
             <VolunteerReviewsPanel
+              :can-manage="hasAnnualConferenceCapability(capabilities, 'volunteers.reviews.manage')"
               :session-identity="`${sessionQuery.data.value?.user?.email ?? 'unknown'}:${sessionQuery.data.value?.user?.role ?? 'unknown'}`"
             />
           </div>
@@ -434,9 +437,9 @@ function clearVolunteerFilters() {
             tabindex="0"
           >
             <VolunteerFollowUpPanel
-              :is-owner-session="
-                sessionQuery.data.value?.user?.role === 'owner'
-              "
+              :is-owner-session="canViewCampaign"
+              :can-manage="hasAnnualConferenceCapability(capabilities, 'volunteers.campaign.manage')"
+              :can-send="hasAnnualConferenceCapability(capabilities, 'volunteers.campaign.send')"
             />
           </div>
 

@@ -22,6 +22,7 @@ import {
   queryKeys,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
+import { TICKETING_VIEW_CAPABILITIES } from '@/src/ticketing-navigation';
 import {
   hasAnyAnnualConferenceCapability,
   VOLUNTEER_SECTION_CAPABILITIES,
@@ -108,7 +109,7 @@ const canViewFinance = computed(() => hasAnyAnnualConferenceCapability(
 ));
 const canViewSpeakers = computed(() => hasAnyAnnualConferenceCapability(
   capabilities.value,
-  ['speakers.view', 'speakers.manage'],
+  ['speakers.proposals.view', 'speakers.participation.view', 'speakers.delivery.view', 'speakers.outcomes.view'],
 ));
 const registrationTarget = computed(() => annualConferenceRegistrationTarget(capabilities.value, year.value));
 const links = computed<AnnualConferenceNavLink[]>(() => isRestricted.value ? [
@@ -125,10 +126,10 @@ const links = computed<AnnualConferenceNavLink[]>(() => isRestricted.value ? [
     icon: 'work-plan',
   },
   ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers', icon: 'volunteers' as const }] : []),
-  ...(canManageEditions.value ? [{ href: annualConferencePath('programme', year.value), label: 'Programme', icon: 'work-plan' as const }] : []),
+  ...(hasAnyAnnualConferenceCapability(capabilities.value, ['programme.view']) ? [{ href: annualConferencePath('programme', year.value), label: 'Programme', icon: 'work-plan' as const }] : []),
   ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
   ...(registrationTarget.value ? [{ href: registrationTarget.value, label: 'Registration', icon: 'tickets' as const }] : []),
-  ...(!isVolunteer.value && hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage'])
+  ...(hasAnyAnnualConferenceCapability(capabilities.value, TICKETING_VIEW_CAPABILITIES)
     ? [{ href: annualConferencePath('ticketing', year.value), label: 'Ticketing', icon: 'tickets' as const }]
     : []),
   ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const, disabled: true }] : []),

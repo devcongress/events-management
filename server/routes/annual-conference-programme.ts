@@ -35,7 +35,7 @@ async function service(c: Context<AppBindings>) {
     email: session.email,
     edition: async (year) => (await createAnnualConferenceRepository(c).getWorkspace(year))?.edition,
     repository: createAnnualConferenceProgrammeRepository(c),
-    canManageSpeakers: async (year) => !await requireAnnualConferenceCapability(c, year, 'speakers.manage'),
+    canManageSpeakers: async (year) => !await requireAnnualConferenceCapability(c, year, 'programme.manage'),
     acceptedProposalIds: async (id) => new Set((await acceptedProgrammeProposals(id, c)).map((proposal) => proposal.id)),
     audit: (id, revision) => recordProtectedMutationAudit(c, { action: 'annual_conference_programme_updated', targetType: 'annual_conference_edition', targetId: id, metadata: { revision } }),
   });
@@ -45,12 +45,15 @@ export function registerAnnualConferenceProgrammeRoutes(app: Hono<AppBindings>) 
   const path = '/api/annual-conference/:year/programme';
 
   async function handle(c: Context<AppBindings>, save: boolean) {
-    const denied = await requireAdmin(c, ['owner', 'organizer']);
+    const denied = await requireAdmin(c, ['owner', 'organizer', 'member', 'volunteer']);
 
     if (denied) return denied;
     const year = c.req.param('year') ?? '';
 
     if (!/^\d{4}$/.test(year)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+    const deniedCapability = await requireAnnualConferenceCapability(c, Number(year), save ? 'programme.manage' : 'programme.view');
+
+    if (deniedCapability) return deniedCapability;
     const input = save ? programmeSaveSchema.safeParse(await c.req.json().catch(() => null)) : null;
 
     if (input && !input.success) return c.json({ error: input.error.issues[0]?.message ?? 'Invalid programme.' }, 400);
@@ -69,7 +72,7 @@ export function registerAnnualConferenceProgrammeRoutes(app: Hono<AppBindings>) 
   app.put(path, (c) => handle(c, true));
 
   app.get(`${path}/speakers`, async (c) => {
-    const denied = await requireAdmin(c, ['owner', 'organizer']);
+    const denied = await requireAdmin(c, ['owner', 'organizer', 'member', 'volunteer']);
 
     if (denied) return denied;
     try {
@@ -77,10 +80,10 @@ export function registerAnnualConferenceProgrammeRoutes(app: Hono<AppBindings>) 
       const edition = /^\d{4}$/.test(year) ? (await createAnnualConferenceRepository(c).getWorkspace(Number(year)))?.edition : null;
 
       if (!edition) return c.json({ error: 'Conference edition not found.' }, 404);
-      const deniedCapability = await requireAnnualConferenceCapability(c, Number(year), 'speakers.view');
+      const deniedCapability = await requireAnnualConferenceCapability(c, Number(year), 'programme.view');
 
       if (deniedCapability) return deniedCapability;
-      const canManagePhotos = !await requireAnnualConferenceCapability(c, Number(year), 'speakers.manage');
+      const canManagePhotos = !await requireAnnualConferenceCapability(c, Number(year), 'programme.manage');
       const proposals = await acceptedProgrammeProposals(edition.id, c);
       const photos = await programmePhotoPaths(proposals.flatMap((item) => item.speaker_profile_id ? [item.speaker_profile_id] : []), c);
       const origin = programmeOrigin(c);
@@ -94,7 +97,7 @@ export function registerAnnualConferenceProgrammeRoutes(app: Hono<AppBindings>) 
   const photoPath = `${path}/speakers/:speakerId/photo`;
 
   async function managePhoto(c: Context<AppBindings>, remove: boolean) {
-    const denied = await requireAdmin(c, ['owner', 'organizer']);
+    const denied = await requireAdmin(c, ['owner', 'organizer', 'member', 'volunteer']);
 
     if (denied) return denied;
     try {
@@ -103,7 +106,7 @@ export function registerAnnualConferenceProgrammeRoutes(app: Hono<AppBindings>) 
       const edition = /^\d{4}$/.test(year) ? (await createAnnualConferenceRepository(c).getWorkspace(Number(year)))?.edition : null;
 
       if (!edition) return c.json({ error: 'Speaker not found.' }, 404);
-      const deniedCapability = await requireAnnualConferenceCapability(c, Number(year), 'speakers.manage');
+      const deniedCapability = await requireAnnualConferenceCapability(c, Number(year), 'programme.manage');
 
       if (deniedCapability) return deniedCapability;
       if (!(await acceptedProgrammeProposals(edition.id, c)).some((item) => item.speaker_profile_id === id)) return c.json({ error: 'Speaker not found.' }, 404);
@@ -130,7 +133,7 @@ export function registerAnnualConferenceProgrammeRoutes(app: Hono<AppBindings>) 
   }
 
   app.get(photoPath, async (c) => {
-    const denied = await requireAdmin(c, ['owner', 'organizer']);
+    const denied = await requireAdmin(c, ['owner', 'organizer', 'member', 'volunteer']);
 
     if (denied) return denied;
     try {
@@ -139,7 +142,7 @@ export function registerAnnualConferenceProgrammeRoutes(app: Hono<AppBindings>) 
       const edition = /^\d{4}$/.test(year) ? (await createAnnualConferenceRepository(c).getWorkspace(Number(year)))?.edition : null;
 
       if (!edition) return c.json({ error: 'Speaker not found.' }, 404);
-      const deniedCapability = await requireAnnualConferenceCapability(c, Number(year), 'speakers.view');
+      const deniedCapability = await requireAnnualConferenceCapability(c, Number(year), 'programme.view');
 
       if (deniedCapability) return deniedCapability;
       if (!(await acceptedProgrammeProposals(edition.id, c)).some((item) => item.speaker_profile_id === id)) return c.json({ error: 'Speaker not found.' }, 404);

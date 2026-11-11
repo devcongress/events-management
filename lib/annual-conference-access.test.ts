@@ -102,7 +102,7 @@ describe('annual conference volunteer access', () => {
     expect(annualConferenceTasksForMember(
       tasks,
       { role: 'organizer', email: 'organizer@example.com' },
-      ['work_plan.view_all'],
+      ['work_plan.tasks.view'],
     )).toEqual(tasks);
   });
 
@@ -110,12 +110,12 @@ describe('annual conference volunteer access', () => {
     const permissions = annualConferenceCapabilities({
       role: 'organizer',
       email: 'organizer@example.com',
-      capability_overrides: [{ capability: 'work_plan.view_all', enabled: false }],
+      capability_overrides: [{ capability: 'work_plan.tasks.view', enabled: false }],
     }, edition);
 
     expect(permissions.access_scope).toBe('assigned');
     expect(canUpdateAnnualConferenceTaskStatus(
-      { role: 'organizer', email: 'organizer@example.com', capability_overrides: [{ capability: 'work_plan.view_all', enabled: false }] },
+      { role: 'organizer', email: 'organizer@example.com', capability_overrides: [{ capability: 'work_plan.tasks.view', enabled: false }] },
       edition,
       task({ accountable_owner: 'someone@example.com' }),
     )).toBe(false);
@@ -125,12 +125,23 @@ describe('annual conference volunteer access', () => {
     const tasks = [task(), task({ id: 'task-2', accountable_owner: 'someone@example.com' })];
     const visible = annualConferenceTasksForMember(
       tasks,
-      { role: 'volunteer', email: 'volunteer@example.com', granted_capabilities: ['work_plan.view_all'] },
-      ['work_plan.view_all'],
+      { role: 'volunteer', email: 'volunteer@example.com', granted_capabilities: ['work_plan.tasks.view'] },
+      ['work_plan.tasks.view'],
     );
 
     expect(visible).toHaveLength(2);
     expect(visible.every((item) => item.internal_note === null)).toBe(true);
+  });
+
+  it('does not widen task access from timeline or phase grants', () => {
+    for (const capability of ['work_plan.timeline.view', 'work_plan.phases.manage'] as const) {
+      const actor = { role: 'member' as const, email: 'member@example.com', granted_capabilities: [capability] };
+      const permissions = annualConferenceCapabilities(actor, edition);
+
+      expect(annualConferenceTasksForMember([task()], actor, permissions.capabilities)).toEqual([]);
+      expect(permissions.can_create_tasks).toBe(false);
+      expect(permissions.can_manage_phases).toBe(capability === 'work_plan.phases.manage');
+    }
   });
 
   it('lets volunteers change only status on tasks assigned to them', () => {
@@ -192,7 +203,7 @@ describe('annual conference volunteer access', () => {
       { status: 'done' },
     )).toBe(true);
     expect(canUpdateAnnualConferenceTask(
-      { role: 'volunteer', email: 'volunteer@example.com', granted_capabilities: ['work_plan.manage'] },
+      { role: 'volunteer', email: 'volunteer@example.com', granted_capabilities: ['work_plan.tasks.manage'] },
       edition,
       task({ accountable_owner: 'someone@example.com' }),
       { title: 'Delegated manager update' },
@@ -205,7 +216,7 @@ describe('annual conference volunteer access', () => {
     const delegatedManager: AnnualConferenceActor = {
       role: 'volunteer',
       email: 'manager@example.com',
-      granted_capabilities: ['work_plan.manage'],
+      granted_capabilities: ['work_plan.tasks.manage'],
     };
 
     expect(canUpdateAnnualConferenceTaskStatus(
@@ -240,7 +251,7 @@ describe('annual conference volunteer access', () => {
     const delegatedManager: AnnualConferenceActor = {
       role: 'volunteer',
       email: 'manager@example.com',
-      granted_capabilities: ['work_plan.manage'],
+      granted_capabilities: ['work_plan.tasks.manage'],
     };
     const unrelated = task({ accountable_owner: 'someone@example.com' });
 

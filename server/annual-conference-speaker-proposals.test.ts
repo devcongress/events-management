@@ -4,6 +4,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const accessState = vi.hoisted(() => ({ grants: [] as string[] }));
 const session = {
   authenticated: true as const,
   user_id: 'owner-1',
@@ -54,7 +55,7 @@ vi.mock('@/lib/supabase/server', async () => {
 
 vi.mock('@/lib/supabase/annual-conference-access-grants', () => ({
   clearAnnualConferenceAccessGrantsForMembership: vi.fn(),
-  getAnnualConferenceAccessGrants: vi.fn(async () => []),
+  getAnnualConferenceAccessGrants: vi.fn(async () => accessState.grants),
   listAnnualConferenceAccessMembers: vi.fn(),
   listAnnualConferenceVolunteerTeam: vi.fn(),
   setAnnualConferenceAccessGrant: vi.fn(),
@@ -90,6 +91,8 @@ async function startDecisionDelivery(app: typeof import('./app').default, id: st
 }
 
 beforeEach(async () => {
+  accessState.grants = [];
+  Object.assign(session, { role: 'owner' });
   tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'devcon-annual-cfp-'));
   process.chdir(tempRoot);
   await fs.mkdir('data');
@@ -126,6 +129,65 @@ afterEach(async () => {
 });
 
 describe('Annual Conference proposal lifecycle', () => {
+  it('denies other sections to a member granted proposal access alone', async () => {
+    vi.resetModules();
+    Object.assign(session, { role: 'member' });
+    accessState.grants = ['speakers.proposals.view'];
+    const app = (await import('./app')).default;
+    const base = 'http://localhost/api/annual-conference/2026/speakers';
+
+    expect((await app.request(`${base}?section=proposals`)).status).toBe(200);
+    expect((await app.request(`${base}?section=participation`)).status).toBe(403);
+    expect((await app.request(`${base}?section=delivery`)).status).toBe(403);
+    expect((await app.request(`${base}?section=outcomes`)).status).toBe(403);
+  });
+
+  it('limits a participation member to selected speakers without review fields', async () => {
+    vi.resetModules();
+    Object.assign(session, { role: 'member' });
+    accessState.grants = ['speakers.participation.view'];
+    const common = { edition_id: '20260000-0000-4000-8000-000000000001', ...proposal('Talk'), internal_note: 'Private review', decision_email_last_error: 'Private diagnostic', selected_intake_link_id: null, selected_session_id: null };
+
+    await fs.writeFile(path.join(tempRoot, 'data', 'annual-conference-speaker-submissions.json'), JSON.stringify([
+      { ...common, id: 'selected', status: 'selected' },
+      { ...common, id: 'rejected', status: 'not_selected' },
+    ]));
+    const app = (await import('./app')).default;
+    const base = 'http://localhost/api/annual-conference/2026/speakers';
+    const response = await app.request(`${base}?section=participation`);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.submissions.map((item: { id: string }) => item.id)).toEqual(['selected']);
+    expect(body.submissions[0]).not.toHaveProperty('internal_note');
+    expect(body.submissions[0]).not.toHaveProperty('abstract');
+    expect(body.submissions[0]).not.toHaveProperty('decision_email_last_error');
+    expect((await app.request(`${base}?section=proposals`)).status).toBe(403);
+  });
+
+  it('separates proposal, participation, and delivery responses', async () => {
+    vi.resetModules();
+    await fs.writeFile(path.join(tempRoot, 'data', 'annual-conference-speaker-submissions.json'), JSON.stringify([{
+      id: 'submission-1', edition_id: '20260000-0000-4000-8000-000000000001', ...proposal('Private proposal'),
+      status: 'not_selected', internal_note: 'Private review', decision_email_last_error: 'Private diagnostic',
+      decision_email_attempt_count: 1, selected_intake_link_id: null, selected_session_id: null,
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    }]));
+    const app = (await import('./app')).default;
+    const base = 'http://localhost/api/annual-conference/2026/speakers';
+    const proposals = await (await app.request(`${base}?section=proposals`)).json();
+    const participation = await (await app.request(`${base}?section=participation`)).json();
+    const delivery = await (await app.request(`${base}?section=delivery`)).json();
+
+    expect(proposals.submissions[0]).toMatchObject({ internal_note: 'Private review' });
+    expect(proposals.submissions[0]).not.toHaveProperty('decision_email_last_error');
+    expect(proposals.submissions[0]).not.toHaveProperty('logistics');
+    expect(participation.submissions).toEqual([]);
+    expect(delivery.submissions[0]).toMatchObject({ decision_email_last_error: 'Private diagnostic' });
+    expect(delivery.submissions[0]).not.toHaveProperty('internal_note');
+    expect(delivery.submissions[0]).not.toHaveProperty('abstract');
+  });
+
   it('accepts the preview Turnstile hostname only for DevCon26 and retains the public hostnames', async () => {
     vi.resetModules();
     vi.stubEnv('TURNSTILE_SECRET_KEY', 'turnstile-test-secret');

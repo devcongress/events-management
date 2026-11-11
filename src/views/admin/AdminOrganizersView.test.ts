@@ -24,6 +24,7 @@ vi.mock('@/src/lib/api', async (importOriginal) => {
 });
 
 import AdminOrganizersView from './AdminOrganizersView.vue';
+import { ANNUAL_CONFERENCE_CAPABILITIES, ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS, canDelegateAnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
 
 interface TestNode {
   children: TestNode[];
@@ -89,15 +90,30 @@ describe('AdminOrganizersView', () => {
   it('shows inherited role permissions alongside delegable additions', async () => {
     const source = await readFile(fileURLToPath(new URL('./AdminOrganizersView.vue', import.meta.url)), 'utf8');
 
-    expect(source).toContain("['Work plan', 'Volunteers', 'Speakers', 'Ticketing', 'Registration', 'Check-in', 'Finance']");
-    expect(source).toContain('canDelegateAnnualConferenceCapability(definition.value, responsibilityMember.value.role)');
-    expect(source).toContain('Role default · editable for this edition');
+    expect(source).toContain('canDelegateAnnualConferenceCapability(capability, responsibilityMember.value.role)');
+    expect(source).toContain('Role default; changes apply to this edition');
     expect(source).toContain('Restricted member');
-    expect(source).toContain('<details v-for="group in responsibilitySections"');
-    expect(source).toContain("|| 'No access'");
+    expect(source).toContain('v-for="group in responsibilitySections"');
+    expect(source).toContain(':aria-checked="sectionState(group)"');
+    expect(source).toContain('updateAnnualConferenceAccessGrants(year, memberId, changes)');
+    expect(source).toContain('annualConferenceCapabilityChanges(role, capability, enabled)');
+    expect(source).toContain(':aria-pressed="responsibilityIsEnabled(capability)"');
     expect(source).toContain('Changes save immediately.');
     expect(source).toContain('Unable to save access. Please try again.');
-    expect(source).not.toContain('responsibilityIsInherited(definition.value) || responsibilityUpdating');
+  });
+
+  it('registers every leaf exactly once with usable hierarchy and filters volunteer access', () => {
+    const values = ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS.map(({ value }) => value);
+
+    expect(values).toHaveLength(ANNUAL_CONFERENCE_CAPABILITIES.length);
+    expect(new Set(values)).toEqual(new Set(ANNUAL_CONFERENCE_CAPABILITIES));
+    expect(ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS).toEqual(expect.arrayContaining([
+      expect.objectContaining({ value: 'registration.form.manage', section: 'Registration', subsection: 'Form & capacity', action: 'Manage' }),
+      expect.objectContaining({ value: 'speakers.outcomes.send', section: 'Speakers', subsection: 'Outcome messages', action: 'Send' }),
+    ]));
+    expect(canDelegateAnnualConferenceCapability('finance.view', 'volunteer')).toBe(false);
+    expect(canDelegateAnnualConferenceCapability('finance.view', 'member')).toBe(true);
+    expect(canDelegateAnnualConferenceCapability('finance.view', 'owner')).toBe(false);
   });
 
   it('mounts before the authenticated role queries resolve', () => {

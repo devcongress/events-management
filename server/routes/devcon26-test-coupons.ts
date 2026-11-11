@@ -19,10 +19,10 @@ const toggleSchema = z.object({ enabled: z.boolean() }).strict();
 
 async function couponOperator(c: Context) {
   if (c.req.param('year') !== '2026') return { error: c.json({ error: 'Test coupons are available for DevCon26 only.' }, 400), actor: null };
-  const sessionError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const sessionError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (sessionError) return { error: sessionError, actor: null };
-  const denied = await requireAnnualConferenceCapability(c, 2026, 'ticketing.manage');
+  const denied = await requireAnnualConferenceCapability(c, 2026, c.req.method === 'GET' ? 'ticketing.coupons.view' : 'ticketing.coupons.manage');
 
   if (denied) return { error: denied, actor: null };
   const session = c.get('adminSession') ?? await getAdminSession(c);

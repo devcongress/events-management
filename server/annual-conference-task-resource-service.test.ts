@@ -114,6 +114,13 @@ beforeEach(() => {
 });
 
 describe('Annual Conference task resource authorization', () => {
+  it('admits members with task view without widening phase-only access', async () => {
+    const viewer = service({ role: 'member', email: 'member@example.com' }, ['work_plan.tasks.view']);
+    const phasesOnly = service({ role: 'member', email: 'member@example.com' }, ['work_plan.phases.manage']);
+
+    await expect(viewer.list(2026, task.id)).resolves.toMatchObject({ permissions: { can_add: false } });
+    await expect(phasesOnly.list(2026, task.id)).rejects.toMatchObject({ code: 'forbidden' });
+  });
   it('lets an assigned volunteer add links and manage only their own rows', async () => {
     const subject = service({ role: 'volunteer', email: 'Volunteer@Example.com' });
 
@@ -137,26 +144,25 @@ describe('Annual Conference task resource authorization', () => {
     );
   });
 
-  it('keeps elevated volunteers assignment- and creator-scoped', async () => {
+  it('lets delegated task managers manage resources on unassigned tasks', async () => {
     const unassignedTask = { ...task, accountable_owner: 'someone@example.com', collaborators: [] };
 
     workPlanRepository.getWorkspace = vi.fn(async () => ({ edition, phases: [], tasks: [unassignedTask] }));
     const unassigned = service(
       { role: 'volunteer', email: 'volunteer@example.com' },
-      ['work_plan.manage'],
+      ['work_plan.tasks.manage'],
     );
 
-    await expect(unassigned.list(2026, task.id)).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(unassigned.list(2026, task.id)).resolves.toMatchObject({ permissions: { can_manage_all: true } });
 
     workPlanRepository.getWorkspace = vi.fn(async () => ({ edition, phases: [], tasks: [task] }));
     const assigned = service(
       { role: 'volunteer', email: 'volunteer@example.com' },
-      ['work_plan.manage'],
+      ['work_plan.tasks.manage'],
     );
 
-    await expect(assigned.update(2026, task.id, otherResource.id, { label: 'Changed' }))
-      .rejects.toMatchObject({ code: 'forbidden' });
-    expect(resourceRepository.update).not.toHaveBeenCalled();
+    await assigned.update(2026, task.id, otherResource.id, { label: 'Changed' });
+    expect(resourceRepository.update).toHaveBeenCalled();
   });
 
   it('applies the volunteer creator predicate again in persistence', async () => {
@@ -202,7 +208,7 @@ describe('Annual Conference task resource authorization', () => {
   it('does not let a planning owner bypass a disabled work-plan manager override', async () => {
     const subject = service(
       { role: 'organizer', email: 'planning@example.com' },
-      [{ capability: 'work_plan.manage', enabled: false }],
+      [{ capability: 'work_plan.tasks.manage', enabled: false }],
     );
 
     await expect(subject.list(2026, task.id)).resolves.toMatchObject({

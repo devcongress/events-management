@@ -1457,9 +1457,10 @@
           "table": "annual_conference_access_grants",
           "name": "annual_conference_access_grants_capability_valid",
           "contains": [
-            "ticketing.view",
-            "registration.view",
-            "registration.manage"
+            "work_plan.tasks.view",
+            "speakers.delivery.retry",
+            "registration.blasts.send",
+            "ticketing.check_in"
           ]
         }
       ]
@@ -6239,30 +6240,6 @@
       "sha256": "c354f55518264587e12fbb28f42ab2950163ccf8443109f12a2c746dc2b65f4e",
       "checks": [
         {
-          "kind": "constraint",
-          "schema": "public",
-          "table": "annual_conference_access_grants",
-          "name": "annual_conference_access_grants_capability_valid",
-          "contains": [
-            "ticketing.view",
-            "registration.view",
-            "registration.manage"
-          ]
-        },
-        {
-          "kind": "function",
-          "schema": "public",
-          "name": "enforce_annual_conference_access_grant_eligibility",
-          "argumentTypes": "",
-          "result": "trigger",
-          "language": "plpgsql",
-          "bodySha256": "2ad76883394c90c70e6dbf49900c9d6404f353de459fb600c54c6f5bf2f877b7",
-          "securityDefiner": false,
-          "searchPath": "public",
-          "private": true,
-          "serviceExecute": true
-        },
-        {
           "kind": "function",
           "schema": "public",
           "name": "clear_restricted_member_conference_grants",
@@ -6858,6 +6835,37 @@
           "language": "sql",
           "bodySha256": "38f7d04886ad6cf4abf6ef932a08ce1960b9b41cd809c54420ea8bb82954fd38",
           "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261111121000_granular_conference_access.sql",
+      "sha256": "0333239d6a2d9892855f6a8a0be9769155016753b9711e402ba777f323d96a94",
+      "checks": [
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_access_grants",
+          "name": "annual_conference_access_grants_capability_valid",
+          "contains": [
+            "work_plan.tasks.view",
+            "speakers.delivery.retry",
+            "registration.blasts.send",
+            "ticketing.check_in"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "enforce_annual_conference_access_grant_eligibility",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "acf690e0e000eafbb036fc43037d744e16d9a38d761a05c72647ffaae110a573",
+          "securityDefiner": false,
           "searchPath": "public",
           "private": true,
           "serviceExecute": true

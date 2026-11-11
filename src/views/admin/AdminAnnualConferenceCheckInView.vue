@@ -4,7 +4,6 @@ import { computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
-import AnnualConferenceRegistrationNav from '@/src/components/AnnualConferenceRegistrationNav.vue';
 import AnnualConferenceGuests from '@/src/components/AnnualConferenceGuests.vue';
 import { fetchAnnualConferenceWorkPlan, queryKeys } from '@/src/lib/api';
 import { hasAnyAnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
@@ -16,14 +15,14 @@ const workPlan = useQuery({
   queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
 });
 const capabilities = computed(() => workPlan.data.value?.permissions.capabilities ?? []);
-const canCheckIn = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in', 'ticketing.manage']));
+const canCheckIn = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in']));
 </script>
 
 <template>
   <main class="editorial-page">
     <div class="editorial-wrap registration-content">
       <AnnualConferenceNav :show-page-heading="false" />
-      <AnnualConferenceRegistrationNav active="guests" :can-manage-registration="false" :can-check-in="canCheckIn" />
+      <h1>Check-in</h1>
       <BoneyardPageSkeleton
         v-if="workPlan.isPending.value && !workPlan.data.value"
         name="annual-conference-check-in"

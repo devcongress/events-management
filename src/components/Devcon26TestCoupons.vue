@@ -12,7 +12,7 @@ import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 
-const props = withDefaults(defineProps<{ year: string; active?: boolean }>(), { active: true });
+const props = withDefaults(defineProps<{ year: string; active?: boolean; canManage?: boolean }>(), { active: true, canManage: false });
 const queryClient = useQueryClient();
 const isBrowser = typeof document !== 'undefined';
 const page = ref(1);
@@ -311,7 +311,7 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
     <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Create discounts for test payments. Coupon uses are reserved for 15 minutes and counted when a payment is verified. These checkouts do not issue admission tickets.</p>
 
     <div class="mt-5 flex flex-wrap gap-2">
-      <button type="button" class="motion-press min-h-11 rounded-md border border-dc-ink bg-dc-yellow px-4 text-sm font-semibold" :aria-expanded="creationOpen" aria-controls="create-test-coupon" @click="creationOpen = !creationOpen">{{ creationOpen ? 'Close form' : 'Create test coupon' }}</button>
+      <button v-if="canManage" type="button" class="motion-press min-h-11 rounded-md border border-dc-ink bg-dc-yellow px-4 text-sm font-semibold" :aria-expanded="creationOpen" aria-controls="create-test-coupon" @click="creationOpen = !creationOpen">{{ creationOpen ? 'Close form' : 'Create test coupon' }}</button>
       <button ref="activityButton" type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-4 text-sm" aria-controls="test-checkout-activity" @click="showCheckoutActivity">Test checkout activity</button>
     </div>
     <div v-show="creationOpen" id="create-test-coupon" class="mt-4 rounded-md border border-dc-border p-4">
@@ -523,7 +523,7 @@ function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
                 <div class="py-3"><dt class="text-sm text-dc-gray">Needs attention</dt><dd>{{ selectedCoupon.exceptions }}</dd></div>
               </dl>
               <p v-if="feedback" class="mt-3 text-sm" role="status">{{ feedback }}</p><p v-if="error" class="mt-3 text-sm text-dc-pink" role="alert">{{ error }}</p>
-              <button type="button" class="motion-press mt-4 min-h-11 rounded-md border border-dc-ink px-4 text-sm disabled:opacity-50" :disabled="toggleMutation.isPending.value" @click="toggleMutation.mutate(selectedCoupon)">{{ selectedCoupon.enabled ? 'Disable coupon' : 'Enable coupon' }}</button>
+              <button v-if="canManage" type="button" class="motion-press mt-4 min-h-11 rounded-md border border-dc-ink px-4 text-sm disabled:opacity-50" :disabled="toggleMutation.isPending.value" @click="toggleMutation.mutate(selectedCoupon)">{{ selectedCoupon.enabled ? 'Disable coupon' : 'Enable coupon' }}</button>
             </template>
             <template v-else-if="selectedCheckout">
             <dl class="divide-y divide-dc-border border-y border-dc-border">

@@ -42,15 +42,15 @@ const rejectResultSchema = z.array(z.object({
 const bindingResultSchema = z.array(z.object({ outcome: z.enum(['bound', 'invalid']) })).length(1);
 
 async function ownerAccess(c: Context<AppBindings>) {
-  const roleError = await requireAdmin(c, ['owner']);
+  const roleError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (roleError) return { error: roleError, email: null };
-  const capabilityError = await requireAnnualConferenceCapability(c, 2026, 'ticketing.manage');
+  const capabilityError = await requireAnnualConferenceCapability(c, 2026, 'ticketing.orders.manage');
 
   if (capabilityError) return { error: capabilityError, email: null };
   const session = c.get('adminSession') ?? await getAdminSession(c);
 
-  if (!session.authenticated || session.role !== 'owner' || !session.email) {
+  if (!session.authenticated || !session.email) {
     return { error: c.json({ error: 'Owner access is required.' }, 403), email: null };
   }
 

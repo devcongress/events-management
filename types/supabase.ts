@@ -31,22 +31,7 @@ export type ShortLinkStatus = 'active' | 'revoked';
 export type AdminRole = 'owner' | 'organizer' | 'volunteer' | 'member';
 export type AdminMembershipStatus = 'active' | 'disabled';
 export type AdminAccessRequestStatus = 'pending' | 'approved' | 'declined';
-export type AnnualConferenceCapability =
-  | 'work_plan.view_all'
-  | 'work_plan.manage'
-  | 'timeline.view'
-  | 'phases.manage'
-  | 'volunteers.view_team'
-  | 'volunteers.share_intake'
-  | 'volunteers.review_applications'
-  | 'speakers.view'
-  | 'speakers.manage'
-  | 'finance.view'
-  | 'ticketing.view'
-  | 'ticketing.manage'
-  | 'ticketing.check_in'
-  | 'registration.view'
-  | 'registration.manage';
+export type AnnualConferenceCapability = import('@/lib/annual-conference-capabilities').LeafAnnualConferenceCapability;
 export type AnnualConferenceTaskStatus =
   | 'not_started' | 'in_progress' | 'blocked' | 'done';
 export type AnnualConferenceWorkstream =

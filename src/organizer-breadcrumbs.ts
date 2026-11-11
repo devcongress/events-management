@@ -240,14 +240,15 @@ function conferenceBreadcrumbs(
       if (section === 'overview') return [{ label: 'Overview' }];
       if (section === 'volunteers') {
         if (!hasAnyAnnualConferenceCapability(capabilities, VOLUNTEER_SECTION_CAPABILITIES)) return [{ label: 'Overview' }];
-        const canReview = year === '2026' && capabilities.includes('volunteers.review_applications');
-        const canCampaign = canReview && role === 'owner';
+        const canReview = year === '2026' && capabilities.includes('volunteers.reviews.view');
+        const canCampaign = year === '2026' && capabilities.includes('volunteers.campaign.view');
+        const canDirectory = capabilities.includes('volunteers.directory.view') || capabilities.includes('volunteers.intake.share');
 
         if (!canReview && !canCampaign) return [overviewCrumb, { label: 'Volunteers' }];
-        const view = resolveVolunteerView(query.volunteerView, canReview, canCampaign);
+        const view = resolveVolunteerView(query.volunteerView, canReview, canCampaign, canDirectory);
         const titles = { directory: 'Directory', reviews: 'Reviews', campaign: 'Campaign' };
 
-        const volunteerCrumb: OrganizerBreadcrumb = { label: 'Volunteers', to: { path: overview, query: { ...query, section: 'volunteers', volunteerView: 'directory' } } };
+        const volunteerCrumb: OrganizerBreadcrumb = { label: 'Volunteers', to: { path: overview, query: { ...query, section: 'volunteers', volunteerView: resolveVolunteerView(undefined, canReview, canCampaign, canDirectory) } } };
 
         if (view === 'campaign') {
           const tab = resolveVolunteerCampaignTab(query.campaignTab);
@@ -281,9 +282,11 @@ function conferenceBreadcrumbs(
 
       if (!canLink(path)) return [];
       const raw = scalar(query.section);
-      const section = raw && registrationSections[raw] && (raw !== 'community' || (role === 'owner' && year === '2026')) ? raw : 'summary';
+      const allowed = Object.keys(registrationSections).filter((key) => (key !== 'community' || year === '2026')
+        && hasAnyAnnualConferenceCapability(capabilities, [`registration.${key}.view` as AnnualConferenceCapability]));
+      const section = raw && allowed.includes(raw) ? raw : allowed[0] ?? 'summary';
 
-      return [overviewCrumb, { label: 'Registration', to: { path, query: { section: 'summary' } } }, { label: registrationSections[section] }];
+      return [overviewCrumb, { label: 'Registration', to: { path, query: { section: allowed[0] ?? 'summary' } } }, { label: registrationSections[section] }];
     }
 
     if (name === 'admin-annual-conference-speakers') {
@@ -342,9 +345,11 @@ function conferenceBreadcrumbs(
 
     if (!canLink(path)) return [];
     const raw = scalar(query.section);
-    const section = raw && registrationSections[raw] && (raw !== 'community' || (role === 'owner' && year === '2026')) ? raw : 'summary';
+    const allowed = Object.keys(registrationSections).filter((key) => (key !== 'community' || year === '2026')
+      && hasAnyAnnualConferenceCapability(capabilities, [`registration.${key}.view` as AnnualConferenceCapability]));
+    const section = raw && allowed.includes(raw) ? raw : allowed[0] ?? 'summary';
 
-    return [...base, { label: 'Registration', ...(section === 'summary' ? {} : { to: { path, query: { section: 'summary' } } }) }, { label: registrationSections[section] }];
+    return [...base, { label: 'Registration', ...(section === allowed[0] ? {} : { to: { path, query: { section: allowed[0] ?? 'summary' } } }) }, { label: registrationSections[section] }];
   }
 
   if (name === 'admin-annual-conference-speakers') {

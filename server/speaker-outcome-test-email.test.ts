@@ -45,7 +45,7 @@ describe('speaker outcome frozen test email', () => {
     const response = await request(payload);
 
     expect(response.status).toBe(200);
-    expect(mocks.requireAdmin).toHaveBeenCalledWith(expect.anything(), ['owner']);
+    expect(mocks.requireAdmin).toHaveBeenCalledWith(expect.anything(), ['owner', 'organizer', 'member']);
     expect(mocks.preview).toHaveBeenCalledWith(id, 'edition', 'owner', id);
     expect(mocks.send.mock.calls[0][0].emails).toEqual([{ from: frozen.from, reply_to: frozen.replyTo, subject: frozen.subject, html: frozen.html, text: frozen.text, to: ['tester@example.test'] }]);
     expect(mocks.rate.mock.calls[0][1]).toMatchObject({ clientKey: 'owner', maxAttempts: 5, windowSeconds: 600 });

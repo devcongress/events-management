@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Hono, type Context } from 'hono';
 import { CONFERENCE_REGISTRATION_ACTION } from '@/lib/annual-conference-registration';
+import { ANNUAL_CONFERENCE_CAPABILITIES } from '@/lib/annual-conference-capabilities';
 import type { AppBindings } from '@/server/http/app-bindings';
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), role: 'owner', capability: true, challenge: false, turnstile: vi.fn(), tickets: [] as Array<Record<string, unknown>> }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), role: 'owner', capability: true, capabilities: null as string[] | null, challenge: false, turnstile: vi.fn(), tickets: [] as Array<Record<string, unknown>> }));
 
 vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
 vi.mock('@/lib/supabase/admin-auth', () => ({
@@ -11,7 +12,8 @@ vi.mock('@/lib/supabase/admin-auth', () => ({
   getAdminSession: async () => ({ authenticated: true, email: 'owner@example.test' }),
 }));
 vi.mock('@/server/annual-conference-request', () => ({
-  requireAnnualConferenceCapability: async (c: Context) => mocks.capability ? null : c.json({ error: 'Forbidden' }, 403),
+  requireAnnualConferenceCapability: async (c: Context) => mocks.capability && !(mocks.role === 'volunteer' && c.req.path.includes('/registrations')) ? null : c.json({ error: 'Forbidden' }, 403),
+  annualConferenceCapabilitiesForRequest: async () => ({ capabilities: mocks.capability && mocks.role !== 'volunteer' ? mocks.capabilities ?? ANNUAL_CONFERENCE_CAPABILITIES : [], editionId: '10000000-0000-4000-8000-000000000001' }),
   getAnnualConferenceEditionByYear: async () => ({ id: '10000000-0000-4000-8000-000000000001' }),
 }));
 vi.mock('@/server/protected-mutation', () => ({ recordProtectedMutationAudit: vi.fn() }));
@@ -43,6 +45,7 @@ beforeEach(() => {
   mocks.tickets = [];
   mocks.role = 'owner';
   mocks.capability = true;
+  mocks.capabilities = null;
   mocks.challenge = false;
   mocks.turnstile.mockReset().mockImplementation(async (c: Context) => mocks.challenge ? c.json({ error: 'Challenge required' }, 403) : null);
   mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'get_annual_conference_registration_overview' ? overview
@@ -66,6 +69,22 @@ beforeEach(() => {
 });
 
 describe('annual conference registration access and privacy', () => {
+  it.each(['summary', 'form'])('does not load the guest collection for the %s section', async (section) => {
+    const response = await app.request(`${privatePath}?section=${section}`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ overview, registrations: [] });
+    expect(mocks.rpc.mock.calls.some(([name]) => name === 'list_annual_conference_registrations')).toBe(false);
+  });
+
+  it('denies a direct guest section request to a summary-only viewer', async () => {
+    mocks.capabilities = ['registration.summary.view'];
+
+    expect((await app.request(`${privatePath}?section=summary`)).status).toBe(200);
+    expect((await app.request(`${privatePath}?section=guests`)).status).toBe(403);
+    expect(mocks.rpc.mock.calls.some(([name]) => name === 'list_annual_conference_registrations')).toBe(false);
+  });
+
   it('joins manager registrations to minimal admission identities within the edition', async () => {
     mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'get_annual_conference_registration_overview' ? overview : [{ id: 'registration-1', name: 'Ada' }], error: null }));
     mocks.tickets = [{ id: 'ticket-1', registration_id: 'registration-1' }];
@@ -111,11 +130,13 @@ describe('annual conference registration access and privacy', () => {
     }
   });
 
-  it('restricts testing settings to owners without exposing the list publicly', async () => {
+  it('restricts testing settings by capability without exposing the list publicly', async () => {
     mocks.role = 'organizer';
+    mocks.capability = false;
     expect((await app.request(`${privatePath}/testing`)).status).toBe(403);
     expect((await app.request(`${privatePath}/testing`, { method: 'PATCH' })).status).toBe(403);
     mocks.role = 'owner';
+    mocks.capability = true;
     expect((await app.request(`${privatePath}/testing`)).status).toBe(200);
     expect(await (await app.request(publicPath)).json()).toEqual({ mode: 'free', waitlist: true });
   });
@@ -141,10 +162,9 @@ describe('annual conference registration access and privacy', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('requires edition capability and owner permission for mode changes', async () => {
+  it('requires edition capability for mode changes', async () => {
     mocks.capability = false;
     expect((await app.request(privatePath)).status).toBe(403);
-    mocks.capability = true;
     mocks.role = 'organizer';
     expect((await app.request(`${privatePath}/settings`, { method: 'PATCH' })).status).toBe(403);
   });
@@ -228,7 +248,7 @@ describe('cancelled registration recovery', () => {
   const newId = '20000000-0000-4000-8000-000000000002';
   const path = `${privatePath}/${sourceId}/recover`;
 
-  it('requires Owner access as well as edition management permission', async () => {
+  it('requires Owner access and edition management permission', async () => {
     mocks.role = 'organizer';
     expect((await post(path, { confirmed: true })).status).toBe(403);
     mocks.role = 'owner';

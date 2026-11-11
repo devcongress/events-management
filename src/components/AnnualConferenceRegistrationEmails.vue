@@ -13,7 +13,7 @@ import {
   type AnnualConferenceTicketEmailDeliveryStatus,
 } from '@/src/lib/api';
 
-const props = defineProps<{ year: string; registrationId?: string }>();
+const props = defineProps<{ year: string; registrationId?: string; canRetry?: boolean }>();
 
 type DeliveryStatusFilter = AnnualConferenceTicketEmailDeliveryStatus | 'all';
 
@@ -66,7 +66,7 @@ function updateDeliveryStatus(value: string | number) {
 }
 
 function canRetry(delivery: AnnualConferenceTicketEmailDelivery) {
-  return delivery.status === 'failed'
+  return props.canRetry === true && delivery.status === 'failed'
     && (!delivery.first_attempt_at || Date.parse(delivery.first_attempt_at) > Date.now() - 23 * 60 * 60 * 1000)
     && (Number.isFinite(Date.parse(delivery.next_attempt_at))
       || (delivery.failure_kind === 'rejected' && delivery.last_error === 'Delivery needs review before retry.' && !!delivery.first_attempt_at))

@@ -34,7 +34,7 @@ import { notify } from '@/src/lib/notify';
 import { ticketEmailStatusLabel } from '@/src/lib/ticket-email-status';
 import { useTicketOrderExpiry } from '@/src/lib/ticket-order-expiry';
 import { ticketOrderPageAfterResponse } from '@/src/lib/ticket-order-pagination';
-import { resolveTicketingSection, ticketingSectionLocation, ticketingSections } from '@/src/ticketing-navigation';
+import { allowedTicketingSections, resolveAllowedTicketingSection, ticketingSectionLocation } from '@/src/ticketing-navigation';
 
 type SponsorFormField = 'sponsor_name' | 'contact_name' | 'contact_email' | 'quantity';
 
@@ -51,17 +51,18 @@ const queryClient = useQueryClient();
 const year = computed(() => String(route.params.year));
 const session = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetchAdminSession });
 const restricted = computed(() => session.data.value?.user?.role === 'member');
-const restrictedPlan = useQuery({
+const workPlan = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
   queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
-  enabled: restricted,
 });
-const canManageTicketing = computed(() => !restricted.value
-  || restrictedPlan.data.value?.permissions.capabilities.includes('ticketing.manage') === true);
-const activeSection = computed(() => (restricted.value && route.query.section === 'testing') || (session.data.value?.user?.role !== 'owner' && route.query.section === 'complimentary')
-  ? 'overview' : resolveTicketingSection(route.query.section, year.value));
-const sectionLinks = computed(() => ticketingSections(year.value)
-  .filter(section => (!restricted.value || section.key !== 'testing') && (section.key !== 'complimentary' || session.data.value?.user?.role === 'owner'))
+const capabilities = computed(() => workPlan.data.value?.permissions.capabilities ?? []);
+const allowedSections = computed(() => allowedTicketingSections(year.value, capabilities.value));
+const activeSection = computed(() => resolveAllowedTicketingSection(route.query.section, year.value, capabilities.value) ?? 'overview');
+const canManageOverview = computed(() => capabilities.value.includes('ticketing.overview.manage'));
+const canManageOrders = computed(() => capabilities.value.includes('ticketing.orders.manage'));
+const canRetryDelivery = computed(() => capabilities.value.includes('ticketing.delivery.retry'));
+const canManageSponsors = computed(() => capabilities.value.includes('ticketing.sponsors.manage'));
+const sectionLinks = computed(() => allowedSections.value
   .map(section => ({
   ...section,
   to: ticketingSectionLocation(route.path, route.query, section.key),
@@ -109,13 +110,14 @@ let previousDocumentOverflow = '';
 const ticketingQuery = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceTicketing(year.value)),
   queryFn: () => fetchAnnualConferenceTicketing(year.value),
+  enabled: computed(() => activeSection.value === 'overview' && capabilities.value.includes('ticketing.overview.view')),
 });
 
 const ticketing = computed(() => ticketingQuery.data.value);
 const sponsorQuery = useQuery({
   queryKey: computed(() => ['annual-conference-sponsor-allocations', year.value]),
   queryFn: () => fetchAnnualConferenceSponsorAllocations(year.value),
-  enabled: computed(() => activeSection.value === 'sponsors'),
+  enabled: computed(() => activeSection.value === 'sponsors' && capabilities.value.includes('ticketing.sponsors.view')),
 });
 const emailDeliveryQuery = useQuery({
   queryKey: computed(() => [
@@ -129,7 +131,7 @@ const emailDeliveryQuery = useQuery({
     pageSize: 8,
     status: emailDeliveryStatus.value === 'all' ? undefined : emailDeliveryStatus.value,
   }),
-  enabled: computed(() => activeSection.value === 'delivery'),
+  enabled: computed(() => activeSection.value === 'delivery' && capabilities.value.includes('ticketing.delivery.view')),
 });
 const ticketOrderQuery = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceTicketOrders(year.value, ticketOrderPage.value, ticketOrderView.value)),
@@ -146,7 +148,7 @@ const ticketOrderQuery = useQuery({
 
     return result;
   },
-  enabled: computed(() => activeSection.value === 'orders'),
+  enabled: computed(() => activeSection.value === 'orders' && capabilities.value.includes('ticketing.orders.view')),
   refetchInterval: computed(() => activeSection.value === 'orders' && (ticketOrderView.value === 'attempts' || ticketOrderView.value === 'test') ? 15000 : false),
 });
 
@@ -160,7 +162,7 @@ watch(() => ticketOrderQuery.data.value?.orders, (orders) => {
 const allOrdersQuery = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceTicketOrders(year.value, 1)),
   queryFn: () => fetchAnnualConferenceTicketOrders(year.value, 1),
-  enabled: computed(() => year.value !== '2026' && activeSection.value === 'overview'),
+  enabled: computed(() => year.value !== '2026' && activeSection.value === 'overview' && capabilities.value.includes('ticketing.orders.view')),
 });
 const regularTier = computed(() => ticketing.value?.settings.ticket_tiers.find((tier) => tier.key === 'regular'));
 const pricingIsEditable = computed(() => (
@@ -219,8 +221,8 @@ const orderExpiryClock = useTicketOrderExpiry(computed(() => [
   ...(selectedOrder.value ? [selectedOrder.value] : []),
 ]));
 
-watch([() => route.query.section, year], ([value]) => {
-  if (value === undefined || value === activeSection.value) return;
+watch([() => route.query.section, year, allowedSections], ([value]) => {
+  if (!allowedSections.value.length || value === activeSection.value) return;
 
   void router.replace(ticketingSectionLocation(route.path, route.query, activeSection.value));
 }, { immediate: true });
@@ -559,7 +561,8 @@ function saveSponsorAllocation() {
 }
 
 function canRetryEmailDelivery(delivery: AnnualConferenceTicketEmailDelivery) {
-  return delivery.status === 'failed'
+  return (delivery.kind !== 'complimentary_admission_delivery' || capabilities.value.includes('ticketing.complimentary.manage'))
+    && delivery.status === 'failed'
     && (!delivery.first_attempt_at || Date.parse(delivery.first_attempt_at) > Date.now() - 23 * 60 * 60 * 1000)
     && (Number.isFinite(Date.parse(delivery.next_attempt_at))
       || (delivery.failure_kind === 'rejected' && delivery.last_error === 'Delivery needs review before retry.' && !!delivery.first_attempt_at))
@@ -685,17 +688,19 @@ onUnmounted(() => {
         </template>
       </WorkspaceSectionNav>
 
-      <BoneyardPageSkeleton v-if="ticketingQuery.isLoading.value" :name="activeSection === 'overview' ? 'annual-conference-ticketing' : `annual-conference-ticketing-${activeSection}`" label="conference ticketing" layout="workspace" />
+      <BoneyardPageSkeleton v-if="workPlan.isPending.value" :name="activeSection === 'overview' ? 'annual-conference-ticketing' : `annual-conference-ticketing-${activeSection}`" label="conference ticketing" layout="workspace" />
 
-      <section v-else-if="ticketingQuery.isError.value" class="editorial-panel border-dc-pink p-6">
-        <h2 class="text-xl font-semibold text-dc-ink">Ticketing is temporarily unavailable.</h2>
-        <p class="mt-2 text-sm text-dc-gray">Check that the ticketing migration has been applied, then try again.</p>
-        <button type="button" class="motion-press mt-4 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-xs font-semibold uppercase" @click="ticketingQuery.refetch()">Try again</button>
-      </section>
+      <section v-else-if="allowedSections.length" class="space-y-6">
+        <BoneyardPageSkeleton v-if="activeSection === 'overview' && ticketingQuery.isLoading.value" name="annual-conference-ticketing" label="conference ticketing" layout="workspace" />
 
-      <section v-else-if="ticketing" class="space-y-6">
-        <AnnualConferenceComplimentaryTickets v-if="complimentaryVisited && year === '2026' && session.data.value?.user?.role === 'owner'" v-show="activeSection === 'complimentary'" :year="year" :active="activeSection === 'complimentary'" />
-        <div v-if="activeSection === 'overview'" class="space-y-6">
+        <section v-else-if="activeSection === 'overview' && ticketingQuery.isError.value" class="editorial-panel border-dc-pink p-6">
+          <h2 class="text-xl font-semibold text-dc-ink">Ticketing is temporarily unavailable.</h2>
+          <p class="mt-2 text-sm text-dc-gray">Check that the ticketing migration has been applied, then try again.</p>
+          <button type="button" class="motion-press mt-4 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-xs font-semibold uppercase" @click="ticketingQuery.refetch()">Try again</button>
+        </section>
+
+        <AnnualConferenceComplimentaryTickets v-if="complimentaryVisited && year === '2026' && capabilities.includes('ticketing.complimentary.view')" v-show="activeSection === 'complimentary'" :year="year" :active="activeSection === 'complimentary'" :can-manage="capabilities.includes('ticketing.complimentary.manage')" :can-view-sponsors="capabilities.includes('ticketing.sponsors.view')" />
+        <div v-if="activeSection === 'overview' && ticketing && !ticketingQuery.isError.value" class="space-y-6">
 
         <section aria-labelledby="inventory-ledger-title">
           <div class="flex flex-wrap items-end justify-between gap-3">
@@ -736,14 +741,14 @@ onUnmounted(() => {
               <span class="rounded-full border border-dc-ink px-3 py-1 font-mono text-[10px] font-semibold uppercase">{{ ticketing.settings.ticket_sales_status }}</span>
             </div>
             <p class="mt-3 text-sm leading-6 text-dc-gray">Current capacity: <strong class="text-dc-ink">{{ ticketing.settings.public_capacity }}</strong>. It cannot fall below the <strong class="text-dc-ink">{{ ticketing.inventory.reduction_floor }}</strong> seats already paid, sponsor-held, or in an active checkout hold.</p>
-            <form v-if="canManageTicketing" class="mt-5 flex flex-wrap items-end gap-3" @submit.prevent="saveCapacity">
+            <form v-if="canManageOverview" class="mt-5 flex flex-wrap items-end gap-3" @submit.prevent="saveCapacity">
               <label for="ticketing-new-capacity" class="min-w-48 flex-1">
                 <span class="editorial-label">New capacity</span>
                 <input id="ticketing-new-capacity" v-model.number="capacity" :min="Math.max(1, ticketing.inventory.reduction_floor)" max="5000" class="editorial-input mt-2" type="number" inputmode="numeric" :aria-describedby="capacityError || capacityValidation ? 'ticketing-capacity-error' : 'ticketing-capacity-help'" @input="capacityError = ''">
               </label>
               <button type="submit" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-xs font-semibold uppercase disabled:cursor-not-allowed disabled:opacity-50" :disabled="capacityMutation.isPending.value || !capacityCanSave">{{ capacityMutation.isPending.value ? 'Saving…' : 'Save capacity' }}</button>
             </form>
-            <p v-if="canManageTicketing" id="ticketing-capacity-help" class="mt-2 text-xs leading-5 text-dc-gray">Enter a changed whole number. The floor is enforced again when you save.</p>
+            <p v-if="canManageOverview" id="ticketing-capacity-help" class="mt-2 text-xs leading-5 text-dc-gray">Enter a changed whole number. The floor is enforced again when you save.</p>
             <p v-if="capacityError || capacityValidation" id="ticketing-capacity-error" class="mt-2 text-sm font-medium text-dc-pink" role="alert">{{ capacityError || capacityValidation }}</p>
           </section>
 
@@ -769,7 +774,7 @@ onUnmounted(() => {
             </div>
             <div class="flex items-center gap-3">
               <span class="rounded-full border border-dc-ink px-3 py-1 font-mono text-[10px] font-semibold uppercase">{{ ticketing.settings.ticket_sales_status }}</span>
-              <button v-if="canManageTicketing && pricingIsEditable" type="button" class="motion-press min-h-10 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-xs font-semibold uppercase" @click="openPricingEditor">Edit prices</button>
+              <button v-if="canManageOverview && pricingIsEditable" type="button" class="motion-press min-h-10 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-xs font-semibold uppercase" @click="openPricingEditor">Edit prices</button>
             </div>
           </div>
 
@@ -912,7 +917,7 @@ onUnmounted(() => {
               </div>
               <div class="flex shrink-0 items-center gap-3">
                 <span class="rounded-full border border-dc-border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase text-dc-ink">{{ ticketEmailStatusLabel(delivery) }}</span>
-                <button v-if="canManageTicketing && canRetryEmailDelivery(delivery)" type="button" class="motion-press rounded-md border border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase disabled:cursor-not-allowed disabled:opacity-50" :disabled="retryEmailDeliveryMutation.isPending.value" @click="retryEmailDeliveryMutation.mutate(delivery.id)">{{ retryEmailDeliveryMutation.isPending.value ? 'Queuing…' : 'Retry' }}</button>
+                <button v-if="canRetryDelivery && canRetryEmailDelivery(delivery)" type="button" class="motion-press rounded-md border border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase disabled:cursor-not-allowed disabled:opacity-50" :disabled="retryEmailDeliveryMutation.isPending.value" @click="retryEmailDeliveryMutation.mutate(delivery.id)">{{ retryEmailDeliveryMutation.isPending.value ? 'Queuing…' : 'Retry' }}</button>
               </div>
             </article>
           </div>
@@ -920,8 +925,8 @@ onUnmounted(() => {
           <AppPagination v-model:page="emailDeliveryPage" :page-count="emailDeliveryPageCount" :total="emailDeliveryQuery.data.value?.total ?? 0" :range-start="(emailDeliveryPage - 1) * 8 + 1" :range-end="Math.min(emailDeliveryPage * 8, emailDeliveryQuery.data.value?.total ?? 0)" :disabled="emailDeliveryQuery.isFetching.value" item-label="deliveries" aria-label="Ticket email delivery pagination" />
         </section>
 
-        <div v-if="!restricted && year === '2026' && testingVisited" v-show="activeSection === 'testing'" class="min-w-0">
-          <Devcon26TestCoupons :year="year" :active="activeSection === 'testing'" />
+        <div v-if="year === '2026' && testingVisited && capabilities.includes('ticketing.coupons.view')" v-show="activeSection === 'testing'" class="min-w-0">
+          <Devcon26TestCoupons :year="year" :active="activeSection === 'testing'" :can-manage="capabilities.includes('ticketing.coupons.manage')" />
         </div>
 
         <section v-if="activeSection === 'sponsors'" class="rounded-lg border-2 border-dc-ink bg-dc-paper p-5" aria-labelledby="sponsor-title">
@@ -929,7 +934,7 @@ onUnmounted(() => {
           <h2 id="sponsor-title" class="mt-1 text-xl font-semibold text-dc-ink">Reserve private sponsor tickets</h2>
           <p class="mt-2 text-sm leading-6 text-dc-gray">These seats are held in the inventory ledger immediately and are not public pass types. Reserving does not yet issue QR codes or send an email.</p>
 
-          <form v-if="canManageTicketing" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1.15fr)_8rem]" novalidate @submit.prevent="saveSponsorAllocation">
+          <form v-if="canManageSponsors" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1.15fr)_8rem]" novalidate @submit.prevent="saveSponsorAllocation">
             <label for="sponsor-allocation-name">
               <span class="editorial-label">Sponsor</span>
               <input id="sponsor-allocation-name" v-model.trim="sponsorForm.sponsor_name" name="sponsor_name" autocomplete="organization" class="editorial-input mt-2" :class="sponsorFormErrors.sponsor_name ? 'border-dc-pink' : ''" :aria-invalid="Boolean(sponsorFormErrors.sponsor_name)" :aria-describedby="sponsorFormErrors.sponsor_name ? 'sponsor-name-error' : undefined" @input="clearSponsorFormError('sponsor_name')">
@@ -1021,7 +1026,7 @@ onUnmounted(() => {
                 <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Payment reference</dt><dd class="max-w-[16rem] break-all text-right font-mono text-xs font-semibold text-dc-ink">{{ selectedOrder.payment_reference ?? 'Not available' }}</dd></div>
                 <div v-if="selectedOrder.delivery_status || selectedOrder.status === 'paid'" class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Latest order email</dt><dd class="text-sm font-semibold text-dc-ink">{{ orderEmailStatus(selectedOrder) }}</dd></div>
               </dl>
-                <div v-if="canManageTicketing" class="py-3">
+                <div v-if="canManageOrders" class="py-3">
                   <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm font-semibold" :disabled="checkingPaystack" @click="checkPaystackStatus">{{ checkingPaystack ? 'Checking Paystack…' : 'Check Paystack status' }}</button>
                   <p v-if="paystackCheckMessage" class="mt-2 text-sm text-dc-gray" role="status">{{ paystackCheckMessage }}</p>
                   <p class="mt-2 text-sm text-dc-gray">A successful Paystack payment does not confirm EMS fulfillment.</p>

@@ -6,31 +6,21 @@ import WorkspaceSectionNav from '@/src/components/WorkspaceSectionNav.vue';
 
 const props = defineProps<{
   active: 'summary' | 'guests' | 'form' | 'emails' | 'blasts' | 'community';
-  canManageRegistration: boolean;
-  canCheckIn: boolean;
-  canManageCommunity?: boolean;
-  limitedRegistration?: boolean;
+  sections: readonly string[];
 }>();
 const route = useRoute();
 const year = computed(() => String(route.params.year ?? '2026'));
 const tabs = computed(() => [
-  ...(props.canManageRegistration || props.limitedRegistration ? [
     { key: 'summary', label: 'Summary', icon: 'summary' },
     { key: 'guests', label: 'Guests', icon: 'guests' },
-  ] : []),
-  ...(props.canManageRegistration ? [
     { key: 'form', label: 'Form & capacity', icon: 'form' },
     { key: 'emails', label: 'Emails', icon: 'emails' },
-    ...(props.canManageCommunity ? [{ key: 'community', label: 'Community seats', icon: 'community' }] : []),
+    { key: 'community', label: 'Community seats', icon: 'community' },
     { key: 'blasts', label: 'Blasts', icon: 'blasts' },
-  ] : []),
-  ...(!props.canManageRegistration && !props.limitedRegistration && props.canCheckIn ? [{ key: 'guests', label: 'Guests', icon: 'guests' }] : []),
-]);
+].filter((tab) => props.sections.includes(tab.key)));
 const sectionItems = computed(() => tabs.value.map(tab => ({
   ...tab,
-  to: !props.canManageRegistration && !props.limitedRegistration
-    ? annualConferencePath('check-in', year.value)
-    : { path: annualConferencePath('registrations', year.value), query: { section: tab.key } },
+  to: { path: annualConferencePath('registrations', year.value), query: { section: tab.key } },
 })));
 </script>
 

@@ -34,11 +34,11 @@ const assignmentSchema = z.object({
 }).strict();
 
 async function requireOwnerTicketing(c: Context<AppBindings>) {
-  const roleError = await requireAdmin(c, ['owner']);
+  const roleError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (roleError) return roleError;
 
-  return requireAnnualConferenceCapability(c, 2026, 'ticketing.manage');
+  return requireAnnualConferenceCapability(c, 2026, c.req.method === 'GET' ? 'registration.community.view' : 'registration.community.manage');
 }
 
 export function registerAnnualConferenceFlexibleOperationsRoutes(app: Hono<AppBindings>): void {
@@ -119,7 +119,7 @@ export function registerAnnualConferenceFlexibleOperationsRoutes(app: Hono<AppBi
     if (!isSupabaseRuntimeEnabled(c)) return c.json({ error: 'Ticketing storage is not configured.' }, 503);
     const session = c.get('adminSession') ?? await getAdminSession(c);
 
-    if (!session.authenticated || session.role !== 'owner') return c.json({ error: 'Owner access is required.' }, 403);
+    if (!session.authenticated) return c.json({ error: 'Conference ticketing access required.' }, 403);
 
     try {
       const ticketing = await getSupabaseAnnualConferenceTicketing(2026, c);

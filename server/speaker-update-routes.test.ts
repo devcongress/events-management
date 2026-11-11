@@ -87,6 +87,26 @@ describe('speaker update owner routes', () => {
     expect(mocks.deliveries).not.toHaveBeenCalled();
   });
 
+  it('withholds delivery and participation details from outcome-only access', async () => {
+    mocks.list.mockResolvedValue([{ ...campaign, state: 'complete' }]);
+    mocks.capability.mockImplementation(async (_c, _year, capability) => capability === 'speakers.outcomes.view' ? null : new Response(null, { status: 403 }));
+    const response = await request('');
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.candidates[0]).toEqual({ id, name: 'Ama', email: 'ama@example.test', eligible: true });
+    expect(mocks.workspace).not.toHaveBeenCalled();
+    expect(mocks.deliveryStatuses).not.toHaveBeenCalled();
+  });
+
+  it('requires explicit send and retry capabilities for those actions', async () => {
+    mocks.capability.mockImplementation(async (_c, _year, capability) => capability === 'speakers.outcomes.view' ? null : new Response(null, { status: 403 }));
+
+    expect((await request(`/${id}/send`, 'POST', {})).status).toBe(403);
+    expect((await request(`/${id}/deliveries/${id2}/retry`, 'POST', {})).status).toBe(403);
+    expect(mocks.queue).not.toHaveBeenCalled();
+  });
+
   it('freezes personalized preview and rejects changed audience before enqueue', async () => {
     const response = await request(`/${id}/preview`, 'POST', { ids: [id], version: 1 });
     const body = await response.json();

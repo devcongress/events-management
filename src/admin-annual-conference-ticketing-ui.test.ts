@@ -37,7 +37,7 @@ describe('annual conference ticketing operations UI', () => {
     expect(readFileSync(new URL('./views/admin/AdminAnnualConferenceFinanceView.vue', import.meta.url), 'utf8')).toContain('fetchAnnualConferenceFinance');
   });
 
-  it('keeps check-in inside Registration and opens Ticketing only for managers', () => {
+  it('keeps check-in independent and opens Ticketing for any section viewer', () => {
     expect(navSource).toContain("label: 'Ticketing'");
     expect(navSource).toContain("label: 'Ticketing', icon: 'tickets' as const }");
     expect(navSource).toContain(':aria-disabled="link.disabled ? \'true\' : undefined"');
@@ -46,12 +46,32 @@ describe('annual conference ticketing operations UI', () => {
     expect(mobileSource).toContain('v-if="canViewSpeakers"');
     expect(mobileSource).toContain(':to="annualConferencePath(\'speakers\', year)"');
     expect(registrationSource).toContain('AnnualConferenceRegistrationNav :active="activeSection"');
-    expect(checkInSource).toContain('AnnualConferenceRegistrationNav active="guests"');
+    expect(checkInSource).toContain("['ticketing.check_in']");
     expect(routerSource).toContain('component: () => import("./views/admin/AdminAnnualConferenceTicketingView.vue")');
     expect(routerSource).toContain('canOpenAnnualConferenceTicketingRoute(year)');
-    expect(routerSource).toContain('hasAnyAnnualConferenceCapability(workspace.permissions.capabilities, ["ticketing.manage"])');
+    expect(routerSource).toContain('hasAnyAnnualConferenceCapability(workspace.permissions.capabilities, TICKETING_VIEW_CAPABILITIES)');
     expect(registrationSource).toContain('updateAnnualConferenceTicketingCapacity');
     expect(registrationSource).toContain('canManageRegistration');
+  });
+
+  it('gates section queries and actions by their own capabilities', () => {
+    expect(ticketingSource).toContain("activeSection.value === 'overview' && capabilities.value.includes('ticketing.overview.view')");
+    expect(ticketingSource).toContain("activeSection.value === 'orders' && capabilities.value.includes('ticketing.orders.view')");
+    expect(ticketingSource).toContain("activeSection.value === 'delivery' && capabilities.value.includes('ticketing.delivery.view')");
+    expect(ticketingSource).toContain("activeSection.value === 'sponsors' && capabilities.value.includes('ticketing.sponsors.view')");
+    expect(ticketingSource).toContain('resolveAllowedTicketingSection(route.query.section, year.value, capabilities.value)');
+    expect(ticketingSource).toContain("capabilities.value.includes('ticketing.delivery.retry')");
+    expect(ticketingSource).not.toContain("'ticketing.manage'");
+  });
+
+  it('keeps visited subsection drafts mounted during overview loading and errors', () => {
+    const workspace = ticketingSource.slice(ticketingSource.indexOf('<section v-else-if="allowedSections.length"'));
+
+    expect(ticketingSource).toContain('<BoneyardPageSkeleton v-if="workPlan.isPending.value"');
+    expect(workspace).toContain(`<BoneyardPageSkeleton v-if="activeSection === 'overview' && ticketingQuery.isLoading.value"`);
+    expect(workspace).toContain(`<section v-else-if="activeSection === 'overview' && ticketingQuery.isError.value"`);
+    expect(workspace).toContain(`v-if="year === '2026' && testingVisited && capabilities.includes('ticketing.coupons.view')" v-show="activeSection === 'testing'"`);
+    expect(workspace).toContain(`v-if="complimentaryVisited && year === '2026' && capabilities.includes('ticketing.complimentary.view')" v-show="activeSection === 'complimentary'"`);
   });
 
   it('reconciles every seat reservation in the inventory ledger', () => {

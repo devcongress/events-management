@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { z } from "zod";
-import { getAdminSession, requireAdmin } from "@/lib/supabase/admin-auth";
+import { getAdminSession } from "@/lib/supabase/admin-auth";
+import { requireAnnualConferenceCapability } from "@/server/annual-conference-request";
 import { controlVolunteerOutcomeDelivery, getVolunteerFollowUpCampaign } from "@/lib/supabase/volunteer-follow-up";
 import { recordProtectedMutationAudit } from "@/server/protected-mutation";
 import { internalErrorResponse } from "@/server/http/internal-error-response";
@@ -21,13 +22,13 @@ const blockMessages: Record<string, string> = {
 };
 
 export async function controlVolunteerOutcomeRow(c: Context) {
-  const adminError = await requireAdmin(c, ["owner"]);
+  const adminError = await requireAnnualConferenceCapability(c, 2026, "volunteers.campaign.send");
 
   if (adminError) return adminError;
   const session = c.get("adminSession") ?? await getAdminSession(c);
 
-  if (!session.authenticated || session.role !== "owner" || !session.email)
-    return c.json({ error: "An Owner session is required." }, 403);
+  if (!session.authenticated || !session.email)
+    return c.json({ error: "An authenticated session is required." }, 403);
 
   const parsed = controlSchema.safeParse(await c.req.json().catch(() => null));
 

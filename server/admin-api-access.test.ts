@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest";
 import { adminRolesForApiRequest } from "./admin-api-access";
 
 describe("admin API role policy", () => {
+  it.each([
+    ['GET', '/api/annual-conference/2026/programme'],
+    ['PUT', '/api/annual-conference/2026/programme'],
+    ['POST', '/api/annual-conference/2026/speaker-outcomes/preview'],
+    ['GET', '/api/annual-conference/2026/speaker-updates'],
+    ['GET', '/api/annual-conference/2026/speaker-submissions/id/materials'],
+    ['POST', '/api/annual-conference/2026/volunteer-follow-up/blasts/preview'],
+    ['PUT', '/api/annual-conference/2026/phases/order'],
+    ['GET', '/api/annual-conference/2026/ticketing/test-coupons'],
+    ['POST', '/api/annual-conference/2026/ticketing/complimentary/preview'],
+    ['PATCH', '/api/annual-conference/2026/registrations/payment-mode'],
+  ])('admits delegated roles for %s %s', (method, path) => {
+    expect(adminRolesForApiRequest(path, method)).toEqual(expect.arrayContaining(['owner', 'organizer', 'volunteer', 'member']));
+  });
   it('admits delegated members only to the specific diagnostic POST route', () => {
     const base = '/api/annual-conference/2026/ticketing/orders/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/paystack-check';
 
@@ -201,7 +215,7 @@ describe("admin API role policy", () => {
     ).not.toContain("volunteer");
   });
 
-  it("admits conference reviewers to the dedicated Reviews endpoints but not the Owner Campaign read", () => {
+  it("admits delegated campaign and reviewer requests to their handler authorization", () => {
     expect(
       adminRolesForApiRequest(
         "/api/annual-conference/2026/volunteer-follow-up/reviews",
@@ -219,13 +233,13 @@ describe("admin API role policy", () => {
         "/api/annual-conference/2026/volunteer-follow-up",
         "GET",
       ),
-    ).toEqual(["owner"]);
+    ).toContain("member");
     expect(
       adminRolesForApiRequest(
         "/api/annual-conference/2026/volunteer-follow-up/preview",
         "GET",
       ),
-    ).toEqual(["owner"]);
+    ).toContain("member");
     expect(
       adminRolesForApiRequest(
         "/api/annual-conference/2026/volunteer-follow-up/reviews",

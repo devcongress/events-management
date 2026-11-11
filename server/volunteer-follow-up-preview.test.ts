@@ -75,6 +75,10 @@ vi.mock("../lib/supabase/admin-auth", () => ({
   getAdminSession: vi.fn(async () => ({ authenticated: true, email: "owner@example.test" })),
   requireAdmin: mockAdmin.requireAdmin,
 }));
+vi.mock("../server/annual-conference-request", () => ({
+  requireAnnualConferenceCapability: async (c: Parameters<typeof mockAdmin.requireAdmin>[0]) => mockAdmin.requireAdmin(c, ["owner"]),
+  annualConferenceCapabilitiesForRequest: async () => ({ capabilities: ["volunteers.campaign.view", "volunteers.campaign.manage", "volunteers.campaign.send"], editionId: "edition" }),
+}));
 
 vi.mock("../server/http/public-intake-protection", () => mockIntakeProtection);
 

@@ -86,7 +86,7 @@ describe('Ticketing-capable test coupon operations', () => {
     ticketingAllowed = true;
 
     expect((await request('GET')).status).toBe(200);
-    expect(requireAnnualConferenceCapability).toHaveBeenCalledWith(expect.anything(), 2026, 'ticketing.manage');
+    expect(requireAnnualConferenceCapability).toHaveBeenCalledWith(expect.anything(), 2026, 'ticketing.coupons.view');
   });
 
   it.each([null, 'https://attacker.example'])('uses the existing CSRF origin guard for %s', async (origin) => {

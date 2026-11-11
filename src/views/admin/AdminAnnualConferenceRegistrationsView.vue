@@ -19,7 +19,6 @@ import { validateAnnualConferenceCapacity } from '@/lib/annual-conference-ticket
 import { hasAnyAnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
 import {
   fetchAdminSession,
-  fetchAnnualConferenceTicketing,
   fetchAnnualConferenceWorkPlan,
   fetchJson,
   queryKeys,
@@ -35,10 +34,9 @@ const endpoint = computed(() => `/api/annual-conference/${year.value}/registrati
 const activeSection = computed(() => {
   const section = route.query.section;
 
-  if (restricted.value) return section === 'guests' ? 'guests' : 'summary';
-
-  return section === 'guests' || section === 'form' || section === 'emails' || section === 'blasts'
-    || (section === 'community' && year.value === '2026' && owner.value && canManageRegistration.value) ? section : 'summary';
+  return typeof section === 'string' && sections.value.some((item) => item === section)
+    ? section as 'summary' | 'guests' | 'form' | 'emails' | 'community' | 'blasts'
+    : sections.value[0] ?? 'summary';
 });
 const message = ref('');
 const busy = ref(false);
@@ -62,27 +60,32 @@ const testing = reactive({ enabled: false, emails: '' });
 const modeOptions = [{ value: 'free', label: 'Free registration' }, { value: 'paid', label: 'Paid · Regular only' }];
 const statusOptions = [{ value: 'draft', label: 'Draft' }, { value: 'open', label: 'Open' }, { value: 'closed', label: 'Closed' }];
 const session = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetchAdminSession });
-const restricted = computed(() => session.data.value?.user?.role === 'member');
 const owner = computed(() => session.data.value?.user?.role === 'owner');
 const workPlan = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
   queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
 });
 const capabilities = computed(() => workPlan.data.value?.permissions.capabilities ?? []);
-const canManageRegistration = computed(() => !restricted.value && hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage']));
-const canViewRegistration = computed(() => canManageRegistration.value
-  || (restricted.value && hasAnyAnnualConferenceCapability(capabilities.value, ['registration.view'])));
-const canCancelRegistration = computed(() => canManageRegistration.value
-  || (restricted.value && hasAnyAnnualConferenceCapability(capabilities.value, ['registration.manage'])));
-const canCheckIn = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in', 'ticketing.manage']));
+const can = (capability: Parameters<typeof hasAnyAnnualConferenceCapability>[1][number]) => hasAnyAnnualConferenceCapability(capabilities.value, [capability]);
+const sections = computed<Array<'summary' | 'guests' | 'form' | 'emails' | 'community' | 'blasts'>>(() => [
+  ...(can('registration.summary.view') ? ['summary' as const] : []),
+  ...(can('registration.guests.view') ? ['guests' as const] : []),
+  ...(can('registration.form.view') ? ['form' as const] : []),
+  ...(can('registration.emails.view') ? ['emails' as const] : []),
+  ...(year.value === '2026' && can('registration.community.view') ? ['community' as const] : []),
+  ...(can('registration.blasts.view') ? ['blasts' as const] : []),
+]);
+const canManageRegistration = computed(() => can('registration.form.manage'));
+const canViewRegistration = computed(() => ['summary', 'guests', 'form'].includes(activeSection.value) && sections.value.includes(activeSection.value));
+const canCancelRegistration = computed(() => can('registration.guests.manage'));
 const ticketing = useQuery({
-  queryKey: computed(() => queryKeys.annualConferenceTicketing(year.value)),
-  queryFn: () => fetchAnnualConferenceTicketing(year.value),
-  enabled: canManageRegistration,
+  queryKey: computed(() => ['conference-registration-capacity', year.value]),
+  queryFn: () => fetchJson<{ settings: { public_capacity: number }; inventory: Parameters<typeof validateAnnualConferenceCapacity>[1] }>(`/api/annual-conference/${year.value}/ticketing/capacity`, { credentials: 'include' }),
+  enabled: computed(() => activeSection.value === 'form' && can('registration.form.view')),
 });
 const testingQuery = useQuery({
   queryKey: computed(() => ['conference-registration-testing', year.value]),
-  enabled: owner,
+  enabled: computed(() => owner.value && activeSection.value === 'form'),
   queryFn: () => fetchJson<{ enabled: boolean; tester_emails: string[]; local_delivery: boolean }>(`${endpoint.value}/testing`, { credentials: 'include' }),
 });
 const testerEmails = computed(() => [...new Set(testing.emails.split(/[\n,;]/).map((email) => email.trim().toLowerCase()).filter(Boolean))]);
@@ -91,16 +94,17 @@ const testingError = computed(() => testerEmails.value.length > 200
   : testerEmails.value.some((email) => email.includes('*') || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     ? 'Check each email address. Use one per line.' : '');
 const registrations = useQuery({
-  queryKey: computed(() => ['conference-registrations', year.value]),
+  queryKey: computed(() => ['conference-registrations', year.value, activeSection.value]),
   enabled: canViewRegistration,
   queryFn: async () => {
     const requestEndpoint = endpoint.value;
+    const section = activeSection.value;
     const all: Registration[] = [];
-    let overview: Overview | undefined;
+    let overview: Overview | null = null;
 
     for (let offset = 0; offset <= 5000; offset += 100) {
-      const result = await fetchJson<{ overview: Overview; registrations: Registration[] }>(
-        `${requestEndpoint}?offset=${offset}`, { credentials: 'include' },
+      const result = await fetchJson<{ overview: Overview | null; registrations: Registration[] }>(
+        `${requestEndpoint}?section=${section}&offset=${offset}`, { credentials: 'include' },
       );
 
       overview = result.overview;
@@ -136,7 +140,7 @@ let capacityRequestGeneration = 0;
 let mutationGeneration = 0;
 const blasts = useQuery({
   queryKey: computed(() => ['conference-attendee-blasts', year.value]),
-  enabled: computed(() => session.data.value?.authenticated === true && !restricted.value),
+  enabled: computed(() => activeSection.value === 'blasts' && can('registration.blasts.view')),
   queryFn: () => fetchJson<{ blasts: Blast[] }>(`${endpoint.value}/blasts`, { credentials: 'include' }),
 });
 const blastHistory = computed(() => blasts.data.value?.blasts ?? []);
@@ -197,6 +201,7 @@ async function saveCapacity() {
     await updateAnnualConferenceTicketingCapacity(requestYear, requestedCapacity);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceTicketing(requestYear) }),
+      queryClient.invalidateQueries({ queryKey: ['conference-registration-capacity', requestYear] }),
       queryClient.invalidateQueries({ queryKey: ['conference-registrations', requestYear] }),
     ]);
 
@@ -253,7 +258,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
       Object.assign(draft, { subject: '', body: '' });
       blastComposerOpen.value = false;
     }
-    await Promise.all([registrations.refetch(), ...(!restricted.value ? [blasts.refetch()] : []), ...(owner.value ? [testingQuery.refetch()] : [])]);
+    await Promise.all([...(canViewRegistration.value ? [registrations.refetch()] : []), ...(activeSection.value === 'blasts' && can('registration.blasts.view') ? [blasts.refetch()] : []), ...(owner.value ? [testingQuery.refetch()] : [])]);
   } catch (cause) {
     if (request === mutationGeneration) error.value = cause instanceof Error ? cause.message : 'The change could not be saved.';
   } finally {
@@ -265,11 +270,11 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
 <template>
   <main class="editorial-page"><div class="editorial-wrap registration-content">
     <AnnualConferenceNav :show-page-heading="false" />
-    <AnnualConferenceRegistrationNav :active="activeSection" :can-manage-registration="canManageRegistration" :limited-registration="restricted" :can-check-in="canCheckIn" :can-manage-community="owner && canManageRegistration && year === '2026'" />
+    <AnnualConferenceRegistrationNav :active="activeSection" :sections="sections" />
     <p v-if="message" role="status" aria-live="polite">{{ message }}</p>
-    <BoneyardPageSkeleton v-if="registrations.isPending.value && !registrations.data.value" :name="activeSection === 'summary' ? 'annual-conference-registrations' : `annual-conference-registrations-${activeSection}`" label="conference registrations" layout="workspace" />
-    <section v-else-if="registrations.isError.value" class="editorial-panel registration-panel"><h2>Registration unavailable</h2><p>Check your access and connection.</p><button @click="registrations.refetch()">Try again</button></section>
-    <template v-else-if="registrations.data.value">
+    <BoneyardPageSkeleton v-if="canViewRegistration && registrations.isPending.value && !registrations.data.value" :name="activeSection === 'summary' ? 'annual-conference-registrations' : `annual-conference-registrations-${activeSection}`" label="conference registrations" layout="workspace" />
+    <section v-else-if="canViewRegistration && registrations.isError.value" class="editorial-panel registration-panel"><h2>Registration unavailable</h2><p>Check your access and connection.</p><button @click="registrations.refetch()">Try again</button></section>
+    <template v-else-if="!canViewRegistration || registrations.data.value">
       <section v-if="activeSection === 'summary'" class="registration-overview">
         <div class="registration-overview-header">
           <h2>Registration overview</h2>
@@ -318,7 +323,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
             <p v-if="capacityError || capacityValidation" id="conference-capacity-error" class="text-sm text-dc-pink" role="alert">{{ capacityError || capacityValidation }}</p>
           </form>
         </div>
-        <form v-if="owner" class="registration-settings-row" @submit.prevent="error = ''; settingsConfirmation = true">
+        <form v-if="canManageRegistration" class="registration-settings-row" @submit.prevent="error = ''; settingsConfirmation = true">
           <AppDropdown v-model="settings.mode" label="Registration mode" :options="modeOptions" :disabled="busy" />
           <AppDropdown v-model="settings.status" label="Availability" :options="statusOptions" :disabled="busy" />
           <button type="submit" :disabled="busy">Review settings</button>
@@ -371,8 +376,8 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
         </ConfirmDialog>
       </section>
       <AnnualConferenceGuests v-if="activeSection === 'guests'" :registrations="guests"
-        :refresh-registrations="() => registrations.refetch()" :management-busy="busy" :allow-recovery="owner"
-        :registration-only="restricted" :allow-cancellation="canCancelRegistration"
+        :refresh-registrations="() => registrations.refetch()" :management-busy="busy" :allow-recovery="owner && canCancelRegistration"
+        :registration-only="true" :allow-cancellation="canCancelRegistration"
         @cancel="cancellation = $event" @recover="error = ''; recovery = $event" />
       <ConfirmDialog :open="Boolean(recovery)" :title="'Recover ' + (recovery?.name ?? '') + '’s registration?'" message="Create a fresh registration using this guest’s saved details. Older waitlisted guests keep priority. A new admission QR or waitlist notice will be queued for email. The cancelled registration and its old QR remain cancelled." confirm-label="Recover and queue email" :busy="busy" @cancel="error = ''; recovery = null" @confirm="recovery && mutate('/' + recovery.id + '/recover', { confirmed: true }, 'Registration recovered.')">
         <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
@@ -381,12 +386,12 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
         </ConfirmDialog>
 
-      <AnnualConferenceRegistrationEmails v-if="activeSection === 'emails'" :year="year" />
-      <AnnualConferenceCommunityTickets v-if="owner && canManageRegistration && activeSection === 'community'" :year="year" />
+      <AnnualConferenceRegistrationEmails v-if="activeSection === 'emails'" :year="year" :can-retry="can('registration.emails.retry')" />
+      <AnnualConferenceCommunityTickets v-if="activeSection === 'community'" :year="year" :can-manage="can('registration.community.manage')" />
       <section v-if="activeSection === 'blasts'" class="ops-panel registration-panel">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2>Blasts</h2>
-          <button type="button" class="editorial-action" :disabled="busy" @click="blastComposerOpen = !blastComposerOpen">{{ blastComposerOpen ? 'Cancel' : 'Create blast' }}</button>
+          <button v-if="can('registration.blasts.manage')" type="button" class="editorial-action" :disabled="busy" @click="blastComposerOpen = !blastComposerOpen">{{ blastComposerOpen ? 'Cancel' : 'Create blast' }}</button>
         </div>
         <p>Create a separate update whenever needed. Each draft captures the confirmed audience at that moment. Use this for DevCon26 logistics and programme updates—not unrelated marketing. Waitlisted and cancelled people are excluded.</p>
         <form v-if="blastComposerOpen" class="blast-composer" @submit.prevent="error = ''; draftConfirmation = true">
@@ -409,7 +414,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
         <p v-else-if="!blasts.isError.value && !blastHistory.length" class="py-8 text-center text-sm text-dc-gray">No blasts yet. Create an update for your confirmed guests.</p>
         <ul class="attendees"><li v-for="blast in displayedBlasts" :key="blast.id"><div><strong>{{ blast.subject }}</strong><p>{{ blast.status }} · {{ blast.recipients }} recipients · {{ blast.accepted }} accepted by email provider · {{ blast.needs_attention }} failed or suppressed</p></div><button @click="review = blast">Review</button></li></ul>
         <AppPagination v-if="blastHistory.length > 10" v-model:page="blastPage" :page-count="blastPageCount" :total="blastHistory.length" :range-start="(blastPage - 1) * 10 + 1" :range-end="Math.min(blastPage * 10, blastHistory.length)" item-label="blasts" />
-        <ConfirmDialog :open="Boolean(review)" :title="review?.subject ?? 'Review update'" :message="(review?.recipients ?? 0) + ' snapshotted recipients. Delivery runs in batches. While testing, only approved emails can send.'" confirm-label="Queue update" :busy="busy" :confirm-disabled="review?.status !== 'draft' || review?.recipients === 0" @cancel="review = null" @confirm="review && mutate('/blasts/' + review.id + '/send', { confirmed: true }, 'Update queued.')">
+        <ConfirmDialog :open="Boolean(review)" :title="review?.subject ?? 'Review update'" :message="(review?.recipients ?? 0) + ' snapshotted recipients. Delivery runs in batches. While testing, only approved emails can send.'" confirm-label="Queue update" :busy="busy" :confirm-disabled="!can('registration.blasts.send') || review?.status !== 'draft' || review?.recipients === 0" @cancel="review = null" @confirm="review && mutate('/blasts/' + review.id + '/send', { confirmed: true }, 'Update queued.')">
           <p class="max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-md border border-dc-ink/15 bg-dc-cream p-4 text-sm">{{ review?.body }}</p>
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
         </ConfirmDialog>

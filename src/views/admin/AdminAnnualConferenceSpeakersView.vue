@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceSpeakerDrawer from '@/src/components/AnnualConferenceSpeakerDrawer.vue';
 import SpeakerOutcomePanel from '@/src/components/SpeakerOutcomePanel.vue';
@@ -13,7 +13,8 @@ import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
-import { ensureAdminShortLink, fetchJson, queryKeys } from '@/src/lib/api';
+import { ensureAdminShortLink, fetchAnnualConferenceWorkPlan, fetchJson, queryKeys } from '@/src/lib/api';
+import { hasAnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { notify } from '@/src/lib/notify';
 import { downloadSpeakerBadgeZip } from '@/src/lib/speaker-badge';
@@ -62,6 +63,7 @@ type ConferenceSpeakersResponse = {
 };
 
 const route = useRoute();
+const router = useRouter();
 const queryClient = useQueryClient();
 const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
 const publicLinkCopyState = ref<'idle' | 'copying' | 'copied'>('idle');
@@ -79,9 +81,30 @@ const participationPage = ref(1);
 const deliveryPage = ref(1);
 const PAGE_SIZE = 6;
 
+const workPlanQuery = useQuery({
+  queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
+  queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
+});
+const capabilities = computed(() => workPlanQuery.data.value?.permissions.capabilities ?? []);
+const allowedSections = computed(() => [
+  ...(hasAnnualConferenceCapability(capabilities.value, 'speakers.proposals.view') ? ['proposals'] : []),
+  ...(hasAnnualConferenceCapability(capabilities.value, 'speakers.participation.view') ? ['participation'] : []),
+  ...(hasAnnualConferenceCapability(capabilities.value, 'speakers.delivery.view') ? ['delivery'] : []),
+  ...(hasAnnualConferenceCapability(capabilities.value, 'speakers.outcomes.view') ? ['outcome-messages'] : []),
+]);
+const activeSection = computed(() => typeof route.query.section === 'string' && allowedSections.value.includes(route.query.section)
+  ? route.query.section : allowedSections.value[0]);
+
+watch([allowedSections, () => route.query.section], ([allowed, requested]) => {
+  if (allowed.length && (typeof requested !== 'string' || !allowed.includes(requested))) {
+    void router.replace({ path: route.path, query: { ...route.query, section: allowed[0] }, hash: route.hash });
+  }
+}, { immediate: true });
+
 const speakersQuery = useQuery({
-  queryKey: computed(() => ['annual-conference-speakers', year.value]),
-  queryFn: () => fetchJson<ConferenceSpeakersResponse>(`/api/annual-conference/${year.value}/speakers`, { credentials: 'include' }),
+  queryKey: computed(() => ['annual-conference-speakers', year.value, activeSection.value]),
+  queryFn: () => fetchJson<ConferenceSpeakersResponse>(`/api/annual-conference/${year.value}/speakers?section=${activeSection.value === 'outcome-messages' ? 'outcomes' : activeSection.value}`, { credentials: 'include' }),
+  enabled: computed(() => Boolean(activeSection.value)),
   refetchInterval: (query) => query.state.data?.submissions.some((item) => (item.decision_email_status === 'pending' && Boolean(item.decision_email_queued_at)) || (item.decision_email_status === 'failed' && item.decision_email_retryable && item.decision_email_attempt_count < 5) || (['accepted', 'delayed'].includes(item.decision_email_status ?? '') && Boolean(item.decision_email_sent_at) && Date.now() - new Date(item.decision_email_sent_at!).getTime() < 24 * 60 * 60_000)) ? 30_000 : false,
   refetchIntervalInBackground: false,
 });
@@ -99,14 +122,6 @@ const pageEnd = computed(() => Math.min(visibleSubmissions.value.length, page.va
 const paginatedSubmissions = computed(() => visibleSubmissions.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const canManage = computed(() => speakersQuery.data.value?.permissions.can_manage === true);
 const canSendEmail = computed(() => speakersQuery.data.value?.permissions.can_send_email === true);
-const activeSection = computed(() => {
-  const section = route.query.section;
-
-  if (section === 'participation') return section;
-  if ((section === 'outcome-messages' || section === 'delivery') && canSendEmail.value) return section;
-
-  return 'proposals';
-});
 const messageView = computed(() => route.query.messageView === 'updates' ? 'updates' : 'outcomes');
 const updatesVisited = ref(messageView.value === 'updates');
 
@@ -144,9 +159,12 @@ const deliveryPageStart = computed(() => decidedSubmissions.value.length ? (deli
 const deliveryPageEnd = computed(() => Math.min(decidedSubmissions.value.length, deliveryPage.value * PAGE_SIZE));
 const paginatedDecidedSubmissions = computed(() => decidedSubmissions.value.slice((deliveryPage.value - 1) * PAGE_SIZE, deliveryPage.value * PAGE_SIZE));
 const sectionLinks = computed(() => [
-  { key: 'proposals', label: 'Proposals', icon: 'proposals', to: { path: route.path, query: { ...route.query, section: 'proposals' }, hash: route.hash } },
-  { key: 'participation', label: 'Participation', icon: 'participation', to: { path: route.path, query: { ...route.query, section: 'participation' }, hash: route.hash } },
-  ...(canSendEmail.value ? [{ key: 'delivery', label: 'Delivery', icon: 'delivery', to: { path: route.path, query: { ...route.query, section: 'delivery' }, hash: route.hash } }, { key: 'outcome-messages', label: 'Outcome messages', icon: 'messages', to: { path: route.path, query: { ...route.query, section: 'outcome-messages' }, hash: route.hash } }] : []),
+  ...[{ key: 'proposals', label: 'Proposals', icon: 'proposals' },
+    { key: 'participation', label: 'Participation', icon: 'participation' },
+    { key: 'delivery', label: 'Delivery', icon: 'delivery' },
+    { key: 'outcome-messages', label: 'Outcome messages', icon: 'messages' }]
+    .filter((item) => allowedSections.value.includes(item.key))
+    .map((item) => ({ ...item, to: { path: route.path, query: { ...route.query, section: item.key }, hash: route.hash } })),
 ]);
 
 watch(activeSection, () => {
@@ -491,8 +509,8 @@ function toLocalDateTimeInput(value: string): string {
             </div>
           </section>
           <button v-if="compactHeader" type="button" class="speakers-controls-summary text-action" :aria-expanded="callControlsOpen" aria-controls="speaker-call-controls" @click="callControlsOpen = !callControlsOpen">Call controls and deadline <span aria-hidden="true">{{ callControlsOpen ? '−' : '+' }}</span></button>
-          <div id="speaker-call-controls" v-show="callControlsOpen" class="speakers-controls">
-            <div class="speakers-actions mt-2 flex flex-wrap gap-2">
+          <div id="speaker-call-controls" v-show="callControlsOpen && (activeSection === 'proposals' || activeSection === 'participation')" class="speakers-controls">
+            <div v-if="activeSection === 'proposals'" class="speakers-actions mt-2 flex flex-wrap gap-2">
               <a
                 v-if="speakersQuery.data.value.call.open"
                 :href="speakersQuery.data.value.call.public_path"
@@ -507,7 +525,7 @@ function toLocalDateTimeInput(value: string): string {
               <button v-if="canManage" class="motion-press min-h-11 rounded-md border-2 border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white" :class="speakersQuery.data.value.call.open ? 'bg-red-600' : 'bg-dc-pink'" :disabled="callMutation.isPending.value" @click="speakersQuery.data.value.call.open ? closeCallConfirmationOpen = true : callMutation.mutate(true)">{{ speakersQuery.data.value.call.open ? 'Close call' : 'Open call' }}</button>
             </div>
 
-            <section v-if="canManage" class="speakers-deadline mt-5 rounded-lg border border-dc-border bg-dc-paper-warm p-4">
+            <section v-if="activeSection === 'participation' && hasAnnualConferenceCapability(capabilities, 'speakers.participation.manage')" class="speakers-deadline mt-5 rounded-lg border border-dc-border bg-dc-paper-warm p-4">
               <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <AppDatePicker
                   v-model="deadlineInput"
@@ -533,7 +551,7 @@ function toLocalDateTimeInput(value: string): string {
               </svg>
             </template>
           </WorkspaceSectionNav>
-          <WorkspaceSectionNav v-if="canSendEmail && activeSection === 'outcome-messages'" class="speaker-message-nav" label="Speaker message type" :active="messageView" :items="messageLinks" />
+          <WorkspaceSectionNav v-if="activeSection === 'outcome-messages'" class="speaker-message-nav" label="Speaker message type" :active="messageView" :items="messageLinks" />
         </div>
 
         <section v-if="activeSection === 'participation'" class="speaker-list-panel mt-2 overflow-hidden">
@@ -570,7 +588,7 @@ function toLocalDateTimeInput(value: string): string {
           <AppPagination v-model:page="participationPage" :page-count="participationPageCount" :total="acceptedSubmissions.length" :range-start="participationPageStart" :range-end="participationPageEnd" item-label="speakers" aria-label="Speaker participation pagination" />
         </section>
 
-        <section v-if="activeSection === 'delivery' && canSendEmail" class="speaker-list-panel mt-2 overflow-hidden">
+        <section v-if="activeSection === 'delivery'" class="speaker-list-panel mt-2 overflow-hidden">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-dc-border p-5">
             <div><h2 class="text-lg font-bold">Decision email delivery</h2><p class="text-sm text-dc-gray">Times are shown in Accra time. Open a row to correct the address or retry when available.</p></div>
             <button type="button" class="text-action text-sm font-semibold text-dc-pink underline" @click="speakersQuery.refetch()">Refresh delivery status</button>
@@ -622,9 +640,9 @@ function toLocalDateTimeInput(value: string): string {
           <AppPagination v-model:page="deliveryPage" :page-count="deliveryPageCount" :total="decidedSubmissions.length" :range-start="deliveryPageStart" :range-end="deliveryPageEnd" item-label="deliveries" aria-label="Speaker delivery pagination" />
         </section>
 
-        <div v-if="canSendEmail" v-show="activeSection === 'outcome-messages'">
-          <SpeakerOutcomePanel v-show="messageView === 'outcomes'" class="speaker-outcome-panel" :year="year" :submissions="submissions" :configured="speakersQuery.data.value.email_delivery.configured" @sent="speakersQuery.refetch()" />
-          <SpeakerUpdatesPanel v-if="updatesVisited" v-show="messageView === 'updates'" :year="year" :configured="speakersQuery.data.value.email_delivery.configured" :active="activeSection === 'outcome-messages' && messageView === 'updates'" />
+        <div v-if="activeSection === 'outcome-messages'">
+          <SpeakerOutcomePanel v-show="messageView === 'outcomes'" class="speaker-outcome-panel" :year="year" :submissions="submissions" :configured="speakersQuery.data.value.email_delivery.configured" :can-manage="hasAnnualConferenceCapability(capabilities, 'speakers.outcomes.manage')" :can-send="canSendEmail" @sent="speakersQuery.refetch()" />
+          <SpeakerUpdatesPanel v-if="updatesVisited" v-show="messageView === 'updates'" :year="year" :configured="speakersQuery.data.value.email_delivery.configured" :active="activeSection === 'outcome-messages' && messageView === 'updates'" :can-manage="hasAnnualConferenceCapability(capabilities, 'speakers.outcomes.manage')" :can-send="canSendEmail" :can-retry="hasAnnualConferenceCapability(capabilities, 'speakers.delivery.retry')" />
         </div>
 
         <section v-show="activeSection === 'proposals'" class="speaker-queue speaker-list-panel mt-2 overflow-hidden" aria-live="polite">
@@ -722,7 +740,8 @@ function toLocalDateTimeInput(value: string): string {
           :open="Boolean(selectedSubmission)"
           :submission="selectedSubmission"
           :can-manage="canManage"
-          :can-send-email="canSendEmail"
+          :can-send-email="hasAnnualConferenceCapability(capabilities, 'speakers.delivery.retry')"
+          :can-manage-delivery="hasAnnualConferenceCapability(capabilities, 'speakers.delivery.manage')"
           :submitting="decisionMutation.isPending.value || resendWorkspaceEmailMutation.isPending.value || retryDecisionEmailMutation.isPending.value || correctDecisionEmailMutation.isPending.value || replaceWorkspaceEmailMutation.isPending.value"
           :can-resend-workspace-email="canRecoverSelectedWorkspaceEmail"
           :approval-blocked-reason="approvalBlockedReason"

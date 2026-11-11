@@ -7,8 +7,10 @@ import {
   annualConferencePath,
   canCreateConferenceBadge,
   annualConferenceRegistrationTarget,
+  REGISTRATION_VIEW_CAPABILITIES,
   currentAnnualConferenceYear,
   mobileAnnualConferencePath,
+  restrictedConferencePlaces,
   volunteerCanAccessOrganizerPath,
 } from './annual-conference';
 
@@ -27,6 +29,14 @@ const edition = (year: number): AnnualConferenceEdition => ({
 });
 
 describe('volunteer organizer routes', () => {
+  it('offers restricted users only destinations allowed by their leaf grants', () => {
+    expect(restrictedConferencePlaces('2026', ['work_plan.phases.manage']).map((place) => place.href))
+      .toEqual([annualConferencePath('work-plan', '2026')]);
+    expect(restrictedConferencePlaces('2026', ['speakers.delivery.view']).map((place) => place.href))
+      .toEqual([annualConferencePath('speakers', '2026')]);
+    expect(restrictedConferencePlaces('2026', ['ticketing.check_in']).map((place) => place.href))
+      .toEqual([annualConferencePath('check-in', '2026')]);
+  });
   it('limits badge creation to 2026 volunteers', () => {
     expect(canCreateConferenceBadge('2026', 'volunteer')).toBe(true);
     expect(canCreateConferenceBadge('2027', 'volunteer')).toBe(false);
@@ -45,10 +55,10 @@ describe('volunteer organizer routes', () => {
     expect(volunteerCanAccessOrganizerPath(annualConferencePath('work-plan'))).toBe(true);
     expect(volunteerCanAccessOrganizerPath(mobileAnnualConferencePath())).toBe(true);
     expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers'))).toBe(false);
-    expect(volunteerCanAccessOrganizerPath(annualConferencePath('timeline'), ['timeline.view'])).toBe(true);
-    expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers'), ['volunteers.view_team'])).toBe(true);
-    expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers/display'), ['volunteers.review_applications'])).toBe(false);
-    expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers/display'), ['volunteers.share_intake'])).toBe(true);
+    expect(volunteerCanAccessOrganizerPath(annualConferencePath('timeline'), ['work_plan.timeline.view'])).toBe(true);
+    expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers'), ['volunteers.directory.view'])).toBe(true);
+    expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers/display'), ['volunteers.reviews.view'])).toBe(false);
+    expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers/display'), ['volunteers.intake.share'])).toBe(true);
     expect(volunteerCanAccessOrganizerPath('/organizer-console/events')).toBe(false);
     expect(volunteerCanAccessOrganizerPath('/organizer-console/events/event-1/finance')).toBe(false);
     expect(volunteerCanAccessOrganizerPath('/organizer-console/organizers')).toBe(false);
@@ -58,10 +68,14 @@ describe('volunteer organizer routes', () => {
     expect(annualConferenceRegistrationTarget([])).toBeNull();
     expect(annualConferenceRegistrationTarget(['ticketing.check_in']))
       .toBe(annualConferencePath('check-in'));
-    expect(annualConferenceRegistrationTarget(['ticketing.manage']))
+    expect(annualConferenceRegistrationTarget(['registration.guests.view']))
       .toBe(annualConferencePath('registrations'));
-    expect(volunteerCanAccessOrganizerPath(annualConferencePath('registrations'), ['ticketing.check_in'])).toBe(true);
+    expect(volunteerCanAccessOrganizerPath(annualConferencePath('registrations'), ['ticketing.check_in'])).toBe(false);
     expect(volunteerCanAccessOrganizerPath(annualConferencePath('registrations'))).toBe(false);
+    for (const capability of REGISTRATION_VIEW_CAPABILITIES) {
+      expect(annualConferenceRegistrationTarget([capability])).toBe(annualConferencePath('registrations'));
+      expect(volunteerCanAccessOrganizerPath(annualConferencePath('registrations'), [capability])).toBe(true);
+    }
   });
 
   it('uses the current Accra year for the default conference route', () => {

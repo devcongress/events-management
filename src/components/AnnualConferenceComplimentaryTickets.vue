@@ -8,7 +8,7 @@ import BoneyardPageSkeleton from '@/src/components/ui/BoneyardPageSkeleton.vue';
 import { fetchAnnualConferenceSponsorAllocations, fetchJson } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 
-const props = defineProps<{ year: string; active: boolean }>();
+const props = defineProps<{ year: string; active: boolean; canManage: boolean; canViewSponsors: boolean }>();
 const base = '/api/annual-conference/2026/ticketing/complimentary';
 const queryClient = useQueryClient();
 const guests = ref([{ name: '', email: '' }]);
@@ -45,7 +45,7 @@ const recentTests = ref<{ id: string; recipient: string; time: string }[]>([]);
 type Supporter = { order_id: string; name: string; email: string; seats: number; existing_admission: boolean; issued_complimentary: boolean; total_count: number };
 const supporters = useQuery({ queryKey: computed(() => ['complimentary-supporters', props.year, supporterPage.value]),
   queryFn: () => fetchJson<{ supporters: Supporter[]; has_more: boolean }>(`${base}/supporters?offset=${supporterPage.value * 25}`),
-  enabled: computed(() => drawerOpen.value && drawerMode.value === 'compose') });
+  enabled: computed(() => props.active && props.canManage && drawerOpen.value && drawerMode.value === 'compose') });
 const recipients = computed(() => [
   ...selectedSupporters.value.map(supporter => ({ name: supporter.name, email: supporter.email, supporter_order_id: supporter.order_id })),
   ...guests.value.filter(guest => guest.name.trim() || guest.email.trim()),
@@ -54,9 +54,9 @@ const supporterCurrentPage = computed({ get: () => supporterPage.value + 1, set:
 
 type Ticket = { ticket_id: string; name: string; email: string; status: string; reason: string; allocation_name: string; delivery_status: string | null; delivery_id: string | null; active_total: number; total_count: number; supporter_order_id: string | null };
 const tickets = useQuery({ queryKey: computed(() => ['complimentary-tickets', props.year, page.value]),
-  queryFn: () => fetchJson<{ tickets: Ticket[]; has_more: boolean }>(`${base}?offset=${page.value * 25}`) });
+  queryFn: () => fetchJson<{ tickets: Ticket[]; has_more: boolean }>(`${base}?offset=${page.value * 25}`), enabled: computed(() => props.active) });
 const sponsors = useQuery({ queryKey: ['annual-conference-sponsor-allocations', props.year],
-  queryFn: () => fetchAnnualConferenceSponsorAllocations(props.year) });
+  queryFn: () => fetchAnnualConferenceSponsorAllocations(props.year), enabled: computed(() => props.active && props.canManage && props.canViewSponsors && drawerOpen.value) });
 const options = computed(() => [{ value: 'new', label: 'Reserve new seats' },
   ...(sponsors.data.value?.allocations ?? []).filter(item => item.quantity > 0)
     .map(item => ({ value: item.id, label: `${item.sponsor_name} (${item.quantity} held)` }))]);
@@ -221,7 +221,7 @@ async function issue() {
     attempted.value = false;
     requestKey.value = crypto.randomUUID();
     pageMessage.value = 'Tickets issued and emails queued. Delivery status appears below.';
-    await Promise.all([tickets.refetch(), queryClient.invalidateQueries({ queryKey: ['complimentary-supporters', props.year] }), queryClient.invalidateQueries({ queryKey: ['annual-conference-ticketing', props.year] }), sponsors.refetch()]);
+    await Promise.all([tickets.refetch(), queryClient.invalidateQueries({ queryKey: ['complimentary-supporters', props.year] }), queryClient.invalidateQueries({ queryKey: ['annual-conference-ticketing', props.year] }), ...(props.canViewSponsors ? [sponsors.refetch()] : [])]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unable to issue tickets.';
 
@@ -249,7 +249,7 @@ async function cancel(ticket: Ticket) {
     pageMessage.value = 'Ticket cancelled and seat released.';
     await nextTick();
     if (props.active && !drawerOpen.value && !pendingCancellation.value) reopenButton.value?.focus();
-    await Promise.all([tickets.refetch(), sponsors.refetch(), queryClient.invalidateQueries({ queryKey: ['complimentary-supporters', props.year] }), queryClient.invalidateQueries({ queryKey: ['annual-conference-ticketing', props.year] })]);
+    await Promise.all([tickets.refetch(), ...(props.canViewSponsors ? [sponsors.refetch()] : []), queryClient.invalidateQueries({ queryKey: ['complimentary-supporters', props.year] }), queryClient.invalidateQueries({ queryKey: ['annual-conference-ticketing', props.year] })]);
   } catch (error) {
     cancellationError.value = error instanceof Error ? error.message : 'Unable to cancel ticket.';
   } finally {
@@ -265,7 +265,7 @@ async function cancel(ticket: Ticket) {
         <h2 id="complimentary-title" ref="heading" tabindex="-1" class="text-xl font-semibold">Complimentary tickets <span class="text-dc-gray">({{ activeCount }})</span></h2>
         <p class="mt-1 text-sm text-dc-gray">Named guests receive a private ticket and attendee badge link.</p>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div v-if="canManage" class="flex flex-wrap gap-2">
         <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border bg-dc-paper px-3 text-sm font-semibold hover:bg-dc-cream" @click="testMessage = ''; drawerMode = 'test'; drawerOpen = true">Send test email</button>
         <button ref="reopenButton" type="button" class="motion-press inline-flex min-h-11 items-center gap-2 rounded-md border border-dc-border bg-dc-paper px-3 text-sm font-semibold text-dc-ink hover:bg-dc-cream" @click="drawerMode = preview ? 'review' : 'compose'; if (!preview) message = ''; drawerOpen = true">
           <svg v-if="!preview" viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 0 0 4v4h18v-4a2 2 0 0 1 0-4V4H3zM8 4v12M15 7v6M12 10h6" /></svg>
@@ -394,7 +394,7 @@ async function cancel(ticket: Ticket) {
                 <div v-if="selectedTicket.supporter_order_id"><p class="text-sm text-dc-gray">Recipient</p><p>Community supporter</p></div>
                 <div><p class="text-sm text-dc-gray">Internal reason</p><p class="whitespace-pre-wrap break-words">{{ selectedTicket.reason }}</p></div>
                 <RouterLink v-if="selectedTicket.delivery_status === 'failed' && selectedTicket.status === 'issued'" :to="{ query: { section: 'delivery' } }" class="inline-block min-h-11 underline" @click="drawerOpen = false">Review failed delivery</RouterLink>
-                <div v-if="selectedTicket.status === 'issued'"><button type="button" :disabled="pending" class="min-h-11 underline" @click="cancellationError = ''; pendingCancellation = selectedTicket; drawerOpen = false">Cancel ticket</button></div>
+                <div v-if="canManage && selectedTicket.status === 'issued'"><button type="button" :disabled="pending" class="min-h-11 underline" @click="cancellationError = ''; pendingCancellation = selectedTicket; drawerOpen = false">Cancel ticket</button></div>
               </div>
             </div>
           </section>

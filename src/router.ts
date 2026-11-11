@@ -15,6 +15,7 @@ import {
   volunteerCanAccessOrganizerPath,
 } from "./annual-conference";
 import { hasAnyAnnualConferenceCapability } from "@/lib/annual-conference-capabilities";
+import { TICKETING_VIEW_CAPABILITIES } from './ticketing-navigation';
 import {
   fetchAdminSession,
   fetchRestrictedConferenceAccess,
@@ -624,7 +625,7 @@ async function canOpenAnnualConferenceCheckInRoute(yearParam: unknown): Promise<
       queryFn: () => fetchAnnualConferenceWorkPlan(year),
     });
 
-    return hasAnyAnnualConferenceCapability(workspace.permissions.capabilities, ["ticketing.check_in", "ticketing.manage"]);
+    return hasAnyAnnualConferenceCapability(workspace.permissions.capabilities, ["ticketing.check_in"]);
   } catch {
     return false;
   }
@@ -637,7 +638,7 @@ async function canOpenAnnualConferenceTicketingRoute(year: string): Promise<bool
       queryFn: () => fetchAnnualConferenceWorkPlan(year),
     });
 
-    return hasAnyAnnualConferenceCapability(workspace.permissions.capabilities, ["ticketing.manage"]);
+    return hasAnyAnnualConferenceCapability(workspace.permissions.capabilities, TICKETING_VIEW_CAPABILITIES);
   } catch {
     return false;
   }
@@ -662,7 +663,7 @@ async function restrictedConferenceRoute(to: { path: string; params: Record<stri
     const places = restrictedConferencePlaces(year, edition?.capabilities ?? []);
 
     if (places.some((place) => place.href === to.path)) return true;
-    if (to.path === annualConferencePath('volunteers/display', year) && edition?.capabilities.includes('volunteers.share_intake')) return true;
+    if (to.path === annualConferencePath('volunteers/display', year) && edition?.capabilities.includes('volunteers.intake.share')) return true;
   } catch {
     // The landing page shows a retry action. Protected destinations fail closed.
   }
@@ -736,6 +737,7 @@ router.beforeEach(async (to, from) => {
       to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME &&
       to.name !== "admin-annual-conference-volunteer-display" &&
       to.name !== "admin-annual-conference-registrations" &&
+      to.name !== "admin-annual-conference-ticketing" &&
       to.name !== "admin-annual-conference-check-in"
     ) {
       if (
@@ -797,6 +799,7 @@ router.beforeEach(async (to, from) => {
         to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME &&
         to.name !== "admin-annual-conference-volunteer-display" &&
         to.name !== "admin-annual-conference-registrations" &&
+        to.name !== "admin-annual-conference-ticketing" &&
         to.name !== "admin-annual-conference-check-in"
       ) {
         if (

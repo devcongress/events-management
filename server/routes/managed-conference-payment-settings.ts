@@ -5,6 +5,7 @@ import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
 import { registrationTesting } from '@/server/annual-conference-registration-testing';
 import { managedCheckoutReadiness, managedCheckoutRpc, managedCheckoutSettings } from '@/server/managed-conference-checkout';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
+import { requireAnnualConferenceCapability } from '@/server/annual-conference-request';
 import type { AppBindings } from '@/server/http/app-bindings';
 
 const paymentSettingsPath = '/api/annual-conference/:year/registrations/payment-mode';
@@ -27,10 +28,13 @@ function paymentSettingsFailure(c: Context<AppBindings>, error: unknown) {
 
 export function registerManagedConferencePaymentSettings(app: Hono<AppBindings>): void {
   app.get(paymentSettingsPath, async (c) => {
-    const denied = await requireAdmin(c, ['owner']);
+    const denied = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
     if (denied) return denied;
     if (c.req.param('year') !== '2026') return c.json({ error: 'Payment settings are unavailable for this conference.' }, 404);
+    const capabilityError = await requireAnnualConferenceCapability(c, 2026, 'ticketing.overview.view');
+
+    if (capabilityError) return capabilityError;
 
     c.header('Cache-Control', 'private, no-store');
 
@@ -54,10 +58,13 @@ export function registerManagedConferencePaymentSettings(app: Hono<AppBindings>)
   });
 
   app.patch(paymentSettingsPath, async (c) => {
-    const denied = await requireAdmin(c, ['owner']);
+    const denied = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
     if (denied) return denied;
     if (c.req.param('year') !== '2026') return c.json({ error: 'Payment settings are unavailable for this conference.' }, 404);
+    const capabilityError = await requireAnnualConferenceCapability(c, 2026, 'ticketing.overview.manage');
+
+    if (capabilityError) return capabilityError;
 
     c.header('Cache-Control', 'private, no-store');
 

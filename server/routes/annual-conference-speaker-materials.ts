@@ -207,13 +207,13 @@ export function registerAnnualConferenceSpeakerMaterialRoutes(app: Hono<AppBindi
 
   const organizerPath = '/api/annual-conference/:year/speaker-submissions/:submissionId/materials';
   const organizerAccess = async (c: Context<AppBindings>) => {
-    const adminError = await requireAdmin(c, ['owner', 'organizer']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (adminError) return { error: adminError };
     const year = c.req.param('year') ?? ''; 
 
     if (!/^\d{4}$/.test(year)) return { error: c.json({ error: 'Conference year must use four digits.' }, 400) };
-    const capabilityError = await requireAnnualConferenceCapability(c, Number(year), 'speakers.view');
+    const capabilityError = await requireAnnualConferenceCapability(c, Number(year), 'speakers.participation.view');
 
     if (capabilityError) return { error: capabilityError };
     const edition = await getAnnualConferenceEditionByYear(Number(year), c);

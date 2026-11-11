@@ -7,7 +7,7 @@ import AppPagination from '@/src/components/AppPagination.vue';
 import { fetchJson } from '@/src/lib/api';
 import type { CommunityPurchase, CommunitySeat } from '@/lib/annual-conference-community-purchases';
 
-const props = defineProps<{ year: string }>();
+const props = defineProps<{ year: string; canManage?: boolean }>();
 const queryClient = useQueryClient();
 const offset = ref(0);
 const mode = ref<'live' | 'test'>('live');
@@ -97,7 +97,7 @@ function close() {
 }
 
 async function choose(seat: CommunitySeat) {
-  if (unavailable.value || seat.status !== 'pending') return;
+  if (!props.canManage || unavailable.value || seat.status !== 'pending') return;
   resetAssignment();
   seatId.value = seat.allocation_id;
   assignmentKey.value = crypto.randomUUID();
@@ -225,7 +225,7 @@ onBeforeUnmount(unlock);
             <ul class="community-seats" aria-label="Community tickets in this purchase">
               <li v-for="seat in purchase.seats" :key="seat.allocation_id">
                 <div><strong>Seat {{ seat.seat_index }}</strong><span>{{ seat.status === 'pending' ? 'Awaiting recipient' : seat.status === 'checked_in' ? 'Checked in' : seat.status === 'issued' ? 'Assigned' : 'Cancelled' }}</span><span v-if="seat.attendee_name">{{ seat.attendee_name }}</span><small v-if="seat.attendee_email">{{ seat.attendee_email }}</small></div>
-                <button v-if="seat.status === 'pending'" type="button" class="editorial-action" :disabled="unavailable" :aria-label="`Assign recipient to seat ${seat.seat_index}`" @click="choose(seat)">Assign</button>
+                <button v-if="canManage && seat.status === 'pending'" type="button" class="editorial-action" :disabled="unavailable" :aria-label="`Assign recipient to seat ${seat.seat_index}`" @click="choose(seat)">Assign</button>
               </li>
             </ul>
             <form v-if="selected" class="community-assignment" @submit.prevent="reviewing ? assign() : review()">

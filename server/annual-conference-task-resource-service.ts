@@ -135,19 +135,18 @@ export function createAnnualConferenceTaskResourceService(
     };
     const assigned = isAnnualConferenceTaskAssignedTo(task, actorEmail);
 
-    if (actor.role === 'volunteer' && !assigned) {
+    const permissions = annualConferenceCapabilities(editionActor, workspace.edition);
+
+    if (actor.role === 'volunteer' && !assigned && !permissions.can_edit_all_tasks) {
       throw new AnnualConferenceTaskResourceServiceError(
         'forbidden',
         'Volunteers can access resource links only for tasks assigned to them.',
       );
     }
-    const permissions = annualConferenceCapabilities(editionActor, workspace.edition);
-
-    if (actor.role === 'member' && !permissions.capabilities.includes('work_plan.view_all')) {
+    if (actor.role === 'member' && permissions.access_scope !== 'all') {
       throw new AnnualConferenceTaskResourceServiceError('forbidden', 'Work plan access required.');
     }
-    const canManageAll = actor.role !== 'volunteer'
-      && (permissions.can_edit_all_tasks || (actor.role !== 'member' && assigned));
+    const canManageAll = permissions.can_edit_all_tasks || (actor.role === 'organizer' && assigned) || (actor.role === 'owner' && assigned);
     const canAdd = canManageAll || (actor.role !== 'member' && assigned);
 
     return { actorEmail, canAdd, canManageAll, task, workspace };

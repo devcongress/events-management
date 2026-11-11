@@ -70,7 +70,7 @@ describe('speaker badge access', () => {
     const result = await app().request('/api/annual-conference/2026/speaker-badges/session');
 
     expect(result.status).toBe(200);
-    expect(mocks.capability).toHaveBeenCalledWith(expect.anything(), 2026, 'speakers.view');
+    expect(mocks.capability).toHaveBeenCalledWith(expect.anything(), 2026, 'speakers.participation.view');
   });
 
   it('enforces organizer capability before exposing a card', async () => {
@@ -134,7 +134,7 @@ describe('speaker badge access', () => {
 
     expect(result.status).toBe(200);
     expect(await result.json()).toEqual({ speaker_photo_count: 2, speaker_photo_bytes: 1000, shared_bucket_bytes: 5000 });
-    expect(mocks.capability).toHaveBeenCalledWith(expect.anything(), 2026, 'speakers.view');
+    expect(mocks.capability).toHaveBeenCalledWith(expect.anything(), 2026, 'speakers.participation.view');
     expect(mocks.rpc).toHaveBeenCalledWith('annual_conference_speaker_badge_storage_usage', { p_edition_id: 'edition' });
   });
 

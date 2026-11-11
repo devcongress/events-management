@@ -76,6 +76,7 @@ vi.mock("@/lib/supabase/admin-auth", () => ({
 }));
 vi.mock("@/server/annual-conference-request", () => ({
   requireAnnualConferenceCapability: mocks.requireAnnualConferenceCapability,
+  annualConferenceCapabilitiesForRequest: async () => ({ capabilities: ["volunteers.campaign.view", "volunteers.campaign.manage", "volunteers.campaign.send", "volunteers.reviews.view"], editionId: "edition" }),
 }));
 vi.mock("@/lib/supabase/volunteer-follow-up", () => ({
   getVolunteerFollowUpCampaign: mocks.getVolunteerFollowUpCampaign,
@@ -592,7 +593,7 @@ describe("volunteer follow-up read and recovery", () => {
   });
 
   it("requires Owner access before parsing or queueing a delivery retry", async () => {
-    mocks.requireAdmin.mockImplementationOnce(async (c) =>
+    mocks.requireAnnualConferenceCapability.mockImplementationOnce(async (c) =>
       c.json({ error: "Admin session required" }, 401),
     );
 

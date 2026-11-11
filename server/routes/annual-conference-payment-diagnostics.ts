@@ -21,7 +21,7 @@ export function registerAnnualConferencePaymentDiagnostics(app: Hono<AppBindings
     const denied = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
     if (denied) return denied;
-    const capabilityError = await requireAnnualConferenceCapability(c, Number(year.data), 'ticketing.manage');
+    const capabilityError = await requireAnnualConferenceCapability(c, Number(year.data), 'ticketing.orders.manage');
 
     if (capabilityError) return capabilityError;
     const session = c.get('adminSession') ?? await getAdminSession(c);

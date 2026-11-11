@@ -728,6 +728,10 @@ const annualConferenceAccessGrantSchema = z.object({
   capability: z.enum(ANNUAL_CONFERENCE_CAPABILITIES),
   enabled: z.boolean(),
 }).strict();
+const annualConferenceAccessGrantBatchSchema = z.object({
+  changes: z.array(annualConferenceAccessGrantSchema).min(1).max(ANNUAL_CONFERENCE_CAPABILITIES.length)
+    .refine((changes) => new Set(changes.map((change) => change.capability)).size === changes.length),
+}).strict();
 const annualConferenceFinanceBudgetSchema = z.object({
   category: z.enum(ANNUAL_CONFERENCE_FINANCE_CATEGORIES),
   label: z.string().trim().min(1, 'Budget label is required.').max(160),
@@ -5250,7 +5254,7 @@ app.get('/api/annual-conference/:year/team', async (c) => {
 
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const year = Number(yearParam);
-  const capabilityError = await requireAnnualConferenceCapability(c, year, 'volunteers.view_team');
+  const capabilityError = await requireAnnualConferenceCapability(c, year, 'volunteers.directory.view');
 
   if (capabilityError) return capabilityError;
   try {
@@ -5275,7 +5279,7 @@ app.get('/api/annual-conference/:year/task-members', async (c) => {
 
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   if (session.role === 'volunteer' || session.role === 'member') {
-    const capabilityError = await requireAnnualConferenceCapability(c, Number(yearParam), 'work_plan.manage');
+    const capabilityError = await requireAnnualConferenceCapability(c, Number(yearParam), 'work_plan.tasks.manage');
 
     if (capabilityError) return capabilityError;
   }
@@ -5297,7 +5301,7 @@ app.get('/api/annual-conference/:year/volunteer-applications', async (c) => {
   const yearParam = c.req.param('year');
 
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
-  const capabilityError = await requireAnnualConferenceCapability(c, Number(yearParam), 'volunteers.review_applications');
+  const capabilityError = await requireAnnualConferenceCapability(c, Number(yearParam), 'volunteers.reviews.view');
 
   if (capabilityError) return capabilityError;
   const year = Number(yearParam);
@@ -5351,16 +5355,17 @@ app.patch('/api/annual-conference/:year/access-grants/:membershipId', async (c) 
   const membershipId = z.string().uuid().safeParse(c.req.param('membershipId'));
 
   if (!membershipId.success) return c.json({ error: 'Member identifier is invalid.' }, 400);
-  const parsed = annualConferenceAccessGrantSchema.safeParse(await c.req.json().catch(() => null));
+  const parsed = z.union([annualConferenceAccessGrantSchema, annualConferenceAccessGrantBatchSchema])
+    .safeParse(await c.req.json().catch(() => null));
 
   if (!parsed.success) return c.json({ error: 'Choose a supported conference responsibility.' }, 400);
+  const changes = 'changes' in parsed.data ? parsed.data.changes : [parsed.data];
 
   try {
     const result = await setAnnualConferenceAccessGrant({
       year: Number(yearParam),
       membershipId: membershipId.data,
-      capability: parsed.data.capability,
-      enabled: parsed.data.enabled,
+      changes,
       grantedByMembershipId: session.membership_id,
     }, c);
 
@@ -5370,15 +5375,13 @@ app.patch('/api/annual-conference/:year/access-grants/:membershipId', async (c) 
     if (result === 'not_eligible') return c.json({ error: 'This responsibility cannot be delegated to that member role.' }, 400);
 
     await auditAdminAction(c, {
-      action: parsed.data.enabled
-        ? 'annual_conference.access_grant.add'
-        : 'annual_conference.access_grant.remove',
+      action: 'annual_conference.access_grant.update',
       targetType: 'admin_membership',
       targetId: membershipId.data,
-      metadata: { edition_year: Number(yearParam), capability: parsed.data.capability },
+      metadata: { edition_year: Number(yearParam), changes },
     });
 
-    return c.json({ capability: parsed.data.capability, enabled: parsed.data.enabled });
+    return c.json('changes' in parsed.data ? { changes } : parsed.data);
   } catch (error) {
     return internalErrorResponse(c, 'annual_conference_access_update_failed', error, 'Unable to update conference responsibilities.');
   }
@@ -5631,7 +5634,7 @@ app.post('/api/annual-conference/:year/finance/entries/:entryId/cancel', async (
 });
 
 app.post('/api/annual-conference/:year/phases', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
@@ -5650,7 +5653,7 @@ app.post('/api/annual-conference/:year/phases', async (c) => {
 });
 
 app.put('/api/annual-conference/:year/phases/order', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
@@ -5669,7 +5672,7 @@ app.put('/api/annual-conference/:year/phases/order', async (c) => {
 });
 
 app.patch('/api/annual-conference/:year/phases/:phaseId', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
@@ -5688,7 +5691,7 @@ app.patch('/api/annual-conference/:year/phases/:phaseId', async (c) => {
 });
 
 app.delete('/api/annual-conference/:year/phases/:phaseId', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (adminError) return adminError;
   const yearParam = c.req.param('year');

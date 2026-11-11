@@ -15,6 +15,7 @@ import { adminPath } from '@/src/admin-routes';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath, annualConferenceRegistrationTarget, canCreateConferenceBadge, mobileAnnualConferencePath } from '@/src/annual-conference';
 import { organizerConferenceContextQuery, organizerMobileConferenceSection } from '@/src/organizer-viewport';
 import { hasAnyAnnualConferenceCapability, VOLUNTEER_SECTION_CAPABILITIES } from '@/lib/annual-conference-capabilities';
+import { TICKETING_VIEW_CAPABILITIES } from '@/src/ticketing-navigation';
 
 const menuIcons: Record<string, string> = {
   overview: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
@@ -94,8 +95,8 @@ const section = computed(() => isMobileWorkspace.value ? organizerMobileConferen
 const registration = computed(() => annualConferenceRegistrationTarget(capabilities.value, year.value));
 const canBadge = computed(() => sessionQuery.data.value?.authenticated === true && canCreateConferenceBadge(year.value, sessionQuery.data.value?.user?.role));
 const canVolunteers = computed(() => year.value === '2026' && hasAnyAnnualConferenceCapability(capabilities.value, VOLUNTEER_SECTION_CAPABILITIES));
-const canSpeakers = computed(() => isOrganizer.value && hasAnyAnnualConferenceCapability(capabilities.value, ['speakers.view', 'speakers.manage']));
-const canTicketing = computed(() => isOrganizer.value && capabilities.value.includes('ticketing.manage'));
+const canSpeakers = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['speakers.proposals.view', 'speakers.participation.view', 'speakers.delivery.view', 'speakers.outcomes.view']));
+const canTicketing = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, TICKETING_VIEW_CAPABILITIES));
 const title = computed(() => {
   if (!props.conference) {
     if (route.name === 'admin-reports') return 'Reports';
@@ -127,7 +128,7 @@ const items = computed(() => [
 
 const visibleItems = computed(() => items.value.slice(0, 4));
 const overflowItems = computed(() => items.value.slice(4));
-const showMore = computed(() => !props.conference || isOrganizer.value || overflowItems.value.length > 0
+const showMore = computed(() => !props.conference || isOrganizer.value || canTicketing.value || overflowItems.value.length > 0
   || (Boolean(registration.value) && !items.value.some(item => item.key === 'registration'))
   || capabilities.value.includes('finance.view'));
 
@@ -340,7 +341,7 @@ function createEdition() {
             <button v-if="conference && canCreateEdition" type="button" @click="createEdition"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['add']" /></svg><span>New edition</span></button>
             <nav v-if="conference" aria-label="More conference destinations">
               <button v-for="item in overflowItems" :key="item.key" type="button" @click="select(item.key)"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons[item.icon]" /></svg><span>{{ item.label }}</span></button>
-              <RouterLink v-if="isOrganizer" :to="annualConferencePath('programme', year)" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['programme']" /></svg><span>Programme</span></RouterLink>
+              <RouterLink v-if="hasAnyAnnualConferenceCapability(capabilities, ['programme.view'])" :to="annualConferencePath('programme', year)" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['programme']" /></svg><span>Programme</span></RouterLink>
               <RouterLink v-if="registration && !items.some(item => item.key === 'registration')" :to="registration" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['registration']" /></svg><span>{{ registration.endsWith('/check-in') ? 'Check-in' : 'Registration' }}</span></RouterLink>
               <RouterLink v-if="canTicketing" :to="annualConferencePath('ticketing', year)" @click="closeMenu()"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['ticketing']" /></svg><span>Ticketing</span></RouterLink>
               <div v-if="capabilities.includes('finance.view')" class="conference-phone-menu__disabled" aria-disabled="true"><svg class="conference-phone-menu__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="menuIcons['finance']" /></svg>Finance<small>Unavailable</small></div>

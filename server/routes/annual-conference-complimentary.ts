@@ -25,9 +25,9 @@ const issueSchema = z.object({
 }).strict().refine(value => new Set(value.guests.map(guest => guest.email)).size === value.guests.length);
 
 async function owner(c: Context<AppBindings>) {
-  const denied = await requireAdmin(c, ['owner']);
+  const denied = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
-  return denied ?? await requireAnnualConferenceCapability(c, 2026, 'ticketing.manage');
+  return denied ?? await requireAnnualConferenceCapability(c, 2026, c.req.method === 'GET' ? 'ticketing.complimentary.view' : 'ticketing.complimentary.manage');
 }
 
 export function registerAnnualConferenceComplimentaryRoutes(app: Hono<AppBindings>) {
@@ -53,7 +53,7 @@ export function registerAnnualConferenceComplimentaryRoutes(app: Hono<AppBinding
     if (originError) return originError;
     const session = c.get('adminSession') ?? await getAdminSession(c);
 
-    if (!session.authenticated || session.role !== 'owner' || !session.email) return c.json({ error: 'Owner access is required.' }, 403);
+    if (!session.authenticated || !session.email) return c.json({ error: 'Conference ticketing access required.' }, 403);
     const input = z.object({ guest: guestSchema, recipient: z.string().trim().toLowerCase().email().max(254), request_id: z.string().uuid() }).strict()
       .safeParse(await c.req.json().catch(() => null));
 
@@ -154,7 +154,7 @@ export function registerAnnualConferenceComplimentaryRoutes(app: Hono<AppBinding
     if (!isSupabaseRuntimeEnabled(c)) return c.json({ error: 'Ticketing storage is not configured.' }, 503);
     const session = c.get('adminSession') ?? await getAdminSession(c);
 
-    if (!session.authenticated || session.role !== 'owner') return c.json({ error: 'Owner access is required.' }, 403);
+    if (!session.authenticated) return c.json({ error: 'Conference ticketing access required.' }, 403);
     try {
       const ticketing = await getSupabaseAnnualConferenceTicketing(2026, c);
 

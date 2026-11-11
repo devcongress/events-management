@@ -32,7 +32,8 @@ describe('annual conference ticket email delivery operations', () => {
   it('offers capability-gated, edition-scoped delivery operations', () => {
     expect(routeSource).toContain("/ticketing/email-deliveries'");
     expect(routeSource).toContain("/ticketing/email-deliveries/:deliveryId/retry'");
-    expect(routeSource).toContain("requireAnnualConferenceCapability(c, year, 'ticketing.manage')");
+    expect(routeSource).toContain("'ticketing.delivery.view'");
+    expect(routeSource).toContain("'ticketing.delivery.retry'");
     expect(routeSource).toContain("annual_conference.ticketing.email_delivery_retry");
   });
 

@@ -26,7 +26,7 @@ async function renderOrders(renderedOrder = order) {
 
   queryClient.setQueryData(queryKeys.adminSession, { authenticated: true, user: { role: 'owner' } });
   queryClient.setQueryData(queryKeys.annualConferenceEditions, { editions: [edition] });
-  queryClient.setQueryData(queryKeys.annualConferenceWorkPlan('2026'), { edition, permissions: { capabilities: ['ticketing.manage'] } });
+  queryClient.setQueryData(queryKeys.annualConferenceWorkPlan('2026'), { edition, permissions: { capabilities: ['ticketing.orders.view', 'ticketing.orders.manage'] } });
   queryClient.setQueryData(queryKeys.annualConferenceTicketing('2026'), {
     settings: defaultAnnualConferenceTicketingSettings('edition'),
     inventory: { public_capacity: 200, paid_seats: 1, sponsor_seats_held: 2, checkout_seats_held: 3, remaining_public_seats: 194, reduction_floor: 6 },
@@ -61,7 +61,7 @@ describe('Ticket orders on phones', () => {
     const navigation = html.match(/<nav\b[^>]*aria-label="Ticketing sections"[\s\S]*?<\/nav>/)?.[0] ?? '';
 
     expect(navigation.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(navigation.match(/aria-current="false"/g)).toHaveLength(5);
+    expect(navigation.match(/aria-current="false"/g)).toBeNull();
   });
 
   it.each([

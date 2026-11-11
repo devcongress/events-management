@@ -23,6 +23,9 @@ const MEMBERSHIP_ENABLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/enable$/;
 const MEMBERSHIP_PERMANENT_REMOVE_PATH =
   /^\/api\/admin\/organizers\/[^/]+\/permanent$/;
 const RESTRICTED_CONFERENCE_ROLES: AdminRole[] = ['owner', 'organizer', 'volunteer', 'member'];
+// These route families enforce their precise edition capability in their handlers.
+const DELEGATED_CONFERENCE_PATH = /^\/api\/annual-conference\/\d{4}\/(?:programme|speaker-outcomes|speaker-updates|speakers|speaker-submissions|speaker-headshots|volunteer-follow-up|phases|registrations)(?:\/.*)?$/;
+const DELEGATED_TICKETING_PATH = /^\/api\/annual-conference\/\d{4}\/ticketing\/(?:test-coupons|complimentary|flexible)(?:\/.*)?$/;
 const RESTRICTED_READ_PATH = /^\/api\/annual-conference\/\d{4}\/(?:work-plan(?:\/[^/]+\/resources)?|task-members|team|volunteer-applications|volunteer-follow-up\/reviews|speakers|speaker-headshots\/[^/]+\/photo|finance|ticketing(?:\/(?:orders|sponsor-allocations|email-deliveries))?|registrations|check-in\/attendees)$/;
 const RESTRICTED_WRITE_PATHS = [
   ['POST', /^\/api\/annual-conference\/\d{4}\/(?:work-plan(?:\/[^/]+\/resources)?|registrations\/[^/]+\/cancel|check-in\/(?:search|admit)|ticketing\/(?:check-in|sponsor-allocations|email-deliveries\/[^/]+\/retry|orders\/[^/]+\/paystack-check))$/],
@@ -57,6 +60,18 @@ export function adminRolesForApiRequest(
   path: string,
   method: string,
 ): AdminRole[] {
+  if ((method === 'PATCH' && VOLUNTEER_FOLLOW_UP_REVIEW_PATH.test(path))
+    || (method === 'GET' && VOLUNTEER_FOLLOW_UP_REVIEW_UPDATE_PATH.test(path))) {
+    return ORGANIZER_ROLES;
+  }
+  if ((DELEGATED_CONFERENCE_PATH.test(path) || DELEGATED_TICKETING_PATH.test(path)) && ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
+    return RESTRICTED_CONFERENCE_ROLES;
+  }
+  if ((method === 'GET' && /^\/api\/annual-conference\/\d{4}\/(?:registrations(?:\/blasts)?|ticketing\/(?:capacity|email-deliveries|flexible\/community-pool(?:\/purchases)?))$/.test(path))
+    || (method === 'PATCH' && /^\/api\/annual-conference\/\d{4}\/(?:registrations\/settings|ticketing\/capacity)$/.test(path))
+    || (method === 'POST' && /^\/api\/annual-conference\/\d{4}\/(?:registrations\/(?:[^/]+\/(?:cancel|recover)|blasts(?:\/[^/]+\/send)?)|ticketing\/(?:email-deliveries\/[^/]+\/retry|flexible\/community-pool\/assign))$/.test(path))) {
+    return RESTRICTED_CONFERENCE_ROLES;
+  }
   if (method === 'POST' && path === LOGOUT_PATH) return RESTRICTED_CONFERENCE_ROLES;
   if (method === 'GET' && (path === '/api/annual-conference/my-access' || RESTRICTED_READ_PATH.test(path))) {
     return [...adminRolesForLegacyApiRequest(path, method), 'member'];

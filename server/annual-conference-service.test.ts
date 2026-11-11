@@ -80,6 +80,35 @@ describe('Annual Conference service boundary', () => {
 
   beforeEach(() => vi.clearAllMocks());
 
+  it.each([
+    ['work_plan.timeline.view', true, false],
+    ['work_plan.phases.manage', true, false],
+    ['work_plan.tasks.view', true, true],
+    ['programme.view', false, false],
+  ] as const)('projects phases and tasks independently for %s', async (capability, phasesVisible, tasksVisible) => {
+    const service = createAnnualConferenceService({
+      repository: repository(),
+      actor: { role: 'member', email: 'member@example.com', granted_capabilities: [capability] },
+      activeOrganizerEmails: async () => [],
+      audit,
+    });
+    const result = await service.getWorkspace(2026);
+
+    expect(result.phases).toHaveLength(phasesVisible ? 1 : 0);
+    expect(result.tasks).toHaveLength(tasksVisible ? 1 : 0);
+  });
+
+  it('denies a member with no edition grant', async () => {
+    const service = createAnnualConferenceService({
+      repository: repository(),
+      actor: { role: 'member', email: 'member@example.com' },
+      activeOrganizerEmails: async () => [],
+      audit,
+    });
+
+    await expect(service.getWorkspace(2026)).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
   it('returns a capability-bearing, redacted workspace to an assigned volunteer', async () => {
     const service = createAnnualConferenceService({
       repository: repository(),
@@ -155,7 +184,7 @@ describe('Annual Conference service boundary', () => {
       actor: {
         role: 'volunteer',
         email: 'manager@example.com',
-        granted_capabilities: ['work_plan.manage'],
+        granted_capabilities: ['work_plan.tasks.manage'],
       },
       activeOrganizerEmails: async () => [],
       audit,

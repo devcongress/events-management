@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/supabase/admin-auth', () => ({ getAdminSession: mocks.session, requireAdmin: mocks.requireAdmin }));
+vi.mock('@/server/annual-conference-request', () => ({ requireAnnualConferenceCapability: mocks.requireAdmin }));
 // Deliberately expose no campaign mutation functions: a sample must never call them.
 vi.mock('@/lib/supabase/volunteer-follow-up', () => ({
   getVolunteerFollowUpCampaign: mocks.campaign,
@@ -62,7 +63,7 @@ describe('volunteer outcome sample emails', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ accepted: true, recipient: 'tester@example.test', provider_id: 'provider-1' });
-    expect(mocks.requireAdmin).toHaveBeenCalledWith(expect.anything(), ['owner']);
+    expect(mocks.requireAdmin).toHaveBeenCalledWith(expect.anything(), 2026, 'volunteers.campaign.send');
     expect(mocks.send).toHaveBeenCalledTimes(1);
     const content = volunteerOutcomeEmailPreview({ name: 'Applicant', ...message });
 

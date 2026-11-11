@@ -172,7 +172,7 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(panelSource).toContain("<AppDatePicker");
     expect(panelSource).toContain(':teleport="true"');
     expect(panelSource).toContain(
-      ":disabled=\"busy || campaign.status !== 'draft'\"",
+      ":disabled=\"!canManage || busy || campaign.status !== 'draft'\"",
     );
     expect(panelSource).not.toContain("<select");
     expect(panelSource).not.toContain('type="date"');
@@ -180,15 +180,14 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(datePickerSource).toContain("if (props.disabled) return;");
   });
 
-  it("places Reviews beside the directory and reserves Campaign for owners", () => {
+  it("places Reviews and Campaign beside the permitted directory", () => {
     for (const source of [desktopSource, mobileSource]) {
       expect(source).toContain("<VolunteerWorkspaceTabs");
       expect(source).toContain("<VolunteerFollowUpPanel");
       expect(source).toContain("<VolunteerReviewsPanel");
       expect(source).toContain(":is-owner-session=");
-      expect(source).toContain(
-        "sessionQuery.data.value?.user?.role === 'owner'",
-      );
+      expect(source).toContain("volunteers.campaign.view");
+      expect(source).toContain("volunteers.campaign.send");
       expect(source).toContain('id="');
       expect(source).toContain('role="tabpanel"');
     }
@@ -282,7 +281,7 @@ describe("Volunteer follow-up workspace UI", () => {
     );
   });
 
-  it("keeps campaign controls owner-only and previews the production email without sending", () => {
+  it("checks campaign access and previews the production email without sending", () => {
     const previewRouteStart = followUpServerSource.indexOf(
       '"/api/annual-conference/2026/volunteer-follow-up/preview"',
     );
@@ -295,7 +294,7 @@ describe("Volunteer follow-up workspace UI", () => {
       previewRouteEnd,
     );
 
-    expect(previewRoute).toContain('requireAdmin(c, ["owner"])');
+    expect(previewRoute).toContain('"volunteers.campaign.view"');
     expect(previewRoute).toContain("html: preview.html");
     expect(previewRoute).toContain("text: preview.text");
     expect(followUpPanelSource).toContain('role="dialog"');

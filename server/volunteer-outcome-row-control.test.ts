@@ -4,6 +4,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ session: vi.fn(), auth: vi.fn(), campaign: vi.fn(), control: vi.fn(), limit: vi.fn(), audit: vi.fn() }));
 
 vi.mock('@/lib/supabase/admin-auth', () => ({ getAdminSession: mocks.session, requireAdmin: mocks.auth }));
+vi.mock('@/server/annual-conference-request', () => ({
+  requireAnnualConferenceCapability: async () => {
+    const denial = await mocks.auth();
+
+    if (denial) return denial;
+    const session = await mocks.session();
+
+    return session.role === 'owner' ? null : new Response('Forbidden', { status: 403 });
+  },
+}));
 vi.mock('@/lib/supabase/volunteer-follow-up', () => ({ getVolunteerFollowUpCampaign: mocks.campaign, controlVolunteerOutcomeDelivery: mocks.control }));
 vi.mock('@/server/http/public-intake-protection', () => ({ enforcePublicRateLimit: mocks.limit }));
 vi.mock('@/server/protected-mutation', () => ({ recordProtectedMutationAudit: mocks.audit }));
