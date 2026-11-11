@@ -4545,6 +4545,126 @@ try {
     }, { role: "owner" });
   }
 
+  for (const width of [1280, 320]) {
+    await journey(`conference-access-drawer-${width}`, async ({ page, responses, requests }) => {
+      const member = { id: "fixture-member", email: "member@example.test", display_name: "Fixture Member", role: "organizer", status: "active", last_login_at: null };
+      const effective = ["registration.summary.view", "registration.guests.view", "registration.emails.view"];
+      const inherited = ["registration.summary.view", "registration.guests.view", "registration.guests.manage"];
+      const accessPath = "/api/annual-conference/2026/access-grants";
+      const mutationPath = `${accessPath}/${member.id}`;
+      let gate = createSaveGate();
+
+      responses.set("/api/admin/organizers", { body: { organizers: [member] } });
+      responses.set("/api/admin/access-requests", { body: { requests: [] } });
+      responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+      responses.set("/api/annual-conference/2026/volunteer-applications", { body: { applications: [] } });
+      responses.set(accessPath, () => ({ body: { edition_id: edition.id, members: [{ ...member, capabilities: [...effective], inherited_capabilities: inherited }] } }));
+      responses.set(mutationPath, async (request) => {
+        const { changes } = request.postDataJSON();
+
+        gate.markEntered();
+        await gate.response;
+        for (const { capability, enabled } of changes) {
+          const index = effective.indexOf(capability);
+
+          if (enabled && index === -1) effective.push(capability);
+          if (!enabled && index !== -1) effective.splice(index, 1);
+        }
+
+        return { body: { changes } };
+      });
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto(`${origin}/organizer-console/organizers`);
+      const trigger = page.getByRole("button", { name: "Delegate Annual Conference responsibilities to Fixture Member" }).filter({ visible: true });
+
+      await trigger.click();
+      const drawer = page.getByRole("dialog", { name: "Delegate to Fixture Member" });
+      const close = drawer.getByRole("button", { name: "Close access drawer" });
+      const summary = drawer.locator("summary").filter({ hasText: "Registration" });
+
+      await drawer.waitFor();
+      await summary.getByText("3 of 6 enabled · 2 limited").waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.waitForFunction(() => {
+        const bounds = document.querySelector('[aria-label="Close access drawer"]')?.getBoundingClientRect();
+
+        return bounds && bounds.left >= 0 && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight;
+      });
+      const closeBounds = await close.boundingBox();
+
+      assert.ok(closeBounds && closeBounds.x >= 0 && closeBounds.x + closeBounds.width <= width && closeBounds.y >= 0 && closeBounds.y + closeBounds.height <= 844);
+      assert.equal(await drawer.getByRole("switch").count(), 0);
+      await summary.focus();
+      await page.keyboard.press("Enter");
+      assert.equal(await summary.evaluate((element) => document.activeElement === element && element.parentElement.open), true);
+      const switches = drawer.getByRole("switch");
+      const guests = drawer.getByRole("switch", { name: "Registration: Guests access" });
+      const emails = drawer.getByRole("switch", { name: "Registration: Emails access" });
+      const form = drawer.getByRole("switch", { name: "Registration: Form & capacity access" });
+
+      assert.equal(await switches.count(), 6);
+      const aligned = await summary.evaluate((element) => {
+        const chevron = element.querySelector(".responsibility-chevron")?.getBoundingClientRect();
+        const control = element.parentElement.querySelector('.responsibility-state-box')?.getBoundingClientRect();
+
+        return chevron && control && Math.abs((chevron.x + chevron.width / 2) - (control.x + control.width / 2)) < 1;
+      });
+
+      assert.equal(aligned, true);
+      assert.equal(await guests.getAttribute("aria-checked"), "true");
+      assert.equal(await emails.getAttribute("aria-checked"), "true");
+      assert.equal(await form.getAttribute("aria-checked"), "false");
+      await guests.getByText("Limited access · Includes role defaults").waitFor();
+      await emails.getByText("Limited access · Edition access").waitFor();
+      assert.equal(requests.filter((request) => request.method === "PATCH").length, 0);
+      assert.equal(await drawer.evaluate((element) => element.scrollWidth <= element.clientWidth), true);
+      await page.screenshot({ path: `${artifacts}/conference-access-drawer-${width}.png`, animations: "disabled" });
+      await emails.getByText("Emails", { exact: true }).click();
+      await waitForSaveGate(gate, "conference access");
+      await drawer.getByText("Saving access…").waitFor();
+      assert.equal(await emails.isDisabled(), true);
+      const patches = requests.filter((request) => request.path === mutationPath && request.method === "PATCH");
+
+      assert.equal(patches.length, 1);
+      assert.deepEqual(JSON.parse(patches[0].body), { changes: [
+        { capability: "registration.emails.view", enabled: false },
+        { capability: "registration.emails.manage", enabled: false },
+        { capability: "registration.emails.retry", enabled: false },
+      ] });
+      gate.release();
+      await page.waitForFunction(() => !document.querySelector('[role="dialog"] [role="status"]'));
+      await emails.getByText("Off", { exact: true }).waitFor();
+      gate = createSaveGate();
+      await emails.focus();
+      await page.keyboard.press("Space");
+      await waitForSaveGate(gate, "conference access");
+      const onPatch = requests.filter((request) => request.path === mutationPath && request.method === "PATCH").at(-1);
+
+      assert.deepEqual(JSON.parse(onPatch.body), { changes: [
+        { capability: "registration.emails.view", enabled: true },
+        { capability: "registration.emails.manage", enabled: true },
+        { capability: "registration.emails.retry", enabled: true },
+      ] });
+      gate.release();
+      await emails.getByText("On · Edition access").waitFor();
+      gate = createSaveGate();
+      await emails.focus();
+      await page.keyboard.press("Enter");
+      await waitForSaveGate(gate, "conference access");
+      const enterPatch = requests.filter((request) => request.path === mutationPath && request.method === "PATCH").at(-1);
+
+      assert.deepEqual(JSON.parse(enterPatch.body), { changes: [
+        { capability: "registration.emails.view", enabled: false },
+        { capability: "registration.emails.manage", enabled: false },
+        { capability: "registration.emails.retry", enabled: false },
+      ] });
+      gate.release();
+      await emails.getByText("Off", { exact: true }).waitFor();
+      await close.click();
+      assert.equal(await trigger.evaluate((element) => document.activeElement === element), true);
+    }, { role: "owner" });
+  }
+
   await journey("organizer-role-menu-resize", async ({ page, responses, requests }) => {
     const member = { id: "fixture-member", email: "member@example.test", display_name: "Fixture Member", role: "organizer", status: "active", last_login_at: null };
 

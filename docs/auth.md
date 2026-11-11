@@ -124,3 +124,6 @@ There is no shared-password fallback. When Supabase organizer auth is incomplete
 
 
 Annual Conference registration uses reviewed, code-owned logical gates over explicit edition/member leaf grants. The database stores each grant's enabled state and provenance; it does not store arbitrary expressions. Gates support nonempty AND/OR groups and no NOT. The server authorizes requests and sensitive ticket details; client visibility only guides navigation.
+
+
+The Owner access drawer groups delegable Annual Conference leaves by sub-tab. A switch saves all available actions on or off for the selected edition; existing partial grants remain unchanged until switched and are shown as limited access. The server continues to enforce each leaf.

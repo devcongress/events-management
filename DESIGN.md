@@ -76,6 +76,8 @@ header offset, including the safe-area inset.
 
 ## Components
 
+**Conference access:** Group sub-tabs in expandable major sections with enabled and limited counts. Use one full-row 44px-target switch per sub-tab with a dark pink accent for enabled and limited states, keep off neutral, show available provenance, and explain that changes save immediately.
+
 **Application navigation:** At widths above 960px, keep the horizontal navbar and
 place destinations that do not fit in an anchored More disclosure. Measure the
 permission-filtered labels after fonts settle; retain their order and highlight

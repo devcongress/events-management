@@ -87,19 +87,19 @@ const renderer = createRenderer<TestNode, TestNode>({
 });
 
 describe('AdminOrganizersView', () => {
-  it('shows inherited role permissions alongside delegable additions', async () => {
+  it('renders sub-tab switches with immediate-save and accessible state', async () => {
     const source = await readFile(fileURLToPath(new URL('./AdminOrganizersView.vue', import.meta.url)), 'utf8');
 
     expect(source).toContain('canDelegateAnnualConferenceCapability(capability, responsibilityMember.value.role)');
-    expect(source).toContain('Role default; changes apply to this edition');
-    expect(source).toContain('Restricted member');
-    expect(source).toContain('v-for="group in responsibilitySections"');
-    expect(source).toContain(':aria-checked="sectionState(group)"');
-    expect(source).toContain('updateAnnualConferenceAccessGrants(year, memberId, changes)');
-    expect(source).toContain('annualConferenceCapabilityChanges(role, capability, enabled)');
-    expect(source).toContain(':aria-pressed="responsibilityIsEnabled(capability)"');
+    expect(source).toContain('role="switch"');
+    expect(source).toContain('responsibility-access-control flex min-h-16 w-full');
+    expect(source).not.toContain('gap-3 border-t border-dc-border py-2');
+    expect(source).toContain(':aria-checked="subsectionState(subsection).checked"');
+    expect(source).toContain(':aria-describedby=');
     expect(source).toContain('Changes save immediately.');
-    expect(source).toContain('Unable to save access. Please try again.');
+    expect(source).toContain('updateAnnualConferenceAccessGrants(year, memberId, changes)');
+    expect(source).toContain('watch([responsibilityMemberId, responsibilityYear], () => updateResponsibilityMutation.reset())');
+    expect(source).not.toContain('content-visibility 160ms');
   });
 
   it('registers every leaf exactly once with usable hierarchy and filters volunteer access', () => {
