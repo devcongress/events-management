@@ -35,7 +35,7 @@ type ReviewsResponse = {
 };
 
 const queryClient = useQueryClient();
-const props = defineProps<{ sessionIdentity: string }>();
+const props = defineProps<{ sessionIdentity: string; canManage: boolean }>();
 const reviewQueryKey = computed(() => [
   "annual-conference",
   "2026",
@@ -400,6 +400,7 @@ onBeforeUnmount(() => {
           <p>Previews use the latest saved copy.</p>
         </div>
         <button
+          v-if="canManage"
           type="button"
           class="outcome-copy-toggle"
           :aria-expanded="outcomeCopyOpen"
@@ -663,7 +664,7 @@ onBeforeUnmount(() => {
                   }}
                 </p>
               </section>
-              <template v-if="selected.submitted_at">
+              <template v-if="selected.submitted_at && canManage">
                 <section class="reviews-team-review" aria-labelledby="team-review-title">
                   <div class="reviews-team-review-heading">
                     <span class="reviews-eyebrow">Team review</span>
@@ -698,7 +699,7 @@ onBeforeUnmount(() => {
                 </section>
               </template>
             </div>
-            <footer v-if="selected.submitted_at" class="reviews-drawer-footer">
+            <footer v-if="selected.submitted_at && canManage" class="reviews-drawer-footer">
               <button
                 class="reviews-save"
                 type="button"

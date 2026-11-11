@@ -20,15 +20,15 @@ const kindSchema = z.enum(['acceptance', 'rejection']);
 const selectionSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(100).refine((ids) => new Set(ids).size === ids.length) }).strict();
 const messageSchema = z.object({ kind: kindSchema, subject: z.string().trim().min(1).max(200).refine((s) => !/[\r\n]/.test(s)), message: z.string().trim().min(1).max(10000), version: z.number().int().min(0) }).strict();
 
-async function ownerAccess(c: Context<AppBindings>) {
-  const error = await requireAdmin(c, ['owner']);
+async function ownerAccess(c: Context<AppBindings>, capability: 'speakers.outcomes.view' | 'speakers.outcomes.manage' | 'speakers.outcomes.send') {
+  const error = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
   if (error) return error;
   const year = Number(c.req.param('year'));
 
   if (!/^\d{4}$/.test(c.req.param('year') ?? '')) return c.json({ error: 'Conference year must use four digits.' }, 400);
 
-  return requireAnnualConferenceCapability(c, year, 'speakers.manage');
+  return requireAnnualConferenceCapability(c, year, capability);
 }
 
 async function preview(c: Context<AppBindings>, ids: string[]) {
@@ -97,7 +97,7 @@ export function registerSpeakerOutcomeRoutes(app: Hono<AppBindings>) {
   const base = '/api/annual-conference/:year/speaker-outcomes';
 
   app.get(`${base}/messages`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.view');
 
     if (denied) return denied;
     c.header('Cache-Control', 'no-store');
@@ -115,7 +115,7 @@ export function registerSpeakerOutcomeRoutes(app: Hono<AppBindings>) {
   });
 
   app.put(`${base}/messages`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.manage');
 
     if (denied) return denied;
     const parsed = messageSchema.safeParse(await c.req.json().catch(() => null));
@@ -141,9 +141,9 @@ export function registerSpeakerOutcomeRoutes(app: Hono<AppBindings>) {
   });
 
   app.post(`${base}/preview`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.manage');
 
-    if (denied) return denied;
+    if (denied && await ownerAccess(c, 'speakers.outcomes.send')) return denied;
     c.header('Cache-Control', 'no-store');
     const parsed = selectionSchema.safeParse(await c.req.json().catch(() => null));
 
@@ -167,7 +167,7 @@ export function registerSpeakerOutcomeRoutes(app: Hono<AppBindings>) {
   });
 
   app.post(`${base}/test`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.send');
 
     if (denied) return denied;
     const parsed = z.object({ preview_id: z.string().uuid(), recipient_id: z.string().uuid(), email: z.string().trim().max(254).email(), request_id: z.string().uuid() }).strict().safeParse(await c.req.json().catch(() => null));
@@ -216,7 +216,7 @@ export function registerSpeakerOutcomeRoutes(app: Hono<AppBindings>) {
   });
 
   app.post(`${base}/send`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.send');
 
     if (denied) return denied;
     const parsed = z.object({ preview_id: z.string().uuid() }).strict().safeParse(await c.req.json().catch(() => null));

@@ -70,9 +70,10 @@ const mocks = vi.hoisted(() => ({
     const role = c.req.header("x-test-role");
 
     if (!role) return c.json({ error: "Sign in required." }, 401);
+    if (role === "owner" && capability.startsWith("volunteers.campaign.")) return null;
     if (c.req.header("x-test-capability") !== "allowed")
       return c.json({ error: "Capability required." }, 403);
-    if (year !== 2026 || capability !== "volunteers.review_applications")
+    if (year !== 2026 || !["volunteers.reviews.view", "volunteers.reviews.manage"].includes(capability))
       return c.json({ error: "Capability required." }, 403);
 
     return null;
@@ -90,6 +91,7 @@ vi.mock("../lib/supabase/admin-auth", () => ({
 
 vi.mock("../server/annual-conference-request", () => ({
   requireAnnualConferenceCapability: mocks.requireCapability,
+  annualConferenceCapabilitiesForRequest: async () => ({ capabilities: ["volunteers.campaign.view", "volunteers.campaign.manage", "volunteers.campaign.send"], editionId: "edition" }),
 }));
 
 vi.mock("../lib/supabase/volunteer-follow-up", () => ({
@@ -300,7 +302,7 @@ describe("volunteer follow-up reviews and campaign boundary", () => {
       expect(mocks.requireCapability).toHaveBeenCalledWith(
         expect.anything(),
         2026,
-        "volunteers.review_applications",
+        "volunteers.reviews.view",
       );
     },
   );

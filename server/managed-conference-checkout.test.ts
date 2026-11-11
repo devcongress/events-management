@@ -41,6 +41,7 @@ vi.mock('@/server/http/public-intake-protection', () => ({
   assessPublicSubmissionEmail: mocks.assess,
 }));
 vi.mock('@/lib/supabase/admin-auth', () => ({ requireAdmin: mocks.admin, getAdminSession: mocks.session }));
+vi.mock('@/server/annual-conference-request', () => ({ requireAnnualConferenceCapability: vi.fn(async () => null) }));
 vi.mock('@/server/protected-mutation', () => ({ recordProtectedMutationAudit: mocks.audit }));
 
 const origin = 'https://devcongress.org';
@@ -469,7 +470,7 @@ describe('Owner payment settings', () => {
     const response = await request(modePath);
 
     expect(response.status).toBe(200);
-    expect(mocks.admin).toHaveBeenCalledWith(expect.anything(), ['owner']);
+    expect(mocks.admin).toHaveBeenCalledWith(expect.anything(), ['owner', 'organizer', 'volunteer', 'member']);
     expect(await response.json()).toMatchObject({ payment_mode: 'test', settings_version: 7, tester_emails: ['tester@example.test', 'gift@example.test'] });
   });
 

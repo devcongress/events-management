@@ -23,7 +23,7 @@ import {
   type VolunteerFollowUpDirectoryRecipient,
 } from "@/lib/volunteer-follow-up-directory";
 
-const props = defineProps<{ isOwnerSession: boolean }>();
+const props = defineProps<{ isOwnerSession: boolean; canManage?: boolean; canSend?: boolean }>();
 const queryClient = useQueryClient();
 
 type Campaign = {
@@ -890,7 +890,9 @@ onUnmounted(() => {
                 :inert="activeCampaignTab !== 'updates'"
                 tabindex="0"
               >
-                <VolunteerBroadcastPanel v-if="isOwner && visitedCampaignTabs.has('updates')" />
+                <fieldset :disabled="!canSend">
+                  <VolunteerBroadcastPanel v-if="isOwner && visitedCampaignTabs.has('updates')" />
+                </fieldset>
               </section>
             </Transition>
             <Transition :name="`follow-up-tab-${campaignTabDirection}`">
@@ -903,6 +905,7 @@ onUnmounted(() => {
                 :inert="activeCampaignTab !== 'outcomes'"
                 tabindex="0"
               >
+                <fieldset :disabled="!canSend">
                 <VolunteerOutcomeCampaignPanel
                   v-if="isOwner && visitedCampaignTabs.has('outcomes')"
                   :recipients="recipients"
@@ -912,6 +915,7 @@ onUnmounted(() => {
                   @retry-delivery="pendingRetry = { kind: 'outcome', id: $event.outcome_delivery!.id!, name: $event.applicant_name }"
                   @updated="query.refetch"
                 />
+                </fieldset>
               </section>
             </Transition>
             <Transition :name="`follow-up-tab-${campaignTabDirection}`">
@@ -1113,7 +1117,7 @@ onUnmounted(() => {
                         v-model="deadlineDate"
                         label="Application deadline"
                         density="field"
-                        :disabled="busy || campaign.status !== 'draft'"
+                        :disabled="!canManage || busy || campaign.status !== 'draft'"
                       />
                       <p class="follow-up-deadline-hint">
                         Responses close
@@ -1134,7 +1138,7 @@ onUnmounted(() => {
                         type="button"
                         class="follow-up-button follow-up-button--secondary follow-up-save-deadline"
                         :disabled="
-                          busy ||
+                          !canManage || busy ||
                           campaign.status !== 'draft' ||
                           deadlineDate === campaign.application_deadline_at.slice(0, 10)
                         "
@@ -1172,7 +1176,7 @@ onUnmounted(() => {
                         </button>
                       </div>
                     </div>
-                    <div class="follow-up-campaign-controls">
+                    <div v-if="canSend" class="follow-up-campaign-controls">
                       <span class="editorial-label">Campaign controls</span>
                       <button
                         v-if="campaign.status === 'draft'"
@@ -1414,7 +1418,7 @@ onUnmounted(() => {
                       {{ selected.delivery_diagnostic.action }}
                     </p>
                     <button
-                      v-if="!selected.delivery_diagnostic.retry_block_reason"
+                      v-if="canSend && !selected.delivery_diagnostic.retry_block_reason"
                       type="button"
                       class="follow-up-button follow-up-button--secondary"
                       :disabled="isRetryPending(selected.id)"
@@ -1479,7 +1483,7 @@ onUnmounted(() => {
                       {{ selected.outcome_diagnostic.action }}
                     </p>
                     <button
-                      v-if="!selected.outcome_diagnostic.retry_block_reason"
+                      v-if="canSend && !selected.outcome_diagnostic.retry_block_reason"
                       type="button"
                       class="follow-up-button follow-up-button--secondary"
                       :disabled="isRetryPending(selected.outcome_delivery.id)"

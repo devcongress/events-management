@@ -1,102 +1,76 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  annualConferenceCapabilityChanges,
   ANNUAL_CONFERENCE_CAPABILITIES,
-  effectiveAnnualConferenceCapabilities,
+  LEGACY_ANNUAL_CONFERENCE_CAPABILITY_MAP,
+  annualConferenceCapabilityChanges,
   canDelegateAnnualConferenceCapability,
+  effectiveAnnualConferenceCapabilities,
   hasAnnualConferenceCapability,
   isAnnualConferenceCapability,
 } from './annual-conference-capabilities';
 
-describe('annual conference capabilities', () => {
-  it('keeps volunteers restricted until a responsibility is explicitly granted', () => {
-    expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer' })).toEqual([]);
-    expect(effectiveAnnualConferenceCapabilities({
-      role: 'volunteer',
-      grants: ['timeline.view', 'volunteers.view_team'],
-    })).toEqual(['timeline.view', 'volunteers.view_team']);
+describe('annual conference leaf capabilities', () => {
+  it('gives owners all known leaves even with denials and grants restricted members nothing by default', () => {
+    expect(effectiveAnnualConferenceCapabilities({ role: 'owner', overrides: [{ capability: 'finance.view', enabled: false }] })).toEqual(ANNUAL_CONFERENCE_CAPABILITIES);
+    expect(effectiveAnnualConferenceCapabilities({ role: 'member', isPlanningOwner: true })).toEqual([]);
+    expect(effectiveAnnualConferenceCapabilities({ role: 'member', grants: ['speakers.delivery.retry'] })).toEqual(['speakers.delivery.view', 'speakers.delivery.retry']);
   });
 
-  it('preserves organizer defaults without granting planning-owner mutations', () => {
+  it('retains organizer defaults without owner-only actions', () => {
     const capabilities = effectiveAnnualConferenceCapabilities({ role: 'organizer' });
 
-    expect(hasAnnualConferenceCapability(capabilities, 'work_plan.view_all')).toBe(true);
-    expect(hasAnnualConferenceCapability(capabilities, 'volunteers.review_applications')).toBe(true);
-    expect(hasAnnualConferenceCapability(capabilities, 'work_plan.manage')).toBe(false);
-    expect(hasAnnualConferenceCapability(capabilities, 'phases.manage')).toBe(false);
+    expect(capabilities).toContain('speakers.proposals.manage');
+    expect(capabilities).toContain('volunteers.reviews.manage');
+    expect(capabilities).not.toContain('speakers.outcomes.send');
+    expect(capabilities).not.toContain('ticketing.complimentary.manage');
+    expect(capabilities).not.toContain('registration.community.manage');
   });
 
-  it('lets an edition override turn a role default off or a missing permission on', () => {
-    const restrictedOrganizer = effectiveAnnualConferenceCapabilities({
-      role: 'organizer',
-      overrides: [{ capability: 'volunteers.review_applications', enabled: false }],
-    });
-    const empoweredVolunteer = effectiveAnnualConferenceCapabilities({
-      role: 'volunteer',
-      overrides: [{ capability: 'work_plan.manage', enabled: true }],
-    });
-
-    expect(restrictedOrganizer).not.toContain('volunteers.review_applications');
-    expect(empoweredVolunteer).toContain('work_plan.manage');
+  it('couples each action only to its own view', () => {
+    expect(annualConferenceCapabilityChanges('member', 'speakers.delivery.manage', true)).toEqual(['speakers.delivery.view', 'speakers.delivery.manage']);
+    expect(annualConferenceCapabilityChanges('member', 'speakers.delivery.view', false)).toEqual(['speakers.delivery.view', 'speakers.delivery.manage', 'speakers.delivery.retry']);
+    expect(annualConferenceCapabilityChanges('member', 'speakers.delivery.retry', true)).toEqual(['speakers.delivery.view', 'speakers.delivery.retry']);
+    expect(annualConferenceCapabilityChanges('member', 'registration.blasts.send', true)).toEqual(['registration.blasts.view', 'registration.blasts.send']);
+    expect(effectiveAnnualConferenceCapabilities({ role: 'member', overrides: [
+      { capability: 'speakers.delivery.view', enabled: false },
+      { capability: 'speakers.delivery.manage', enabled: true },
+    ] })).toEqual([]);
+    expect(effectiveAnnualConferenceCapabilities({ role: 'member', overrides: [
+      { capability: 'registration.blasts.view', enabled: false },
+      { capability: 'registration.blasts.send', enabled: true },
+    ] })).toEqual([]);
   });
 
-  it('gives planning owners planning mutations and platform owners everything', () => {
-    const planningOwner = effectiveAnnualConferenceCapabilities({ role: 'organizer', isPlanningOwner: true });
-
-    expect(planningOwner).toContain('work_plan.manage');
-    expect(planningOwner).toContain('phases.manage');
-
-    const owner = effectiveAnnualConferenceCapabilities({ role: 'owner' });
-
-    expect(owner).toEqual(ANNUAL_CONFERENCE_CAPABILITIES);
-    expect(owner).toContain('ticketing.check_in');
-    expect(owner).toContain('finance.view');
-    expect(owner).toContain('ticketing.manage');
+  it('never turns one leaf into a broad legacy permission or a future wildcard', () => {
+    expect(hasAnnualConferenceCapability(['speakers.proposals.view'], 'speakers.view')).toBe(false);
+    expect(hasAnnualConferenceCapability(['speakers.proposals.view', 'speakers.participation.view'], 'speakers.view')).toBe(true);
+    expect(isAnnualConferenceCapability('speakers.*')).toBe(false);
+    expect(isAnnualConferenceCapability('speakers.future.view')).toBe(false);
   });
 
-  it('keeps finance private to owners unless an organizer is explicitly granted access', () => {
-    expect(effectiveAnnualConferenceCapabilities({ role: 'organizer' })).not.toContain('finance.view');
-    expect(effectiveAnnualConferenceCapabilities({ role: 'organizer', grants: ['finance.view'] })).toContain('finance.view');
-    expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer', grants: ['finance.view'] })).not.toContain('finance.view');
-    expect(effectiveAnnualConferenceCapabilities({ role: 'organizer', grants: ['ticketing.manage'] })).toContain('ticketing.manage');
-    expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer', grants: ['ticketing.manage'] })).not.toContain('ticketing.manage');
+  it('limits volunteers and maps legacy speakers without email or outcomes', () => {
+    expect(canDelegateAnnualConferenceCapability('work_plan.tasks.manage', 'volunteer')).toBe(true);
+    expect(canDelegateAnnualConferenceCapability('speakers.proposals.view', 'volunteer')).toBe(false);
+    expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer', grants: ['speakers.proposals.view'] })).toEqual([]);
+    expect(LEGACY_ANNUAL_CONFERENCE_CAPABILITY_MAP['speakers.view']).toEqual(['speakers.proposals.view', 'speakers.participation.view']);
+    expect(LEGACY_ANNUAL_CONFERENCE_CAPABILITY_MAP['speakers.manage']).not.toContain('speakers.delivery.manage');
   });
 
-  it('lets an owner delegate work-plan management to either an organizer or volunteer', () => {
-    expect(canDelegateAnnualConferenceCapability('work_plan.manage', 'organizer')).toBe(true);
-    expect(canDelegateAnnualConferenceCapability('work_plan.manage', 'volunteer')).toBe(true);
-    expect(canDelegateAnnualConferenceCapability('work_plan.manage', 'owner')).toBe(false);
-    expect(canDelegateAnnualConferenceCapability('finance.view', 'volunteer')).toBe(false);
-    expect(canDelegateAnnualConferenceCapability('ticketing.manage', 'organizer')).toBe(true);
-    expect(canDelegateAnnualConferenceCapability('ticketing.manage', 'volunteer')).toBe(false);
-  });
+  it('keeps migration mapping and eligibility in the reviewed SQL contract', () => {
+    const sql = readFileSync('supabase/migrations/20261111121000_granular_conference_access.sql', 'utf8');
 
-  it('keeps restricted membership empty without explicit edition grants', () => {
-    expect(effectiveAnnualConferenceCapabilities({ role: 'member', isPlanningOwner: true })).toEqual([]);
-    expect(effectiveAnnualConferenceCapabilities({
-      role: 'member',
-      grants: ['ticketing.manage', 'phases.manage'],
-    })).toEqual(['ticketing.view', 'ticketing.manage']);
-    expect(effectiveAnnualConferenceCapabilities({
-      role: 'member',
-      grants: ['registration.manage'],
-    })).toEqual(['registration.view', 'registration.manage']);
-  });
-
-  it('removes a restricted manage grant when the associated view is turned off', () => {
-    expect(annualConferenceCapabilityChanges('member', 'ticketing.view', false)).toEqual(['ticketing.view', 'ticketing.manage']);
-    expect(annualConferenceCapabilityChanges('member', 'registration.manage', true)).toEqual(['registration.view', 'registration.manage']);
-    expect(annualConferenceCapabilityChanges('member', 'ticketing.manage', false)).toEqual(['ticketing.manage']);
-  });
-
-  it('rejects capabilities outside the code-owned catalogue', () => {
-    expect(isAnnualConferenceCapability('timeline.view')).toBe(true);
-    expect(isAnnualConferenceCapability('admin.everything')).toBe(false);
-  });
-
-  it('grants volunteers admission scanning only when assigned', () => {
-    expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer' })).not.toContain('ticketing.check_in');
-    expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer', grants: ['ticketing.check_in'] })).toEqual(['ticketing.check_in']);
-    expect(canDelegateAnnualConferenceCapability('ticketing.check_in', 'volunteer')).toBe(true);
+    for (const [legacy, leaves] of Object.entries(LEGACY_ANNUAL_CONFERENCE_CAPABILITY_MAP)) {
+      for (const leaf of leaves) expect(sql).toContain(`('${legacy}', '${leaf}')`);
+    }
+    expect(sql).toContain('g.enabled, g.granted_by_membership_id, g.created_at');
+    expect(sql).toContain('delete from public.annual_conference_access_grants');
+    expect(sql).toContain("v_membership.role = 'volunteer'");
+    expect(LEGACY_ANNUAL_CONFERENCE_CAPABILITY_MAP['volunteers.review_applications']).toEqual(['volunteers.reviews.view', 'volunteers.reviews.manage']);
+    expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer', grants: ['volunteers.reviews.manage'] })).toEqual(['volunteers.reviews.view', 'volunteers.reviews.manage']);
+    expect(effectiveAnnualConferenceCapabilities({ role: 'organizer', overrides: [
+      { capability: 'volunteers.reviews.view', enabled: false },
+      { capability: 'volunteers.reviews.manage', enabled: false },
+    ] })).not.toContain('volunteers.reviews.manage');
   });
 });

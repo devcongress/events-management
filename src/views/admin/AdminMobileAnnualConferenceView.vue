@@ -67,6 +67,7 @@ import {
   organizerMobileConferenceSection,
 } from "@/src/organizer-viewport";
 import { useVolunteerView, type VolunteerView } from "@/src/lib/volunteer-navigation";
+import { TICKETING_VIEW_CAPABILITIES } from '@/src/ticketing-navigation';
 import {
   hasAnyAnnualConferenceCapability,
   hasAnnualConferenceCapability,
@@ -184,7 +185,7 @@ const editionsQuery = useQuery({
 });
 const capabilities = computed(() => permissions.value?.capabilities ?? []);
 const registrationTarget = computed(() => annualConferenceRegistrationTarget(capabilities.value, year.value));
-const canManageTicketing = computed(() => !isVolunteer.value && hasAnnualConferenceCapability(capabilities.value, 'ticketing.manage'));
+const canManageTicketing = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, TICKETING_VIEW_CAPABILITIES));
 const mobileLoadingSection = computed(() => {
   if (activeTab.value === "volunteers") return "mobile-conference-workspace-volunteers";
   if (activeTab.value === "tasks") {
@@ -199,7 +200,7 @@ const mobileLoadingSection = computed(() => {
 });
 const canViewSpeakers = computed(() => hasAnyAnnualConferenceCapability(
   capabilities.value,
-  ["speakers.view", "speakers.manage"],
+  ["speakers.proposals.view", "speakers.participation.view", "speakers.delivery.view", "speakers.outcomes.view"],
 ));
 const assignedAccess = computed(
   () => permissions.value?.access_scope === "assigned",
@@ -217,26 +218,25 @@ const canViewVolunteers = computed(
     ),
 );
 const canViewVolunteerTeam = computed(() =>
-  hasAnnualConferenceCapability(capabilities.value, "volunteers.view_team"),
+  hasAnnualConferenceCapability(capabilities.value, "volunteers.directory.view"),
 );
 const canShareVolunteerIntake = computed(() =>
-  hasAnnualConferenceCapability(capabilities.value, "volunteers.share_intake"),
+  hasAnnualConferenceCapability(capabilities.value, "volunteers.intake.share"),
 );
 const canReviewVolunteerApplications = computed(() =>
   hasAnnualConferenceCapability(
     capabilities.value,
-    "volunteers.review_applications",
+    "volunteers.reviews.view",
   ),
 );
 const canViewVolunteerReviews = computed(
   () => canReviewVolunteerApplications.value && year.value === "2026",
 );
 const canViewVolunteerCampaign = computed(
-  () =>
-    canViewVolunteerReviews.value &&
-    sessionQuery.data.value?.user?.role === "owner",
+  () => year.value === "2026" && hasAnnualConferenceCapability(capabilities.value, "volunteers.campaign.view"),
 );
-const mobileVolunteerView = useVolunteerView(canViewVolunteerReviews, canViewVolunteerCampaign);
+const canViewVolunteerDirectory = computed(() => canViewVolunteerTeam.value || canShareVolunteerIntake.value);
+const mobileVolunteerView = useVolunteerView(canViewVolunteerReviews, canViewVolunteerCampaign, canViewVolunteerDirectory, permissionsResolved);
 const visitedMobileVolunteerViews = ref(new Set<VolunteerView>(["directory"]));
 
 watch(mobileVolunteerView, (view) => {
@@ -1362,6 +1362,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
             v-model="mobileVolunteerView"
             :reviews-visible="canViewVolunteerReviews"
             :campaign-visible="canViewVolunteerCampaign"
+            :directory-visible="canViewVolunteerDirectory"
             id-prefix="mobile-volunteers"
             mobile
           />
@@ -1379,6 +1380,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
               tabindex="0"
             >
               <VolunteerReviewsPanel
+                :can-manage="hasAnnualConferenceCapability(capabilities, 'volunteers.reviews.manage')"
                 :session-identity="`${sessionQuery.data.value?.user?.email ?? 'unknown'}:${sessionQuery.data.value?.user?.role ?? 'unknown'}`"
               />
             </div>
@@ -1395,9 +1397,9 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
               tabindex="0"
             >
               <VolunteerFollowUpPanel
-                :is-owner-session="
-                  sessionQuery.data.value?.user?.role === 'owner'
-                "
+                :is-owner-session="canViewVolunteerCampaign"
+                :can-manage="hasAnnualConferenceCapability(capabilities, 'volunteers.campaign.manage')"
+                :can-send="hasAnnualConferenceCapability(capabilities, 'volunteers.campaign.send')"
               />
             </div>
             <div

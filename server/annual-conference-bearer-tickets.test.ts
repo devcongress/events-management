@@ -46,7 +46,7 @@ describe('annual conference bearer ticket operations', () => {
 
   it('keeps check-in capability-gated, validated, and audited without recording QR credentials', () => {
     expect(routeSource).toContain("/ticketing/check-in'");
-    expect(routeSource).toContain("requireAnnualConferenceCapability(c, year, 'ticketing.manage')");
+    expect(routeSource).toContain('requireConferenceCheckIn(c, Number(year.data))');
     expect(routeSource).toContain("qr_token: z.string().regex(/^[0-9a-f]{64}$/");
     expect(routeSource).toContain("annual_conference.ticketing.ticket_check_in");
     expect(routeSource).not.toContain('metadata: { qr_token');

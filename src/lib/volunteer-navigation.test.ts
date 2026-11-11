@@ -8,6 +8,9 @@ describe('volunteer navigation', () => {
     expect(resolveVolunteerView('campaign', true, false)).toBe('directory');
     expect(resolveVolunteerView('reviews', false, false)).toBe('directory');
     expect(resolveVolunteerView(['reviews'], true, true)).toBe('directory');
+    expect(resolveVolunteerView('directory', true, false, false)).toBe('reviews');
+    expect(resolveVolunteerView('reviews', false, true, false)).toBe('campaign');
+    expect(resolveVolunteerView('campaign', false, false, true)).toBe('directory');
   });
 
   it('accepts only the known campaign tabs', () => {

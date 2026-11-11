@@ -6,6 +6,7 @@ import {
   annualConferenceCapabilityChanges,
   canDelegateAnnualConferenceCapability,
   effectiveAnnualConferenceCapabilities,
+  isAnnualConferenceCapability,
 } from '@/lib/annual-conference-capabilities';
 
 type GrantInsert = Database['public']['Tables']['annual_conference_access_grants']['Insert'];
@@ -148,8 +149,7 @@ export async function listRestrictedConferenceAccess(membershipId: string, c?: C
 export async function setAnnualConferenceAccessGrant(input: {
   year: number;
   membershipId: string;
-  capability: AnnualConferenceCapability;
-  enabled: boolean;
+  changes: readonly AnnualConferenceCapabilityOverride[];
   grantedByMembershipId: string;
 }, c?: Context): Promise<'updated' | 'not_found' | 'inactive' | 'not_eligible' | undefined> {
   if (!isSupabaseRuntimeEnabled(c)) return undefined;
@@ -167,19 +167,30 @@ export async function setAnnualConferenceAccessGrant(input: {
   if (membershipResult.error) throw new Error(membershipResult.error.message);
   if (!membershipResult.data) return 'not_found';
   if (membershipResult.data.status !== 'active') return 'inactive';
-  if (!canDelegateAnnualConferenceCapability(input.capability, membershipResult.data.role)) {
+  const role = membershipResult.data.role;
+
+  if (input.changes.some(({ capability }) => !isAnnualConferenceCapability(capability) || !canDelegateAnnualConferenceCapability(capability, role))) {
     return 'not_eligible';
   }
 
-  const row: GrantInsert = {
+  const expanded = new Map<import('@/lib/annual-conference-capabilities').LeafAnnualConferenceCapability, boolean>();
+
+  for (const change of input.changes) {
+    for (const capability of annualConferenceCapabilityChanges(membershipResult.data.role, change.capability, change.enabled)) {
+      if (!isAnnualConferenceCapability(capability)) return 'not_eligible';
+      const existing = expanded.get(capability);
+
+      if (existing !== undefined && existing !== change.enabled) return 'not_eligible';
+      expanded.set(capability, change.enabled);
+    }
+  }
+  const rows: GrantInsert[] = Array.from(expanded, ([capability, enabled]) => ({
     edition_id: editionId,
     membership_id: input.membershipId,
-    capability: input.capability,
-    enabled: input.enabled,
+    capability,
+    enabled,
     granted_by_membership_id: input.grantedByMembershipId,
-  };
-  const rows = annualConferenceCapabilityChanges(membershipResult.data.role, input.capability, input.enabled)
-    .map(capability => ({ ...row, capability }));
+  }));
 
   const result = await client
     .from('annual_conference_access_grants')

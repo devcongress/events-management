@@ -731,16 +731,22 @@ export async function listSupabaseAnnualConferenceTicketEmailDeliveries(input: {
 export async function getSupabaseAnnualConferenceTicketEmailDeliverySummary(
   editionId: string,
   c?: Context,
+  excludeComplimentary = false,
 ): Promise<AnnualConferenceTicketEmailDeliverySummary | null> {
   if (!isSupabaseRuntimeEnabled(c)) return null;
 
   const client = getSupabaseAdminClient(c);
   const statuses: AnnualConferenceTicketEmailDeliveryStatus[] = ['queued', 'sending', 'accepted', 'delivered', 'failed'];
-  const results = await Promise.all(statuses.map((status) => client
-    .from('annual_conference_ticket_email_outbox')
-    .select('id', { count: 'exact', head: true })
-    .eq('edition_id', editionId)
-    .eq('status', status)));
+  const results = await Promise.all(statuses.map((status) => {
+    let query = client.from('annual_conference_ticket_email_outbox')
+      .select('id', { count: 'exact', head: true })
+      .eq('edition_id', editionId)
+      .eq('status', status);
+
+    if (excludeComplimentary) query = query.neq('kind', 'complimentary_admission_delivery');
+
+    return query;
+  }));
 
   for (const result of results) {
     if (result.error) throw new Error(result.error.message);

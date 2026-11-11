@@ -657,6 +657,22 @@ export function updateAnnualConferenceAccessGrant(
   );
 }
 
+export function updateAnnualConferenceAccessGrants(
+  year: string,
+  membershipId: string,
+  changes: { capability: AnnualConferenceCapability; enabled: boolean }[],
+) {
+  return fetchJson<{ changes: typeof changes }>(
+    `/api/annual-conference/${year}/access-grants/${membershipId}`,
+    {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ changes }),
+    },
+  );
+}
+
 export function fetchAnnualConferenceWorkPlan(year: string) {
   return fetchJson<AnnualConferenceWorkPlanResponse>(`/api/annual-conference/${year}/work-plan`, {
     credentials: 'include',

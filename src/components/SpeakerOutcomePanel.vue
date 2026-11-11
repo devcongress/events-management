@@ -7,12 +7,12 @@ import { notify } from '@/src/lib/notify';
 import { selectedMessagesAreDirty } from '@/src/lib/speaker-outcome-selection';
 import type { AnnualConferenceSpeakerSubmission } from '@/lib/annual-conference-speakers';
 
-type OutcomeSubmission = AnnualConferenceSpeakerSubmission & { workspace_access?: 'active' | 'revoked' | 'unavailable' };
+type OutcomeSubmission = AnnualConferenceSpeakerSubmission & { outcome_eligible?: boolean };
 
 type OutcomeMessage = { kind: 'acceptance' | 'rejection'; subject: string; message: string; version: number };
 type Recipient = { id: string; name: string; recipient: string; from: string; replyTo: string; subject: string; html: string; text: string };
 
-const props = defineProps<{ year: string; submissions: OutcomeSubmission[]; configured: boolean }>();
+const props = defineProps<{ year: string; submissions: OutcomeSubmission[]; configured: boolean; canManage: boolean; canSend: boolean }>();
 const emit = defineEmits<{ sent: [] }>();
 const messages = ref<OutcomeMessage[]>([]);
 const savedMessages = ref<Record<string, string>>({});
@@ -136,7 +136,7 @@ async function sendTest() {
 
 const message = computed(() => messages.value.find((item) => item.kind === kind.value));
 const hasUnsavedChanges = computed(() => selectedMessagesAreDirty(messages.value, savedMessages.value, props.submissions, selected.value));
-const eligible = computed(() => props.submissions.filter((item) => ['pending', 'failed'].includes(item.decision_email_status ?? '') && item.decision_email_attempt_count === 0 && !item.decision_email_queued_at && (item.status === 'not_selected' || (item.status === 'selected' && item.workspace_access === 'active'))));
+const eligible = computed(() => props.submissions.filter((item) => item.outcome_eligible));
 const currentPreview = computed(() => recipients.value.find((item) => item.id === previewId.value));
 const previewPosition = computed(() => recipients.value.findIndex(item => item.id === previewId.value) + 1);
 const previewOptions = computed(() => recipients.value.map(item => ({ value: item.id, label: item.name })));
@@ -246,12 +246,12 @@ async function send() {
       <button v-for="option in ['acceptance', 'rejection'] as const" :key="option" type="button" class="editorial-action" :aria-pressed="kind === option" @click="kind = option">{{ option === 'acceptance' ? 'Acceptance' : 'Not selected' }}</button>
     </div>
     <div v-if="message" class="mt-4 grid gap-3">
-      <label class="text-sm font-semibold">Subject<input v-model="message.subject" class="app-form-control mt-1 w-full" maxlength="200" @input="clearPreview"></label>
-      <label class="text-sm font-semibold">Message<textarea v-model="message.message" class="app-form-control speaker-outcome-message mt-1 w-full" rows="6" maxlength="10000" @input="clearPreview" /></label>
+      <label class="text-sm font-semibold">Subject<input v-model="message.subject" class="app-form-control mt-1 w-full" maxlength="200" :disabled="!canManage" @input="clearPreview"></label>
+      <label class="text-sm font-semibold">Message<textarea v-model="message.message" class="app-form-control speaker-outcome-message mt-1 w-full" rows="6" maxlength="10000" :disabled="!canManage" @input="clearPreview" /></label>
       <p class="text-xs text-dc-gray">Placeholders: {first_name}, {talk_title}, {edition}, {year}, {session_format}, {session_duration}, {conference_date}, {conference_venue}, {deadline}, {workspace_url}. The deadline applies to confirmation and materials. Acceptance requires {workspace_url}.</p>
-      <div><button type="button" class="editorial-action" :disabled="busy" @click="save">Save message</button></div>
+      <div v-if="canManage"><button type="button" class="editorial-action" :disabled="busy" @click="save">Save message</button></div>
     </div>
-    <div class="mt-6 border-t border-dc-border pt-4">
+    <div v-if="canManage || canSend" class="mt-6 border-t border-dc-border pt-4">
       <h3 ref="readyHeading" class="font-bold" tabindex="-1">Ready to send</h3>
       <p v-if="!eligible.length" class="mt-2 text-sm text-dc-gray">No unsent decisions are ready.</p>
       <div v-else class="speaker-outcome-recipients mt-2 max-h-64 overflow-y-auto">
@@ -281,7 +281,7 @@ async function send() {
             </div>
             <p class="mt-3 break-words text-sm"><strong>From:</strong> {{ currentPreview.from }}<br><strong>Reply to:</strong> {{ currentPreview.replyTo }}<br><strong>To:</strong> {{ currentPreview.recipient }}<br><strong>Subject:</strong> {{ currentPreview.subject }}</p>
             <iframe :srcdoc="currentPreview.html" sandbox="" tabindex="-1" title="Personalized email preview" class="mt-3 h-96 w-full border border-dc-border bg-white" />
-            <form class="mt-4 grid gap-2" @submit.prevent="sendTest">
+            <form v-if="canSend" class="mt-4 grid gap-2" @submit.prevent="sendTest">
               <label for="speaker-test-email" class="text-sm font-semibold">Test recipient</label>
               <input id="speaker-test-email" v-model="testEmail" class="app-form-control w-full" type="email" maxlength="254" required placeholder="you@example.com">
               <p class="text-sm text-dc-gray">This sends the exact personalized email, including any private speaker link, to the address above. Speaker decisions and the delivery queue stay unchanged.</p>
@@ -290,7 +290,7 @@ async function send() {
             </form>
             <p class="mt-4 text-sm text-dc-gray">Sending queues delivery for {{ recipients.length }} recipient{{ recipients.length === 1 ? '' : 's' }}. Provider acceptance is not confirmation of delivery.</p>
           </div>
-          <footer class="speaker-drawer-footer"><button type="button" class="editorial-action" :disabled="busy || !configured" @click="send">Send selected emails</button></footer>
+          <footer v-if="canSend" class="speaker-drawer-footer"><button type="button" class="editorial-action" :disabled="busy || !configured" @click="send">Send selected emails</button></footer>
         </section>
       </div>
     </Teleport>

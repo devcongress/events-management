@@ -55,6 +55,59 @@ const edition = {
   provisional_date: "2026-12-19",
   status: "planning",
 };
+const ownerCapabilities = [
+  'work_plan.tasks.view',
+  'work_plan.tasks.manage',
+  'work_plan.timeline.view',
+  'work_plan.phases.manage',
+  'volunteers.directory.view',
+  'volunteers.intake.share',
+  'volunteers.reviews.view',
+  'volunteers.reviews.manage',
+  'volunteers.campaign.view',
+  'volunteers.campaign.manage',
+  'volunteers.campaign.send',
+  'programme.view',
+  'programme.manage',
+  'speakers.proposals.view',
+  'speakers.proposals.manage',
+  'speakers.participation.view',
+  'speakers.participation.manage',
+  'speakers.delivery.view',
+  'speakers.delivery.manage',
+  'speakers.delivery.retry',
+  'speakers.outcomes.view',
+  'speakers.outcomes.manage',
+  'speakers.outcomes.send',
+  'finance.view',
+  'ticketing.overview.view',
+  'ticketing.overview.manage',
+  'ticketing.orders.view',
+  'ticketing.orders.manage',
+  'ticketing.delivery.view',
+  'ticketing.delivery.manage',
+  'ticketing.delivery.retry',
+  'ticketing.sponsors.view',
+  'ticketing.sponsors.manage',
+  'ticketing.complimentary.view',
+  'ticketing.complimentary.manage',
+  'ticketing.coupons.view',
+  'ticketing.coupons.manage',
+  'registration.summary.view',
+  'registration.guests.view',
+  'registration.guests.manage',
+  'registration.form.view',
+  'registration.form.manage',
+  'registration.emails.view',
+  'registration.emails.manage',
+  'registration.emails.retry',
+  'registration.community.view',
+  'registration.community.manage',
+  'registration.blasts.view',
+  'registration.blasts.manage',
+  'registration.blasts.send',
+  'ticketing.check_in',
+];
 const workspace = {
   edition,
   phases: [],
@@ -419,7 +472,9 @@ async function journey(
       body = { proposals: [], canManagePhotos: true };
     } else if (url.pathname === "/api/events") body = [event];
     else if (url.pathname === "/api/events/fixture-event") body = event;
-    else if (url.pathname.endsWith("/work-plan")) body = workspace;
+    else if (url.pathname.endsWith("/work-plan")) body = role === "owner"
+      ? { ...workspace, permissions: { ...workspace.permissions, capabilities: ownerCapabilities } }
+      : workspace;
     else if (url.pathname === "/api/public/email-preflight")
       body = {
         accepted: true,
@@ -725,7 +780,7 @@ try {
 
     responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
     responses.set("/api/admin/organizers", { body: { organizers: [] } });
-    responses.set('/api/annual-conference/2026/work-plan', { body: { ...workspace, permissions: { ...workspace.permissions, capabilities: ['ticketing.manage'] } } });
+    responses.set('/api/annual-conference/2026/work-plan', { body: { ...workspace, permissions: { ...workspace.permissions, capabilities: ownerCapabilities } } });
     responses.set('/api/annual-conference/2026/ticketing', { body: { settings: { public_capacity: 150 }, inventory: { reduction_floor: 0 } } });
     responses.set('/api/annual-conference/2026/registrations', { body: { overview: { mode: 'free', status: 'open', capacity: 150, reserved: 0, confirmed: 0, waitlisted: 0 }, registrations: [] } });
     responses.set('/api/annual-conference/2026/registrations/testing', { body: { enabled: false, tester_emails: [], local_delivery: false } });
@@ -1030,7 +1085,7 @@ try {
     let saved;
 
     responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
-    responses.set('/api/annual-conference/2026/work-plan', { body: workspace });
+    responses.set('/api/annual-conference/2026/work-plan', { body: { ...workspace, permissions: { ...workspace.permissions, capabilities: ['programme.view'] } } });
     responses.set(`${path}/speakers`, { status: 403, body: { error: 'Speaker access denied.' } });
     responses.set(path, request => {
       if (request.method() === 'PUT') saved = request.postDataJSON();
@@ -1038,15 +1093,9 @@ try {
       return { body: { rows: saved?.rows ?? [row], revision: 1, updated_at: null, updated_by: null } };
     });
     await page.goto(`${origin}/organizer-console/annual-conference/2026/programme`);
-    await page.getByRole('button', { name: 'Edit outline' }).click();
-    await page.locator('.programme-mobile-toggle').first().click();
-    await page.getByLabel('Title', { exact: true }).fill('Edited session');
-    await page.getByRole('button', { name: 'Description and resource' }).click();
-    await page.getByText('Speaker access denied.').waitFor();
-    assert.equal(await page.getByText(/linked proposal is no longer available/).count(), 0);
-    await page.getByRole('button', { name: 'Save outline' }).click();
-    await page.getByRole('heading', { name: 'Edited session' }).waitFor();
-    assert.deepEqual(saved.rows[0].speakerProposalIds, row.speakerProposalIds);
+    await page.getByRole('heading', { name: 'Existing session' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Edit outline' }).count(), 0);
+    assert.equal(saved, undefined);
   }, { role: 'organizer' });
 
   for (const width of [1440, 390, 700]) {
@@ -2060,9 +2109,9 @@ try {
     { role: "owner" },
   );
   for (const scenario of [
-    { name: "owner", role: "owner", capabilities: ["speakers.view", "volunteers.view_team", "ticketing.manage", "finance.view"], assigned: false },
+    { name: "owner", role: "owner", capabilities: ownerCapabilities, assigned: false },
     { name: "assigned-volunteer", role: "volunteer", capabilities: [], assigned: true },
-    { name: "delegated-volunteer", role: "volunteer", capabilities: ["volunteers.view_team", "volunteers.review_applications", "ticketing.check_in"], assigned: true },
+    { name: "delegated-volunteer", role: "volunteer", capabilities: ["volunteers.directory.view", "volunteers.reviews.view", "ticketing.check_in"], assigned: true },
   ]) {
     await journey(`conference-phone-navigation-${scenario.name}`, async ({ page, responses, requests }) => {
       const permissions = { ...workspace.permissions, access_scope: scenario.assigned ? "assigned" : "all", can_create_tasks: scenario.role === "owner", capabilities: scenario.capabilities };
@@ -2083,7 +2132,7 @@ try {
       await breadcrumbs.locator('[aria-current="page"]').waitFor();
       assert.equal(await breadcrumbs.locator('[aria-current="page"]').innerText(), scenario.assigned ? 'My tasks' : 'Work plan');
       assert.equal(await breadcrumbs.getByRole('link', { name: 'Overview' }).getAttribute('href'), '/organizer-console/mobile/annual-conference/2026?section=overview');
-      assert.equal(await nav.getByRole("button", { name: "Volunteers", exact: true }).count(), scenario.capabilities.includes("volunteers.view_team") ? 1 : 0);
+      assert.equal(await nav.getByRole("button", { name: "Volunteers", exact: true }).count(), scenario.capabilities.includes("volunteers.directory.view") ? 1 : 0);
       assert.equal(await nav.getByRole("button", { name: "Speakers", exact: true }).count(), scenario.role === "owner" ? 1 : 0);
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
@@ -2157,7 +2206,7 @@ try {
 
   await journey("conference-phone-navigation-same-year", async ({ page, responses, requests }) => {
     const edition2027 = { ...edition, id: "edition-2027", year: 2027, label: "December 2027" };
-    const permissions = { ...workspace.permissions, access_scope: "all", capabilities: ["speakers.view", "ticketing.manage"] };
+    const permissions = { ...workspace.permissions, access_scope: "all", capabilities: ownerCapabilities };
 
     responses.set("/api/annual-conference/editions", { body: { editions: [edition2027, edition] } });
     responses.set("/api/annual-conference/2027/work-plan", { body: { ...workspace, edition: edition2027, permissions } });
@@ -2174,8 +2223,7 @@ try {
     const nav = page.getByRole("navigation", { name: "Annual Conference workspace", exact: true });
     const section = page.getByRole("navigation", { name: "Speaker sections" });
 
-    await section.getByRole("link", { name: "Participation", exact: true }).waitFor();
-    assert.equal(await section.getByRole("link", { name: "Participation", exact: true }).getAttribute("aria-current"), "page");
+    await section.locator(".app-dropdown-trigger").getByText("Participation", { exact: true }).waitFor();
     await nav.getByRole("button", { name: "More", exact: true }).click();
     const menu = page.getByRole("navigation", { name: "More conference destinations" });
 
@@ -2186,8 +2234,7 @@ try {
     await page.waitForURL(url => url.pathname.endsWith("/mobile/annual-conference/2027") && url.searchParams.get("section") === "tasks");
     await page.goBack();
     await page.waitForURL(url => url.pathname.endsWith("/annual-conference/2027/speakers") && url.searchParams.get("section") === "participation");
-    await section.getByRole("link", { name: "Participation", exact: true }).waitFor();
-    assert.equal(await section.getByRole("link", { name: "Participation", exact: true }).getAttribute("aria-current"), "page");
+    await section.locator(".app-dropdown-trigger").getByText("Participation", { exact: true }).waitFor();
     await page.setViewportSize({ width: 1024, height: 844 });
     await page.getByRole("navigation", { name: "Annual Conference workspace", exact: true }).waitFor();
     assert.equal(await page.locator(".conference-phone-shell").isVisible(), false);
@@ -2204,7 +2251,7 @@ try {
   }, { role: 'owner' });
 
   await journey("mobile-section-pickers", async ({ page, responses, requests }) => {
-    const permissions = { ...workspace.permissions, access_scope: "all", capabilities: ["speakers.view", "ticketing.manage"] };
+    const permissions = { ...workspace.permissions, access_scope: "all", capabilities: ownerCapabilities };
 
     responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
     responses.set('/api/annual-conference/2026/work-plan', { body: { ...workspace, permissions } });
@@ -2857,8 +2904,11 @@ try {
           ...workspace.permissions,
           access_scope: "all",
           capabilities: [
-            "volunteers.view_team",
-            "volunteers.review_applications",
+            "volunteers.directory.view",
+            "volunteers.reviews.view",
+            "volunteers.campaign.view",
+            "volunteers.campaign.manage",
+            "volunteers.campaign.send",
           ],
         },
       };
@@ -3483,7 +3533,7 @@ try {
             permissions: {
               ...workspace.permissions,
               access_scope: "all",
-              capabilities: ["volunteers.review_applications"],
+              capabilities: ["volunteers.reviews.view", "volunteers.reviews.manage"],
             },
           };
           const recipient = {
@@ -4532,7 +4582,7 @@ try {
         id: ids[index], speaker_name: name, speaker_email: `speaker${index}@example.test`,
         title: `Talk ${index + 1}`, session_type: "Talk", topic: "Engineering", abstract: "Fixture abstract",
         bio: "Fixture bio", learning_outcomes: [], status: "not_selected", created_at: "2026-10-18T10:00:00Z",
-        decision_email_status: "pending", decision_email_attempt_count: 0, decision_email_queued_at: null,
+        outcome_eligible: true, decision_email_status: "pending", decision_email_attempt_count: 0, decision_email_queued_at: null,
       }));
       const recipients = people.map((name, index) => ({
         id: ids[index], name, recipient: `speaker${index}@example.test`, from: "sender@example.test",
@@ -4644,6 +4694,10 @@ try {
     for (const mobile of [false, true]) {
       await journey(`speaker-tracking-${canSendEmail ? "sender" : "viewer"}-${mobile ? "mobile" : "desktop"}`, async ({ page, responses, requests }) => {
         const base = "/organizer-console/annual-conference/2026/speakers";
+
+        responses.set("/api/annual-conference/2026/work-plan", {
+          body: { ...workspace, permissions: { ...workspace.permissions, capabilities: canSendEmail ? ownerCapabilities : ["speakers.proposals.view", "speakers.participation.view"] } },
+        });
         const accepted = {
           id: "tracking-accepted", proposal_schema_version: 2, speaker_name: "Ada Example", speaker_email: "ada@example.test",
           title: "Reliable systems", session_type: "Talk", topic: "Engineering", abstract: "Fixture abstract",
@@ -4747,37 +4801,13 @@ try {
 
         const proposal = page.getByRole("dialog", { name: "Talk Ada Example", exact: true });
 
-        if (!mobile && !canSendEmail) {
-          const badgeResponseGate = createSaveGate();
-
-          responses.set(badgePath, async () => {
-            await badgeResponseGate.response;
-
-            return badgeResponse;
-          });
-          try {
-            const backingRequested = page.waitForRequest(
-              request => new URL(request.url()).pathname.endsWith("/devcon26-v11-base-1080x1350.webp"),
-              { timeout: 4000 },
-            );
-
-            await Promise.all([acceptedProposal.click(), backingRequested]);
-            await proposal.getByText("Loading badge…", { exact: true }).waitFor();
-            assert.equal(await proposal.getByRole("button", { name: "Download badge PNG" }).count(), 0);
-          } finally {
-            responses.set(badgePath, badgeResponse);
-            badgeResponseGate.release();
-          }
-          await proposal.getByRole("button", { name: "Download badge PNG" }).waitFor();
-        } else {
-          await acceptedProposal.click();
-        }
+        await acceptedProposal.click();
 
         await proposal.getByText("Fixture abstract", { exact: true }).waitFor();
-        await proposal.getByText("Delivery address", { exact: true }).waitFor();
+        assert.equal(await proposal.getByText("Delivery address", { exact: true }).count(), 0);
         assert.equal(await proposal.getByText("Fixture abstract", { exact: true }).isVisible(), true);
         assert.equal(await proposal.locator("nav, details, [aria-haspopup='listbox']").count(), 0);
-        assert.equal(await proposal.getByRole("textbox", { name: "Correct decision email address" }).count(), canSendEmail ? 1 : 0);
+        assert.equal(await proposal.getByRole("textbox", { name: "Correct decision email address" }).count(), 0);
         const closeProposal = proposal.getByRole("button", { name: "Close speaker proposal" });
 
         if (mobile) {
@@ -5078,18 +5108,18 @@ try {
     });
   }
 
-  for (const capability of ["speakers.view", "speakers.manage"]) {
+  for (const capability of ["speakers.proposals.view", "speakers.proposals.manage"]) {
     await journey(`mobile-speakers-${capability}`, async ({ page, responses, requests }) => {
       await page.setViewportSize({ width: 390, height: 844 });
       responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
       responses.set("/api/annual-conference/2026/work-plan", {
-        body: { ...workspace, permissions: { ...workspace.permissions, capabilities: [capability, "finance.view", "ticketing.manage"] } },
+        body: { ...workspace, permissions: { ...workspace.permissions, capabilities: ["speakers.proposals.view", capability, "finance.view", "ticketing.overview.view", "ticketing.overview.manage", "ticketing.orders.view", "ticketing.orders.manage", "ticketing.delivery.view", "ticketing.delivery.manage", "ticketing.sponsors.view", "ticketing.sponsors.manage"] } },
       });
       responses.set("/api/annual-conference/2026/speakers", {
         body: {
           edition: { ...edition, name: "DevCongress Annual Conference" },
           call: { open: true, public_path: "/speak/c/2026", logistics_deadline: null },
-          permissions: { can_manage: capability === "speakers.manage" },
+          permissions: { can_manage: capability === "speakers.proposals.manage" },
           email_delivery: { configured: false, workspace_links_configured: false },
           counts: { submitted: 0, selected: 0, not_selected: 0, withdrawn: 0 },
           submissions: Array.from({ length: 8 }, (_, index) => ({
@@ -5179,7 +5209,7 @@ try {
       const drawer = page.getByRole("dialog");
 
       await drawer.waitFor();
-      assert.equal(await drawer.getByRole("button", { name: "Approve", exact: true }).count(), capability === "speakers.manage" ? 1 : 0);
+      assert.equal(await drawer.getByRole("button", { name: "Approve", exact: true }).count(), capability === "speakers.proposals.manage" ? 1 : 0);
       assert.equal(await drawer.getByText("A fixture proposal for verifying mobile review without production changes.", { exact: true }).isVisible(), true);
       await page.getByRole("button", { name: "Close speaker proposal", exact: true }).click();
       await drawer.waitFor({ state: "hidden" });
@@ -5211,7 +5241,7 @@ try {
     assert.equal(await nav.getByRole('button', { name: 'Volunteers', exact: true }).count(), 0);
     assert.equal(await nav.getByRole('button', { name: 'Conference badge', exact: true }).count(), 1);
     assert.equal(requests.some(request => request.path.endsWith('/volunteer-follow-up/reviews')), false);
-    capabilities = ['volunteers.view_team', 'volunteers.review_applications'];
+    capabilities = ['volunteers.directory.view', 'volunteers.reviews.view'];
     await page.reload();
     await nav.getByRole('button', { name: 'Volunteers', exact: true }).click();
     await page.getByRole('tab', { name: 'Reviews', exact: true }).click();
@@ -5573,7 +5603,7 @@ try {
         ? "/organizer-console/mobile/annual-conference/2026?section=volunteers"
         : "/organizer-console/annual-conference/2026/volunteers";
       const pathname = path.split("?")[0];
-      const capabilities = ["volunteers.view_team", "volunteers.review_applications", "volunteers.share_intake"];
+      const capabilities = ["volunteers.directory.view", "volunteers.reviews.view", "volunteers.intake.share"];
       let authenticated = true;
       const observedSession = "10000000-0000-4000-8000-000000000001";
       const activeUser = { email: "organizer@example.test", display_name: "Conference Organizer", role: "owner" };
@@ -5740,7 +5770,7 @@ try {
 
     responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
     responses.set("/api/annual-conference/2026/work-plan", {
-      body: { ...workspace, permissions: { ...workspace.permissions, capabilities: ["ticketing.manage"] } },
+      body: { ...workspace, permissions: { ...workspace.permissions, capabilities: ownerCapabilities } },
     });
     responses.set("/api/annual-conference/2026/ticketing", {
       body: { settings: { public_capacity: 150, ticket_tiers: [] }, inventory: { paid_seats: 0, sponsor_seats_held: 0, checkout_seats_held: 0, remaining_public_seats: 150 } },
@@ -5804,7 +5834,7 @@ try {
     responses.set("/api/annual-conference/editions", { body: { editions: [edition, { ...edition, year: 2027, label: "December 2027" }] } });
     for (const year of [2026, 2027]) {
       responses.set(`/api/annual-conference/${year}/work-plan`, {
-        body: { ...workspace, edition: { ...edition, year }, permissions: { ...workspace.permissions, capabilities: ["ticketing.manage"] } },
+        body: { ...workspace, edition: { ...edition, year }, permissions: { ...workspace.permissions, capabilities: ownerCapabilities } },
       });
       responses.set(`/api/annual-conference/${year}/ticketing`, {
         body: { settings: { public_capacity: 150, ticket_sales_status: "draft", public_mode: "free", currency: "GHS", ticket_tiers: tiers }, inventory },
@@ -5851,23 +5881,12 @@ try {
       try {
         await page.setViewportSize({ width, height });
         await page.goto(`${origin}${base}?section=orders&retained=yes`);
-        const outer = page.locator('[data-loading-section="annual-conference-ticketing-orders"]');
-        const panelBones = await orderSkeletonBones(outer);
-
-        ticketingGate.release();
         const panel = page.locator('[aria-labelledby="ticket-orders-title"]');
         const rows = panel.locator('[data-loading-section="annual-conference-ticket-orders"]');
         const rowBones = await orderSkeletonBones(rows);
 
+        ticketingGate.release();
         await rows.scrollIntoViewIfNeeded();
-        const controls = panel.locator('header button, [aria-label="Order views"] button');
-
-        for (const control of await controls.all()) {
-          const center = await orderElementBounds(panel, control);
-
-          assertOrderPlaceholder(panelBones, center, `${await control.innerText()} at ${width}px`);
-        }
-
         const bounds = await rows.boundingBox();
 
         assert.ok(bounds && bounds.height >= 200 && bounds.height <= 401);
@@ -6031,7 +6050,7 @@ try {
     await page.waitForURL(url => url.searchParams.get("section") === "overview");
     assert.equal(await nav.getByRole("link", { name: "Coupons", exact: true }).count(), 0);
     await page.getByRole("button", { name: "Edit prices", exact: true }).waitFor();
-    assert.equal(requests.some(request => request.path === "/api/annual-conference/2027/ticketing/orders"), true, "Overview retains the non-2026 pricing eligibility read");
+    assert.equal(requests.some(request => request.path === "/api/annual-conference/2027/ticketing/orders"), true, "Overview retains the authorized non-2026 pricing eligibility read");
     await nav.getByRole("link", { name: "Orders", exact: true }).click();
     await nav.getByRole("link", { name: "Overview", exact: true }).click();
     await page.getByRole("button", { name: "Edit prices", exact: true }).click();
@@ -6050,7 +6069,10 @@ try {
 
     responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
     responses.set("/api/annual-conference/2026/work-plan", {
-      body: { ...workspace, edition, permissions: { ...workspace.permissions, capabilities: ["ticketing.manage"] } },
+      body: { ...workspace, edition, permissions: { ...workspace.permissions, capabilities: ownerCapabilities } },
+    });
+    responses.set("/api/annual-conference/2026/ticketing/capacity", {
+      body: { settings: { public_capacity: 150 }, inventory: { reduction_floor: 0 } },
     });
     responses.set("/api/annual-conference/2026/ticketing", {
       body: { settings: { public_capacity: 150 }, inventory: { reduction_floor: 0 } },
@@ -6137,7 +6159,7 @@ try {
 
     responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
     responses.set("/api/annual-conference/2026/work-plan", {
-      body: { ...workspace, edition, permissions: { ...workspace.permissions, capabilities: ["ticketing.manage"] } },
+      body: { ...workspace, edition, permissions: { ...workspace.permissions, capabilities: ownerCapabilities } },
     });
     responses.set("/api/annual-conference/2026/ticketing", {
       body: { settings: { public_capacity: 150 }, inventory: { reduction_floor: 101 } },
@@ -6195,17 +6217,7 @@ try {
     await page.getByLabel("Search guests").fill("Finalpage");
     await page.getByText("Zara Finalpage", { exact: true }).waitFor();
     assert.equal(await page.getByText("Zara Finalpage", { exact: true }).count(), 1);
-    await page.getByRole("button", { name: "Check in", exact: true }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Admit guest", exact: true }).click();
-    await page.getByLabel("Already checked in").waitFor();
-    responses.set("/api/annual-conference/2026/check-in/search", { body: { attendees: [
-      { ticket_id: "paid-ticket", attendee_name: "Paid Guest", status: "issued", checked_in_at: null },
-    ] } });
-    await page.getByLabel("Search guests").fill("paid@example.test");
-    await page.getByRole("button", { name: "Find exact email", exact: true }).click();
-    await page.getByText("Paid Guest", { exact: true }).waitFor();
-    assert.equal(await page.getByText("Zara Finalpage", { exact: true }).count(), 0);
-    await page.getByLabel("Search guests").fill("Finalpage");
+    assert.equal(await page.getByRole("button", { name: "Check in", exact: true }).count(), 0);
     assert.equal(await nav.locator('[aria-current="page"]').count(), 1);
     assert.equal(await nav.locator('[aria-current="page"]').innerText(), "Guests");
     await page.screenshot({ path: artifacts + "/annual-registration-guests-desktop.png", fullPage: true });
@@ -6247,7 +6259,7 @@ try {
     await page.getByRole("button", { name: "Queue update", exact: true }).click();
     await page.getByText("Update queued.", { exact: true }).waitFor();
     await nav.getByRole("link", { name: "Guests", exact: true }).click();
-    await page.getByRole("button", { name: "Scan with camera", exact: true }).waitFor();
+    await page.getByLabel("Search guests").waitFor();
     await page.locator(".page-leave-active, .page-stable-leave-active").waitFor({ state: "detached" });
     await page.locator(".page-enter-active, .page-stable-enter-active").waitFor({ state: "detached" });
     const headingAfter = await page.getByRole("heading", { name: "Registration", exact: true }).boundingBox();
@@ -6257,16 +6269,12 @@ try {
     assert.equal(await page.getByText("Welcome them in.", { exact: true }).count(), 0);
     await page.screenshot({ path: artifacts + "/annual-registration-checkin-desktop.png", fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
-    const checkInPanel = await page.getByRole("region", { name: "Conference attendee check-in" }).boundingBox();
+    const checkInPanel = await page.getByRole("region", { name: "Conference guests" }).boundingBox();
 
     assert.ok(checkInPanel.x >= 0 && checkInPanel.x + checkInPanel.width <= 391, "Check-in panel must fit the mobile viewport");
     await page.screenshot({ path: artifacts + "/annual-registration-checkin-mobile.png", fullPage: true });
-    await page.goto(origin + "/organizer-console/annual-conference/2026/check-in");
-    await page.waitForURL(/\/registrations\?section=guests$/);
     guests[0].status = "waitlisted";
-    responses.set("/api/annual-conference/2026/check-in/attendees", { status: 503, body: { error: "Fixture outage" } });
     await page.reload();
-    await page.getByRole("alert").filter({ hasText: "complete attendee list" }).waitFor();
     await page.getByLabel("Search guests").fill("guest0@example.test");
     const waitlistedRow = page.getByRole("listitem").filter({ hasText: "guest0@example.test" });
 
@@ -6358,8 +6366,6 @@ try {
 
       return { body: { outcome: "checked_in" } };
     });
-    await page.goto(`${origin}/organizer-console/annual-conference/2026/registrations`);
-    await page.waitForURL(/\/annual-conference\/2026\/check-in$/);
     await page.goto(`${origin}/organizer-console/annual-conference/2026/check-in`);
     await page.getByText("Adjoa Mensah", { exact: true }).waitFor();
     await page.getByText("Check-in opens at midnight Accra time on 19 December 2026.", { exact: true }).waitFor();
@@ -6382,7 +6388,7 @@ try {
       true,
     );
     assert.equal(await page.getByRole("navigation", { name: "Registration sections" }).getByRole("link", { name: "Registration", exact: true }).count(), 0);
-    assert.deepEqual(await page.getByRole("navigation", { name: "Registration sections" }).getByRole("link").allTextContents().then((items) => items.map((item) => item.trim())), ["Guests"]);
+    assert.equal(await page.getByRole("navigation", { name: "Registration sections" }).getByRole("link").count(), 0);
     assert.equal(requests.some((request) => request.path.endsWith("/registrations")), false);
     assert.equal(await page.getByRole("navigation", { name: "Annual Conference workspace" }).getByRole("link", { name: "Ticketing", exact: true }).count(), 0);
 

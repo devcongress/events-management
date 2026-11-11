@@ -17,7 +17,7 @@ import {
 } from "@/lib/email/resend";
 import { volunteerFollowUpEmail } from "@/lib/email/templates/volunteer-follow-up";
 import { volunteerOutcomeEmailPreview } from "@/lib/email/templates/volunteer-follow-up";
-import { getAdminSession, requireAdmin } from "@/lib/supabase/admin-auth";
+import { getAdminSession } from "@/lib/supabase/admin-auth";
 import {
   applyVolunteerFollowUpProviderEvent,
   acquireVolunteerFollowUpDrainLease,
@@ -77,7 +77,8 @@ import {
   publicClientKey,
   requirePublicTurnstile,
 } from "@/server/http/public-intake-protection";
-import { requireAnnualConferenceCapability } from "@/server/annual-conference-request";
+import { annualConferenceCapabilitiesForRequest, requireAnnualConferenceCapability } from "@/server/annual-conference-request";
+import { hasAnnualConferenceCapability } from "@/lib/annual-conference-capabilities";
 import type {
   VolunteerFollowUpCampaignRow,
   VolunteerFollowUpRecipientRow,
@@ -890,7 +891,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
   app.get(
     "/api/annual-conference/2026/volunteer-follow-up/preview",
     async (c) => {
-      const adminError = await requireAdmin(c, ["owner"]);
+      const adminError = await requireAnnualConferenceCapability(c, 2026, "volunteers.campaign.view");
 
       if (adminError) return adminError;
 
@@ -991,11 +992,13 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
   );
 
   app.get("/api/annual-conference/2026/volunteer-follow-up", async (c) => {
-    const ownerError = await requireAdmin(c, ["owner"]);
+    const ownerError = await requireAnnualConferenceCapability(c, 2026, "volunteers.campaign.view");
 
     if (ownerError) return ownerError;
 
     try {
+      const access = await annualConferenceCapabilitiesForRequest(c, 2026);
+      const canViewReviews = hasAnnualConferenceCapability(access?.capabilities ?? [], "volunteers.reviews.view");
       const campaign = await getVolunteerFollowUpCampaign(c);
 
       if (!campaign)
@@ -1027,7 +1030,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
           campaign.application_deadline_at,
         ),
         recipients: recipients.map((recipient) => ({
-          ...reviewerRecipient(recipient, outcomeSentIds.has(recipient.id)),
+          ...(canViewReviews ? reviewerRecipient(recipient, outcomeSentIds.has(recipient.id)) : { id: recipient.id }),
           applicant_name: recipient.applicant_name,
           applicant_email: recipient.applicant_email,
           status: recipient.status,
@@ -1040,11 +1043,11 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
             diagnoseVolunteerDelivery(recipient),
             knownInvitationRetryBlock(campaign, recipient),
           ),
-          outcome_delivery: latestOutcomeByRecipient.get(recipient.id) ?? null,
-          outcome_control: latestOutcomeByRecipient.has(recipient.id)
+          outcome_delivery: canViewReviews ? latestOutcomeByRecipient.get(recipient.id) ?? null : null,
+          outcome_control: canViewReviews && latestOutcomeByRecipient.has(recipient.id)
             ? volunteerOutcomeRowControl(latestOutcomeByRecipient.get(recipient.id)!, recipient)
             : null,
-          outcome_diagnostic: latestOutcomeByRecipient.has(recipient.id)
+          outcome_diagnostic: canViewReviews && latestOutcomeByRecipient.has(recipient.id)
             ? withKnownRetryBlock(
                 diagnoseVolunteerDelivery(
                   latestOutcomeByRecipient.get(recipient.id)!,
@@ -1061,8 +1064,8 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
             : null,
         })),
         email_health: health,
-        outcome_messages: messages.map(outcomeMessageResponse),
-        can_manage: true,
+        outcome_messages: canViewReviews ? messages.map(outcomeMessageResponse) : [],
+        can_manage: hasAnnualConferenceCapability(access?.capabilities ?? [], "volunteers.campaign.manage"),
       });
     } catch (error) {
       return internalErrorResponse(
@@ -1080,7 +1083,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
       const accessError = await requireAnnualConferenceCapability(
         c,
         2026,
-        "volunteers.review_applications",
+        "volunteers.reviews.view",
       );
 
       if (accessError) return accessError;
@@ -1121,7 +1124,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
       const accessError = await requireAnnualConferenceCapability(
         c,
         2026,
-        "volunteers.review_applications",
+        "volunteers.reviews.manage",
       );
 
       if (accessError) return accessError;
@@ -1185,7 +1188,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
   app.patch(
     "/api/annual-conference/2026/volunteer-follow-up/settings",
     async (c) => {
-      const adminError = await requireAdmin(c, ["owner"]);
+      const adminError = await requireAnnualConferenceCapability(c, 2026, "volunteers.campaign.manage");
 
       if (adminError) return adminError;
       const parsed = z
@@ -1260,7 +1263,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
   app.post(
     "/api/annual-conference/2026/volunteer-follow-up/control",
     async (c) => {
-      const adminError = await requireAdmin(c, ["owner"]);
+      const adminError = await requireAnnualConferenceCapability(c, 2026, "volunteers.campaign.send");
 
       if (adminError) return adminError;
       const parsed = z
@@ -1344,7 +1347,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
   app.post(
     "/api/annual-conference/2026/volunteer-follow-up/outcomes/preview",
     async (c) => {
-      const adminError = await requireAdmin(c, ["owner"]);
+      const adminError = await requireAnnualConferenceCapability(c, 2026, "volunteers.campaign.send");
 
       if (adminError) return adminError;
       const parsed = outcomePreviewSchema.safeParse(
@@ -1456,7 +1459,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
   app.post(
     "/api/annual-conference/2026/volunteer-follow-up/outcomes/confirm",
     async (c) => {
-      const adminError = await requireAdmin(c, ["owner"]);
+      const adminError = await requireAnnualConferenceCapability(c, 2026, "volunteers.campaign.send");
 
       if (adminError) return adminError;
       const parsed = outcomeConfirmSchema.safeParse(
@@ -1527,7 +1530,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
   app.post(
     "/api/annual-conference/2026/volunteer-follow-up/outcomes/control",
     async (c) => {
-      const adminError = await requireAdmin(c, ["owner"]);
+      const adminError = await requireAnnualConferenceCapability(c, 2026, "volunteers.campaign.send");
 
       if (adminError) return adminError;
       const parsed = outcomeControlSchema.safeParse(
@@ -1568,7 +1571,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
   app.post(
     "/api/annual-conference/2026/volunteer-follow-up/delivery-retries",
     async (c) => {
-      const adminError = await requireAdmin(c, ["owner"]);
+      const adminError = await requireAnnualConferenceCapability(c, 2026, "volunteers.campaign.send");
 
       if (adminError) return adminError;
       const parsed = deliveryRetrySchema.safeParse(
@@ -1656,7 +1659,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
       const accessError = await requireAnnualConferenceCapability(
         c,
         2026,
-        "volunteers.review_applications",
+        "volunteers.reviews.manage",
       );
 
       if (accessError) return accessError;

@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   delete: vi.fn(),
   audit: vi.fn(),
+  grants: ['work_plan.tasks.manage'] as string[],
 }));
 
 const task = {
@@ -92,7 +93,7 @@ vi.mock('@/lib/supabase/admin-auth', () => ({
 }));
 
 vi.mock('@/lib/supabase/annual-conference-access-grants', () => ({
-  getAnnualConferenceAccessGrants: vi.fn(async () => ['work_plan.manage']),
+  getAnnualConferenceAccessGrants: vi.fn(async () => mocks.grants),
 }));
 
 vi.mock('@/server/annual-conference-repository', () => ({
@@ -129,6 +130,7 @@ beforeEach(() => {
   mocks.session.authenticated = true;
   mocks.session.email = 'volunteer@example.com';
   mocks.session.role = 'volunteer';
+  mocks.grants = ['work_plan.tasks.manage'];
   mocks.list.mockResolvedValue([resource]);
   mocks.create.mockResolvedValue(resource);
   mocks.update.mockResolvedValue(resource);
@@ -150,7 +152,7 @@ describe('Annual Conference task resource routes', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       resources: [{ id: resourceId, can_manage: true }],
-      permissions: { can_add: true, can_manage_all: false, max_resources: 20 },
+      permissions: { can_add: true, can_manage_all: true, max_resources: 20 },
     });
   });
 
@@ -166,7 +168,16 @@ describe('Annual Conference task resource routes', () => {
     });
   });
 
-  it('rejects an unassigned volunteer even when an elevated grant exists', async () => {
+  it('allows an unassigned volunteer with a task management grant', async () => {
+    mocks.session.email = 'unassigned@example.com';
+    const response = await app().request(`http://localhost/api/annual-conference/2026/work-plan/${taskId}/resources`);
+
+    expect(response.status).toBe(200);
+    expect(mocks.list).toHaveBeenCalled();
+  });
+
+  it('keeps resources assigned-only for a volunteer with view access', async () => {
+    mocks.grants = ['work_plan.tasks.view'];
     mocks.session.email = 'unassigned@example.com';
     const response = await app().request(`http://localhost/api/annual-conference/2026/work-plan/${taskId}/resources`);
 

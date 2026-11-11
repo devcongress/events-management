@@ -41,7 +41,7 @@ async function resolve(c: Context<AppBindings>, organizer = false) {
 
   if (!/^\d{4}$/.test(year)) return null;
   if (organizer) {
-    const denied = await requireAnnualConferenceCapability(c, Number(year), 'speakers.view');
+    const denied = await requireAnnualConferenceCapability(c, Number(year), 'speakers.participation.view');
 
     if (denied) return denied;
   }

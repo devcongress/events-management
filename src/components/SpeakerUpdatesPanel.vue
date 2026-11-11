@@ -11,7 +11,7 @@ type Candidate = { id: string; name: string; email: string; eligible?: boolean; 
 type Delivery = { id: string; name: string; recipient: string; status: string; last_error: string | null; attempt_count: number; last_attempt_at?: string | null; updated_at?: string | null };
 type Recipient = { id: string; name: string; recipient: string; subject: string; preview_url: string };
 
-const props = defineProps<{ year: string; configured: boolean; active: boolean }>();
+const props = defineProps<{ year: string; configured: boolean; active: boolean; canManage: boolean; canSend: boolean; canRetry: boolean }>();
 const campaigns = ref<Campaign[]>([]);
 const candidates = ref<Candidate[]>([]);
 const campaign = ref<Campaign | null>(null);
@@ -472,7 +472,7 @@ async function retry(delivery: Delivery) {
         <h2 class="text-xl font-bold">Speaker updates</h2>
         <p class="mt-1 text-sm text-dc-gray">Send a separate update to speakers who received an acceptance. The original acceptance and its delivery history stay unchanged.</p>
       </div>
-      <button type="button" class="editorial-action update-primary" :disabled="busy || loading || !!error" @click="createDraft()">New update</button>
+      <button v-if="canManage" type="button" class="editorial-action update-primary" :disabled="busy || loading || !!error" @click="createDraft()">New update</button>
     </div>
     <p v-if="loading" class="px-5 py-4 text-sm text-dc-gray">Loading updates…</p>
     <p v-else-if="error" class="px-5 py-4 text-sm text-red-700" role="alert">{{ error }} <button type="button" class="underline" @click="load">Try again</button></p>
@@ -517,14 +517,14 @@ async function retry(delivery: Delivery) {
       <template v-if="campaign">
         <div class="mt-5 grid gap-3">
           <AppDropdown v-if="!campaign.id" :model-value="startingPoint" :options="startOptions" label="Start with" menu-class="!z-[1201]" teleport @update:model-value="applyStartingPoint" />
-          <label class="text-sm font-semibold">Subject<input v-model="campaign.subject" class="app-form-control mt-1 w-full" maxlength="200" :disabled="campaign.state !== 'draft' || busy" @input="clearPreview"></label>
-          <label class="text-sm font-semibold">Message<textarea v-model="campaign.message" class="app-form-control update-message mt-1 w-full" rows="7" maxlength="10000" :disabled="campaign.state !== 'draft' || busy" @input="clearPreview" /></label>
+          <label class="text-sm font-semibold">Subject<input v-model="campaign.subject" class="app-form-control mt-1 w-full" maxlength="200" :disabled="!canManage || campaign.state !== 'draft' || busy" @input="clearPreview"></label>
+          <label class="text-sm font-semibold">Message<textarea v-model="campaign.message" class="app-form-control update-message mt-1 w-full" rows="7" maxlength="10000" :disabled="!canManage || campaign.state !== 'draft' || busy" @input="clearPreview" /></label>
           <template v-if="campaign.state === 'draft'">
             <p class="text-xs text-dc-gray">Use {first_name}, {talk_title}, {edition}, {year}, {workspace_url} to personalize this update.</p>
-            <div><button type="button" class="editorial-action update-primary" :disabled="busy || !dirty" @click="save">Save update</button></div>
+            <div v-if="canManage"><button type="button" class="editorial-action update-primary" :disabled="busy || !dirty" @click="save">Save update</button></div>
           </template>
         </div>
-        <div v-if="campaign.state === 'draft'" class="mt-6 border-t border-dc-border pt-4">
+        <div v-if="campaign.state === 'draft' && (canManage || canSend)" class="mt-6 border-t border-dc-border pt-4">
           <h3 class="font-bold">Choose recipients</h3>
           <AppDropdown :model-value="audienceMode" :options="audienceOptions" label="Audience" menu-class="!z-[1201]" teleport @update:model-value="setAudience" />
           <p class="mt-2 text-sm text-dc-gray">{{ eligibleCandidates.length }} eligible · {{ candidates.length - eligibleCandidates.length }} excluded · {{ missingCandidates.length }} eligible missing confirmation, headshot or socials · {{ candidates.filter(item => item.missing_workspace_details === null).length }} workspace details unavailable</p>
@@ -551,18 +551,18 @@ async function retry(delivery: Delivery) {
           <p v-if="!sendingEnabled" class="mt-3 text-sm text-dc-gray">{{ sendUnavailableReason || 'Sending speaker updates is unavailable.' }}</p>
           <div class="mt-3 flex flex-wrap gap-2">
             <button type="button" class="editorial-action update-primary" :disabled="busy || dirty || !campaign.id || !selected.length" @click="prepare($event)">Preview {{ selected.length }} selected</button>
-            <button type="button" class="editorial-action" :disabled="busy || dirty || !campaign.id || !selected.length || !configured" @click="prepare($event, 'test')">Send test email</button>
+            <button v-if="canSend" type="button" class="editorial-action" :disabled="busy || dirty || !campaign.id || !selected.length || !configured" @click="prepare($event, 'test')">Send test email</button>
           </div>
         </div>
         <div v-else class="mt-6 border-t border-dc-border pt-4">
-          <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="font-bold">Update delivery</h3><button type="button" class="editorial-action" @click="createDraft(campaign)">Use as new update</button></div>
+          <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="font-bold">Update delivery</h3><button v-if="canManage" type="button" class="editorial-action" @click="createDraft(campaign)">Use as new update</button></div>
           <p class="mt-1 text-sm text-dc-gray">Provider acceptance is not confirmation of inbox delivery.</p>
           <p v-if="!sendingEnabled" class="mt-2 text-sm text-dc-gray">{{ sendUnavailableReason || 'Sending speaker updates is unavailable.' }}</p>
           <p v-if="!deliveries.length" class="mt-3 text-sm text-dc-gray">No delivery records yet.</p>
           <div v-else class="mt-3 divide-y divide-dc-border border-y border-dc-border">
             <div v-for="item in visibleDeliveries" :key="item.id" class="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
               <div class="min-w-0 break-words"><strong>{{ item.name }}</strong> · {{ item.recipient }}<br><span class="text-dc-gray">{{ deliveryStatus(item.status) }} · {{ item.attempt_count }} attempt{{ item.attempt_count === 1 ? '' : 's' }}<template v-if="deliveryTime(item.last_attempt_at)"> · Last attempt {{ deliveryTime(item.last_attempt_at) }} (Accra)</template></span><span v-if="item.last_error" class="block text-red-700">{{ item.last_error }}</span></div>
-              <button v-if="item.status === 'failed'" type="button" class="editorial-action" :disabled="busy || !sendingEnabled" @click="retry(item)">Retry</button>
+              <button v-if="canRetry && item.status === 'failed'" type="button" class="editorial-action" :disabled="busy || !sendingEnabled" @click="retry(item)">Retry</button>
             </div>
           </div>
           <AppPagination v-model:page="deliveryPage" :page-count="deliveryPageCount" :total="deliveries.length" :range-start="deliveries.length ? (deliveryPage - 1) * 6 + 1 : 0" :range-end="Math.min(deliveries.length, deliveryPage * 6)" item-label="deliveries" aria-label="Speaker update delivery pagination" />
@@ -595,7 +595,7 @@ async function retry(delivery: Delivery) {
             <p v-if="!testMode && !sendingEnabled" class="mt-3 text-sm text-dc-gray">{{ sendUnavailableReason || 'Sending speaker updates is unavailable.' }}</p>
             <p v-if="!testMode" class="mt-4 text-sm text-dc-gray">Sending queues this update for {{ recipients.length }} speaker{{ recipients.length === 1 ? '' : 's' }}. Provider acceptance is not confirmation of delivery.</p>
           </div>
-          <footer v-if="!testMode" class="update-drawer-footer"><button type="button" class="editorial-action update-primary" :disabled="busy || !sendingEnabled" @click="send">Send update to {{ recipients.length }} speaker{{ recipients.length === 1 ? '' : 's' }}</button></footer>
+          <footer v-if="!testMode && canSend" class="update-drawer-footer"><button type="button" class="editorial-action update-primary" :disabled="busy || !sendingEnabled" @click="send">Send update to {{ recipients.length }} speaker{{ recipients.length === 1 ? '' : 's' }}</button></footer>
         </section>
       </div>
     </Teleport>

@@ -23,7 +23,7 @@ vi.mock('@/server/annual-conference-programme-repository', () => ({
     save: async () => mocks.conflict ? null : { rows: [], revision: 1, updated_at: null, updated_by: null },
   }),
 }));
-vi.mock('@/server/annual-conference-request', () => ({ requireAnnualConferenceCapability: async (c: { json: (value: object, status: number) => Response }) => mocks.capability ? null : c.json({ error: 'Forbidden' }, 403) }));
+vi.mock('@/server/annual-conference-request', () => ({ requireAnnualConferenceCapability: async (c: { json: (value: object, status: number) => Response }) => mocks.capability && mocks.role !== 'volunteer' ? null : c.json({ error: 'Forbidden' }, 403) }));
 vi.mock('@/server/protected-mutation', () => ({ recordProtectedMutationAudit: async () => {} }));
 
 import { registerAnnualConferenceProgrammeRoutes } from './annual-conference-programme';
@@ -58,16 +58,24 @@ describe('programme API', () => {
     expect((await app.request(url)).status).toBe(500);
   });
 
-  it('enforces edition speaker capabilities while allowing unrelated programme edits', async () => {
+  it('enforces programme capabilities for speaker data and programme edits', async () => {
     mocks.role = 'organizer';
     mocks.capability = false;
     expect((await app.request(`${url}/speakers`)).status).toBe(403);
     expect((await app.request(`${url}/speakers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/photo`)).status).toBe(403);
     expect((await app.request(`${url}/speakers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/photo`, { method: 'DELETE' })).status).toBe(403);
-    expect((await put({ revision: 0, rows: [] })).status).toBe(200);
+    expect((await put({ revision: 0, rows: [] })).status).toBe(403);
     const row = { id: '33333333-3333-4333-8333-333333333333', time: '', title: 'Talk', type: 'talk', lead: '', description: '', resourceTitle: '', resourceUrl: '', speakerProposalIds: ['11111111-1111-4111-8111-111111111111'] };
 
     expect((await put({ revision: 0, rows: [row] })).status).toBe(403);
+  });
+
+  it('rejects a member admitted by the middleware without a programme grant', async () => {
+    mocks.role = 'member';
+    mocks.capability = false;
+
+    expect((await app.request(url)).status).toBe(403);
+    expect((await put({ revision: 0, rows: [] })).status).toBe(403);
   });
 
 });

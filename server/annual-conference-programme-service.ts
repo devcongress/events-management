@@ -16,7 +16,6 @@ export function createAnnualConferenceProgrammeService(deps: {
   canManageSpeakers?(year: number): Promise<boolean>;
 }) {
   async function edition(year: number) {
-    if (deps.role !== 'owner' && deps.role !== 'organizer') throw new ProgrammeError(403, 'Conference access required.');
     const result = await deps.edition(year);
 
     if (!result) throw new ProgrammeError(404, 'Conference edition not found.');

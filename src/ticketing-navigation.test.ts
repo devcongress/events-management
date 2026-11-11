@@ -1,8 +1,17 @@
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { describe, expect, it, vi } from 'vitest';
-import { resolveTicketingSection, ticketingSectionLabel, ticketingSectionLocation, ticketingSections } from './ticketing-navigation';
+import { allowedTicketingSections, resolveAllowedTicketingSection, resolveTicketingSection, ticketingSectionLabel, ticketingSectionLocation, ticketingSections } from './ticketing-navigation';
 
 describe('Ticketing section navigation', () => {
+  it('exposes only explicitly authorized sections', () => {
+    expect(allowedTicketingSections('2026', ['ticketing.orders.view']).map(section => section.key)).toEqual(['orders']);
+    expect(allowedTicketingSections('2026', ['ticketing.complimentary.view', 'ticketing.coupons.view']).map(section => section.key)).toEqual(['complimentary', 'testing']);
+    expect(allowedTicketingSections('2027', ['ticketing.coupons.view'])).toEqual([]);
+    expect(resolveAllowedTicketingSection('overview', '2026', ['ticketing.orders.view'])).toBe('orders');
+    expect(resolveAllowedTicketingSection('testing', '2026', ['ticketing.orders.view'])).toBe('orders');
+    expect(resolveAllowedTicketingSection('orders', '2026', ['ticketing.orders.view'])).toBe('orders');
+    expect(resolveAllowedTicketingSection('overview', '2026', [])).toBeUndefined();
+  });
   it('shows the current sections and keeps Testing and Complimentary limited to DevCon26', () => {
     expect(ticketingSections('2026').map(section => section.label)).toEqual(['Overview', 'Orders', 'Delivery', 'Sponsors', 'Complimentary', 'Coupons']);
     expect(ticketingSections('2027').map(section => section.key)).toEqual(['overview', 'orders', 'delivery', 'sponsors']);

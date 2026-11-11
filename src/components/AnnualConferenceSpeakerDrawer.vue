@@ -39,6 +39,7 @@ const props = defineProps<{
   submission: SpeakerSubmission | AnnualConferenceSpeakerSubmissionWithLogistics | null;
   canManage: boolean;
   canSendEmail?: boolean;
+  canManageDelivery?: boolean;
   submitting?: boolean;
   canResendWorkspaceEmail?: boolean;
   approvalBlockedReason?: string | null;
@@ -306,7 +307,7 @@ onUnmounted(() => {
               </section>
             </section>
 
-            <div v-if="mode !== 'delivery' && submission.status === 'selected'" class="grid gap-6 lg:grid-cols-2" :class="{ 'mt-6 border-t border-dc-border pt-5': mode !== 'participation' }">
+            <div v-if="mode === 'participation' && submission.status === 'selected'" class="grid gap-6 lg:grid-cols-2">
               <div class="min-w-0 space-y-6">
                 <section>
                   <h3 class="text-base font-bold">Logistics</h3>
@@ -352,7 +353,7 @@ onUnmounted(() => {
               </section>
             </div>
 
-            <section v-if="mode !== 'participation' && annualSubmission && annualSubmission.status !== 'submitted'" :class="{ 'mt-6 border-t border-dc-border pt-5': mode !== 'delivery' }">
+            <section v-if="mode === 'delivery' && annualSubmission && annualSubmission.status !== 'submitted'">
               <h3 class="mb-3 text-base font-bold">Email</h3>
               <div class="rounded-md border border-dc-border bg-dc-paper p-4">
                 <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-pink">{{ annualSubmission.status === 'selected' ? 'Workspace email' : 'Decision email' }}</p>
@@ -367,7 +368,7 @@ onUnmounted(() => {
                   <div v-if="annualSubmission.decision_email_last_error" class="sm:col-span-2"><dt class="text-dc-gray">Needs attention</dt><dd class="mt-1 text-red-700">{{ annualSubmission.decision_email_last_error }}</dd></div>
                 </dl>
                 <p v-if="!decisionEmailConfigured" class="mt-3 text-sm text-red-700">Email sending is not configured. The decision is saved; no email will be sent until configuration is ready and you confirm sending.</p>
-                <form v-if="canSendEmail" class="mt-4 flex flex-col gap-2 border-t border-dc-border pt-4 sm:flex-row" @submit.prevent="emit('correctDecisionEmail', annualSubmission, correctedEmail)">
+                <form v-if="canManageDelivery" class="mt-4 flex flex-col gap-2 border-t border-dc-border pt-4 sm:flex-row" @submit.prevent="emit('correctDecisionEmail', annualSubmission, correctedEmail)">
                   <label class="min-w-0 flex-1">
                     <span class="sr-only">Correct decision email address</span>
                     <input v-model.trim="correctedEmail" type="email" autocomplete="email" required class="app-form-control min-h-11 w-full border-2 border-dc-ink px-3 text-sm" aria-label="Correct decision email address">
@@ -383,8 +384,8 @@ onUnmounted(() => {
                 <div v-if="canSendEmail && 'session_type' in submission" class="mt-4 flex flex-wrap gap-2">
                   <button v-if="submission.status === 'not_selected' && submission.decision_email_attempt_count > 0 && submission.decision_email_status === 'failed' && canRetryDecisionEmail" type="button" class="editorial-action" :disabled="submitting || !decisionEmailConfigured" @click="emailConfirmation = 'decision'">{{ submission.decision_email_attempt_count ? 'Retry decision email' : 'Send decision email' }}</button>
                   <button v-if="submission.status === 'selected' && submission.decision_email_attempt_count > 0 && canResendWorkspaceEmail" type="button" class="editorial-action" :disabled="submitting || !decisionEmailConfigured" @click="emailConfirmation = 'workspace'">{{ submission.decision_email_attempt_count ? 'Retry workspace email' : 'Send workspace email' }}</button>
-                  <button v-if="submission.status === 'selected' && (annualSubmission?.workspace_access === 'revoked' || ['accepted', 'delivered', 'failed'].includes(submission.decision_email_status ?? ''))" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink" :disabled="submitting" @click="emit('replaceWorkspaceEmail', submission)">Replace private link</button>
                 </div>
+                <button v-if="canManageDelivery && submission.status === 'selected' && (annualSubmission?.workspace_access === 'revoked' || ['accepted', 'delivered', 'failed'].includes(annualSubmission.decision_email_status ?? ''))" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink" :disabled="submitting" @click="emit('replaceWorkspaceEmail', annualSubmission)">Replace private link</button>
               </div>
             </section>
           </div>

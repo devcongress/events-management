@@ -28,13 +28,13 @@ function sendingEnabled(c: Context<AppBindings>): boolean {
     && annualConferenceEmailConfigured(c);
 }
 
-async function ownerAccess(c: Context<AppBindings>) {
-  const denied = await requireAdmin(c, ['owner']);
+async function ownerAccess(c: Context<AppBindings>, capability: 'speakers.outcomes.view' | 'speakers.outcomes.manage' | 'speakers.outcomes.send' | 'speakers.delivery.retry') {
+  const denied = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
   if (denied) return denied;
   if (!/^\d{4}$/.test(c.req.param('year') ?? '')) return c.json({ error: 'Conference year must use four digits.' }, 400);
 
-  return requireAnnualConferenceCapability(c, Number(c.req.param('year')), 'speakers.manage');
+  return requireAnnualConferenceCapability(c, Number(c.req.param('year')), capability);
 }
 
 async function candidates(c: Context<AppBindings>, editionId: string) {
@@ -66,7 +66,7 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
   const base = '/api/annual-conference/:year/speaker-updates';
 
   app.get(base, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.view');
 
     if (denied) return denied;
     c.header('Cache-Control', 'no-store');
@@ -76,10 +76,10 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
       if (!edition) return c.json({ error: 'Conference edition not found.' }, 404);
       const [campaigns, audience] = await Promise.all([listSpeakerUpdates(edition.id), candidates(c, edition.id)]);
 
-      const [deliveryStatuses, sessions] = await Promise.all([
-        listSpeakerUpdateDeliveryStatuses(campaigns.filter(campaign => campaign.state !== 'draft').map(campaign => campaign.id)),
-        getAnnualConferenceSessionUpdateDetails(audience.flatMap(({ submission }) => submission.selected_session_id ? [submission.selected_session_id] : [])),
-      ]);
+      const deliveryDenied = await requireAnnualConferenceCapability(c, Number(c.req.param('year')), 'speakers.delivery.view');
+      const deliveryStatuses = deliveryDenied ? [] : await listSpeakerUpdateDeliveryStatuses(campaigns.filter(campaign => campaign.state !== 'draft').map(campaign => campaign.id));
+      const participationDenied = await requireAnnualConferenceCapability(c, Number(c.req.param('year')), 'speakers.participation.view');
+      const sessions = participationDenied ? [] : await getAnnualConferenceSessionUpdateDetails(audience.flatMap(({ submission }) => submission.selected_session_id ? [submission.selected_session_id] : []));
       const summaries = new Map<string, { total: number; statuses: Record<string, number> }>();
 
       for (const delivery of deliveryStatuses) {
@@ -89,8 +89,8 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
         summary.statuses[delivery.status] = (summary.statuses[delivery.status] ?? 0) + 1;
         summaries.set(delivery.update_id, summary);
       }
-      const sessionById = new Map(sessions.map(session => [session.id, session]));
       const history = campaigns.map(campaign => ({ ...campaign, delivery_summary: summaries.get(campaign.id) ?? { total: 0, statuses: {} } }));
+      const sessionById = new Map(sessions.map(session => [session.id, session]));
       const candidateDetails = audience.map(({ id, name, email, eligible, reason, submission }) => {
         const session = submission.selected_session_id ? sessionById.get(submission.selected_session_id) : undefined;
         const missing = session ? [
@@ -99,7 +99,7 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
           ...(!session.social_handle?.trim() ? ['socials'] : []),
         ] : null;
 
-        return { id, name, email, eligible, reason, missing_workspace_details: missing };
+        return { id, name, email, eligible, ...(deliveryDenied ? {} : { reason }), ...(participationDenied ? {} : { missing_workspace_details: missing }) };
       });
       const enabled = sendingEnabled(c);
 
@@ -110,7 +110,7 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
   });
 
   app.post(base, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.manage');
 
     if (denied) return denied;
     const parsed = messageSchema.strict().safeParse(await c.req.json().catch(() => null));
@@ -131,7 +131,7 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
   });
 
   app.get(`${base}/:id`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.view');
 
     if (denied) return denied;
     c.header('Cache-Control', 'no-store');
@@ -140,7 +140,8 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
       const campaign = edition && await getSpeakerUpdate(edition.id, c.req.param('id'));
 
       if (!campaign) return c.json({ error: 'Speaker update not found.' }, 404);
-      const deliveries = await listSpeakerUpdateDeliveries(campaign.id);
+      const deliveryDenied = await requireAnnualConferenceCapability(c, Number(c.req.param('year')), 'speakers.delivery.view');
+      const deliveries = deliveryDenied ? [] : await listSpeakerUpdateDeliveries(campaign.id);
 
       return c.json({ campaign, deliveries: deliveries.map(({ provider_payload: _payload, idempotency_key: _key, ...delivery }) => delivery) });
     } catch (error) {
@@ -149,7 +150,7 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
   });
 
   app.put(`${base}/:id`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.manage');
 
     if (denied) return denied;
     const parsed = messageSchema.extend({ version: z.number().int().positive() }).strict().safeParse(await c.req.json().catch(() => null));
@@ -171,9 +172,9 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
   });
 
   app.post(`${base}/:id/preview`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.manage');
 
-    if (denied) return denied;
+    if (denied && await ownerAccess(c, 'speakers.outcomes.send')) return denied;
     c.header('Cache-Control', 'no-store');
     const parsed = previewSchema.safeParse(await c.req.json().catch(() => null));
 
@@ -213,7 +214,7 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
   });
 
   app.get(`${base}/:id/previews/:previewId/recipients/:recipientId/html`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.view');
 
     if (denied) return denied;
     const params = z.object({ id: z.string().uuid(), previewId: z.string().uuid(), recipientId: z.string().uuid() }).safeParse(c.req.param());
@@ -244,7 +245,7 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
   });
 
   app.post(`${base}/:id/test`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.send');
 
     if (denied) return denied;
     const parsed = z.object({ preview_id: z.string().uuid(), recipient_id: z.string().uuid(), email: z.string().trim().email().max(254), request_id: z.string().uuid() }).strict().safeParse(await c.req.json().catch(() => null));
@@ -290,7 +291,7 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
   });
 
   app.post(`${base}/:id/send`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.outcomes.send');
 
     if (denied) return denied;
     const parsed = z.object({ preview_id: z.string().uuid(), confirmed: z.literal(true) }).strict().safeParse(await c.req.json().catch(() => null));
@@ -333,7 +334,7 @@ export function registerSpeakerUpdateRoutes(app: Hono<AppBindings>) {
   });
 
   app.post(`${base}/:id/deliveries/:deliveryId/retry`, async (c) => {
-    const denied = await ownerAccess(c);
+    const denied = await ownerAccess(c, 'speakers.delivery.retry');
 
     if (denied) return denied;
     if (!sendingEnabled(c)) return c.json({ error: 'Sending becomes available after follow-up delivery is enabled and configured.' }, 503);

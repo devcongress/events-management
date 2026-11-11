@@ -8,7 +8,8 @@ import { z } from 'zod';
 import { CONFERENCE_REGISTRATION_ACTION, CONFERENCE_REGISTRATION_PATH, CONFERENCE_REGISTRATION_TURNSTILE_HOSTNAMES, conferenceRegistrationAccepted, conferenceRegistrationOverviewSchema, conferenceRegistrationSchema } from '@/lib/annual-conference-registration';
 import { getSupabaseAdminClient } from '@/lib/supabase/server';
 import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
-import { requireAnnualConferenceCapability } from '@/server/annual-conference-request';
+import { annualConferenceCapabilitiesForRequest, requireAnnualConferenceCapability } from '@/server/annual-conference-request';
+import { hasAnnualConferenceCapability, type AnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
 import { assessPublicSubmissionEmail, enforcePublicRateLimit, publicClientKey, publicEmailErrorPayload, requirePublicTurnstile } from '@/server/http/public-intake-protection';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
@@ -213,23 +214,41 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
   const privatePath = '/api/annual-conference/:year/registrations';
 
   app.use(`${privatePath}*`, async (c, next) => {
-    const authError = await requireAdmin(c, ['owner', 'organizer', 'member']);
+    const authError = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
     if (authError) return authError;
     const year = z.coerce.number().int().min(2000).max(2200).safeParse(c.req.param('year'));
 
     if (!year.success) return c.json({ error: 'Invalid conference year.' }, 400);
-    const session = c.get('adminSession') ?? await getAdminSession(c);
-    let capability: 'ticketing.manage' | 'registration.view' | 'registration.manage' = 'ticketing.manage';
+    const suffix = c.req.path.split('/registrations')[1] ?? '';
+    let capability: AnnualConferenceCapability;
 
-    if (session.authenticated && session.role === 'member') {
-      if (c.req.method === 'GET' && /^\/api\/annual-conference\/\d{4}\/registrations$/.test(c.req.path)) {
-        capability = 'registration.view';
-      } else if (c.req.method === 'POST' && /^\/api\/annual-conference\/\d{4}\/registrations\/[^/]+\/cancel$/.test(c.req.path)) {
-        capability = 'registration.manage';
-      } else {
-        return c.json({ error: 'This account does not have access to this registration action.' }, 403);
+    if (!suffix) {
+      const access = await annualConferenceCapabilitiesForRequest(c, year.data);
+      const section = c.req.query('section');
+
+      if (!access) return c.json({ error: 'Conference not found.' }, 404);
+      if (section && !['summary', 'guests', 'form'].includes(section)) return c.json({ error: 'Unknown registration section.' }, 400);
+      const required = section ? [`registration.${section}.view` as AnnualConferenceCapability]
+        : ['registration.summary.view', 'registration.guests.view', 'registration.form.view'] as const;
+
+      if (!required
+        .some((permission) => hasAnnualConferenceCapability(access.capabilities, permission))) {
+        return c.json({ error: 'This account has not been assigned that conference responsibility.' }, 403);
       }
+      await next();
+
+      return;
+    }
+    if (/^\/(testing|payment-mode)(\/|$)/.test(suffix)) {
+      capability = c.req.method === 'GET' ? 'ticketing.overview.view' : 'ticketing.overview.manage';
+    } else if (suffix === '/settings') {
+      capability = 'registration.form.manage';
+    } else if (suffix.startsWith('/blasts')) {
+      capability = suffix.endsWith('/send') ? 'registration.blasts.send'
+        : c.req.method === 'GET' ? 'registration.blasts.view' : 'registration.blasts.manage';
+    } else {
+      capability = c.req.method === 'GET' ? 'registration.guests.view' : 'registration.guests.manage';
     }
     const accessError = await requireAnnualConferenceCapability(c, year.data, capability);
 
@@ -244,6 +263,14 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
     const overview = await conferenceRegistrationOverview(c, Number(c.req.param('year')));
 
     if (!overview) return c.json({ error: 'Conference not found.' }, 404);
+    const access = await annualConferenceCapabilitiesForRequest(c, Number(c.req.param('year')));
+    const canViewGuests = Boolean((!c.req.query('section') || c.req.query('section') === 'guests')
+      && access && hasAnnualConferenceCapability(access.capabilities, 'registration.guests.view'));
+    const canViewOverview = Boolean(access && (hasAnnualConferenceCapability(access.capabilities, 'registration.summary.view')
+      || hasAnnualConferenceCapability(access.capabilities, 'registration.form.view')));
+
+    c.header('Cache-Control', 'no-store');
+    if (!canViewGuests) return c.json({ overview: canViewOverview ? overview : null, registrations: [] });
     const result = await getSupabaseAdminClient(c).rpc('list_annual_conference_registrations' as never, {
       p_edition_id: overview.edition_id, p_offset: page.data,
     } as never);
@@ -253,11 +280,11 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
     const registrations = (result.data ?? []) as Array<{ id: string } & Record<string, unknown>>;
     const session = c.get('adminSession') ?? await getAdminSession(c);
 
-    if (session.authenticated && session.role === 'member') {
-      c.header('Cache-Control', 'no-store');
-
+    if (!canViewOverview || !access || !hasAnnualConferenceCapability(access.capabilities, 'registration.emails.view')
+      || !hasAnnualConferenceCapability(access.capabilities, 'ticketing.check_in')
+      || (session.authenticated && session.role === 'member')) {
       return c.json({
-        overview,
+        overview: canViewOverview ? overview : null,
         registrations: registrations.map(({ id, name, email, status, created_at, is_test }) => ({
           id, name, email, status, created_at, is_test, ticket_id: null,
         })),
@@ -296,9 +323,6 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
   });
 
   app.get(`${privatePath}/testing`, async (c) => {
-    const denied = await requireAdmin(c, ['owner']);
-
-    if (denied) return denied;
     const overview = await conferenceRegistrationOverview(c, Number(c.req.param('year')));
 
     if (!overview) return c.json({ error: 'Conference not found.' }, 404);
@@ -316,9 +340,6 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
   });
 
   app.patch(`${privatePath}/testing`, async (c) => {
-    const denied = await requireAdmin(c, ['owner']);
-
-    if (denied) return denied;
     const input = registrationTestingSchema.safeParse(await c.req.json().catch(() => null));
 
     if (!input.success) return c.json({ error: 'Use up to 200 valid tester email addresses.' }, 400);
@@ -364,9 +385,6 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
   });
 
   app.patch(`${privatePath}/settings`, async (c) => {
-    const ownerError = await requireAdmin(c, ['owner']);
-
-    if (ownerError) return ownerError;
     const parsed = z.object({ mode: z.enum(['free', 'paid']), status: z.enum(['draft', 'open', 'closed']) }).strict().safeParse(await c.req.json().catch(() => null));
 
     if (!parsed.success) return c.json({ error: 'Choose a mode and registration status.' }, 400);

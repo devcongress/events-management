@@ -54,10 +54,10 @@ const workPlan = useQuery({
 });
 const capabilities = computed(() => workPlan.data.value?.permissions.capabilities ?? []);
 const canManageRegistration = computed(() => !props.registrationOnly
-  && hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage']) && props.registrations !== undefined);
+  && hasAnyAnnualConferenceCapability(capabilities.value, ['registration.guests.manage']) && props.registrations !== undefined);
 const canSeeRegistrations = computed(() => canManageRegistration.value || props.registrationOnly);
 const canCancelRegistration = computed(() => props.allowCancellation ?? canManageRegistration.value);
-const canCheckIn = computed(() => !props.registrationOnly && hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in', 'ticketing.manage']));
+const canCheckIn = computed(() => !props.registrationOnly && hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in']));
 const now = ref(new Date());
 const checkInOpen = computed(() => isAnnualConferenceCheckInOpen(workPlan.data.value?.edition.provisional_date, now.value));
 const checkInNotice = computed(() => annualConferenceCheckInNotice(workPlan.data.value?.edition.provisional_date));
@@ -565,7 +565,7 @@ onBeforeUnmount(() => {
               <span v-else-if="guest.admission?.status === 'checked_in'" class="check-in-checked-label" aria-label="Already checked in">Done</span>
               <button v-if="canManageRegistration && guest.registration" type="button" class="check-in-text-button" @click="emailGuest = guest.registration">Email: {{ guest.registration.email_status === 'accepted' ? 'Accepted by provider' : (guest.registration.email_status ?? 'View activity').replaceAll('_', ' ') }}</button>
               <span v-if="guest.registration && recoveredSources.has(guest.registration.id)" class="check-in-status">Recovered as a new registration</span>
-              <button v-else-if="canManageRegistration && allowRecovery && guest.registration?.status === 'cancelled'"
+              <button v-else-if="allowRecovery && guest.registration?.status === 'cancelled'"
                 type="button" class="check-in-text-button" :disabled="busy || managementBusy"
                 @click="emit('recover', guest.registration)">Recover registration</button>
               <button v-if="canCancelRegistration && guest.registration && guest.registration.status !== 'cancelled' && guest.admission?.status !== 'checked_in'"

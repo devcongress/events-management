@@ -126,6 +126,7 @@ vi.mock('@/lib/supabase/annual-conference-work-plan', () => ({
       created_at: '2026-08-03T00:00:00.000Z',
       updated_at: '2026-08-03T00:00:00.000Z',
     },
+    phases: [],
     tasks: [assignedTask, collaboratorTask, unrelatedTask],
   })),
   createSupabaseAnnualConferenceTask: vi.fn(),
@@ -174,6 +175,27 @@ describe('annual conference volunteer API access', () => {
       ...input,
       internal_note: 'Private organizer context.',
     }));
+  });
+
+  it.each([
+    ['POST', '/api/annual-conference/2026/phases', { name: 'Phase', starts_on: '2026-12-31', ends_on: '2026-12-01' }, 400],
+    ['PUT', '/api/annual-conference/2026/phases/order', { phase_ids: ['10000000-0000-4000-8000-000000000001'] }, 400],
+    ['PATCH', '/api/annual-conference/2026/phases/missing', { name: 'Updated' }, 404],
+    ['DELETE', '/api/annual-conference/2026/phases/missing', undefined, 404],
+  ])('checks the phase grant for member %s %s', async (method, path, body, grantedStatus) => {
+    const { default: app } = await import('./app');
+    const request = () => app.request(`http://localhost${path}`, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+    mocks.session.role = 'member';
+    mocks.grants = ['work_plan.phases.manage'];
+    expect((await request()).status).toBe(grantedStatus);
+
+    mocks.grants = [];
+    expect((await request()).status).toBe(403);
   });
 
   it('returns only assigned work without organizer-only notes', async () => {
@@ -266,7 +288,7 @@ describe('annual conference volunteer API access', () => {
   });
 
   it('expands a volunteer workspace only after an explicit edition grant', async () => {
-    mocks.grants = ['work_plan.view_all'];
+    mocks.grants = ['work_plan.tasks.view'];
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/annual-conference/2026/work-plan');
 
@@ -285,7 +307,7 @@ describe('annual conference volunteer API access', () => {
   });
 
   it('lets a delegated volunteer manager edit any task and see internal notes', async () => {
-    mocks.grants = ['work_plan.manage'];
+    mocks.grants = ['work_plan.tasks.manage'];
     const { default: app } = await import('./app');
     const workspaceResponse = await app.request('http://localhost/api/annual-conference/2026/work-plan');
     const updateResponse = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-unrelated', {
@@ -312,7 +334,7 @@ describe('annual conference volunteer API access', () => {
   });
 
   it('lets a delegated volunteer manager change another person’s status', async () => {
-    mocks.grants = ['work_plan.manage'];
+    mocks.grants = ['work_plan.tasks.manage'];
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-unrelated', {
       method: 'PATCH',
@@ -422,13 +444,52 @@ describe('annual conference volunteer API access', () => {
     const response = await app.request('http://localhost/api/annual-conference/2026/access-grants/10000000-0000-4000-8000-000000000001', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ capability: 'timeline.view', enabled: true }),
+      body: JSON.stringify({ capability: 'work_plan.timeline.view', enabled: true }),
     });
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       error: 'This responsibility cannot be delegated to that member role.',
     });
+  });
+
+  it('validates an entire responsibility batch before updating it', async () => {
+    mocks.session.role = 'owner';
+    mocks.session.email = 'platform-owner@example.com';
+    mocks.setGrant.mockClear();
+    const { default: app } = await import('./app');
+    const url = 'http://localhost/api/annual-conference/2026/access-grants/10000000-0000-4000-8000-000000000001';
+    const response = await app.request(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ changes: [
+        { capability: 'speakers.proposals.view', enabled: true },
+        { capability: 'not-a-capability', enabled: true },
+      ] }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(mocks.setGrant).not.toHaveBeenCalled();
+  });
+
+  it('sends a valid responsibility batch as a single update', async () => {
+    mocks.session.role = 'owner';
+    mocks.session.email = 'platform-owner@example.com';
+    mocks.setGrant.mockReset().mockResolvedValue('updated');
+    const { default: app } = await import('./app');
+    const changes = [
+      { capability: 'speakers.proposals.view', enabled: true },
+      { capability: 'finance.view', enabled: false },
+    ];
+    const response = await app.request('http://localhost/api/annual-conference/2026/access-grants/10000000-0000-4000-8000-000000000001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ changes }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.setGrant).toHaveBeenCalledOnce();
+    expect(mocks.setGrant).toHaveBeenCalledWith(expect.objectContaining({ changes }), expect.anything());
   });
 
   it('scopes restricted ticketing and registration reads to the grant and edition on every request', async () => {
@@ -443,7 +504,7 @@ describe('annual conference volunteer API access', () => {
     expect((await request('events')).status).toBe(403);
     expect((await request('admin/organizers')).status).toBe(403);
     expect((await request('annual-conference/2026/work-plan')).status).toBe(403);
-    mocks.grants = ['ticketing.view'];
+    mocks.grants = ['ticketing.overview.view'];
     expect((await request('annual-conference/2026/ticketing')).status).toBe(200);
     expect((await request('annual-conference/2027/ticketing')).status).toBe(403);
     expect((await request('annual-conference/2026/registrations')).status).toBe(403);
@@ -455,14 +516,14 @@ describe('annual conference volunteer API access', () => {
       tasks: [],
       phases: [],
       edition: { task_creator_email: '' },
-      permissions: { capabilities: ['ticketing.view'], can_edit_assigned_tasks: false },
+      permissions: { capabilities: ['ticketing.overview.view'], can_edit_assigned_tasks: false },
     });
     expect((await request('annual-conference/2026/work-plan/task-assigned', 'PATCH', { status: 'done' })).status).toBe(403);
     expect(mocks.updateTask).not.toHaveBeenCalled();
-    mocks.grants = ['ticketing.manage'];
+    mocks.grants = ['ticketing.overview.manage'];
     expect((await request('annual-conference/2026/check-in/attendees')).status).toBe(403);
     expect((await request('annual-conference/2026/ticketing/check-in', 'POST', { qr_token: 'f'.repeat(64) })).status).toBe(403);
-    mocks.grants = ['registration.view'];
+    mocks.grants = ['registration.guests.view'];
     expect((await request('annual-conference/2026/ticketing')).status).toBe(403);
     expect((await request('annual-conference/2026/registrations')).status).toBe(200);
     expect((await request('annual-conference/2026/registrations/10000000-0000-4000-8000-000000000001/cancel', 'POST', {})).status).toBe(403);
@@ -472,8 +533,57 @@ describe('annual conference volunteer API access', () => {
     expect((await request('annual-conference/2026/registrations')).status).toBe(403);
   });
 
+  it('isolates summary, guests and blast send permissions', async () => {
+    const { default: app } = await import('./app');
+    const guest = { id: '10000000-0000-4000-8000-000000000001', name: 'Private Guest', email: 'private@example.com', status: 'confirmed', created_at: '2026-01-01', is_test: false };
+
+    mocks.session.role = 'member';
+    mocks.registrationReads.mockImplementation(async (name: string) => ({
+      data: name === 'get_annual_conference_registration_overview'
+        ? { edition_id: '10000000-0000-4000-8000-000000000001', mode: 'free', status: 'open', capacity: 20, reserved: 1, confirmed: 1, waitlisted: 0 }
+        : [guest],
+      error: null,
+    }));
+    mocks.grants = ['registration.summary.view'];
+    const summary = await app.request('http://localhost/api/annual-conference/2026/registrations');
+
+    expect(summary.status).toBe(200);
+    expect(await summary.json()).toMatchObject({ registrations: [] });
+    expect(mocks.registrationReads).not.toHaveBeenCalledWith('list_annual_conference_registrations', expect.anything());
+    mocks.grants = ['registration.guests.view'];
+    const guests = await app.request('http://localhost/api/annual-conference/2026/registrations');
+
+    expect(await guests.json()).toMatchObject({ overview: null, registrations: [guest] });
+    mocks.grants = ['registration.blasts.manage'];
+    const forged = await app.request('http://localhost/api/annual-conference/2026/registrations/blasts/10000000-0000-4000-8000-000000000001/send', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmed: true }),
+    });
+
+    expect(forged.status).toBe(403);
+  });
+
+  it('enforces separate registration form, email and community leaves', async () => {
+    const { default: app } = await import('./app');
+    const get = (path: string) => app.request(`http://localhost/api/annual-conference/2026/${path}`);
+    const patchSettings = () => app.request('http://localhost/api/annual-conference/2026/registrations/settings', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'free', status: 'open' }),
+    });
+
+    mocks.session.role = 'member';
+    mocks.grants = ['registration.form.view'];
+    expect((await patchSettings()).status).toBe(403);
+    expect((await get('ticketing/email-deliveries')).status).toBe(403);
+    expect((await get('ticketing/flexible/community-pool/purchases')).status).toBe(403);
+    mocks.grants = ['registration.form.manage'];
+    expect((await patchSettings()).status).toBe(200);
+    mocks.grants = ['registration.emails.view'];
+    expect((await get('ticketing/email-deliveries')).status).not.toBe(403);
+    mocks.grants = ['registration.community.view'];
+    expect((await get('ticketing/flexible/community-pool/purchases')).status).not.toBe(403);
+  });
+
   it('marks matching applicants active without exposing team email addresses', async () => {
-    mocks.grants = ['volunteers.view_team', 'volunteers.review_applications'];
+    mocks.grants = ['volunteers.directory.view', 'volunteers.reviews.view'];
     mocks.applications = [
       {
         id: 'application-active',
@@ -520,5 +630,28 @@ describe('annual conference volunteer API access', () => {
         role: 'volunteer',
       }],
     });
+  });
+
+  it('keeps review, directory and campaign permissions separate and denies forged sends', async () => {
+    mocks.session.role = 'member';
+    const { default: app } = await import('./app');
+    const request = (path: string, method = 'GET') => app.request(`http://localhost/api/annual-conference/2026/${path}`, {
+      method,
+      ...(method !== 'GET' ? { headers: { 'Content-Type': 'application/json' }, body: '{}' } : {}),
+    });
+
+    mocks.grants = ['volunteers.reviews.view'];
+    expect((await request('volunteer-follow-up')).status).toBe(403);
+    expect((await request('team')).status).toBe(403);
+    expect((await request('volunteer-follow-up/recipients/test/review', 'PATCH')).status).toBe(403);
+
+    mocks.grants = ['volunteers.directory.view'];
+    expect((await request('team')).status).toBe(200);
+    expect((await request('volunteer-applications')).status).toBe(403);
+
+    mocks.grants = ['volunteers.campaign.view'];
+    expect((await request('volunteer-follow-up/blasts/confirm', 'POST')).status).toBe(403);
+    expect((await request('volunteer-follow-up/outcomes/test', 'POST')).status).toBe(403);
+    expect((await request('volunteer-follow-up/control', 'POST')).status).toBe(403);
   });
 });

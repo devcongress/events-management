@@ -7,6 +7,7 @@ import OrganizerBreadcrumbs from './components/OrganizerBreadcrumbs.vue';
 import { adminPath } from './admin-routes';
 import { annualConferencePath, currentAnnualConferenceYear } from './annual-conference';
 import { queryKeys } from './lib/api';
+import { ANNUAL_CONFERENCE_CAPABILITIES } from '@/lib/annual-conference-capabilities';
 import {
   isOrganizerBreadcrumbRoute,
   readOrganizerBreadcrumbLabels,
@@ -18,7 +19,7 @@ const eventParams = { eventId: 'private-event-id' };
 const year = '2026';
 
 function resolve(name: string, options: Partial<Parameters<typeof resolveOrganizerBreadcrumbs>[0]> = {}) {
-  return resolveOrganizerBreadcrumbs({ name, role: 'owner', ...options });
+  return resolveOrganizerBreadcrumbs({ name, role: 'owner', labels: { capabilities: options.role && options.role !== 'owner' ? [] : ANNUAL_CONFERENCE_CAPABILITIES }, ...options });
 }
 
 describe('organizer breadcrumb routes', () => {
@@ -236,20 +237,20 @@ describe('conference breadcrumb context', () => {
   });
 
   it('shows permitted volunteer subsections with a same-year directory parent', () => {
-    const input = { params: { year }, phone: true, labels: { capabilities: ['volunteers.review_applications'] as const }, query: { section: 'volunteers', volunteerView: 'reviews' } };
+    const input = { params: { year }, phone: true, labels: { capabilities: ['volunteers.reviews.view'] as const }, query: { section: 'volunteers', volunteerView: 'reviews' } };
 
     expect(resolve('admin-mobile-annual-conference', input)).toEqual([
       { label: 'Overview', to: { path: adminPath('mobile/annual-conference/2026'), query: { section: 'overview' } } },
-      { label: 'Volunteers', to: { path: adminPath('mobile/annual-conference/2026'), query: { section: 'volunteers', volunteerView: 'directory' } } },
+      { label: 'Volunteers', to: { path: adminPath('mobile/annual-conference/2026'), query: { section: 'volunteers', volunteerView: 'reviews' } } },
       { label: 'Reviews' },
     ]);
-    expect(resolve('admin-mobile-annual-conference', { ...input, query: { section: 'volunteers', volunteerView: 'campaign', campaignTab: 'outcomes' } }).slice(-2)).toEqual([
+    expect(resolve('admin-mobile-annual-conference', { ...input, labels: { capabilities: ['volunteers.campaign.view'] }, query: { section: 'volunteers', volunteerView: 'campaign', campaignTab: 'outcomes' } }).slice(-2)).toEqual([
       { label: 'Campaign', to: { path: adminPath('mobile/annual-conference/2026'), query: { section: 'volunteers', volunteerView: 'campaign', campaignTab: 'updates' } } },
       { label: 'Outcomes' },
     ]);
-    expect(resolve('admin-mobile-annual-conference', { ...input, query: { section: 'volunteers', volunteerView: 'campaign', campaignTab: ['settings'] } }).at(-1)).toEqual({ label: 'Updates' });
-    expect(resolve('admin-mobile-annual-conference', { ...input, role: 'organizer', query: { section: 'volunteers', volunteerView: 'campaign' } }).at(-1)).toEqual({ label: 'Directory' });
-    expect(resolve('admin-mobile-annual-conference', { ...input, role: 'volunteer', labels: { capabilities: ['volunteers.view_team'] } }).at(-1)).toEqual({ label: 'Volunteers' });
+    expect(resolve('admin-mobile-annual-conference', { ...input, labels: { capabilities: ['volunteers.campaign.view'] }, query: { section: 'volunteers', volunteerView: 'campaign', campaignTab: ['settings'] } }).at(-1)).toEqual({ label: 'Updates' });
+    expect(resolve('admin-mobile-annual-conference', { ...input, role: 'organizer', query: { section: 'volunteers', volunteerView: 'campaign' } }).at(-1)).toEqual({ label: 'Reviews' });
+    expect(resolve('admin-mobile-annual-conference', { ...input, role: 'volunteer', labels: { capabilities: ['volunteers.directory.view'] } }).at(-1)).toEqual({ label: 'Volunteers' });
     expect(resolve('admin-mobile-annual-conference', { ...input, role: 'volunteer', labels: { capabilities: [] } })).toEqual([{ label: 'Overview' }]);
   });
 
@@ -293,7 +294,7 @@ describe('conference breadcrumb context', () => {
     expect(crumbs[1].to).toBe(annualConferencePath('', activeYear));
     expect(resolve('admin-annual-conference-ticketing', input)).toEqual([]);
     expect(resolve('admin-annual-conference-volunteers', input)).toEqual([]);
-    expect(resolve('admin-annual-conference-volunteers', { ...input, labels: { capabilities: ['volunteers.view_team'] } }).at(-1)).toEqual({ label: 'Volunteers' });
+    expect(resolve('admin-annual-conference-volunteers', { ...input, labels: { capabilities: ['volunteers.directory.view'] } }).at(-1)).toEqual({ label: 'Volunteers' });
     expect(resolve('admin-annual-conference-check-in', { ...input, labels: { capabilities: ['ticketing.check_in'] } }).at(-1)).toEqual({ label: 'Guests' });
   });
 });
@@ -331,6 +332,8 @@ describe('cached breadcrumb labels and markup', () => {
   ])('marks only the leaf current when %s ancestors share its pathname', async (name, path, section, current) => {
     const client = new QueryClient();
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: `/organizer-console/annual-conference/:year/${path}`, name, component: { template: '<div />' } }] });
+
+    client.setQueryData(queryKeys.annualConferenceWorkPlan(year), { permissions: { capabilities: ANNUAL_CONFERENCE_CAPABILITIES } });
 
     await router.push({ name, params: { year }, query: { section } });
     const app = createSSRApp(OrganizerBreadcrumbs, { role: 'owner' });

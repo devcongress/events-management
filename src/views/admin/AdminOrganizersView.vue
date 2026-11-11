@@ -20,15 +20,14 @@ import {
   fetchAnnualConferenceEditions,
   fetchVolunteerApplications,
   queryKeys,
-  updateAnnualConferenceAccessGrant,
-  type AnnualConferenceAccessResponse,
+  updateAnnualConferenceAccessGrants,
   type OrganizerMembership,
   type OrganizerMembershipsResponse,
   type AdminAccessRequest,
 } from '@/src/lib/api';
 import type { AdminRole } from '@/types/supabase';
 import {
-  ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS,
+  ANNUAL_CONFERENCE_CAPABILITY_SECTIONS,
   annualConferenceCapabilityChanges,
   canDelegateAnnualConferenceCapability,
   type AnnualConferenceCapability,
@@ -51,7 +50,6 @@ const removalCandidate = ref<OrganizerMembership | null>(null);
 const delegationMemberId = ref('');
 const responsibilityMemberId = ref<string | null>(null);
 const responsibilityYear = ref(ACTIVE_ANNUAL_CONFERENCE_EDITION.year);
-const responsibilityUpdating = ref<AnnualConferenceCapability | null>(null);
 const pageContent = ref<HTMLElement | null>(null);
 const responsibilityPanel = ref<HTMLElement | null>(null);
 const responsibilityCloseButton = ref<HTMLButtonElement | null>(null);
@@ -206,19 +204,16 @@ const delegationMemberOptions = computed(() => organizers.value
 const delegationMember = computed(() => organizers.value.find((member) => member.id === delegationMemberId.value) ?? null);
 const responsibilityMember = computed(() => organizers.value.find((member) => member.id === responsibilityMemberId.value) ?? null);
 const responsibilityAccessMember = computed(() => accessQuery.data.value?.members.find((member) => member.id === responsibilityMemberId.value) ?? null);
-const responsibilitySections = computed(() => ['Work plan', 'Volunteers', 'Speakers', 'Ticketing', 'Registration', 'Check-in', 'Finance']
-  .map((section) => ({
-    section,
-    capabilities: ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS
-      .filter((definition) => definition.section === section)
-      .filter((definition) => {
-        if (!responsibilityMember.value) return true;
-
-        return canDelegateAnnualConferenceCapability(definition.value, responsibilityMember.value.role)
-          || responsibilityIsInherited(definition.value);
-      }),
+const responsibilitySections = computed(() => ANNUAL_CONFERENCE_CAPABILITY_SECTIONS
+  .map((group) => ({
+    ...group,
+    subsections: group.subsections.map((subsection) => ({
+      ...subsection,
+      actions: subsection.actions.filter(([capability]) => responsibilityMember.value
+        && canDelegateAnnualConferenceCapability(capability, responsibilityMember.value.role)),
+    })).filter((subsection) => subsection.actions.length > 0),
   }))
-  .filter((group) => group.capabilities.length > 0));
+  .filter((group) => group.subsections.length > 0));
 const memberRoleOptions: Array<{ value: AdminRole; label: string }> = [
   { value: 'organizer', label: 'Organizer' },
   { value: 'volunteer', label: 'Volunteer' },
@@ -432,44 +427,15 @@ const updateOrganizerRoleMutation = useMutation({
 });
 
 const updateResponsibilityMutation = useMutation({
-  mutationFn: ({ year, memberId, capability, enabled }: {
+  mutationFn: ({ year, memberId, changes }: {
     year: string;
     memberId: string;
-    capability: AnnualConferenceCapability;
-    enabled: boolean;
-  }) => updateAnnualConferenceAccessGrant(year, memberId, capability, enabled),
-  onMutate: async ({ year, memberId, capability, enabled }) => {
-    responsibilityUpdating.value = capability;
-    const queryKey = queryKeys.annualConferenceAccess(year);
-
-    await queryClient.cancelQueries({ queryKey });
-    const previous = queryClient.getQueryData<AnnualConferenceAccessResponse>(queryKey);
-    const member = previous?.members.find(entry => entry.id === memberId);
-
-    if (previous && member) {
-      const relatedCapabilities = annualConferenceCapabilityChanges(member.role, capability, enabled);
-
-      queryClient.setQueryData<AnnualConferenceAccessResponse>(queryKey, {
-        ...previous,
-        members: previous.members.map((member) => member.id !== memberId ? member : {
-          ...member,
-          capabilities: enabled
-            ? [...new Set([...member.capabilities, ...relatedCapabilities])]
-            : member.capabilities.filter((item) => !relatedCapabilities.includes(item)),
-        }),
-      });
-    }
-
-    return { previous, queryKey };
-  },
-  onError: (caught, _variables, context) => {
-    if (context?.previous) queryClient.setQueryData(context.queryKey, context.previous);
+    changes: { capability: AnnualConferenceCapability; enabled: boolean }[];
+  }) => updateAnnualConferenceAccessGrants(year, memberId, changes),
+  onError: (caught) => {
     notifyActionError(caught, 'Unable to update conference responsibilities.');
   },
-  onSettled: (_data, _error, _variables, context) => {
-    responsibilityUpdating.value = null;
-    if (context?.queryKey) void queryClient.invalidateQueries({ queryKey: context.queryKey });
-  },
+  onSettled: (_data, _error, variables) => queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceAccess(variables.year) }),
 });
 
 const disableOrganizerMutation = useMutation({
@@ -696,14 +662,29 @@ function responsibilityIsEnabled(capability: AnnualConferenceCapability): boolea
   return responsibilityAccessMember.value?.capabilities.includes(capability) ?? false;
 }
 
-function toggleResponsibility(capability: AnnualConferenceCapability, enabled: boolean) {
-  if (updateResponsibilityMutation.isPending.value || !responsibilityMemberId.value) return;
+function toggleResponsibilities(capabilities: readonly AnnualConferenceCapability[], enabled: boolean) {
+  if (updateResponsibilityMutation.isPending.value || !responsibilityMemberId.value || !responsibilityMember.value) return;
+  const role = responsibilityMember.value.role;
+  const changes = [...new Set(capabilities.flatMap((capability) => annualConferenceCapabilityChanges(role, capability, enabled)))]
+    .filter((capability) => canDelegateAnnualConferenceCapability(capability, role))
+    .map((capability) => ({ capability, enabled }));
+
   updateResponsibilityMutation.mutate({
     year: responsibilityYear.value,
     memberId: responsibilityMemberId.value,
-    capability,
-    enabled,
+    changes,
   });
+}
+
+function sectionCapabilities(group: typeof responsibilitySections.value[number]): AnnualConferenceCapability[] {
+  return group.subsections.flatMap((subsection) => subsection.actions.map(([capability]) => capability));
+}
+
+function sectionState(group: typeof responsibilitySections.value[number]): 'true' | 'false' | 'mixed' {
+  const capabilities = sectionCapabilities(group);
+  const enabled = capabilities.filter(responsibilityIsEnabled).length;
+
+  return enabled === 0 ? 'false' : enabled === capabilities.length ? 'true' : 'mixed';
 }
 
 function formatDateTime(value: string | null): string {
@@ -1184,40 +1165,42 @@ onUnmounted(() => {
               Unable to load conference responsibilities.
             </div>
             <div v-else class="divide-y divide-dc-border border-y border-dc-border">
-              <details v-for="group in responsibilitySections" :key="group.section" class="responsibility-section">
-                <summary class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-md py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink">
-                  <span class="min-w-0">
-                    <span class="block text-base font-bold leading-tight text-dc-ink">{{ group.section }}</span>
-                    <span class="block text-xs text-dc-gray">{{ group.capabilities.filter((item) => responsibilityIsEnabled(item.value)).map((item) => item.label).join(', ') || 'No access' }}</span>
-                  </span>
-                  <span class="responsibility-chevron grid size-7 shrink-0 place-items-center rounded-full border border-dc-border text-dc-gray" aria-hidden="true">
-                    <svg viewBox="0 0 20 20" class="size-3.5" fill="none">
-                      <path d="M5.5 8l4.5 4.5L14.5 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                  </span>
-                </summary>
-                <div class="pb-3">
-                  <div class="ml-2 space-y-1 border-l border-dc-border pl-3 sm:ml-3 sm:pl-4">
+              <section v-for="group in responsibilitySections" :key="group.section" class="py-2">
+                <div class="flex min-h-11 items-center justify-between gap-3">
+                  <h3 class="font-bold text-dc-ink">{{ group.section }}</h3>
+                  <button
+                    type="button"
+                    role="checkbox"
+                    class="min-h-11 rounded-md px-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink disabled:opacity-50"
+                    :aria-label="`All ${group.section} access`"
+                    :aria-checked="sectionState(group)"
+                    :disabled="updateResponsibilityMutation.isPending.value"
+                    @click="toggleResponsibilities(sectionCapabilities(group), sectionState(group) !== 'true')"
+                  >
+                    <span aria-hidden="true">{{ sectionState(group) === 'true' ? '☑' : sectionState(group) === 'mixed' ? '⊟' : '☐' }}</span> All
+                  </button>
+                </div>
+                <div v-for="subsection in group.subsections" :key="subsection.label" class="flex flex-wrap items-center justify-between gap-x-2 border-t border-dc-border py-1 pl-2">
+                  <span class="text-sm font-semibold">{{ subsection.label }}</span>
+                  <div class="flex flex-wrap items-center">
                     <button
-                      v-for="definition in group.capabilities"
-                      :key="definition.value"
+                      v-for="[capability, action] in subsection.actions"
+                      :key="capability"
                       type="button"
-                      class="motion-press flex min-h-12 w-full items-center justify-between gap-4 rounded-md px-2 py-2 text-left hover:bg-dc-paper-warm disabled:cursor-not-allowed"
+                      class="min-h-11 rounded-md px-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink disabled:opacity-50"
+                      :class="responsibilityIsEnabled(capability) ? 'font-semibold text-dc-pink' : 'text-dc-gray'"
                       :disabled="updateResponsibilityMutation.isPending.value"
-                      :aria-pressed="responsibilityIsEnabled(definition.value)"
-                      @click="toggleResponsibility(definition.value, !responsibilityIsEnabled(definition.value))"
+                      :aria-pressed="responsibilityIsEnabled(capability)"
+                      :aria-label="`${action} ${group.section} ${subsection.label}: ${responsibilityIsEnabled(capability) ? 'enabled' : 'disabled'}${responsibilityIsInherited(capability) ? ', role default' : ', edition access'}`"
+                      @click="toggleResponsibilities([capability], !responsibilityIsEnabled(capability))"
                     >
-                      <span>
-                        <span class="block text-sm font-semibold text-dc-ink">{{ definition.label }}</span>
-                        <span class="block text-xs leading-4 text-dc-gray">{{ definition.description }}</span>
-                        <span v-if="responsibilityIsInherited(definition.value)" class="block text-xs text-dc-pink">Role default · editable for this edition</span>
-                      </span>
-                      <span class="flex h-5 w-9 shrink-0 items-center rounded-full p-0.5" :class="responsibilityIsEnabled(definition.value) ? 'bg-dc-pink' : 'bg-dc-border'" aria-hidden="true"><span class="responsibility-toggle-knob h-4 w-4 rounded-full bg-white shadow-sm" :class="{ 'translate-x-4': responsibilityIsEnabled(definition.value) }" /></span>
+                      {{ action }}<span v-if="responsibilityIsInherited(capability)" class="ml-0.5" aria-hidden="true">*</span>
                     </button>
                   </div>
                 </div>
-              </details>
+              </section>
             </div>
+            <p v-if="!accessQuery.isPending.value && !accessQuery.isError.value" class="mt-3 text-xs text-dc-gray">Pink actions are enabled. * Role default; changes apply to this edition.</p>
             <p v-if="updateResponsibilityMutation.isPending.value" class="mt-3 text-xs text-dc-gray" role="status">Saving access…</p>
             <p v-else-if="updateResponsibilityMutation.isError.value" class="mt-3 text-xs text-red-800" role="alert">Unable to save access. Please try again.</p>
           </div>

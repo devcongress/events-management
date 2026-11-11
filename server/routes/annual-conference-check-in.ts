@@ -11,14 +11,8 @@ export async function requireConferenceCheckIn(c: Context, year: number) {
   const auth = await requireAdmin(c, ['owner', 'organizer', 'volunteer', 'member']);
 
   if (auth) return auth;
-  const scan = await requireAnnualConferenceCapability(c, year, 'ticketing.check_in');
 
-  if (!scan) return null;
-  const session = c.get('adminSession') ?? await getAdminSession(c);
-
-  if (session.authenticated && session.role === 'member') return scan;
-
-  return await requireAnnualConferenceCapability(c, year, 'ticketing.manage');
+  return await requireAnnualConferenceCapability(c, year, 'ticketing.check_in');
 }
 
 export function registerAnnualConferenceCheckInRoutes(app: Hono<AppBindings>) {

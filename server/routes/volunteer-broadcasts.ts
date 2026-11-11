@@ -37,7 +37,8 @@ import {
   getVolunteerBroadcasts,
   updateEventBlast,
 } from '@/lib/event-blast-store';
-import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
+import { getAdminSession } from '@/lib/supabase/admin-auth';
+import { requireAnnualConferenceCapability } from '@/server/annual-conference-request';
 import {
   confirmVolunteerBroadcastPreview,
   createVolunteerBroadcastPreview,
@@ -208,7 +209,7 @@ export async function reconcileVolunteerBroadcasts(
 
 export function registerVolunteerBroadcastRoutes(app: Hono<AppBindings>): void {
   app.get('/api/annual-conference/2026/volunteer-follow-up/blasts', async (c) => {
-    const adminError = await requireAdmin(c, ['owner']);
+    const adminError = await requireAnnualConferenceCapability(c, 2026, 'volunteers.campaign.view');
 
     if (adminError) return adminError;
 
@@ -246,7 +247,7 @@ export function registerVolunteerBroadcastRoutes(app: Hono<AppBindings>): void {
   });
 
   app.post('/api/annual-conference/2026/volunteer-follow-up/blasts/preview', async (c) => {
-    const adminError = await requireAdmin(c, ['owner']);
+    const adminError = await requireAnnualConferenceCapability(c, 2026, 'volunteers.campaign.send');
 
     if (adminError) return adminError;
     const parsed = volunteerBroadcastInputSchema.safeParse(await c.req.json().catch(() => null));
@@ -299,7 +300,7 @@ export function registerVolunteerBroadcastRoutes(app: Hono<AppBindings>): void {
   });
 
   app.post('/api/annual-conference/2026/volunteer-follow-up/blasts/confirm', async (c) => {
-    const adminError = await requireAdmin(c, ['owner']);
+    const adminError = await requireAnnualConferenceCapability(c, 2026, 'volunteers.campaign.send');
 
     if (adminError) return adminError;
     const parsed = volunteerBroadcastConfirmSchema.safeParse(await c.req.json().catch(() => null));
@@ -404,7 +405,7 @@ export function registerVolunteerBroadcastRoutes(app: Hono<AppBindings>): void {
   });
 
   app.post('/api/annual-conference/2026/volunteer-follow-up/blasts/:id/retry', async (c) => {
-    const adminError = await requireAdmin(c, ['owner']);
+    const adminError = await requireAnnualConferenceCapability(c, 2026, 'volunteers.campaign.send');
 
     if (adminError) return adminError;
 

@@ -136,7 +136,16 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
     if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
     const year = Number(yearParam);
-    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.view');
+    const section = c.req.query('section') ?? 'proposals';
+    const sectionCapabilities = {
+      proposals: 'speakers.proposals.view',
+      participation: 'speakers.participation.view',
+      delivery: 'speakers.delivery.view',
+      outcomes: 'speakers.outcomes.view',
+    } as const;
+
+    if (!Object.hasOwn(sectionCapabilities, section)) return c.json({ error: 'Unknown speaker section.' }, 400);
+    const capabilityError = await requireAnnualConferenceCapability(c, year, sectionCapabilities[section as keyof typeof sectionCapabilities]);
 
     if (capabilityError) return capabilityError;
 
@@ -155,7 +164,26 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         overrides: typeof access[0] === 'string' ? [] : access as AnnualConferenceCapabilityOverride[],
         isPlanningOwner: session.email?.trim().toLowerCase() === edition.task_creator_email.trim().toLowerCase(),
       });
-      const submissionDetails = await Promise.all(submissions.map(async (submission) => {
+      const visibleSubmissions = section === 'participation'
+        ? submissions.filter((submission) => submission.status === 'selected')
+        : section === 'delivery' ? submissions.filter((submission) => submission.status === 'selected' || submission.status === 'not_selected')
+          : section === 'outcomes' ? submissions.filter((submission) => submission.status === 'selected' || submission.status === 'not_selected') : submissions;
+      const submissionDetails = await Promise.all(visibleSubmissions.map(async (submission) => {
+        const identity = {
+          id: submission.id, edition_id: submission.edition_id, speaker_name: submission.speaker_name,
+          speaker_email: submission.speaker_email, title: submission.title, status: submission.status,
+          proposal_schema_version: submission.proposal_schema_version, session_type: submission.session_type,
+        };
+
+        if (section === 'proposals') {
+          return {
+            ...identity, speaker_profile_id: submission.speaker_profile_id,
+            proposal_schema_version: submission.proposal_schema_version, topic: submission.topic,
+            session_type: submission.session_type, learning_outcomes: submission.learning_outcomes,
+            abstract: submission.abstract, bio: submission.bio, internal_note: submission.internal_note,
+            decided_at: submission.decided_at, created_at: submission.created_at, updated_at: submission.updated_at,
+          };
+        }
         const [decisionLink, acceptedSession] = await Promise.all([
           submission.selected_intake_link_id
             ? getAnnualConferenceSpeakerIntakeLinkById(submission.selected_intake_link_id)
@@ -165,10 +193,14 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
             : undefined,
         ]);
 
-        const { decision_email_payload: _payload, decision_email_payload_started_at: _startedAt, ...safeSubmission } = submission;
-
-        return {
-          ...safeSubmission,
+        if (section === 'outcomes') return {
+          ...identity,
+          outcome_eligible: ['pending', 'failed'].includes(submission.decision_email_status ?? '')
+            && submission.decision_email_attempt_count === 0 && !submission.decision_email_queued_at
+            && (submission.status === 'not_selected' || Boolean(decisionLink && !decisionLink.revoked_at)),
+        };
+        if (section === 'delivery') return {
+          ...identity,
           workspace_access: decisionLink ? (decisionLink.revoked_at ? 'revoked' : 'active') : 'unavailable',
           decision_email_status: submission.decision_email_status ?? decisionLink?.email_status ?? null,
           decision_email_recipient: submission.decision_email_recipient ?? decisionLink?.email_recipient ?? submission.speaker_email,
@@ -179,6 +211,15 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
           decision_email_attempt_count: submission.decision_email_attempt_count ?? decisionLink?.email_attempt_count ?? 0,
           decision_email_retryable: submission.decision_email_retryable ?? decisionLink?.email_retryable ?? true,
           decision_email_next_retry_at: annualConferenceDecisionEmailNextRetryAt(submission),
+          decision_email_queued_at: submission.decision_email_queued_at,
+        };
+
+        return {
+          ...identity,
+          topic: submission.topic,
+          session_type: submission.session_type,
+          selected_session_id: submission.selected_session_id,
+          workspace_access: decisionLink ? (decisionLink.revoked_at ? 'revoked' : 'active') : 'unavailable',
           logistics: acceptedSession ? {
             slides_url: acceptedSession.slides_url,
             availability_confirmed: acceptedSession.availability_confirmed,
@@ -203,12 +244,15 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
           public_path: `/speak/c/${edition.year}`,
           logistics_deadline: edition.speaker_logistics_deadline ?? null,
         },
-        permissions: { can_manage: hasAnnualConferenceCapability(capabilities, 'speakers.manage'), can_send_email: session.role === 'owner' },
+        permissions: {
+          can_manage: hasAnnualConferenceCapability(capabilities, section === 'participation' ? 'speakers.participation.manage' : section === 'delivery' ? 'speakers.delivery.manage' : section === 'outcomes' ? 'speakers.outcomes.manage' : 'speakers.proposals.manage'),
+          can_send_email: hasAnnualConferenceCapability(capabilities, 'speakers.outcomes.send'),
+        },
         email_delivery: {
           configured: annualConferenceEmailConfigured(c),
           workspace_links_configured: annualConferenceWorkspaceEmailConfigured(c),
         },
-        counts: speakerSubmissionCounts(submissions),
+        counts: speakerSubmissionCounts(visibleSubmissions),
         submissions: submissionDetails,
       });
     } catch (error) {
@@ -232,7 +276,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
     if (!parsed.success) return c.json({ error: 'Choose whether the Call for Speakers is open.' }, 400);
     const year = Number(yearParam);
-    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.proposals.manage');
 
     if (capabilityError) return capabilityError;
 
@@ -282,7 +326,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
     if (!parsed.success) return c.json({ error: 'Choose a valid logistics deadline with a timezone.' }, 400);
     const year = Number(yearParam);
-    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.participation.manage');
 
     if (capabilityError) return capabilityError;
 
@@ -330,7 +374,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
     if (!parsed.success) {
       return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the proposal decision.' }, 400);
     }
-    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.proposals.manage');
 
     if (capabilityError) return capabilityError;
 
@@ -394,7 +438,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         }
 
         return c.json({
-          submission: accepted.submission,
+          submission: { id: accepted.submission.id, status: accepted.submission.status },
           token: null,
           decision_email: { status: 'pending' },
         });
@@ -420,7 +464,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         }));
       }
 
-      return c.json({ submission, token: null, decision_email: { status: 'pending' } });
+      return c.json({ submission: { id: submission.id, status: submission.status }, token: null, decision_email: { status: 'pending' } });
     } catch (error) {
       return c.json({
         error: error instanceof Error ? error.message : 'Unable to update conference proposal.',
@@ -431,14 +475,14 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   });
 
   app.post('/api/annual-conference/:year/speaker-submissions/:submissionId/revoke-workspace', async (c) => {
-    const adminError = await requireAdmin(c);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (adminError) return adminError;
     const yearParam = c.req.param('year');
 
     if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
     const year = Number(yearParam);
-    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.participation.manage');
 
     if (capabilityError) return capabilityError;
     if (!conferenceSpeakerReplacementEmailSchema.safeParse(await c.req.json().catch(() => null)).success) return c.json({ error: 'Confirm the workspace revocation.' }, 400);
@@ -455,14 +499,14 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   });
 
   app.get('/api/annual-conference/:year/speaker-submissions/:submissionId/workspace-link', async (c) => {
-    const adminError = await requireAdmin(c, ['owner', 'organizer']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (adminError) return adminError;
     const yearParam = c.req.param('year');
 
     if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
     const year = Number(yearParam);
-    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.participation.manage');
 
     if (capabilityError) return capabilityError;
     c.header('Cache-Control', 'no-store');
@@ -493,14 +537,14 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   });
 
   app.post('/api/annual-conference/:year/speaker-submissions/:submissionId/resend-workspace-email', async (c) => {
-    const adminError = await requireAdmin(c, ['owner']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (adminError) return adminError;
     const yearParam = c.req.param('year');
 
     if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
     const year = Number(yearParam);
-    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.delivery.retry');
 
     if (capabilityError) return capabilityError;
     const tokenSecret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
@@ -603,13 +647,13 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   });
 
   app.post('/api/annual-conference/:year/speaker-submissions/:submissionId/resend-decision-email', async (c) => {
-    const adminError = await requireAdmin(c, ['owner']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (adminError) return adminError;
     const year = Number(c.req.param('year'));
 
     if (!Number.isInteger(year) || year < 2000 || year > 3000) return c.json({ error: 'Conference year must use four digits.' }, 400);
-    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.delivery.retry');
 
     if (capabilityError) return capabilityError;
     if (!annualConferenceEmailConfigured(c)) return c.json({ error: 'Speaker email sending is not configured.' }, 503);
@@ -661,7 +705,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   });
 
   app.patch('/api/annual-conference/:year/speaker-submissions/:submissionId/decision-email-recipient', async (c) => {
-    const adminError = await requireAdmin(c, ['owner']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (adminError) return adminError;
     const year = Number(c.req.param('year'));
@@ -669,7 +713,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
     if (!Number.isInteger(year) || year < 2000 || year > 3000) return c.json({ error: 'Conference year must use four digits.' }, 400);
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Confirm the delivery email address.' }, 400);
-    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.delivery.manage');
 
     if (capabilityError) return capabilityError;
     if (!annualConferenceEmailConfigured(c)) return c.json({ error: 'Speaker email sending is not configured.' }, 503);
@@ -724,7 +768,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   });
 
   app.post('/api/annual-conference/:year/speaker-submissions/:submissionId/replace-workspace-email', async (c) => {
-    const adminError = await requireAdmin(c, ['owner']);
+    const adminError = await requireAdmin(c, ['owner', 'organizer', 'member']);
 
     if (adminError) return adminError;
     const year = Number(c.req.param('year'));
@@ -732,7 +776,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
     if (!Number.isInteger(year) || year < 2000 || year > 3000) return c.json({ error: 'Conference year must use four digits.' }, 400);
     if (!parsed.success) return c.json({ error: 'Confirm that the current private link should be replaced.' }, 400);
-    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.delivery.manage');
 
     if (capabilityError) return capabilityError;
     const tokenSecret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));

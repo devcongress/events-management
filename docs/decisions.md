@@ -1635,3 +1635,14 @@ The DevCon26 website reads an allowlisted projection of the saved 2026 programme
 **Why:** An independent, due-aware recovery loop avoids coupling ticket recovery cadence to the shared broadcast queue while preserving its established delivery safety boundaries.
 
 **Boundaries:** The Worker defaults to queue ownership until explicitly switched. Definite provider rejections require operator review; ambiguous outcomes retain retry with the original key within 23 hours. A migration and separately verified target configuration precede any deployment or ownership change.
+
+
+## Annual Conference access uses explicit leaf capabilities
+
+**Date:** 2026-11-11
+
+**Decision:** Persist edition-scoped permissions as explicit subsection and action leaves; derive section state rather than storing wildcards. Manage includes its view; disabling view removes manage. Send and retry independently include their subsection view. Owners retain all leaves and restricted members start empty.
+
+**Why:** A broad permission must not silently authorize newly added sibling features. A forward migration maps existing decisions to their established behavior, including explicit denials and provenance.
+
+**Boundaries:** Existing coarse route checks require all mapped leaves until replaced. Database migration and rollout are separate operations; the offline gate cannot establish that a target has been migrated.

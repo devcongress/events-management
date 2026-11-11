@@ -6,7 +6,8 @@ import { ResendBatchError, sendResendEmailBatch } from '@/lib/email/resend';
 import { emailSubjects } from '@/lib/email/scenarios';
 import { volunteerOutcomeEmailPreview } from '@/lib/email/templates/volunteer-follow-up';
 import { markTestEventTitle } from '@/lib/event-test-mode';
-import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
+import { getAdminSession } from '@/lib/supabase/admin-auth';
+import { requireAnnualConferenceCapability } from '@/server/annual-conference-request';
 import { getVolunteerFollowUpCampaign, listVolunteerFollowUpOutcomeMessages } from '@/lib/supabase/volunteer-follow-up';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import { envValue } from '@/server/env';
@@ -20,13 +21,13 @@ const testEmailSchema = z.object({
 }).strict();
 
 export async function sendVolunteerOutcomeTestEmail(c: Context) {
-  const adminError = await requireAdmin(c, ['owner']);
+  const adminError = await requireAnnualConferenceCapability(c, 2026, 'volunteers.campaign.send');
 
   if (adminError) return adminError;
 
   const session = c.get('adminSession') ?? await getAdminSession(c);
 
-  if (!session.authenticated || session.role !== 'owner' || !session.email
+  if (!session.authenticated || !session.email
     || !z.string().email().safeParse(session.email).success) {
     return c.json({ error: 'Owner session email is unavailable.' }, 403);
   }

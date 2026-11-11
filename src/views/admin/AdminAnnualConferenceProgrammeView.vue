@@ -411,7 +411,7 @@ async function save() {
             @save="save"
             @cancel="cancel"
           />
-          <button v-if="state.snapshot && !state.editing" class="programme-edit-button" @click="edit">
+          <button v-if="state.snapshot && !state.editing && state.canManagePhotos" class="programme-edit-button" @click="edit">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-if="state.snapshot.rows.length" d="m4 16-1 5 5-1L19 9l-4-4zM13 7l4 4" />
               <path v-else d="M12 5v14M5 12h14" />
@@ -484,7 +484,7 @@ async function save() {
                         teleport
                         @update:model-value="row.speakerProposalIds = $event.map(String)"
                       />
-                      <p class="programme-help">{{ state.canManagePhotos ? 'Select one or more proposals, or leave empty. Copying proposal text is optional.' : 'Speaker links can be changed by an organizer with speaker management access.' }}</p>
+                      <p class="programme-help">{{ state.canManagePhotos ? 'Select one or more proposals, or leave empty. Copying proposal text is optional.' : 'Speaker links can be changed by someone with programme management access.' }}</p>
                       <p v-if="state.speakersLoading" class="programme-help">Loading accepted proposals…</p>
                       <p v-else-if="state.speakersError" role="alert" class="programme-error">{{ state.speakersError }} <button type="button" @click="loadSpeakers(year)">Try again</button></p>
                       <p v-else-if="!state.proposals.length" class="programme-help">No accepted proposals for this conference yet.</p>

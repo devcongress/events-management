@@ -53,6 +53,9 @@ vi.mock('@/lib/supabase/admin-auth', () => ({
   getAdminSession: mocks.session,
   requireAdmin: mocks.requireAdmin,
 }));
+vi.mock('@/server/annual-conference-request', () => ({
+  requireAnnualConferenceCapability: async (c: unknown) => mocks.requireAdmin(c, ['owner']),
+}));
 vi.mock('@/lib/supabase/volunteer-broadcasts', () => ({
   confirmVolunteerBroadcastPreview: mocks.confirmPreview,
   createVolunteerBroadcastPreview: mocks.createPreview,

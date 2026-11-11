@@ -13,7 +13,7 @@ describe('conference programme', () => {
     expect(programmeSaveSchema.safeParse({ revision: 0, rows: Array(101).fill(row) }).success).toBe(false);
   });
 
-  it('checks roles and resolves each year independently', async () => {
+  it('resolves each year independently after route authorization', async () => {
     const get = vi.fn(async () => ({ rows: [], revision: 0, updated_at: null, updated_by: null }));
     const edition = vi.fn(async (year: number) => year === 2026 ? { id: 'edition-26' } : undefined);
     const dependencies = { role: 'organizer', email: 'organizer@example.com', edition, repository: { get, save: vi.fn(async () => ({ rows: [], revision: 1, updated_at: null, updated_by: null })) }, audit: vi.fn(async () => {}) };
@@ -22,7 +22,7 @@ describe('conference programme', () => {
     await service.get(2026);
     expect(get).toHaveBeenCalledWith('edition-26');
     await expect(service.get(2027)).rejects.toMatchObject({ status: 404 });
-    await expect(createAnnualConferenceProgrammeService({ ...dependencies, role: 'volunteer' }).get(2026)).rejects.toMatchObject({ status: 403 });
+    await expect(createAnnualConferenceProgrammeService({ ...dependencies, role: 'member' }).get(2026)).resolves.toMatchObject({ revision: 0 });
   });
 
   it('returns the exact committed snapshot when audit fails without rereading', async () => {

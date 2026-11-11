@@ -166,7 +166,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
 
       return presentAnnualConferenceWorkspace({
         edition: { ...value.edition, task_creator_email: '', keynote_note: null, venue_note: null, speaker_call_status: undefined, speaker_logistics_deadline: undefined },
-        phases: [],
+        phases: access.capabilities.some((capability) => capability === 'work_plan.timeline.view' || capability === 'work_plan.phases.manage') ? value.phases : [],
         tasks: [],
       }, editionActor);
     },

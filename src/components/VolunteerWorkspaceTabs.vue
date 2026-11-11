@@ -9,6 +9,7 @@ const props = defineProps<{
   modelValue: VolunteerView;
   reviewsVisible: boolean;
   campaignVisible: boolean;
+  directoryVisible?: boolean;
   idPrefix: string;
   mobile?: boolean;
 }>();
@@ -19,7 +20,7 @@ const emit = defineEmits<{
 
 const tablist = ref<HTMLElement | null>(null);
 const tabs = computed(() => [
-  { id: "directory" as const, label: "Directory" },
+  ...(props.directoryVisible !== false ? [{ id: "directory" as const, label: "Directory" }] : []),
   ...(props.reviewsVisible
     ? [{ id: "reviews" as const, label: "Reviews" }]
     : []),
@@ -35,9 +36,9 @@ watch(
   () => [props.reviewsVisible, props.campaignVisible],
   () => {
     if (props.modelValue === "reviews" && !props.reviewsVisible)
-      emit("update:modelValue", "directory");
+      emit("update:modelValue", props.directoryVisible !== false ? "directory" : "campaign");
     if (props.modelValue === "campaign" && !props.campaignVisible)
-      emit("update:modelValue", props.reviewsVisible ? "reviews" : "directory");
+      emit("update:modelValue", props.directoryVisible !== false ? "directory" : "reviews");
   },
 );
 
