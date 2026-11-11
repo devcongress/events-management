@@ -8,6 +8,14 @@ const candidatesSchema = z.array(z.object({
   order_id: z.string().uuid(), payment_reference: z.string().min(1).max(255), payment_mode: z.enum(['live', 'test']),
 })).max(8);
 
+export async function unresolvedPaymentsDue(c: Context): Promise<boolean> {
+  const result: { data: unknown; error: unknown } = await getSupabaseAdminClient(c).rpc('unresolved_payment_diagnostics_due' as never, {} as never);
+
+  if (result.error || typeof result.data !== 'boolean') throw new Error('Payment diagnostics unavailable.');
+
+  return result.data;
+}
+
 export async function checkUnresolvedPayments(c: Context) {
   const client = getSupabaseAdminClient(c);
   const claim = crypto.randomUUID();

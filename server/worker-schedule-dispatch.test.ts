@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExecutionContext } from 'hono';
 
-const appFetch = vi.hoisted(() => vi.fn(async (_request: Request) => (
-  new Response(null, { status: 204 })
+const appFetch = vi.hoisted(() => vi.fn(async (request: Request) => (
+  new URL(request.url).pathname.endsWith('/payment-diagnostics/due')
+    ? Response.json({ due: false }) : new Response(null, { status: 204 })
 )));
 
 vi.mock('./app', () => ({
@@ -57,7 +58,7 @@ describe('scheduled worker cycle dispatch', () => {
 
       const expectedPath = scheduledPathsBySlot[slot];
 
-      expect(appFetch).toHaveBeenCalledTimes(callsBefore + (expectedPath ? 1 : 0));
+      expect(appFetch).toHaveBeenCalledTimes(callsBefore + (slot % 5 === 0 ? 2 : 1));
 
       if (expectedPath) {
         expect(new URL(appFetch.mock.calls.at(-1)![0].url).pathname)
@@ -65,7 +66,7 @@ describe('scheduled worker cycle dispatch', () => {
       }
     }
 
-    const dispatchedPaths = appFetch.mock.calls.map(([request]) => new URL(request.url).pathname);
+    const dispatchedPaths = appFetch.mock.calls.map(([request]) => new URL(request.url).pathname).filter((path) => !path.endsWith('/payment-diagnostics/due'));
 
     expect(dispatchedPaths).toEqual(scheduledPathsBySlot.filter(Boolean));
     expect(dispatchedPaths.filter((path) => path === volunteerDrainPath)).toHaveLength(4);
@@ -87,7 +88,7 @@ describe('scheduled worker cycle dispatch', () => {
       }
     }
 
-    expect(appFetch.mock.calls.map(([request]) => new URL(request.url).pathname))
+    expect(appFetch.mock.calls.map(([request]) => new URL(request.url).pathname).filter((path) => !path.endsWith('/payment-diagnostics/due')))
       .toEqual(Array.from({ length: cycleCount }, () => scheduledPathsBySlot).flat().filter(Boolean));
   });
 
@@ -101,8 +102,8 @@ describe('scheduled worker cycle dispatch', () => {
       context,
     );
 
-    expect(appFetch).toHaveBeenCalledTimes(1);
-    expect(new URL(appFetch.mock.calls[0][0].url).pathname)
+    expect(appFetch).toHaveBeenCalledTimes(2);
+    expect(new URL(appFetch.mock.calls[1][0].url).pathname)
       .toBe('/api/internal/speaker-rejection-emails/retry');
   });
 
@@ -138,15 +139,42 @@ describe('scheduled worker cycle dispatch', () => {
   });
 });
 
-it('seeds one recovery job of each kind every five scheduled minutes', async () => {
+it('seeds recovery and probes diagnostics every five scheduled minutes', async () => {
   const send = vi.fn().mockResolvedValue(undefined);
 
-  for (let minute = 0; minute < 16; minute += 1) {
+  for (let minute = 44; minute <= 61; minute += 1) {
+    send.mockClear();
+    appFetch.mockClear();
     await worker.scheduled({ scheduledTime: minute * 60_000 }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
-    expect(send).toHaveBeenCalledTimes((Math.floor(minute / 5) + 1) * 3);
-  }
+    const expectedKinds = minute % 5 === 0
+      ? ['admission-recovery', 'payment-recovery']
+      : [];
 
-  expect(send.mock.calls.map(([body]) => body.kind)).toEqual(Array(4).fill(['admission-recovery', 'payment-diagnostics', 'payment-recovery']).flat());
+    expect(send.mock.calls.map(([body]) => body.kind)).toEqual(expectedKinds);
+    expect(appFetch.mock.calls.filter(([request]) => new URL(request.url).pathname.endsWith('/payment-diagnostics/due')))
+      .toHaveLength(minute % 5 === 0 ? 1 : 0);
+    expect(appFetch.mock.calls.filter(([request]) => !new URL(request.url).pathname.endsWith('/payment-diagnostics/due')))
+      .toHaveLength(1);
+  }
+});
+
+it('starts the scheduled route while the diagnostics due probe is pending', async () => {
+  appFetch.mockClear();
+  let resolveProbe!: (response: Response) => void;
+  const probe = new Promise<Response>((resolve) => {
+    resolveProbe = resolve;
+  });
+
+  appFetch.mockImplementationOnce(() => probe);
+  const scheduled = worker.scheduled({ scheduledTime: 5 * 60_000 }, env, context);
+
+  expect(appFetch.mock.calls.map(([request]) => new URL(request.url).pathname)).toEqual([
+    '/api/internal/payment-diagnostics/due',
+    '/api/internal/speaker-rejection-emails/retry',
+  ]);
+
+  resolveProbe(Response.json({ due: false }));
+  await expect(scheduled).resolves.toBeUndefined();
 });
 
 it.each([
@@ -186,12 +214,13 @@ it.each([
 it('isolates seed and continuation enqueue failures while retaining HTTP retry behavior', async () => {
   appFetch.mockClear();
   const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-  const send = vi.fn().mockRejectedValueOnce(new Error('unavailable')).mockResolvedValue(undefined);
+  const send = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('unavailable')).mockResolvedValue(undefined);
 
   await worker.scheduled({ scheduledTime: 0 }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
-  expect(send).toHaveBeenCalledTimes(3);
-  expect(appFetch).toHaveBeenCalledTimes(1);
-  expect(log).toHaveBeenCalledWith(expect.stringContaining('checkout_recovery_enqueue_failed'));
+  expect(send).toHaveBeenCalledTimes(2);
+  expect(send.mock.calls.map(([body]) => body.kind)).toEqual(['admission-recovery', 'payment-recovery']);
+  expect(appFetch).toHaveBeenCalledTimes(2);
+  expect(log).toHaveBeenCalledWith(JSON.stringify({ event: 'checkout_recovery_enqueue_failed', kind: 'payment-recovery' }));
 
   send.mockRejectedValueOnce(new Error('unavailable'));
   appFetch.mockResolvedValueOnce(Response.json({ checked: 8, failed: 0 }));
@@ -209,7 +238,9 @@ it('transfers only admission recovery ownership to postgres', async () => {
   const postgresEnv = { ...env, ADMISSION_RECOVERY_OWNER: 'postgres', EVENT_BLAST_PREPARATION_QUEUE: { send } };
 
   await worker.scheduled({ scheduledTime: 0 }, postgresEnv, context);
-  expect(send.mock.calls.map(([body]) => body.kind)).toEqual(['payment-diagnostics', 'payment-recovery']);
+  expect(send.mock.calls.map(([body]) => body.kind)).toEqual(['payment-recovery']);
+  await worker.scheduled({ scheduledTime: 5 * 60_000 }, postgresEnv, context);
+  expect(send.mock.calls.map(([body]) => body.kind)).toEqual(['payment-recovery', 'payment-recovery']);
   appFetch.mockClear();
   await worker.queue({ messages: [{ body: { kind: 'admission-recovery' } }] }, postgresEnv, context);
   expect(appFetch).not.toHaveBeenCalled();
@@ -220,4 +251,23 @@ it('transfers only admission recovery ownership to postgres', async () => {
   appFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
   await worker.queue({ messages: [{ body: { event_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', blast_id: '11111111-1111-4111-8111-111111111111', offset: 0 } }] }, postgresEnv, context);
   expect(new URL(appFetch.mock.calls[1][0].url).pathname).toBe('/api/internal/event-blasts/prepare');
+});
+
+it('queues diagnostics only when due, and isolates probe and enqueue failures', async () => {
+  const send = vi.fn().mockResolvedValue(undefined);
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+  appFetch.mockResolvedValueOnce(Response.json({ due: true }));
+  await worker.scheduled({ scheduledTime: 5 * 60_000 }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
+  expect(send).toHaveBeenCalledWith({ kind: 'payment-diagnostics' });
+  for (const response of [new Response(null, { status: 503 }), Response.json({ due: 'true' }), new Response('bad')]) {
+    appFetch.mockResolvedValueOnce(response);
+    await worker.scheduled({ scheduledTime: 0 }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
+  }
+  appFetch.mockResolvedValueOnce(Response.json({ due: true }));
+  send.mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('queue'));
+  await worker.scheduled({ scheduledTime: 5 * 60_000 }, { ...env, EVENT_BLAST_PREPARATION_QUEUE: { send } }, context);
+  expect(log).toHaveBeenCalledTimes(4);
+  expect(appFetch.mock.calls.filter(([request]) => new URL(request.url).pathname === volunteerDrainPath).length).toBeGreaterThanOrEqual(3);
+  log.mockRestore();
 });

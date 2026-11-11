@@ -1,6 +1,6 @@
 import { reconcileManagedPayments } from '@/server/managed-payment-recovery';
-import { checkUnresolvedPayments } from '@/server/unresolved-payment-diagnostics';
-import { isManagedRecoveryQueueRequest } from '@/server/managed-recovery-request';
+import { checkUnresolvedPayments, unresolvedPaymentsDue } from '@/server/unresolved-payment-diagnostics';
+import { isManagedRecoveryQueueRequest, isPaymentDiagnosticsDueRequest } from '@/server/managed-recovery-request';
 import { completeTestDispatchOrigin } from '@/server/complete-test-dispatch';
 import type { Hono, Context } from 'hono';
 import crypto from 'node:crypto';
@@ -57,6 +57,22 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
       return c.json(result);
     } catch {
       return c.json({ error: 'Payment recovery unavailable.' }, 503);
+    }
+  });
+
+  app.post('/api/internal/payment-diagnostics/due', async (c) => {
+    const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
+    const received = c.req.header('x-scheduled-job-secret')?.trim();
+
+    if (!expected || !received || Buffer.byteLength(expected) !== Buffer.byteLength(received)
+      || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) return c.json({ error: 'Not found.' }, 404);
+    if (!isPaymentDiagnosticsDueRequest(c.req.raw)) return c.json({ error: 'Not found.' }, 404);
+    if (envValue('MANAGED_PAYMENT_RECOVERY_OWNER_ENABLED', c) !== 'true') return c.json({ due: false });
+
+    try {
+      return c.json({ due: await unresolvedPaymentsDue(c) });
+    } catch {
+      return c.json({ error: 'Payment diagnostics unavailable.' }, 503);
     }
   });
 

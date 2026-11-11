@@ -2,6 +2,8 @@
 
 - 2026-11-11: Simplify the DevCon26 ticket counter into a compact row with inline Owner editing and a clear phone layout.
 
+- 2026-11-11: Probe for due payment diagnostics every five scheduled minutes and seed only when eligible, retaining five-minute payment and admission recovery schedules and database retry timing.
+
 - 2026-11-10: Let Owners edit the DevCon26 starting count while keeping net paid tickets calculated automatically.
 
 - 2026-11-10: Add standalone PostgreSQL-backed admission recovery, preserve immediate sends, and park definite provider rejections for explicit review and safe retry.

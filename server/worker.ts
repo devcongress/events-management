@@ -1,5 +1,5 @@
 import app from './app';
-import { managedRecoveryQueueRequest } from './managed-recovery-request';
+import { managedRecoveryQueueRequest, paymentDiagnosticsDueRequest } from './managed-recovery-request';
 import type { ExecutionContext } from 'hono';
 import { secureSharedSecret } from '@/lib/security/shared-secret';
 import type { BlastPreparationMessage, CheckoutRecoveryMessage, EventBlastPreparationQueue } from '@/lib/event-blast-preparation';
@@ -62,9 +62,10 @@ export default {
       const queue = env.EVENT_BLAST_PREPARATION_QUEUE;
 
       if (queue) {
-        const kinds: CheckoutRecoveryMessage['kind'][] = env.ADMISSION_RECOVERY_OWNER !== undefined && env.ADMISSION_RECOVERY_OWNER !== 'queue'
-          ? ['payment-diagnostics', 'payment-recovery']
-          : ['admission-recovery', 'payment-diagnostics', 'payment-recovery'];
+        const kinds: CheckoutRecoveryMessage['kind'][] = [];
+
+        if (env.ADMISSION_RECOVERY_OWNER === undefined || env.ADMISSION_RECOVERY_OWNER === 'queue') kinds.push('admission-recovery');
+        kinds.push('payment-recovery');
         const results = await Promise.allSettled(kinds.map(async (kind) => queue.send({ kind })));
 
         results.forEach((result, index) => {
@@ -77,12 +78,30 @@ export default {
       }
     }
 
+    const diagnostics = scheduledMinute % RECOVERY_INTERVAL_MINUTES === 0 ? (async () => {
+      try {
+        const response = await app.fetch(paymentDiagnosticsDueRequest('https://events-management.internal/api/internal/payment-diagnostics/due', secret), env, ctx);
+
+        if (!response.ok) throw new Error('Due probe failed.');
+        const result: unknown = await response.json();
+
+        if (!result || typeof result !== 'object' || !('due' in result) || typeof result.due !== 'boolean') throw new Error('Invalid due probe.');
+        if (result.due) {
+          if (!env.EVENT_BLAST_PREPARATION_QUEUE) throw new Error('Queue unavailable.');
+          await env.EVENT_BLAST_PREPARATION_QUEUE.send({ kind: 'payment-diagnostics' });
+        }
+      } catch {
+        console.error(JSON.stringify({ event: 'payment_diagnostics_due_dispatch_failed' }));
+      }
+    })() : undefined;
+
     const response = await app.fetch(new Request(`https://events-management.internal${job.path}`, {
       method: 'POST',
       headers: { 'x-scheduled-job-secret': secret },
     }), env, ctx);
 
     if (!response.ok) console.error(JSON.stringify({ event: job.event, status: response.status }));
+    await diagnostics;
   },
   async queue(batch: QueueBatch, env: WorkerBindings, ctx: ExecutionContext) {
     const secret = secureSharedSecret(env.SLACK_EVENTS_RETRY_SECRET);
