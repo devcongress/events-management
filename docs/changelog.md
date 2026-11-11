@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-11-11: Verify migration inventory against reviewed filenames instead of a growing count.
+
 - 2026-11-11: Introduce edition-scoped granular Annual Conference capabilities, preserve Owner and existing volunteer reviewer access, and migrate existing decisions to explicit leaves with role eligibility and view/action coupling. Independently granted timeline and phase access includes the phase projection without exposing tasks.
 
 - 2026-11-11: Simplify the DevCon26 ticket counter into a compact row with inline Owner editing and a clear phone layout.
