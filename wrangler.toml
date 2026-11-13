@@ -9,6 +9,7 @@ keep_vars = true
 binding = "CF_VERSION_METADATA"
 
 [vars]
+DEVCON26_TELEGRAM_BOT_USERNAME = "devcon_26_ticket_bot"
 NODE_ENV = "production"
 APP_DATA_SOURCE = "supabase"
 # Only the canonical Worker owns managed payment and admission recovery.

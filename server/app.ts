@@ -406,7 +406,14 @@ function bodyLimitForPayloadMethods(maxSize: number) {
   };
 }
 
-app.use('/api/*', bodyLimitForPayloadMethods(API_BODY_MAX_BYTES));
+const apiBodyLimit = bodyLimitForPayloadMethods(API_BODY_MAX_BYTES);
+
+app.use('/api/*', (c, next) => {
+  // The Telegram route authenticates before reading and applies its own smaller limit.
+  if (c.req.method === 'POST' && c.req.path === '/api/webhooks/telegram/devcon26-tickets') return next();
+
+  return apiBodyLimit(c, next);
+});
 
 for (const publicWritePath of [
   '/api/public/annual-conference/2026/registration',
@@ -1261,7 +1268,8 @@ function isPublicEventSubmissionRequest(path: string, method: string): boolean {
 }
 
 export function isUnauthenticatedApiRequest(path: string, method: string): boolean {
-  return (path === '/api/public/annual-conference/2026/registration' && ['GET', 'POST'].includes(method))
+  return (method === 'POST' && ['/api/internal/telegram-purchases/retry', '/api/webhooks/telegram/devcon26-tickets'].includes(path))
+    || (path === '/api/public/annual-conference/2026/registration' && ['GET', 'POST'].includes(method))
     || isDevcon26TestCheckoutRequest(path, method)
     || (method === 'POST' && path === '/api/webhooks/paystack/devcon26-complete-test')
     || (method === 'GET' && path === COMPLETE_TEST_CHECKOUT_PATH)

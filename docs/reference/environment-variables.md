@@ -65,6 +65,8 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `DEVCON26_TELEGRAM_PURCHASE_NOTIFICATIONS_ENABLED` | Only for Telegram purchase alerts | No | Server deployment variable; must be exactly `true` to enable delivery. Defaults off. |
 | `DEVCON26_TELEGRAM_BOT_TOKEN` | Required when Telegram alerts are enabled | No | Server-only secret; keep in the deployment secret store. |
 | `DEVCON26_TELEGRAM_CHAT_ID` | Required when Telegram alerts are enabled | No | Server-only secret identifying the approved private destination; keep in the deployment secret store. |
+| `DEVCON26_TELEGRAM_WEBHOOK_SECRET` | Required for Telegram status webhook | No | Server-only strong secret of at least 32 bytes; configure as Telegram setWebhook secret_token and a Worker secret. |
+| `DEVCON26_TELEGRAM_BOT_USERNAME` | Telegram status commands | No | Non-secret bot username without `@`; configured as `devcon_26_ticket_bot`. |
 | `GOOGLE_MAPS_PLACES_API_KEY` | Required for organizer venue autocomplete | No | Server-only Google Maps Platform key restricted to Places API (New); venue predictions are proxied through the authenticated API and restricted to Ghana. |
 
 ## Managed DevCon26 payments

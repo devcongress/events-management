@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({ rpc: vi.fn(), environment: {} as Record<string
 vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/server/env', () => ({ envValue: (key: string) => mocks.environment[key] }));
 
-import { dispatchTelegramPurchases, dispatchTelegramPurchasesInBackground, telegramActivationMessage, telegramLifecycleMessage } from './telegram-purchase-notifications';
+import { dispatchTelegramPurchases, dispatchTelegramPurchasesInBackground, telegramLifecycleMessage } from './telegram-purchase-notifications';
 
 const context = { env: { CF_VERSION_METADATA: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', timestamp: '2026-11-13T00:00:00Z' } } } as unknown as Context;
 const order = '00000000-0000-4000-8000-000000000001';
@@ -31,7 +31,7 @@ it('persists the deployment boundary before Telegram credentials are ready', asy
   await dispatchTelegramPurchases(context);
 
   expect(mocks.rpc).toHaveBeenCalledOnce();
-  expect(mocks.rpc).toHaveBeenCalledWith('claim_devcon26_telegram_activation', expect.objectContaining({
+  expect(mocks.rpc).toHaveBeenCalledWith('ensure_devcon26_telegram_activation', expect.objectContaining({
     p_version_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     p_version_at: '2026-11-13T00:00:00Z',
   }));
@@ -64,7 +64,7 @@ it('sends only the minimal snapshot and parks ambiguous delivery', async () => {
     DEVCON26_TELEGRAM_CHAT_ID: '-123',
   };
   mocks.rpc.mockImplementation(async (name: string) => {
-    if (name === 'claim_devcon26_telegram_activation') return { data: 'sent', error: null };
+    if (name === 'ensure_devcon26_telegram_activation') return { data: 'sent', error: null };
     if (name.startsWith('claim_')) return { data: [event], error: null };
 
     return { data: true, error: null };
@@ -87,7 +87,7 @@ it('retries only a definite rate limit with a bounded provider delay', async () 
     DEVCON26_TELEGRAM_PURCHASE_NOTIFICATIONS_ENABLED: 'true', DEVCON26_TELEGRAM_BOT_TOKEN: '123:abc',
     DEVCON26_TELEGRAM_CHAT_ID: '-123',
   };
-  mocks.rpc.mockImplementation(async (name: string) => name === 'claim_devcon26_telegram_activation' ? { data: 'sent', error: null } : name.startsWith('claim_')
+  mocks.rpc.mockImplementation(async (name: string) => name === 'ensure_devcon26_telegram_activation' ? { data: 'sent', error: null } : name.startsWith('claim_')
     ? { data: [{ ...event, tier_key: 'regular', quantity: 1, subtotal_minor: 100, total_minor: 100 }], error: null }
     : { data: true, error: null });
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ ok: false, parameters: { retry_after: 30 } }, { status: 429 })));
@@ -111,23 +111,13 @@ it('builds controlled, event-specific messages without arbitrary tier markup', (
   expect(telegramLifecycleMessage(event)).not.toContain(order);
 });
 
-it('sends readiness once before claiming purchases', async () => {
+it('claims purchases without sending a readiness message', async () => {
   mocks.environment = { DEVCON26_TELEGRAM_PURCHASE_NOTIFICATIONS_ENABLED: 'true', DEVCON26_TELEGRAM_BOT_TOKEN: '123:abc', DEVCON26_TELEGRAM_CHAT_ID: '-123' };
-  mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'claim_devcon26_telegram_activation' ? 'claimed' : name === 'claim_devcon26_telegram_purchases' ? [] : true, error: null }));
-  const fetchMock = vi.fn().mockResolvedValue(Response.json({ ok: true, result: { message_id: 1 } }));
+  mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'claim_devcon26_telegram_purchases' ? [] : true, error: null }));
+  const fetchMock = vi.fn();
 
   vi.stubGlobal('fetch', fetchMock);
   await dispatchTelegramPurchases(context);
-  expect(JSON.parse(fetchMock.mock.calls[0][1].body).text).toBe(telegramActivationMessage());
-  expect(telegramActivationMessage()).toContain('Monitoring live Paystack activity');
-  expect(telegramActivationMessage()).toContain('Open Ticketing →');
-  expect(mocks.rpc.mock.calls.map((call) => call[0])).toEqual(['claim_devcon26_telegram_activation', 'begin_devcon26_telegram_activation', 'finish_devcon26_telegram_activation', 'claim_devcon26_telegram_purchases']);
-});
-
-it('blocks purchases when readiness delivery is ambiguous', async () => {
-  mocks.environment = { DEVCON26_TELEGRAM_PURCHASE_NOTIFICATIONS_ENABLED: 'true', DEVCON26_TELEGRAM_BOT_TOKEN: '123:abc', DEVCON26_TELEGRAM_CHAT_ID: '-123' };
-  mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'claim_devcon26_telegram_activation' ? 'claimed' : true, error: null }));
-  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network')));
-  await dispatchTelegramPurchases(context);
-  expect(mocks.rpc).toHaveBeenLastCalledWith('finish_devcon26_telegram_activation', expect.objectContaining({ p_result: 'needs_review' }));
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(mocks.rpc.mock.calls.map((call) => call[0])).toEqual(['ensure_devcon26_telegram_activation', 'claim_devcon26_telegram_purchases']);
 });

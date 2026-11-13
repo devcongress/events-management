@@ -6873,7 +6873,7 @@
         {
           "kind": "function", "schema": "public", "name": "claim_devcon26_telegram_purchases",
           "argumentTypes": "uuid, timestamp with time zone", "result": "SETOF devcon26_telegram_purchase_outbox", "language": "plpgsql",
-          "bodySha256": "1e36a2a5dff7dd0cf0789ec8526291096bdac11f50756ce324fcdead3eec34f3",
+          "bodySha256": "23c144f2bdd76d68cdb502b995829b038c77941cc8dc72b30fed42e50d9d5913",
           "securityDefiner": true, "searchPath": "public", "private": true, "serviceExecute": true
         },
         {
@@ -6885,7 +6885,7 @@
         {
           "kind": "function", "schema": "public", "name": "finish_devcon26_telegram_purchase",
           "argumentTypes": "uuid, uuid, text, integer", "result": "boolean", "language": "plpgsql",
-          "bodySha256": "7e39f601d50189662bdc5a1bebfb6a61636328b60d1fc4ef5e95e0af2151bb70",
+          "bodySha256": "e559ad05fd248ca4f557f5d156ae252bd9e2744bb7092ffabebb581ddfc3c987",
           "securityDefiner": true, "searchPath": "public", "private": true, "serviceExecute": true
         },
         {
@@ -6975,7 +6975,7 @@
           "argumentTypes": "uuid, uuid, timestamp with time zone",
           "result": "text",
           "language": "plpgsql",
-          "bodySha256": "3e6bac745f3f438c08750bc72792673d5ad90a467f0deff920ef1372cf7961e0",
+          "bodySha256": "b607f98e223f2e374fd40db3d3afc95cab9fafa51f31776bf9f98f830a27e431",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -6988,7 +6988,7 @@
           "argumentTypes": "uuid",
           "result": "boolean",
           "language": "plpgsql",
-          "bodySha256": "fcf9aa8d0eb824a34e1876a08426b12331b90ed796b4b2e9bf05dbbdeb3e9b9a",
+          "bodySha256": "f8eb526a756d733fd8263e10c8385f085843213cf54d1639f06bc48c25c66855",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,
@@ -7001,7 +7001,48 @@
           "argumentTypes": "uuid, text, integer",
           "result": "boolean",
           "language": "plpgsql",
-          "bodySha256": "b032405879ca7b5a54da60f8a722627231bb3260fdaca32352256207a9231a79",
+          "bodySha256": "f8eb526a756d733fd8263e10c8385f085843213cf54d1639f06bc48c25c66855",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+    {
+      "file": "20261113140000_telegram_status_webhook.sql",
+      "sha256": "e71a1c533aa7be49e87d9159b745e89e430e8481ff262c3f6c244bea3b75237d",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_telegram_purchase_outbox",
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "ensure_devcon26_telegram_activation",
+          "argumentTypes": "uuid, timestamp with time zone",
+          "result": "timestamp with time zone",
+          "language": "plpgsql",
+          "bodySha256": "abd636cb7923fc63121deee688df308d0b3963d551a8d9de214370ec90e1408f",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "get_devcon26_telegram_status",
+          "argumentTypes": "",
+          "result": "TABLE(pending_count bigint, needs_review_count bigint, confirmed_count bigint, last_sent_at timestamp with time zone)",
+          "language": "plpgsql",
+          "bodySha256": "1e937b9382dfbd67066590d6f7c815b7b0fabff441fc94ff1f290c25c4d3272c",
           "securityDefiner": true,
           "searchPath": "public",
           "private": true,

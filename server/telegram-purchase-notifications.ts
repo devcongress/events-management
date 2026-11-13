@@ -40,20 +40,10 @@ export function telegramLifecycleMessage(row: z.infer<typeof rowsSchema>[number]
 }
 
 const versionSchema = z.object({ id: z.string().uuid(), timestamp: z.string().datetime({ offset: true }) });
-const activationStateSchema = z.enum(['claimed', 'pending', 'sent', 'needs_review']);
 const credentialsSchema = z.object({
   token: z.string().regex(/^\d+:[A-Za-z0-9_-]+$/),
   chat: z.string().regex(/^-?\d+$/),
 });
-
-export function telegramActivationMessage(): string {
-  return '✅ <b>DevCon26 ticket alerts are active</b>\n'
-    + 'Monitoring live Paystack activity for:\n'
-    + '• Successful payments\n'
-    + '• Incomplete checkouts\n'
-    + '• Refund updates\n\n'
-    + '<a href="https://em.devcongress.org/organizer-console/annual-conference/2026/ticketing?section=orders">Open Ticketing →</a>';
-}
 
 async function sendTelegram(token: string, chat: string, message: string): Promise<{ result: string; retrySeconds: number | null }> {
   try {
@@ -83,27 +73,13 @@ export async function dispatchTelegramPurchases(c: Context): Promise<void> {
   if (enabled !== 'true' || !version.success || !Number.isFinite(Date.parse(version.data.timestamp))) return;
   const client = getSupabaseAdminClient(c);
   const claim = crypto.randomUUID();
-  const activation = await client.rpc('claim_devcon26_telegram_activation' as never, {
-    p_claim: claim, p_version_id: version.data.id, p_version_at: version.data.timestamp,
+  const activation = await client.rpc('ensure_devcon26_telegram_activation' as never, {
+    p_version_id: version.data.id, p_version_at: version.data.timestamp,
   } as never);
 
-  if (activation.error) throw new Error('Telegram activation claim failed.');
-  const activationState = activationStateSchema.parse(activation.data);
+  if (activation.error) throw new Error('Telegram activation failed.');
   const credentials = credentialsSchema.safeParse({ token, chat });
 
-  if (activationState === 'claimed') {
-    if (!credentials.success) return;
-    const begun = await client.rpc('begin_devcon26_telegram_activation' as never, { p_claim: claim } as never);
-
-    if (begun.error || begun.data !== true) return;
-    const delivery = await sendTelegram(credentials.data.token, credentials.data.chat, telegramActivationMessage());
-    const finished = await client.rpc('finish_devcon26_telegram_activation' as never, {
-      p_claim: claim, p_result: delivery.result, p_retry_seconds: delivery.retrySeconds,
-    } as never);
-
-    if (finished.error || finished.data !== true) throw new Error('Telegram activation finalization failed.');
-    if (delivery.result !== 'sent') return;
-  } else if (activationState !== 'sent') return;
   if (!credentials.success) return;
   const leased = await client.rpc('claim_devcon26_telegram_purchases' as never, { p_claim: claim, p_start_at: version.data.timestamp } as never);
 

@@ -32,8 +32,16 @@ try {
   `);
   sql(readFileSync(new URL('../supabase/migrations/20261113120000_telegram_purchase_notifications.sql', import.meta.url), 'utf8'));
   sql(readFileSync(new URL('../supabase/migrations/20261113130000_telegram_activation.sql', import.meta.url), 'utf8'));
+  sql(`insert into public.devcon26_telegram_activation (singleton, version_id, activation_at, state)
+    values (true, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '2026-01-01', 'sent');
+    insert into public.devcon26_telegram_purchase_outbox
+      (dedupe_key, event_type, order_id, tier_key, quantity, subtotal_minor, total_minor, paid_ticket_count, detail_code, occurred_at, state)
+    values ('legacy-sent', 'payment_succeeded', '00000000-0000-4000-8000-000000000002', 'regular_flexible', 2, 30000, 31000, 2, 'paid', '2026-01-02', 'sent');`);
+  sql(readFileSync(new URL('../supabase/migrations/20261113140000_telegram_status_webhook.sql', import.meta.url), 'utf8'));
+  assert.equal(sql("select activation_at::date || '|' || confirmed_count || '|' || (last_sent_at is null) from public.devcon26_telegram_activation cross join public.get_devcon26_telegram_status()"), '2026-01-01|1|true');
+  sql("delete from public.devcon26_telegram_purchase_outbox where dedupe_key='legacy-sent'; delete from public.devcon26_telegram_activation;");
   const contract = JSON.parse(readFileSync(new URL('../supabase/migration-verification-contract.json', import.meta.url), 'utf8'));
-  const probes = contract.verified.filter((entry) => ['20261113120000_telegram_purchase_notifications.sql', '20261113130000_telegram_activation.sql'].includes(entry.file)).flatMap((entry) => entry.checks);
+  const probes = contract.verified.filter((entry) => ['20261113120000_telegram_purchase_notifications.sql', '20261113130000_telegram_activation.sql', '20261113140000_telegram_status_webhook.sql'].includes(entry.file)).flatMap((entry) => entry.checks);
 
   for (const probe of probes.filter((check) => check.kind === 'function')) {
     const signature = `public.${probe.name}(${probe.argumentTypes})`;
@@ -47,16 +55,10 @@ try {
   const activationClaim = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
   assert.equal(sql(`select count(*) from public.claim_devcon26_telegram_purchases('${activationClaim}', '2026-01-01')`), '0');
-  assert.equal(sql(`select public.claim_devcon26_telegram_activation('${activationClaim}', '${activationClaim}', '2026-01-01')`), 'claimed');
-  assert.equal(sql(`select public.begin_devcon26_telegram_activation('${activationClaim}')`), 't');
-  assert.equal(sql(`select public.finish_devcon26_telegram_activation('${activationClaim}', 'retry', 30)`), 't');
-  assert.equal(sql("select state from public.devcon26_telegram_activation"), 'pending');
-  assert.equal(sql(`select count(*) from public.claim_devcon26_telegram_purchases('${activationClaim}', '2020-01-01')`), '0');
-  sql("update public.devcon26_telegram_activation set next_attempt_at=now()-interval '1 second'");
-  assert.equal(sql(`select public.claim_devcon26_telegram_activation('${activationClaim}', '${activationClaim}', '2026-02-01')`), 'claimed');
-  assert.equal(sql(`select public.begin_devcon26_telegram_activation('${activationClaim}')`), 't');
-  assert.equal(sql(`select public.finish_devcon26_telegram_activation('${activationClaim}', 'sent', null)`), 't');
-  assert.equal(sql(`select public.claim_devcon26_telegram_activation('${activationClaim}', '${activationClaim}', '2026-02-01')`), 'sent');
+  assert.equal(sql(`select public.ensure_devcon26_telegram_activation('${activationClaim}', '2026-01-01')::date`), '2026-01-01');
+  assert.equal(sql(`select public.ensure_devcon26_telegram_activation('${activationClaim}', '2026-02-01')::date`), '2026-01-01');
+  assert.equal(sql(`select public.claim_devcon26_telegram_activation('${activationClaim}', '${activationClaim}', '2026-02-01')`), 'needs_review');
+  assert.equal(sql(`select public.begin_devcon26_telegram_activation('${activationClaim}')`), 'f');
   assert.equal(sql("select activation_at::date from public.devcon26_telegram_activation"), '2026-01-01');
   sql("update public.annual_conference_ticket_orders set status='paid', provider='paystack', amount_paid_minor=31000");
   assert.equal(sql('select count(*) from public.devcon26_telegram_purchase_outbox'), '1');
@@ -70,6 +72,7 @@ try {
   assert.equal(sql(`select count(*) from public.claim_devcon26_telegram_purchases('${other}', '2026-01-01')`), '0');
   assert.equal(sql(`select public.begin_devcon26_telegram_purchase('${order}', '${claim}')`), 't');
   sql(`update public.devcon26_telegram_purchase_outbox set lease_until=now()-interval '1 second'`);
+  assert.equal(sql("select pending_count || '|' || needs_review_count from public.get_devcon26_telegram_status()"), '0|1');
   assert.equal(sql(`select count(*) from public.claim_devcon26_telegram_purchases('${other}', '2026-01-01')`), '0');
   assert.equal(sql('select state from public.devcon26_telegram_purchase_outbox'), 'needs_review');
   sql(`update public.devcon26_telegram_purchase_outbox set state='pending', claim_id=null, lease_until=null, request_started_at=null, attempts=4;`);
@@ -82,6 +85,9 @@ try {
   assert.equal(sql(`select public.begin_devcon26_telegram_purchase('${order}', '${other}')`), 't');
   assert.equal(sql(`select public.finish_devcon26_telegram_purchase('${order}', '${other}', 'sent', null)`), 't');
   assert.equal(sql('select state from public.devcon26_telegram_purchase_outbox'), 'sent');
+  assert.equal(sql('select sent_at is not null from public.devcon26_telegram_purchase_outbox'), 't');
+  assert.equal(sql('select last_sent_at is not null from public.get_devcon26_telegram_status()'), 't');
+  assert.equal(sql("select pending_count || '|' || needs_review_count from public.get_devcon26_telegram_status()"), '0|0');
   sql(`update public.devcon26_telegram_purchase_outbox set state='sent';
     insert into public.annual_conference_ticket_orders values
       ('00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000001','pending_payment','live',null,30000,null,'regular_flexible',2,null,null,null,now()-interval '1 minute'),

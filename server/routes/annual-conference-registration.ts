@@ -31,6 +31,78 @@ export async function conferenceRegistrationOverview(c: Context, year: number) {
 }
 
 export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings>) {
+  app.post('/api/webhooks/telegram/devcon26-tickets', async (c) => {
+    const expected = secureSharedSecret(envValue('DEVCON26_TELEGRAM_WEBHOOK_SECRET', c));
+    const received = c.req.header('x-telegram-bot-api-secret-token');
+
+    if (!expected || !received || Buffer.byteLength(expected) !== Buffer.byteLength(received)
+      || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) return c.json({ error: 'Not found.' }, 404);
+
+    const reader = c.req.raw.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+
+    if (!reader) return c.json({ ok: true });
+    for (;;) {
+      const chunk = await reader.read();
+
+      if (chunk.done) break;
+      size += chunk.value.byteLength;
+      if (size > 16_384) {
+        await reader.cancel();
+
+        return c.json({ error: 'Request too large.' }, 413);
+      }
+      chunks.push(chunk.value);
+    }
+    let update: unknown;
+
+    try {
+      update = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    } catch {
+      return c.json({ ok: true });
+    }
+    const parsed = z.object({ message: z.object({ text: z.string(), chat: z.object({ id: z.number().int().safe(), type: z.enum(['group', 'supergroup']) }) }).optional(), edited_message: z.unknown().optional() }).safeParse(update);
+    const chat = envValue('DEVCON26_TELEGRAM_CHAT_ID', c)?.trim();
+    const username = envValue('DEVCON26_TELEGRAM_BOT_USERNAME', c)?.trim();
+    const message = parsed.success && !parsed.data.edited_message ? parsed.data.message : undefined;
+
+    if (!chat || !/^-?\d+$/.test(chat) || !message || String(message.chat.id) !== chat
+      || (message.text !== '/status' && (!username || message.text !== `/status@${username}`))) return c.json({ ok: true });
+
+    const enabled = envValue('DEVCON26_TELEGRAM_PURCHASE_NOTIFICATIONS_ENABLED', c) === 'true';
+    let details = 'Delivery status unavailable.';
+
+    try {
+      const result = await getSupabaseAdminClient(c).rpc('get_devcon26_telegram_status' as never);
+      const status = z.array(z.object({
+        pending_count: z.number().int().nonnegative(),
+        needs_review_count: z.number().int().nonnegative(),
+        confirmed_count: z.number().int().nonnegative(),
+        last_sent_at: z.string().datetime({ offset: true }).nullable(),
+      })).length(1).parse(result.data);
+
+      if (result.error) throw new Error('Status unavailable.');
+      const last = status[0].last_sent_at
+        ? new Intl.DateTimeFormat('en-GB', {
+          day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'GMT',
+        }).format(new Date(status[0].last_sent_at)).replace(',', ' ·') + ' GMT'
+        : status[0].confirmed_count > 0 ? 'Time unavailable' : 'Never';
+
+      details = `⏳ Pending or in flight · <b>${status[0].pending_count}</b>\n🛠 Needs review · <b>${status[0].needs_review_count}</b>\n✅ Last successful alert · ${last}`;
+    } catch {
+      // Keep database failures distinct from an empty queue.
+    }
+
+    return c.json({
+      method: 'sendMessage',
+      chat_id: chat,
+      text: `🟢 <b>DevCon26 ticket alerts</b>\nConnected · Yes\nDelivery · ${enabled ? 'Enabled' : 'Disabled'}\n\n${details}`,
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+    });
+  });
+
   app.post('/api/internal/telegram-purchases/retry', async (c) => {
     const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
     const received = c.req.header('x-scheduled-job-secret')?.trim();
