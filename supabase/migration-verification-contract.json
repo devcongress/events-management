@@ -6842,6 +6842,91 @@
       ]
     },
     {
+      "file": "20261113120000_telegram_purchase_notifications.sql",
+      "sha256": "10a8659e2d426d4943136cdc5474c49c2197bfad05e6c9ae5d388684e91d759f",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "devcon26_telegram_purchase_outbox",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "index", "schema": "public", "table": "devcon26_telegram_purchase_outbox",
+          "name": "devcon26_telegram_purchase_due_idx", "contains": ["next_attempt_at", "created_at", "pending", "claimed"]
+        },
+        {
+          "kind": "index", "schema": "public", "table": "annual_conference_ticket_orders",
+          "name": "devcon26_telegram_expired_checkout_idx", "contains": ["expires_at", "edition_id", "pending_payment", "expired"]
+        },
+        {
+          "kind": "function", "schema": "public", "name": "enqueue_devcon26_telegram_purchase",
+          "argumentTypes": "", "result": "trigger", "language": "plpgsql",
+          "bodySha256": "3e40a41b002dd37fc93b1d0fe7f39e7c43f77f8cc1e0511ba60d738ddd1d18c8",
+          "securityDefiner": true, "searchPath": "public", "private": true, "serviceExecute": false
+        },
+        {
+          "kind": "constraint", "schema": "public", "table": "devcon26_telegram_purchase_outbox",
+          "name": "devcon26_telegram_paid_ticket_count_valid", "contains": ["payment_succeeded", "paid_ticket_count"]
+        },
+        {
+          "kind": "function", "schema": "public", "name": "claim_devcon26_telegram_purchases",
+          "argumentTypes": "uuid, timestamp with time zone", "result": "SETOF devcon26_telegram_purchase_outbox", "language": "plpgsql",
+          "bodySha256": "83e3d632f2fc016980f62998b15d71a4bd80265dac28355ce1c783bd4b88e621",
+          "securityDefiner": true, "searchPath": "public", "private": true, "serviceExecute": true
+        },
+        {
+          "kind": "function", "schema": "public", "name": "begin_devcon26_telegram_purchase",
+          "argumentTypes": "uuid, uuid", "result": "boolean", "language": "plpgsql",
+          "bodySha256": "463f4a4bbf9d8775423c6d15efbe4368e9bb331c35c11848f80c2b8b5f834329",
+          "securityDefiner": true, "searchPath": "public", "private": true, "serviceExecute": true
+        },
+        {
+          "kind": "function", "schema": "public", "name": "finish_devcon26_telegram_purchase",
+          "argumentTypes": "uuid, uuid, text, integer", "result": "boolean", "language": "plpgsql",
+          "bodySha256": "7e39f601d50189662bdc5a1bebfb6a61636328b60d1fc4ef5e95e0af2151bb70",
+          "securityDefiner": true, "searchPath": "public", "private": true, "serviceExecute": true
+        },
+        {
+          "kind": "function", "schema": "public", "name": "enqueue_devcon26_telegram_observation",
+          "argumentTypes": "", "result": "trigger", "language": "plpgsql",
+          "bodySha256": "c44b9fd56bf70e94e10a24fe21a85f12908ab9b4931b78b78e6335d221d7465f",
+          "securityDefiner": true, "searchPath": "public", "private": true, "serviceExecute": false
+        },
+        {
+          "kind": "function", "schema": "public", "name": "enqueue_devcon26_telegram_refund",
+          "argumentTypes": "", "result": "trigger", "language": "plpgsql",
+          "bodySha256": "638143307146391bd371799caa084adb28c57685675e3c2d645bc2a86501c576",
+          "securityDefiner": true, "searchPath": "public", "private": true, "serviceExecute": false
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_ticket_orders",
+          "name": "enqueue_devcon26_telegram_purchase",
+          "function": "enqueue_devcon26_telegram_purchase",
+          "functionSchema": "public",
+          "contains": ["AFTER UPDATE OF status"]
+        },
+        {
+          "kind": "trigger", "schema": "public", "table": "annual_conference_ticket_payment_attempts",
+          "name": "enqueue_devcon26_telegram_observation", "function": "enqueue_devcon26_telegram_observation", "functionSchema": "public",
+          "contains": ["AFTER UPDATE OF paystack_status"]
+        },
+        {
+          "kind": "trigger", "schema": "public", "table": "annual_conference_ticket_refunds",
+          "name": "enqueue_devcon26_telegram_refund", "function": "enqueue_devcon26_telegram_refund", "functionSchema": "public",
+          "contains": ["AFTER INSERT OR UPDATE OF status"]
+        },
+        {
+          "kind": "trigger", "schema": "public", "table": "annual_conference_flexible_ticket_refunds",
+          "name": "enqueue_devcon26_telegram_seat_refund", "function": "enqueue_devcon26_telegram_refund", "functionSchema": "public",
+          "contains": ["AFTER INSERT OR UPDATE OF status"]
+        }
+      ]
+    },
+    {
       "file": "20261111121000_granular_conference_access.sql",
       "sha256": "0333239d6a2d9892855f6a8a0be9769155016753b9711e402ba777f323d96a94",
       "checks": [

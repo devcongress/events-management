@@ -20,6 +20,8 @@ const before = sql(`select jsonb_agg(jsonb_build_object('id', id, 'amount_minor'
 const oldVersion = settings().settings_version;
 
 sql(readFileSync(new URL('../supabase/migrations/20261030110000_managed_buyer_processing_fee.sql', import.meta.url), 'utf8'));
+sql(readFileSync(new URL('../supabase/migrations/20261109120100_managed_paystack_observations.sql', import.meta.url), 'utf8'));
+sql(readFileSync(new URL('../supabase/migrations/20261113120000_telegram_purchase_notifications.sql', import.meta.url), 'utf8'));
 
 assert.equal(settings().processing_fee_rate_basis_points, 195);
 assert.ok(settings().settings_version > oldVersion, 'existing catalogs become stale after migration');
@@ -59,13 +61,29 @@ assert.throws(() => sql(confirm(testOrder, 'test', 'buyer-fee-test-other-ref', 1
 assert.equal(sql(`select amount_minor || '|' || processing_fee_minor || '|' || amount_paid_minor || '|' || payment_fee_mode
   from public.annual_conference_ticket_orders where id='${testOrder}'`), '15000|299|15299|buyer_pays_processing');
 assert.equal(sql(`select count(*) from public.annual_conference_tickets where order_id='${testOrder}'`), '1');
+assert.equal(sql(`select count(*) from public.devcon26_telegram_purchase_outbox where order_id='${testOrder}'`), '0', 'test payments never notify');
 
 setMode('live');
+const priorPaidSeats = Number(sql(`select greatest(0,
+  (select coalesce(sum(quantity),0) from public.annual_conference_ticket_orders where edition_id='${edition}' and status='paid' and payment_mode='live' and provider='paystack' and amount_minor > 0)
+  - (select count(*) from public.annual_conference_flexible_ticket_refunds r join public.annual_conference_ticket_orders o on o.id=r.order_id
+    where o.edition_id='${edition}' and o.status='paid' and o.payment_mode='live' and o.provider='paystack' and o.amount_minor > 0 and r.status='refunded'))`));
+const livePaidOrder = hold('live');
+
+prepare(livePaidOrder, 'live');
+assert.equal(sql(confirm(livePaidOrder, 'live', 'buyer-fee-live-paid')), 'paid');
+assert.equal(sql(`select subtotal_minor || '|' || total_minor from public.devcon26_telegram_purchase_outbox
+  where order_id='${livePaidOrder}'`), '15000|15299', 'outbox captures the validated buyer-paid gross during the intermediate paid transition');
+assert.equal(Number(sql(`select paid_ticket_count from public.devcon26_telegram_purchase_outbox where order_id='${livePaidOrder}'`)), priorPaidSeats + 1);
+assert.equal(sql(confirm(livePaidOrder, 'live', 'buyer-fee-live-paid')), 'paid');
+assert.equal(sql(`select count(*) from public.devcon26_telegram_purchase_outbox where order_id='${livePaidOrder}'`), '1');
 const liveOrder = hold('live');
 
 prepare(liveOrder, 'live');
 sql(`update public.annual_conference_ticket_orders set expires_at=now()-interval '1 minute' where id='${liveOrder}'`);
 assert.equal(sql(confirm(liveOrder, 'live', 'buyer-fee-live-expired')), 'expired');
+assert.equal(sql(`select event_type || '|' || total_minor from public.devcon26_telegram_purchase_outbox where order_id='${liveOrder}'`),
+  'refund_required|15299', 'late successful payment alerts for the gross refund rather than payment success');
 assert.equal(sql(`select amount_minor from public.annual_conference_ticket_refunds where order_id='${liveOrder}'`),
   '15299', 'expired live payment refunds the entire charge');
 assert.equal(sql(`select amount_paid_minor || '|' || processing_fee_minor || '|' || payment_fee_mode

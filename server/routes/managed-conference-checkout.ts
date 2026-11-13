@@ -15,6 +15,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/server';
 import { managedCheckoutOrder, managedCheckoutReadiness, managedCheckoutRpc, managedCheckoutSettings, managedPaymentEnvironment, confirmManagedCheckout } from '@/server/managed-conference-checkout';
 import { registrationTesting } from '@/server/annual-conference-registration-testing';
 import { dispatchManagedConferenceEmails } from '@/server/complete-test-immediate-emails';
+import { dispatchTelegramPurchasesInBackground } from '@/server/telegram-purchase-notifications';
 import { assessPublicSubmissionEmail, enforcePublicRateLimit, publicClientKey, requirePublicTurnstile } from '@/server/http/public-intake-protection';
 import type { AppBindings } from '@/server/http/app-bindings';
 
@@ -229,12 +230,14 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
       if (orderLimit) return orderLimit;
       let outcome = await managedCheckoutOutcome(c, order.id);
       let confirmation: { status: string };
+      let notificationDispatched = false;
 
       if (outcome.refund_status) confirmation = { status: 'refund_required' };
       else if (outcome.checkout_hold.status === 'paid') confirmation = { status: 'verified' };
       else {
         try {
           confirmation = await confirmManagedCheckout(c, order, input.data.reference);
+          notificationDispatched = order.payment_mode === 'live' && confirmation.status === 'verified';
         } catch {
           outcome = await managedCheckoutOutcome(c, order.id);
           if (outcome.refund_status) confirmation = { status: 'refund_required' };
@@ -247,6 +250,7 @@ export function registerManagedConferenceCheckout(app: Hono<AppBindings>): void 
       }
 
       if (confirmation.status !== 'verified') return c.json({ mode: order.payment_mode, status: confirmation.status === 'expired' ? 'failed' : confirmation.status, ...outcome });
+      if (order.payment_mode === 'live' && !notificationDispatched) await dispatchTelegramPurchasesInBackground(c);
       await dispatchManagedConferenceEmails(c);
       const summary = await getSupabaseAnnualConferencePaidOrderSummary(order.id, c);
 

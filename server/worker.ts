@@ -78,6 +78,17 @@ export default {
       }
     }
 
+    const telegram = scheduledMinute % RECOVERY_INTERVAL_MINUTES === 0 && env.DEVCON26_TELEGRAM_PURCHASE_NOTIFICATIONS_ENABLED === 'true' ? (async () => {
+      try {
+        const retry = await app.fetch(new Request('https://events-management.internal/api/internal/telegram-purchases/retry', {
+          method: 'POST', headers: { 'x-scheduled-job-secret': secret },
+        }), env, ctx);
+
+        if (!retry.ok) console.error(JSON.stringify({ event: 'telegram_purchase_retry_failed', status: retry.status }));
+      } catch {
+        console.error(JSON.stringify({ event: 'telegram_purchase_retry_failed' }));
+      }
+    })() : undefined;
     const diagnostics = scheduledMinute % RECOVERY_INTERVAL_MINUTES === 0 ? (async () => {
       try {
         const response = await app.fetch(paymentDiagnosticsDueRequest('https://events-management.internal/api/internal/payment-diagnostics/due', secret), env, ctx);
@@ -102,6 +113,7 @@ export default {
 
     if (!response.ok) console.error(JSON.stringify({ event: job.event, status: response.status }));
     await diagnostics;
+    await telegram;
   },
   async queue(batch: QueueBatch, env: WorkerBindings, ctx: ExecutionContext) {
     const secret = secureSharedSecret(env.SLACK_EVENTS_RETRY_SECRET);
