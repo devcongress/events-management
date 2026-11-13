@@ -200,3 +200,5 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/health/data-sources`, `/api/health/supabase/community-events`, `/api/health/supabase/storage`                                 | Owner-only persistence and storage diagnostics                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 Former `/organizer-console/attendance` and `/organizer-console/feedback` links redirect to the corresponding Reports section, retaining query parameters and fragments.
+
+`POST /api/webhooks/telegram/devcon26-tickets` accepts the Telegram secret-token header and reports private group alert status. `POST /api/internal/telegram-purchases/retry` requires the scheduler secret. Neither requires an organizer session.

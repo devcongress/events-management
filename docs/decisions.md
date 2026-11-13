@@ -1659,3 +1659,7 @@ The DevCon26 website reads an allowlisted projection of the saved 2026 programme
 ### Telegram activation boundary (2026-11-13)
 
 Use the first enabled Cloudflare Worker version creation timestamp as an immutable database boundary. A leased, durably confirmed readiness message gates all purchase claims, including claims from older Worker versions. Ambiguous provider outcomes require manual reconciliation because Telegram does not provide an idempotency key.
+
+### Telegram status without readiness delivery (2026-11-13)
+
+Supersede the readiness-message gate while preserving the immutable first-enabled Worker version boundary. Retire the old readiness RPC protocol, and provide a secret-authenticated group-only webhook command reporting aggregate operational status. Confirmed sends alone record a delivery timestamp; unavailable database status is never presented as an empty backlog.
