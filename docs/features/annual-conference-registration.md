@@ -277,6 +277,8 @@ Apply and verify the forward migration before deployment. Local verification use
 
 ## Ticket purchase sharing
 
+Live Paystack payment, incomplete checkout and refund events can trigger privacy-limited Telegram alerts to a configured organizer chat. The outbox, activation settings and reconciliation policy are documented in [ticket purchase notifications](./ticket-purchase-notifications-draft.md); provider delivery does not affect checkout readiness or fulfillment.
+
 For DevCon26, the ticketing overview can prepare a reusable purchase short link and download its QR. Present Forms includes an optional **DevCon26 ticket purchase** tile using the same canonical destination and edition. Existing default tiles and the three-tile display limit remain unchanged. No link is created merely by opening the ticketing overview.
 
 The QR encodes the short URL. The short-link service redirects the exact `/devcon26/checkout` destination to `https://devcongress.org/devcon26/checkout`; other destinations retain the configured EMS origin. Checkout availability and Testing/Live restrictions remain enforced by the existing checkout. Future conference years are not advertised until their checkout exists.

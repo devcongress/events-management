@@ -158,6 +158,21 @@ it('seeds recovery and probes diagnostics every five scheduled minutes', async (
   }
 });
 
+it('dispatches Telegram retry alongside the existing scheduled slot every five minutes when enabled', async () => {
+  const send = vi.fn().mockResolvedValue(undefined);
+
+  for (const minute of [5, 6]) {
+    appFetch.mockClear();
+    await worker.scheduled({ scheduledTime: minute * 60_000 }, {
+      ...env, EVENT_BLAST_PREPARATION_QUEUE: { send }, DEVCON26_TELEGRAM_PURCHASE_NOTIFICATIONS_ENABLED: 'true',
+    }, context);
+    const paths = appFetch.mock.calls.map(([request]) => new URL(request.url).pathname);
+
+    expect(paths).toContain(scheduledPathsBySlot[minute]);
+    expect(paths.filter((path) => path === '/api/internal/telegram-purchases/retry')).toHaveLength(minute === 5 ? 1 : 0);
+  }
+});
+
 it('starts the scheduled route while the diagnostics due probe is pending', async () => {
   appFetch.mockClear();
   let resolveProbe!: (response: Response) => void;

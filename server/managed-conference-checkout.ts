@@ -8,6 +8,7 @@ import { inspectPaystackLiveTransaction, readPaystackTestTransaction, type Payst
 import { envValue } from '@/server/env';
 import { admissionEmailReadiness } from '@/server/annual-conference-admission-email-delivery';
 import { annualConferenceSocialCardEmailConfigurationForRequest } from '@/server/annual-conference-social-card-email-delivery';
+import { dispatchTelegramPurchasesInBackground } from '@/server/telegram-purchase-notifications';
 
 export function managedPaymentEnvironment(c: Context): Record<string, string | undefined> {
   return Object.fromEntries([
@@ -149,6 +150,8 @@ export async function confirmManagedCheckout(c: Context, order: z.infer<typeof s
   if (confirmed.status === 'expired') {
     return { status: order.payment_mode === 'test' ? 'expired' : 'refund_required' };
   }
+
+  if (confirmed.status === 'paid' && order.payment_mode === 'live') await dispatchTelegramPurchasesInBackground(c);
 
   return { status: confirmed.status === 'paid' ? 'verified' : 'pending' };
 }

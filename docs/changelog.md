@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-13: Update Hono and its development server adapter dependencies to address dependency audit findings.
+
+- 2026-11-13: Queue privacy-limited Telegram alerts for future live DevCon26 payment, incomplete checkout and refund events, with independent scheduled delivery and conservative handling of uncertain provider outcomes.
+
 - 2026-11-11: Simplify Annual Conference delegation to expandable sections with one immediate-save switch per sub-tab, while showing limited existing access.
 
 - 2026-11-11: Centralize reviewed Annual Conference registration capability gates while preserving section and sensitive ticket access boundaries.
