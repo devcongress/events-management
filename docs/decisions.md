@@ -1655,3 +1655,7 @@ The DevCon26 website reads an allowlisted projection of the saved 2026 programme
 **Decision:** Keep edition/member leaf grants, enabled state and provenance in the database; define reviewed AND/OR gates in code. The server remains authoritative and UI visibility only guides navigation.
 
 **Boundaries:** Do not store arbitrary database expressions or support NOT. Invalid gate trees fail closed, and sensitive registration ticket details retain their additional overview and role restrictions.
+
+### Telegram activation boundary (2026-11-13)
+
+Use the first enabled Cloudflare Worker version creation timestamp as an immutable database boundary. A leased, durably confirmed readiness message gates all purchase claims, including claims from older Worker versions. Ambiguous provider outcomes require manual reconciliation because Telegram does not provide an idempotency key.

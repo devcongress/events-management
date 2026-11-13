@@ -3,6 +3,7 @@ import type { AdminSession } from '@/lib/supabase/admin-auth';
 
 export type AppBindings = {
   Bindings: {
+    CF_VERSION_METADATA?: { id: string; timestamp: string; tag?: string };
     EVENT_BLAST_PREPARATION_QUEUE?: EventBlastPreparationQueue;
   };
   Variables: {
