@@ -6873,7 +6873,7 @@
         {
           "kind": "function", "schema": "public", "name": "claim_devcon26_telegram_purchases",
           "argumentTypes": "uuid, timestamp with time zone", "result": "SETOF devcon26_telegram_purchase_outbox", "language": "plpgsql",
-          "bodySha256": "83e3d632f2fc016980f62998b15d71a4bd80265dac28355ce1c783bd4b88e621",
+          "bodySha256": "1e36a2a5dff7dd0cf0789ec8526291096bdac11f50756ce324fcdead3eec34f3",
           "securityDefiner": true, "searchPath": "public", "private": true, "serviceExecute": true
         },
         {
@@ -6951,6 +6951,58 @@
           "language": "plpgsql",
           "bodySha256": "acf690e0e000eafbb036fc43037d744e16d9a38d761a05c72647ffaae110a573",
           "securityDefiner": false,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+{
+      "file": "20261113130000_telegram_activation.sql",
+      "sha256": "4a9208a9fb9012d794387087c82bc113883fc4ac3f0fee522515d737e6040a55",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "devcon26_telegram_activation",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_devcon26_telegram_activation",
+          "argumentTypes": "uuid, uuid, timestamp with time zone",
+          "result": "text",
+          "language": "plpgsql",
+          "bodySha256": "3e6bac745f3f438c08750bc72792673d5ad90a467f0deff920ef1372cf7961e0",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "begin_devcon26_telegram_activation",
+          "argumentTypes": "uuid",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "fcf9aa8d0eb824a34e1876a08426b12331b90ed796b4b2e9bf05dbbdeb3e9b9a",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "finish_devcon26_telegram_activation",
+          "argumentTypes": "uuid, text, integer",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "b032405879ca7b5a54da60f8a722627231bb3260fdaca32352256207a9231a79",
+          "securityDefiner": true,
           "searchPath": "public",
           "private": true,
           "serviceExecute": true

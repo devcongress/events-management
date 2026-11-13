@@ -39,18 +39,73 @@ export function telegramLifecycleMessage(row: z.infer<typeof rowsSchema>[number]
   return `${headings[row.event_type]}\nDevCon26 · ${pass} pass\n${amountLine}\n\n<a href="https://em.devcongress.org/organizer-console/annual-conference/2026/ticketing?section=orders">${action} →</a>\n<i>${date} GMT</i>`;
 }
 
+const versionSchema = z.object({ id: z.string().uuid(), timestamp: z.string().datetime({ offset: true }) });
+const activationStateSchema = z.enum(['claimed', 'pending', 'sent', 'needs_review']);
+const credentialsSchema = z.object({
+  token: z.string().regex(/^\d+:[A-Za-z0-9_-]+$/),
+  chat: z.string().regex(/^-?\d+$/),
+});
+
+export function telegramActivationMessage(): string {
+  return '✅ <b>DevCon26 ticket alerts are active</b>\n'
+    + 'Monitoring live Paystack activity for:\n'
+    + '• Successful payments\n'
+    + '• Incomplete checkouts\n'
+    + '• Refund updates\n\n'
+    + '<a href="https://em.devcongress.org/organizer-console/annual-conference/2026/ticketing?section=orders">Open Ticketing →</a>';
+}
+
+async function sendTelegram(token: string, chat: string, message: string): Promise<{ result: string; retrySeconds: number | null }> {
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(10_000),
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: chat, text: message, parse_mode: 'HTML', link_preview_options: { is_disabled: true } }),
+    });
+    const body: unknown = await response.json();
+    const parsed = z.object({ ok: z.boolean(), result: z.object({ message_id: z.number().int() }).optional(), parameters: z.object({ retry_after: z.number().int().min(1).max(3600) }).optional() }).safeParse(body);
+
+    if (response.ok && parsed.success && parsed.data.ok && parsed.data.result) return { result: 'sent', retrySeconds: null };
+    if (response.status === 429 && parsed.success && !parsed.data.ok && parsed.data.parameters) return { result: 'retry', retrySeconds: parsed.data.parameters.retry_after };
+  } catch {
+    // Provider acceptance may have occurred; reconcile manually.
+  }
+
+  return { result: 'needs_review', retrySeconds: null };
+}
+
 export async function dispatchTelegramPurchases(c: Context): Promise<void> {
   const enabled = envValue('DEVCON26_TELEGRAM_PURCHASE_NOTIFICATIONS_ENABLED', c);
   const token = envValue('DEVCON26_TELEGRAM_BOT_TOKEN', c)?.trim();
   const chat = envValue('DEVCON26_TELEGRAM_CHAT_ID', c)?.trim();
-  const start = envValue('DEVCON26_TELEGRAM_PURCHASE_NOTIFICATIONS_START_AT', c)?.trim();
+  const version = versionSchema.safeParse(c.env?.CF_VERSION_METADATA);
 
-  if (enabled !== 'true' || !token || !/^\d+:[A-Za-z0-9_-]+$/.test(token)
-    || !chat || !/^-?\d+$/.test(chat) || !start || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(start)
-    || !Number.isFinite(Date.parse(start))) return;
+  if (enabled !== 'true' || !version.success || !Number.isFinite(Date.parse(version.data.timestamp))) return;
   const client = getSupabaseAdminClient(c);
   const claim = crypto.randomUUID();
-  const leased = await client.rpc('claim_devcon26_telegram_purchases' as never, { p_claim: claim, p_start_at: new Date(start).toISOString() } as never);
+  const activation = await client.rpc('claim_devcon26_telegram_activation' as never, {
+    p_claim: claim, p_version_id: version.data.id, p_version_at: version.data.timestamp,
+  } as never);
+
+  if (activation.error) throw new Error('Telegram activation claim failed.');
+  const activationState = activationStateSchema.parse(activation.data);
+  const credentials = credentialsSchema.safeParse({ token, chat });
+
+  if (activationState === 'claimed') {
+    if (!credentials.success) return;
+    const begun = await client.rpc('begin_devcon26_telegram_activation' as never, { p_claim: claim } as never);
+
+    if (begun.error || begun.data !== true) return;
+    const delivery = await sendTelegram(credentials.data.token, credentials.data.chat, telegramActivationMessage());
+    const finished = await client.rpc('finish_devcon26_telegram_activation' as never, {
+      p_claim: claim, p_result: delivery.result, p_retry_seconds: delivery.retrySeconds,
+    } as never);
+
+    if (finished.error || finished.data !== true) throw new Error('Telegram activation finalization failed.');
+    if (delivery.result !== 'sent') return;
+  } else if (activationState !== 'sent') return;
+  if (!credentials.success) return;
+  const leased = await client.rpc('claim_devcon26_telegram_purchases' as never, { p_claim: claim, p_start_at: version.data.timestamp } as never);
 
   if (leased.error) throw new Error('Purchase notification claim failed.');
   const rows = rowsSchema.parse(leased.data);
@@ -59,28 +114,9 @@ export async function dispatchTelegramPurchases(c: Context): Promise<void> {
     const begun = await client.rpc('begin_devcon26_telegram_purchase' as never, { p_event: row.id, p_claim: claim } as never);
 
     if (begun.error || begun.data !== true) continue;
-    let result = 'needs_review';
-    let retrySeconds: number | null = null;
-
-    try {
-      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(10_000),
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id: chat, text: telegramLifecycleMessage(row), parse_mode: 'HTML', link_preview_options: { is_disabled: true } }),
-      });
-      const body: unknown = await response.json();
-      const parsed = z.object({ ok: z.boolean(), result: z.object({ message_id: z.number().int() }).optional(), parameters: z.object({ retry_after: z.number().int().min(1).max(3600) }).optional() }).safeParse(body);
-
-      if (response.ok && parsed.success && parsed.data.ok && parsed.data.result) result = 'sent';
-      else if (response.status === 429 && parsed.success && !parsed.data.ok && parsed.data.parameters) {
-        result = 'retry';
-        retrySeconds = parsed.data.parameters.retry_after;
-      }
-    } catch {
-      // Provider acceptance may have occurred; the row must be reconciled manually.
-    }
+    const delivery = await sendTelegram(credentials.data.token, credentials.data.chat, telegramLifecycleMessage(row));
     const finished = await client.rpc('finish_devcon26_telegram_purchase' as never, {
-      p_event: row.id, p_claim: claim, p_result: result, p_retry_seconds: retrySeconds,
+      p_event: row.id, p_claim: claim, p_result: delivery.result, p_retry_seconds: delivery.retrySeconds,
     } as never);
 
     if (finished.error) throw new Error('Purchase notification finalization failed.');

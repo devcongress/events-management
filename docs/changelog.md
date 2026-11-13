@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-11-13: Telegram ticket alerts now persist a deployment-version activation boundary and send a one-time readiness message before releasing purchase alerts.
+
 - 2026-11-13: Update Hono and its development server adapter dependencies to address dependency audit findings.
 
 - 2026-11-13: Queue privacy-limited Telegram alerts for future live DevCon26 payment, incomplete checkout and refund events, with independent scheduled delivery and conservative handling of uncertain provider outcomes.

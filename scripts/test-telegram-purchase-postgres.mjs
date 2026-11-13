@@ -31,8 +31,9 @@ try {
       ('00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', 'pending_payment', 'test', null, 30000, null, 'regular_flexible', 2, null, null, null, null);
   `);
   sql(readFileSync(new URL('../supabase/migrations/20261113120000_telegram_purchase_notifications.sql', import.meta.url), 'utf8'));
+  sql(readFileSync(new URL('../supabase/migrations/20261113130000_telegram_activation.sql', import.meta.url), 'utf8'));
   const contract = JSON.parse(readFileSync(new URL('../supabase/migration-verification-contract.json', import.meta.url), 'utf8'));
-  const probes = contract.verified.find((entry) => entry.file === '20261113120000_telegram_purchase_notifications.sql').checks;
+  const probes = contract.verified.filter((entry) => ['20261113120000_telegram_purchase_notifications.sql', '20261113130000_telegram_activation.sql'].includes(entry.file)).flatMap((entry) => entry.checks);
 
   for (const probe of probes.filter((check) => check.kind === 'function')) {
     const signature = `public.${probe.name}(${probe.argumentTypes})`;
@@ -43,6 +44,20 @@ try {
     assert.equal(sql(`select has_function_privilege('anon', '${signature}', 'execute') or has_function_privilege('authenticated', '${signature}', 'execute')`), 'f');
     assert.equal(sql(`select has_function_privilege('service_role', '${signature}', 'execute')`), probe.serviceExecute ? 't' : 'f');
   }
+  const activationClaim = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
+  assert.equal(sql(`select count(*) from public.claim_devcon26_telegram_purchases('${activationClaim}', '2026-01-01')`), '0');
+  assert.equal(sql(`select public.claim_devcon26_telegram_activation('${activationClaim}', '${activationClaim}', '2026-01-01')`), 'claimed');
+  assert.equal(sql(`select public.begin_devcon26_telegram_activation('${activationClaim}')`), 't');
+  assert.equal(sql(`select public.finish_devcon26_telegram_activation('${activationClaim}', 'retry', 30)`), 't');
+  assert.equal(sql("select state from public.devcon26_telegram_activation"), 'pending');
+  assert.equal(sql(`select count(*) from public.claim_devcon26_telegram_purchases('${activationClaim}', '2020-01-01')`), '0');
+  sql("update public.devcon26_telegram_activation set next_attempt_at=now()-interval '1 second'");
+  assert.equal(sql(`select public.claim_devcon26_telegram_activation('${activationClaim}', '${activationClaim}', '2026-02-01')`), 'claimed');
+  assert.equal(sql(`select public.begin_devcon26_telegram_activation('${activationClaim}')`), 't');
+  assert.equal(sql(`select public.finish_devcon26_telegram_activation('${activationClaim}', 'sent', null)`), 't');
+  assert.equal(sql(`select public.claim_devcon26_telegram_activation('${activationClaim}', '${activationClaim}', '2026-02-01')`), 'sent');
+  assert.equal(sql("select activation_at::date from public.devcon26_telegram_activation"), '2026-01-01');
   sql("update public.annual_conference_ticket_orders set status='paid', provider='paystack', amount_paid_minor=31000");
   assert.equal(sql('select count(*) from public.devcon26_telegram_purchase_outbox'), '1');
   assert.equal(sql("select paid_ticket_count from public.devcon26_telegram_purchase_outbox where event_type='payment_succeeded'"), '2');
@@ -70,7 +85,7 @@ try {
   sql(`update public.devcon26_telegram_purchase_outbox set state='sent';
     insert into public.annual_conference_ticket_orders values
       ('00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000001','pending_payment','live',null,30000,null,'regular_flexible',2,null,null,null,now()-interval '1 minute'),
-      ('00000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000001','pending_payment','live',null,30000,null,'regular_flexible',2,null,null,null,now()-interval '1 day'),
+      ('00000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000001','pending_payment','live',null,30000,null,'regular_flexible',2,null,null,null,'2025-12-31'),
       ('00000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-000000000001','pending_payment','test',null,30000,null,'regular_flexible',2,null,null,null,now()-interval '1 minute'),
       ('00000000-0000-4000-8000-000000000008','00000000-0000-4000-8000-000000000001','pending_payment','live',null,30000,null,'regular_flexible',2,null,null,null,now()-interval '1 minute');
     insert into public.annual_conference_ticket_payment_attempts values
