@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-11-16: Simplify Telegram ticket alerts into clear status, amount, and timestamp groups while retaining their protected Ticketing link and privacy limits.
+
 - 2026-11-13: Replace the Telegram readiness message with a secret-authenticated group status command, retaining the deployment boundary and fixing scheduler access.
 
 - 2026-11-13: Telegram ticket alerts now persist a deployment-version activation boundary and send a one-time readiness message before releasing purchase alerts.

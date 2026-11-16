@@ -95,20 +95,25 @@ it('retries only a definite rate limit with a bounded provider delay', async () 
   expect(mocks.rpc).toHaveBeenLastCalledWith('finish_devcon26_telegram_purchase', expect.objectContaining({ p_result: 'retry', p_retry_seconds: 30 }));
 });
 
-it('builds controlled, event-specific messages without arbitrary tier markup', () => {
-  expect(telegramLifecycleMessage(event)).toContain('<b>GH₵310.00 paid</b>');
-  expect(telegramLifecycleMessage(event)).toContain('Paid tickets so far · 7');
-  expect(telegramLifecycleMessage({ ...event, event_type: 'refund_completed', detail_code: 'seat_refund', paid_ticket_count: null })).not.toContain('Paid tickets so far');
-  expect(telegramLifecycleMessage({ ...event, event_type: 'checkout_incomplete', detail_code: 'expired', tier_key: '<b>unsafe</b>' }))
-    .toContain('Ticket pass\n2 seats · GH₵310.00 quoted\nCheckout hold expired');
-  expect(telegramLifecycleMessage({ ...event, event_type: 'checkout_incomplete', detail_code: 'customer_cancelled' }))
+it('formats each lifecycle alert in three groups with one protected link', () => {
+  const cases = [
+    { row: event, heading: '✅ <b>Payment successful</b>', context: 'Regular pass · 2 seats', amount: '<b>GH₵310.00 paid</b>\nSubtotal · GH₵300.00\nPaid tickets so far · 7', action: 'View in Ticketing' },
+    { row: { ...event, event_type: 'checkout_incomplete', detail_code: 'expired', tier_key: '<b>unsafe</b>', paid_ticket_count: null }, heading: '⚠️ <b>Checkout incomplete</b>', context: 'Ticket pass · 2 seats', amount: '<b>GH₵310.00 quoted</b>\nCheckout hold expired', action: 'Review checkout' },
+    { row: { ...event, event_type: 'refund_required', detail_code: 'required', paid_ticket_count: null }, heading: '🚨 <b>Refund required</b>', context: 'Regular pass · 2 seats', amount: '<b>GH₵310.00 refund</b>\nPayment received, but tickets were not issued', action: 'View in Ticketing' },
+    { row: { ...event, event_type: 'refund_completed', detail_code: 'seat_refund', quantity: 1, paid_ticket_count: null }, heading: '↩️ <b>Refund completed</b>', context: 'Regular pass · 1 seat', amount: '<b>GH₵310.00 refund</b>\nSeat refund confirmed', action: 'View in Ticketing' },
+    { row: { ...event, event_type: 'refund_needs_attention', detail_code: 'needs_attention', paid_ticket_count: null }, heading: '🛠 <b>Refund needs attention</b>', context: 'Regular pass · 2 seats', amount: '<b>GH₵310.00 refund</b>\nProvider follow-up required', action: 'View in Ticketing' },
+  ] as const;
+
+  for (const { row, heading, context: messageContext, amount, action } of cases) {
+    const message = telegramLifecycleMessage(row);
+
+    expect(message).toBe(`${heading}\nDevCon26 · ${messageContext}\n\n${amount}\n\n<i>13 Nov 2026 · 14:32 GMT</i>\n<a href="https://em.devcongress.org/organizer-console/annual-conference/2026/ticketing?section=orders">${action} →</a>`);
+    expect(message).not.toContain(order);
+    expect(message).not.toContain('<b>unsafe</b>');
+  }
+
+  expect(telegramLifecycleMessage({ ...event, event_type: 'checkout_incomplete', detail_code: 'customer_cancelled', paid_ticket_count: null }))
     .toContain('Customer cancelled payment');
-  expect(telegramLifecycleMessage({ ...event, event_type: 'refund_required', detail_code: 'required' }))
-    .toContain('Payment received, but tickets were not issued');
-  expect(telegramLifecycleMessage({ ...event, event_type: 'refund_completed', detail_code: 'seat_refund', quantity: 1 }))
-    .toContain('1 seat · <b>GH₵310.00 refund</b>');
-  expect(telegramLifecycleMessage(event)).toContain('<i>13 Nov 2026 · 14:32 GMT</i>');
-  expect(telegramLifecycleMessage(event)).not.toContain(order);
 });
 
 it('claims purchases without sending a readiness message', async () => {

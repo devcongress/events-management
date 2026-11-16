@@ -29,14 +29,14 @@ export function telegramLifecycleMessage(row: z.infer<typeof rowsSchema>[number]
     refund_needs_attention: '🛠 <b>Refund needs attention</b>',
   };
   const amountLine = row.event_type === 'payment_succeeded'
-    ? `${seats} · ${money(row.subtotal_minor)} subtotal\n<b>${money(row.total_minor)} paid</b>\nPaid tickets so far · ${row.paid_ticket_count}`
+    ? `<b>${money(row.total_minor)} paid</b>\nSubtotal · ${money(row.subtotal_minor)}\nPaid tickets so far · ${row.paid_ticket_count}`
     : row.event_type === 'checkout_incomplete'
-      ? `${seats} · ${money(row.total_minor)} quoted\n${details[row.detail_code]}`
-      : `${seats} · <b>${money(row.total_minor)} refund</b>\n${details[row.detail_code]}`;
+      ? `<b>${money(row.total_minor)} quoted</b>\n${details[row.detail_code]}`
+      : `<b>${money(row.total_minor)} refund</b>\n${details[row.detail_code]}`;
   const date = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'GMT' }).format(new Date(row.occurred_at)).replace(',', ' ·');
   const action = row.event_type === 'checkout_incomplete' ? 'Review checkout' : 'View in Ticketing';
 
-  return `${headings[row.event_type]}\nDevCon26 · ${pass} pass\n${amountLine}\n\n<a href="https://em.devcongress.org/organizer-console/annual-conference/2026/ticketing?section=orders">${action} →</a>\n<i>${date} GMT</i>`;
+  return `${headings[row.event_type]}\nDevCon26 · ${pass} pass · ${seats}\n\n${amountLine}\n\n<i>${date} GMT</i>\n<a href="https://em.devcongress.org/organizer-console/annual-conference/2026/ticketing?section=orders">${action} →</a>`;
 }
 
 const versionSchema = z.object({ id: z.string().uuid(), timestamp: z.string().datetime({ offset: true }) });
