@@ -73,7 +73,13 @@ Slack decisions apply only while the proposal is pending. Two concurrent decisio
 ### Slack app setup
 
 1. Install a Slack app in the target workspace with `chat:write`, `groups:read`, `commands`, `users:read`, and `users:read.email`. Invite its bot to a private review channel without Slack Connect sharing.
-2. Set the server-only `SLACK_EVENT_SUBMISSION_BOT_TOKEN` and `SLACK_EVENT_SUBMISSION_SIGNING_SECRET`. Configure `SLACK_EVENT_SUBMISSION_TEAM_ID`, `SLACK_EVENT_SUBMISSION_APP_ID`, and `SLACK_EVENT_SUBMISSION_CHANNEL_ID` for that app and channel.
+2. Deploy the code that supports bundled configuration first. Then edit the existing server-only `SLACK_EVENT_SUBMISSION_BOT_TOKEN` secret to contain one JSON object, using values from the Slack app and private channel:
+
+   ```json
+   {"botToken":"<bot-token>","signingSecret":"<signing-secret>","teamId":"<workspace-id>","appId":"<app-id>","channelId":"<private-channel-id>"}
+   ```
+
+   Keep this entire value secret. All five fields are required; an invalid bundle disables interactive moderation without combining it with separate bindings. Existing deployments can instead retain the raw bot token and the four separate `SLACK_EVENT_SUBMISSION_SIGNING_SECRET`, `SLACK_EVENT_SUBMISSION_TEAM_ID`, `SLACK_EVENT_SUBMISSION_APP_ID`, and `SLACK_EVENT_SUBMISSION_CHANNEL_ID` bindings.
 3. Enable Slack Interactivity and set its Request URL to `https://em.devcongress.org/api/webhooks/slack/event-submissions`. Set the `/allow-me` slash command Request URL to `https://em.devcongress.org/api/slack/event-submissions/allow-me`.
 4. Apply the two Slack moderation and reviewer-link migrations and verify them before enabling the integration. The Worker uses `SLACK_EVENTS_RETRY_SECRET` to authorize scheduled card sync.
 

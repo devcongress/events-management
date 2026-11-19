@@ -37,6 +37,35 @@ describe('Slack submission moderation', () => {
     expect(slackModerationConfig((name) => env[name])).toBeNull();
   });
 
+  it('loads an authoritative bundled secret and trims every field', () => {
+    const bundle = { botToken: ` ${'x'.repeat(24)} `, signingSecret: ` ${'s'.repeat(32)} `, teamId: ' T12345678 ', appId: ' A12345678 ', channelId: ' C12345678 ' };
+    const env: Record<string, string> = {
+      SLACK_EVENT_SUBMISSION_BOT_TOKEN: JSON.stringify(bundle),
+      SLACK_EVENT_SUBMISSION_SIGNING_SECRET: 'legacy-secret-that-is-long-enough',
+      SLACK_EVENT_SUBMISSION_TEAM_ID: 'T99999999', SLACK_EVENT_SUBMISSION_APP_ID: 'A99999999', SLACK_EVENT_SUBMISSION_CHANNEL_ID: 'C99999999',
+    };
+
+    expect(slackModerationConfig((name) => env[name])).toEqual({
+      botToken: bundle.botToken.trim(), signingSecret: bundle.signingSecret.trim(), teamId: 'T12345678', appId: 'A12345678', channelId: 'C12345678',
+    });
+  });
+
+  it('rejects malformed, incomplete and invalid bundles without legacy fallback', () => {
+    const valid = { botToken: 'x'.repeat(24), signingSecret: 's'.repeat(32), teamId: 'T12345678', appId: 'A12345678', channelId: 'C12345678' };
+    const legacy: Record<string, string> = {
+      SLACK_EVENT_SUBMISSION_SIGNING_SECRET: 's'.repeat(32), SLACK_EVENT_SUBMISSION_TEAM_ID: 'T12345678',
+      SLACK_EVENT_SUBMISSION_APP_ID: 'A12345678', SLACK_EVENT_SUBMISSION_CHANNEL_ID: 'C12345678',
+    };
+    const invalid = ['{broken', '[1,2]', '"' + 'x'.repeat(24) + '"', 'null', 'true', 'false', '123456789012345678901234', '-123456789012345678901234',
+      JSON.stringify({ ...valid, channelId: undefined }), JSON.stringify({ ...valid, botToken: 42 }),
+      JSON.stringify({ ...valid, signingSecret: 'short' }), JSON.stringify({ ...valid, teamId: 'bad' }),
+      JSON.stringify({ ...valid, appId: 'bad' }), JSON.stringify({ ...valid, channelId: 'bad' })];
+
+    for (const token of invalid) {
+      expect(slackModerationConfig((name) => name === 'SLACK_EVENT_SUBMISSION_BOT_TOKEN' ? token : legacy[name])).toBeNull();
+    }
+  });
+
   it('adds confirmed approval and rejection alongside the review link only when interactive', () => {
     const input = { eventTitle: 'Meetup', summary: 'A meetup', organizerName: 'A', organizerEmail: 'a@example.com', startsAt: '2026-11-09T12:00:00Z', format: 'online', location: 'Online', dashboardUrl: 'https://example.com/review' };
     const plain = JSON.stringify(eventSubmissionSlackPayload(input));

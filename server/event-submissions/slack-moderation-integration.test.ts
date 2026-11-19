@@ -83,7 +83,11 @@ async function callback(body: string, tamper = false) {
   const request = new Request('https://events.example/api/webhooks/slack/event-submissions', {
     method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-slack-request-timestamp': timestamp, 'x-slack-signature': signature }, body: tamper ? `${body}x` : body,
   });
-  const response = await app.fetch(request, env, context);
+  const bundleEnv = { SLACK_EVENT_SUBMISSION_BOT_TOKEN: JSON.stringify({
+    botToken: env.SLACK_EVENT_SUBMISSION_BOT_TOKEN, signingSecret: env.SLACK_EVENT_SUBMISSION_SIGNING_SECRET,
+    teamId: env.SLACK_EVENT_SUBMISSION_TEAM_ID, appId: env.SLACK_EVENT_SUBMISSION_APP_ID, channelId: env.SLACK_EVENT_SUBMISSION_CHANNEL_ID,
+  }) };
+  const response = await app.fetch(request, bundleEnv, context);
 
   await Promise.all(tasks);
 
