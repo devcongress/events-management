@@ -12,11 +12,36 @@ export type SlackModerationConfig = {
 };
 
 export function slackModerationConfig(value: (name: string) => string | undefined): SlackModerationConfig | null {
-  const signingSecret = value('SLACK_EVENT_SUBMISSION_SIGNING_SECRET')?.trim() ?? '';
-  const botToken = value('SLACK_EVENT_SUBMISSION_BOT_TOKEN')?.trim() ?? '';
-  const teamId = value('SLACK_EVENT_SUBMISSION_TEAM_ID')?.trim() ?? '';
-  const appId = value('SLACK_EVENT_SUBMISSION_APP_ID')?.trim() ?? '';
-  const channelId = value('SLACK_EVENT_SUBMISSION_CHANNEL_ID')?.trim() ?? '';
+  const tokenValue = value('SLACK_EVENT_SUBMISSION_BOT_TOKEN')?.trim() ?? '';
+  let settings: Record<string, unknown>;
+
+  if (/^[{["\d-]/.test(tokenValue) || /^(?:null|true|false)$/.test(tokenValue)) {
+    try {
+      const parsed: unknown = JSON.parse(tokenValue);
+
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+      settings = parsed as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  } else {
+    settings = {
+      signingSecret: value('SLACK_EVENT_SUBMISSION_SIGNING_SECRET'),
+      botToken: tokenValue,
+      teamId: value('SLACK_EVENT_SUBMISSION_TEAM_ID'),
+      appId: value('SLACK_EVENT_SUBMISSION_APP_ID'),
+      channelId: value('SLACK_EVENT_SUBMISSION_CHANNEL_ID'),
+    };
+  }
+
+  const { signingSecret: rawSecret, botToken: rawToken, teamId: rawTeam, appId: rawApp, channelId: rawChannel } = settings;
+
+  if (typeof rawSecret !== 'string' || typeof rawToken !== 'string' || typeof rawTeam !== 'string' || typeof rawApp !== 'string' || typeof rawChannel !== 'string') return null;
+  const signingSecret = rawSecret.trim();
+  const botToken = rawToken.trim();
+  const teamId = rawTeam.trim();
+  const appId = rawApp.trim();
+  const channelId = rawChannel.trim();
 
   if (signingSecret.length < 20 || botToken.length < 20 || !/^T[A-Z0-9]{8,31}$/.test(teamId) || !/^A[A-Z0-9]{8,31}$/.test(appId) || !/^[CG][A-Z0-9]{8,31}$/.test(channelId)) return null;
 

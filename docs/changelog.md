@@ -2,6 +2,8 @@
 
 ## 2026-11-19
 
+- Allow Slack submission moderation to use one existing server-only secret containing all five settings, with fail-closed validation and legacy configuration support.
+
 - Added isolated, explicitly marked Slack moderation tests that cannot publish community events or send submission emails.
 
 - 2026-11-16: Simplify Telegram ticket alerts into clear status, amount, and timestamp groups while retaining their protected Ticketing link and privacy limits.
