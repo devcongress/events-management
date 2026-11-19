@@ -71,6 +71,25 @@ describe('community event submission lifecycle', () => {
     expect(queueEmail).toHaveBeenCalledWith({ submissionId: 'submission-1', kind: 'approved' });
   });
 
+  it.each(['approve', 'reject'] as const)('does not announce or email a test %s decision', async (kind) => {
+    const repo = repository();
+    const testSubmission = { ...submission, is_test: true, approved_event_id: null };
+
+    vi.mocked(repo.approve).mockResolvedValue(testSubmission);
+    vi.mocked(repo.reject).mockResolvedValue({ ...testSubmission, review_status: 'rejected' });
+    const lifecycle = createEventSubmissionLifecycle({ repository: repo, audit, queueEmail, announcePublished });
+
+    await lifecycle.review({
+      submissionId: 'submission-1',
+      actor: { email: 'owner@devcongress.org', role: 'owner' },
+      command: kind === 'approve' ? { kind: 'approve', publish: true } : { kind: 'reject', category: 'duplicate', organizerMessage: 'Test' },
+    });
+
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: `event_submission.test_${kind}` }));
+    expect(announcePublished).not.toHaveBeenCalled();
+    expect(queueEmail).not.toHaveBeenCalled();
+  });
+
   it('delegates public intake and organizer listing without importing transport policy', async () => {
     const repo = repository();
     const created = { ...submission, review_status: 'pending' };

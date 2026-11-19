@@ -985,7 +985,7 @@ function replyPresentation(reply: EventSubmissionReply) {
                 </div>
               </template>
               <div v-else class="flex flex-wrap items-center justify-between gap-4 text-sm text-dc-gray">
-                <span>Reviewed {{ selectedSubmission.reviewed_at ? formatDateTime(selectedSubmission.reviewed_at) : '' }} by {{ selectedSubmission.reviewed_by }}</span>
+                <span>Reviewed {{ selectedSubmission.reviewed_at ? formatDateTime(selectedSubmission.reviewed_at) : '' }} by {{ selectedSubmission.reviewed_by }} <span v-if="selectedSubmission.reviewed_via === 'slack_only'" class="submission-compact-badge">Not in EMS</span></span>
                 <div class="submission-review-actions">
                   <RouterLink v-if="selectedSubmission.approved_event_id" :to="adminPath(`events/${selectedSubmission.approved_event_id}`)" class="submission-review-action submission-review-action--secondary motion-press" @click="closeDrawer">Open event</RouterLink>
                   <AppCopyButton

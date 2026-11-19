@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-19
+
+- Added isolated, explicitly marked Slack moderation tests that cannot publish community events or send submission emails.
+
 - 2026-11-16: Simplify Telegram ticket alerts into clear status, amount, and timestamp groups while retaining their protected Ticketing link and privacy limits.
 
 - 2026-11-13: Replace the Telegram readiness message with a secret-authenticated group status command, retaining the deployment boundary and fixing scheduler access.
@@ -148,6 +152,11 @@
 - Speakers can share the badge PNG directly from their existing private editor on supported devices.
 - Badge artwork highlights Accra Digital Center with a pink map pin and dotted trail.
 - The conference overview can show a turnout estimate that starts at 20 and rises every two days until event day. Owners can switch it to valid admissions and confirmed speakers. The website can read the same count from EMS.
+
+## 2026-11-06 — Community event moderation in Slack
+
+- Review pending community events in EMS or approve and reject them from the private Slack card. A decision from either surface updates the card and uses the existing submitter notification workflow.
+- Run `/allow-me` to enable limited Slack moderation for private-channel members or connect an existing EMS account that uses a different email address. EMS records the Slack-only reviewer's profile email and decision time and shows **Not in EMS**.
 
 ## 2026-11-06 — Browser journey CI budget
 

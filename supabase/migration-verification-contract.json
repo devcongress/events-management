@@ -7049,6 +7049,373 @@
           "serviceExecute": true
         }
       ]
+    },
+    {
+      "file": "20261106000000_slack_submission_moderation.sql",
+      "sha256": "89494c8019a20e9b4dab7b465d36acc0554ed8ceb2ddbdc7971a517093f37154",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "event_submission_slack_cards",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "slack_decide_event_submission",
+          "argumentTypes": "uuid, text, boolean, text, text, text, text, text, text, text",
+          "result": "event_submissions",
+          "language": "plpgsql",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "3a4e4e1ed83c994059cadd100b9ca71ac8a307b12fcb390420a3293506d0481d"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_event_submission_slack_card",
+          "argumentTypes": "uuid, uuid",
+          "result": "boolean",
+          "language": "plpgsql",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "13b8dfcd3b9d3edb764480abd73df3e25af9751ba6a294efec036dad54bc43f8"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "pending_event_submission_slack_card_sync",
+          "argumentTypes": "text",
+          "result": "TABLE(submission_id uuid)",
+          "language": "sql",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "1799b6d9869bd0c1aee4e8665e048cb1072eb06f22abcc8589b65aca0842b20f"
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "event_submission_slack_cards",
+          "name": "event_submission_slack_card_reference",
+          "contains": [
+            "UNIQUE (channel_id, message_ts)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "event_submission_slack_cards",
+          "name": "event_submission_slack_card_status",
+          "contains": [
+            "delivered_status",
+            "pending",
+            "approved",
+            "rejected",
+            "withdrawn"
+          ]
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "event_submission_slack_cards",
+          "name": "delivered_status",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": "'pending'::text"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "event_submission_slack_cards",
+          "name": "sync_token",
+          "type": "uuid",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "event_submission_slack_cards",
+          "name": "sync_until",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "event_submission_slack_cards",
+          "name": "sync_attempted_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "event_submissions",
+          "name": "reviewed_via",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "event_submissions",
+          "name": "event_submissions_reviewed_via_valid",
+          "contains": [
+            "reviewed_via",
+            "slack_ems",
+            "slack_only"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "clear_event_submission_reviewed_via",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "securityDefiner": false,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "659927ea79babe9bf3091caa9fadb222d6cd20fd5667499093303fbae9a0725f"
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "event_submissions",
+          "name": "clear_event_submission_reviewed_via",
+          "function": "clear_event_submission_reviewed_via",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE UPDATE OF reviewed_by, reviewed_at",
+            "FOR EACH ROW"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "20261106000001_slack_submission_reviewer_links.sql",
+      "sha256": "5e65b8a6c1e04f977a1d830ac9eb8ed2ec44c0883b109e33e05ed467768e577e",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "event_submission_slack_identities",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "event_submission_slack_link_tokens",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "consume_event_submission_slack_link",
+          "argumentTypes": "text, uuid",
+          "result": "boolean",
+          "language": "plpgsql",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "a402577911c5c152f36b32c8b53d0cf33852013bcefb1b9cffa5ed9c1fe27064"
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "event_submission_slack_identities",
+          "name": "event_submission_slack_identities_pkey",
+          "contains": [
+            "PRIMARY KEY (team_id, slack_user_id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "event_submission_slack_identities",
+          "name": "event_submission_slack_identities_membership_id_key",
+          "contains": [
+            "UNIQUE (membership_id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "event_submission_slack_identities",
+          "name": "event_submission_slack_identities_membership_id_fkey",
+          "contains": [
+            "FOREIGN KEY (membership_id)",
+            "admin_memberships(id)",
+            "ON DELETE SET NULL"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "event_submission_slack_link_tokens",
+          "name": "slack_link_tokens_actor_unique",
+          "contains": [
+            "UNIQUE (team_id, slack_user_id)"
+          ]
+        },
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "event_submission_slack_grants",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "event_submission_slack_grants",
+          "name": "event_submission_slack_grants_pkey",
+          "contains": [
+            "PRIMARY KEY (team_id, channel_id, slack_user_id)"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "grant_event_submission_slack_reviewer",
+          "argumentTypes": "text, text, text, text",
+          "result": "text",
+          "language": "plpgsql",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "def023cb3d4eb94f29f19a31e8898a625ccc0f87a9cd041b4df09d0fbff4a5ad"
+        }
+      ]
+    },
+    {
+      "file": "20261119000000_safe_slack_test_submissions.sql",
+      "sha256": "f24822078ed355a5092eddada78c7ac99776bae504ad276f671819b2a76b2e32",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "event_submissions",
+          "name": "is_test",
+          "type": "boolean",
+          "notNull": true,
+          "defaultExpression": "false"
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "event_submissions",
+          "name": "event_submissions_review_consistent",
+          "contains": [
+            "is_test",
+            "approved_event_id",
+            "reviewed_by",
+            "reviewed_at"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "event_submissions",
+          "name": "guard_test_event_submission",
+          "function": "guard_test_event_submission",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "guard_test_event_submission",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "securityDefiner": false,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false,
+          "bodySha256": "2d727be03855ecc70d2db851755e6279d212a163172ee9196481e0b0401420c3"
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "community_events",
+          "name": "block_test_submission_event",
+          "function": "block_test_submission_event",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "block_test_submission_event",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "securityDefiner": false,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false,
+          "bodySha256": "49f22b6e42936c50cac6130b7647dafec14e6a081a033fe06f1d0c1f1f453dce"
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "event_submission_email_deliveries",
+          "name": "block_test_submission_email",
+          "function": "block_test_submission_email",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "block_test_submission_email",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "securityDefiner": false,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false,
+          "bodySha256": "b3a83c6907b03c55f2c8b73c881bffbe267d34d98965b54e5eca131bea4eab94"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "slack_decide_event_submission",
+          "argumentTypes": "uuid, text, boolean, text, text, text, text, text, text, text",
+          "result": "event_submissions",
+          "language": "plpgsql",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true,
+          "bodySha256": "3a4e4e1ed83c994059cadd100b9ca71ac8a307b12fcb390420a3293506d0481d"
+        }
+      ]
     }
   ]
 }

@@ -115,9 +115,11 @@ export interface EventSubmission {
   notes: string | null;
   cover_url: string | null;
   source_app: 'website';
+  is_test?: boolean;
   review_status: EventSubmissionReviewStatus;
   reviewed_by: string | null;
   reviewed_at: string | null;
+  reviewed_via?: 'slack_ems' | 'slack_only' | null;
   rejection_category: EventSubmissionRejectionCategory | null;
   organizer_message: string | null;
   internal_note: string | null;

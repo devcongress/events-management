@@ -1663,3 +1663,11 @@ Use the first enabled Cloudflare Worker version creation timestamp as an immutab
 ### Telegram status without readiness delivery (2026-11-13)
 
 Supersede the readiness-message gate while preserving the immutable first-enabled Worker version boundary. Retire the old readiness RPC protocol, and provide a secret-authenticated group-only webhook command reporting aggregate operational status. Confirmed sends alone record a delivery timestamp; unavailable database status is never presented as an empty backlog.
+
+## ADR-131 — Reuse EMS community event moderation from Slack
+
+**Date** 2026-11-06
+
+Slack interactivity uses a signed callback scoped to the configured app, workspace, and private review channel. A one-time account link ties a Slack user ID to an existing EMS membership. Members without an EMS account can enroll through `/allow-me` for Slack-only moderation. Before accepting a Slack-only decision, EMS checks current channel membership and fetches the reviewer's confirmed Slack email. It stores Slack provenance with the decision and uses the same moderation lifecycle as EMS. A pending-only database operation protects against stale Slack actions and competing decisions.
+
+A service-role-only card record holds the Slack message reference and sync state. The bot can update its own message after a decision on either surface. The database remains the source of truth, and scheduled reconciliation retries card edits independently of the moderation transaction. Slack app configuration and the forward migrations are required for rollout.

@@ -122,8 +122,8 @@ function slackMessageTs(value: string): string {
   return normalized;
 }
 
-async function callSlackWebApi(input: {
-  method: 'chat.getPermalink' | 'chat.postMessage' | 'chat.update';
+export async function callSlackWebApi(input: {
+  method: 'chat.getPermalink' | 'chat.postMessage' | 'chat.update' | 'chat.postEphemeral' | 'views.open' | 'conversations.info' | 'conversations.members' | 'users.info';
   botToken: string;
   payload: Record<string, unknown>;
   fetcher?: typeof fetch;
@@ -135,14 +135,20 @@ async function callSlackWebApi(input: {
   }
 
   try {
-    const response = await (input.fetcher ?? fetch)(`https://slack.com/api/${input.method}`, {
-      method: 'POST',
+    const isChannelLookup = ['conversations.info', 'conversations.members', 'users.info'].includes(input.method);
+    const url = new URL(`https://slack.com/api/${input.method}`);
+
+    if (isChannelLookup) {
+      for (const [key, value] of Object.entries(input.payload)) url.searchParams.set(key, String(value));
+    }
+    const response = await (input.fetcher ?? fetch)(url.toString(), {
+      method: isChannelLookup ? 'GET' : 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json; charset=utf-8',
       },
-      body: JSON.stringify(input.payload),
-      signal: AbortSignal.timeout(5_000),
+      ...(isChannelLookup ? {} : { body: JSON.stringify(input.payload) }),
+      signal: AbortSignal.timeout(input.method === 'views.open' ? 2_000 : 5_000),
     });
     const result = await response.json().catch(() => null) as Record<string, unknown> | null;
 
@@ -267,8 +273,7 @@ export async function sendEventSubmissionReplyToSlack(input: {
   await postSlackWebhook({ webhookUrl: input.webhookUrl, payload, fetcher: input.fetcher });
 }
 
-export async function sendEventSubmissionReceivedToSlack(input: {
-  webhookUrl: string;
+export type EventSubmissionSlackInput = {
   eventTitle: string;
   summary: string;
   organizerName: string;
@@ -277,18 +282,20 @@ export async function sendEventSubmissionReceivedToSlack(input: {
   format: string;
   location: string;
   dashboardUrl: string;
+  isTest?: boolean;
   coverImageUrl?: string | null;
-  fetcher?: typeof fetch;
-}): Promise<void> {
+};
+
+export function eventSubmissionSlackPayload(input: EventSubmissionSlackInput, submissionId?: string): Record<string, unknown> {
   const coverImageUrl = publicSlackImageUrl(input.coverImageUrl);
   const eventDetails = [
     formatEventDateForSlack(input.startsAt),
     `${titleCase(input.format)} · ${input.location.trim() || 'Location to be announced'}`,
   ].join('\n');
   const payload = {
-    text: `New event submission: ${input.eventTitle}`,
+    text: `${input.isTest ? "[TEST] " : ""}New event submission: ${input.eventTitle}`,
     blocks: [
-      { type: 'header', text: { type: 'plain_text', text: 'New community event submission' } },
+      { type: 'header', text: { type: 'plain_text', text: input.isTest ? '[TEST] Community event submission' : 'New community event submission' } },
       ...(coverImageUrl ? [{
         type: 'image',
         image_url: coverImageUrl,
@@ -308,17 +315,22 @@ export async function sendEventSubmissionReceivedToSlack(input: {
       },
       {
         type: 'actions',
-        elements: [{
-          type: 'button',
-          text: { type: 'plain_text', text: 'Review submission →' },
-          style: 'primary',
-          url: input.dashboardUrl,
-        }],
+        elements: [
+          { type: 'button', ...(submissionId ? { action_id: 'submission_review' } : {}), text: { type: 'plain_text', text: 'Review submission →' }, ...(!submissionId ? { style: 'primary' } : {}), url: input.dashboardUrl },
+          ...(submissionId ? [
+            { type: 'button', action_id: 'submission_approve', value: submissionId, style: 'primary', text: { type: 'plain_text', text: input.isTest ? 'Approve test' : 'Approve & publish' }, confirm: { title: { type: 'plain_text', text: input.isTest ? 'Approve test?' : 'Publish event?' }, text: { type: 'mrkdwn', text: input.isTest ? 'Approve this test submission? No event will be published.' : 'Approve and publish this event?' }, confirm: { type: 'plain_text', text: input.isTest ? 'Approve test' : 'Publish' }, deny: { type: 'plain_text', text: 'Cancel' } } },
+            { type: 'button', action_id: 'submission_reject', value: submissionId, style: 'danger', text: { type: 'plain_text', text: 'Reject' } },
+          ] : []),
+        ],
       },
     ],
   };
 
-  await postSlackWebhook({ webhookUrl: input.webhookUrl, payload, fetcher: input.fetcher });
+  return payload;
+}
+
+export async function sendEventSubmissionReceivedToSlack(input: EventSubmissionSlackInput & { webhookUrl: string; fetcher?: typeof fetch }): Promise<void> {
+  await postSlackWebhook({ webhookUrl: input.webhookUrl, payload: eventSubmissionSlackPayload(input), fetcher: input.fetcher });
 }
 
 export async function sendEventSubmissionAmendmentToSlack(input: {

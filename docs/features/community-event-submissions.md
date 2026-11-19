@@ -58,13 +58,34 @@ Root approval and rejection notifications use the outbox's root-delivery partial
 
 The review drawer groups the proposal summary, schedule, location, submitter, and supporting links into one neutral review card. Submitter notes, email operations, and replies are visually secondary so organizers can scan the event facts before making a decision; the shared organizer action primitives provide the primary and secondary decision treatments, while semantic colors are limited to actual status. The drawer shows receipt and decision delivery state as **Queued**, **Accepted**, or **Failed**, with actionable failure copy for quota/rate limits, sender or credential configuration, invalid message details, provider outages, and connectivity failures. When Resend supplies a safe provider reason, it is included after the category so the missing sender or recipient detail is visible. Retry responses preserve that same reason in the organizer toast instead of collapsing it to a generic HTTP status. Accepted means Resend accepted the message, not that it reached the inbox. A failed notification can be retried without re-running approval/rejection or creating another event.
 
+## Moderate from Slack
+
+With Slack moderation configured, new submissions post a card in the private review channel with **Review submission**, **Approve & publish**, and **Reject**. Review opens the matching EMS drawer. Approve asks for confirmation, publishes through the normal EMS workflow, and queues the submitter's approval email. Reject opens a private form with the same required reason category and optional submitter message and internal note as EMS. The channel card shows the outcome and keeps the review link after a decision from either surface. The message and internal note stay out of the channel.
+
+Run `/allow-me` in the review channel to enable Slack moderation. Channel members with a confirmed Slack profile email and no EMS membership can approve and reject pending submissions from that channel. EMS checks current channel membership when they decide. This access is limited to Slack community submission moderation.
+
+EMS Owners and Organizers can open the private, expiring link returned by `/allow-me`, sign in with their registered EMS account, and confirm the connection. Their Slack account can use a different email address. EMS checks the linked account's current role at decision time.
+
+The EMS submission drawer shows the reviewer's email and decision time. For a Slack-only decision it also shows **Not in EMS**. The audit ledger captures the decision and the signed Slack workspace, channel, and user IDs. Reviewer email and private rejection notes stay in EMS.
+
+Slack decisions apply only while the proposal is pending. Two concurrent decisions produce one moderation outcome and one decision email. If Slack is unavailable after a decision, the saved card reference lets the scheduled Worker retry the status update. An ambiguous initial post requires checking the private channel before reposting. When interactive moderation is unconfigured, the existing submission webhook can still post the review link.
+
+### Slack app setup
+
+1. Install a Slack app in the target workspace with `chat:write`, `groups:read`, `commands`, `users:read`, and `users:read.email`. Invite its bot to a private review channel without Slack Connect sharing.
+2. Set the server-only `SLACK_EVENT_SUBMISSION_BOT_TOKEN` and `SLACK_EVENT_SUBMISSION_SIGNING_SECRET`. Configure `SLACK_EVENT_SUBMISSION_TEAM_ID`, `SLACK_EVENT_SUBMISSION_APP_ID`, and `SLACK_EVENT_SUBMISSION_CHANNEL_ID` for that app and channel.
+3. Enable Slack Interactivity and set its Request URL to `https://em.devcongress.org/api/webhooks/slack/event-submissions`. Set the `/allow-me` slash command Request URL to `https://em.devcongress.org/api/slack/event-submissions/allow-me`.
+4. Apply the two Slack moderation and reviewer-link migrations and verify them before enabling the integration. The Worker uses `SLACK_EVENTS_RETRY_SECRET` to authorize scheduled card sync.
+
+Test with both a linked EMS organizer and a Slack-only member of the private channel. Make decisions in Slack and EMS and confirm that the cards retain their review links and show the outcomes. Check that EMS records the Slack-only reviewer's email and time, displays **Not in EMS**, and queues one notification per decision.
+
 ## Organizer replies
 
 When inbound reply routing is configured, each community-submission email receives a signed, submission-specific Reply-To such as `s+<submission-id-without-hyphens>.<signature>@updates.devcongress.org`. The compact token keeps the email local part within the 64-character limit while retaining a 120-bit HMAC signature derived from `EVENT_SUBMISSION_REPLY_TOKEN_SECRET`; a reply can be matched to the correct proposal without storing a reusable public token. The same verified `updates.devcongress.org` domain is used for speaker, registration, and event-blast Reply-To mailboxes; the existing `devcongress.org` Zoho MX records are not changed.
 
 Resend sends an `email.received` webhook to `POST /api/webhooks/resend/inbound`. EMS verifies the raw Svix signature, ignores addresses that do not match a valid submission token, retrieves the message body through Resend, stores a sanitized plain-text copy in `event_submission_replies`, and exposes it in the submission drawer. Webhook delivery is idempotent on both the webhook event id and Resend email id. Attachments are recorded as metadata only in this slice.
 
-If `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` is configured for the private submission channel, every saved public submission posts a compact review card with its cover (or the neutral fallback), human-formatted event details, organizer attribution, bounded summary, and one primary link to that exact record in the EMS submissions inbox. Submitted amendment requests and replies to submission emails post there too. Opening the Slack link loads the matching status filter and opens its review drawer, including the Updates queue for an amendment and approved or rejected submissions. Slack failure never rejects intake, rolls back an amendment submission, or discards the EMS record; the dashboard remains the source of truth.
+The private review channel receives a compact card for saved public submissions through the configured bot or review webhook. The card includes the cover or neutral fallback, formatted event details, submitter attribution, a summary, and a link to the EMS record. Submitted amendment requests and replies to submission emails post there too. Opening the Slack link loads the matching status filter and opens its review drawer, including the Updates queue for an amendment and approved or rejected submissions. Slack failure never rejects intake, rolls back an amendment submission, or discards the EMS record; the dashboard remains the source of truth.
 The reply card exposes the bounded Slack rejection reason and gives an Organizer a **Retry Slack** action. A retry addresses only that saved reply, records its outcome in the audit ledger, and never reprocesses the inbound email.
 
 The reply card keeps the new message prominent. When a standard reply boundary or quoted-line marker is present, the preserved original email is cleaned for display and appears in an optional **Original email** disclosure; the full inbound body remains stored unchanged.
@@ -130,3 +151,9 @@ Only after cleanup reports zero beta submissions and promoted events should `PUB
 - A provider delivery webhook can be added if Slack acceptance must be distinguished from later delivery outcomes; every pending/failed event announcement is already durable and idempotent.
 - Approve-as-draft is supported by the API and relational model but is not exposed in the initial two-decision organizer UI.
 - Submitter edit/appeal and rejected-record retention require product policy before implementation.
+
+### Private Slack moderation tests
+
+Marked test submissions can be approved or rejected only through the authenticated private Slack review flow. Their immutable `is_test` marker prevents canonical event creation and submission email outbox delivery; Slack cards show `[TEST]` and an `Approve test` action. Normal submissions retain their existing behavior.
+
+After the migration and application are deployed and verified, an authorized operator may privately provision exactly two marked pending fixtures using service-role access and post their cards to the configured verified private review channel. Confirm the deployed migration and application versions, private-channel configuration, and zero existing linked event or outbox rows before posting. Do not use public intake to set the marker, publish to the website or public Slack channels, or include credentials in fixtures. The reviewer decides one approval and one rejection in that private channel; verify statuses, test audit entries, and the absence of canonical events and email outbox records.

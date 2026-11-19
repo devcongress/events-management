@@ -13,6 +13,7 @@ import { createEventSubmissionRepository } from './repository';
 export function createEventSubmissionRequestAdapter(
   c: Context,
   dependencies: {
+    slackActor?: { teamId: string; channelId: string; slackUserId: string; reviewedVia: 'slack_ems' | 'slack_only' };
     audit(event: { action: string; targetType?: string | null; targetId?: string | null; metadata?: Record<string, unknown> }): Promise<void>;
     queueEmail(input: { submissionId: string; kind: EventSubmissionEmailKind }): Promise<void>;
     findEvent(eventId: string): Promise<Event | null>;
@@ -26,7 +27,7 @@ export function createEventSubmissionRequestAdapter(
   },
 ) {
   return createEventSubmissionLifecycle({
-    repository: createEventSubmissionRepository(c),
+    repository: createEventSubmissionRepository(c, dependencies.slackActor),
     audit: dependencies.audit,
     queueEmail: dependencies.queueEmail,
     announcePublished: async (submission) => {
