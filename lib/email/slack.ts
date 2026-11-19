@@ -282,6 +282,7 @@ export type EventSubmissionSlackInput = {
   format: string;
   location: string;
   dashboardUrl: string;
+  isTest?: boolean;
   coverImageUrl?: string | null;
 };
 
@@ -292,9 +293,9 @@ export function eventSubmissionSlackPayload(input: EventSubmissionSlackInput, su
     `${titleCase(input.format)} · ${input.location.trim() || 'Location to be announced'}`,
   ].join('\n');
   const payload = {
-    text: `New event submission: ${input.eventTitle}`,
+    text: `${input.isTest ? "[TEST] " : ""}New event submission: ${input.eventTitle}`,
     blocks: [
-      { type: 'header', text: { type: 'plain_text', text: 'New community event submission' } },
+      { type: 'header', text: { type: 'plain_text', text: input.isTest ? '[TEST] Community event submission' : 'New community event submission' } },
       ...(coverImageUrl ? [{
         type: 'image',
         image_url: coverImageUrl,
@@ -317,7 +318,7 @@ export function eventSubmissionSlackPayload(input: EventSubmissionSlackInput, su
         elements: [
           { type: 'button', ...(submissionId ? { action_id: 'submission_review' } : {}), text: { type: 'plain_text', text: 'Review submission →' }, ...(!submissionId ? { style: 'primary' } : {}), url: input.dashboardUrl },
           ...(submissionId ? [
-            { type: 'button', action_id: 'submission_approve', value: submissionId, style: 'primary', text: { type: 'plain_text', text: 'Approve & publish' }, confirm: { title: { type: 'plain_text', text: 'Publish event?' }, text: { type: 'mrkdwn', text: 'Approve and publish this event?' }, confirm: { type: 'plain_text', text: 'Publish' }, deny: { type: 'plain_text', text: 'Cancel' } } },
+            { type: 'button', action_id: 'submission_approve', value: submissionId, style: 'primary', text: { type: 'plain_text', text: input.isTest ? 'Approve test' : 'Approve & publish' }, confirm: { title: { type: 'plain_text', text: input.isTest ? 'Approve test?' : 'Publish event?' }, text: { type: 'mrkdwn', text: input.isTest ? 'Approve this test submission? No event will be published.' : 'Approve and publish this event?' }, confirm: { type: 'plain_text', text: input.isTest ? 'Approve test' : 'Publish' }, deny: { type: 'plain_text', text: 'Cancel' } } },
             { type: 'button', action_id: 'submission_reject', value: submissionId, style: 'danger', text: { type: 'plain_text', text: 'Reject' } },
           ] : []),
         ],

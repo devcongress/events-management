@@ -114,12 +114,12 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
         const submission = await repository.approve(submissionId, actor.email, command.publish);
 
         await audit({
-          action: command.publish ? 'event_submission.approve_and_publish' : 'event_submission.approve_as_draft',
+          action: submission.is_test ? 'event_submission.test_approve' : command.publish ? 'event_submission.approve_and_publish' : 'event_submission.approve_as_draft',
           targetType: 'event_submission',
           targetId: submission.id,
           metadata: { approved_event_id: submission.approved_event_id },
         });
-        if (command.publish) {
+        if (command.publish && !submission.is_test) {
           if (dependencies.announcePublished) await dependencies.announcePublished(submission);
           await dependencies.queueEmail({ submissionId: submission.id, kind: 'approved' });
         }
@@ -135,7 +135,7 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
         });
 
         await audit({
-          action: 'event_submission.reject',
+          action: submission.is_test ? 'event_submission.test_reject' : 'event_submission.reject',
           targetType: 'event_submission',
           targetId: submission.id,
           metadata: {
@@ -144,7 +144,7 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
             internal_note_provided: Boolean(submission.internal_note),
           },
         });
-        await dependencies.queueEmail({ submissionId: submission.id, kind: 'rejected' });
+        if (!submission.is_test) await dependencies.queueEmail({ submissionId: submission.id, kind: 'rejected' });
 
         return { submission, eventId: null };
       }

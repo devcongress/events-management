@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-19
+
+- Added isolated, explicitly marked Slack moderation tests that cannot publish community events or send submission emails.
+
 - 2026-11-16: Simplify Telegram ticket alerts into clear status, amount, and timestamp groups while retaining their protected Ticketing link and privacy limits.
 
 - 2026-11-13: Replace the Telegram readiness message with a secret-authenticated group status command, retaining the deployment boundary and fixing scheduler access.

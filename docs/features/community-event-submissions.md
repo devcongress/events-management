@@ -151,3 +151,9 @@ Only after cleanup reports zero beta submissions and promoted events should `PUB
 - A provider delivery webhook can be added if Slack acceptance must be distinguished from later delivery outcomes; every pending/failed event announcement is already durable and idempotent.
 - Approve-as-draft is supported by the API and relational model but is not exposed in the initial two-decision organizer UI.
 - Submitter edit/appeal and rejected-record retention require product policy before implementation.
+
+### Private Slack moderation tests
+
+Marked test submissions can be approved or rejected only through the authenticated private Slack review flow. Their immutable `is_test` marker prevents canonical event creation and submission email outbox delivery; Slack cards show `[TEST]` and an `Approve test` action. Normal submissions retain their existing behavior.
+
+After the migration and application are deployed and verified, an authorized operator may privately provision exactly two marked pending fixtures using service-role access and post their cards to the configured verified private review channel. Confirm the deployed migration and application versions, private-channel configuration, and zero existing linked event or outbox rows before posting. Do not use public intake to set the marker, publish to the website or public Slack channels, or include credentials in fixtures. The reviewer decides one approval and one rejection in that private channel; verify statuses, test audit entries, and the absence of canonical events and email outbox records.

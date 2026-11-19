@@ -2954,6 +2954,7 @@ async function notifyEventSubmissionChannel(submission: EventSubmission, c: Cont
       format: submission.format,
       location: submission.venue_name ?? submission.online_url ?? 'Location to be announced',
       dashboardUrl: eventSubmissionDashboardUrl(submission.id, c),
+      isTest: submission.is_test === true,
       coverImageUrl: submission.cover_url ?? 'https://em.devcongress.org/images/event-announcement-fallback.png',
     };
 

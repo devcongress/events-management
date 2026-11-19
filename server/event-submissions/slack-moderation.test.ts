@@ -49,4 +49,17 @@ describe('Slack submission moderation', () => {
     expect(interactive).toContain('https://example.com/review');
     expect(JSON.stringify(rejectionView('reference'))).toContain('insufficient_information');
   });
+
+  it('marks test cards and makes their approval explicitly non-publishing', () => {
+    const input = { eventTitle: 'Meetup', summary: 'A meetup', organizerName: 'A', organizerEmail: 'a@example.com', startsAt: '2026-11-09T12:00:00Z', format: 'online', location: 'Online', dashboardUrl: 'https://example.com/review' };
+    const normal = JSON.stringify(eventSubmissionSlackPayload(input, 'normal'));
+    const test = JSON.stringify(eventSubmissionSlackPayload({ ...input, isTest: true }, 'test'));
+
+    expect(normal).toContain('Approve & publish');
+    expect(normal).not.toContain('[TEST]');
+    expect(test).toContain('[TEST]');
+    expect(test).toContain('Approve test');
+    expect(test).not.toContain('Approve & publish');
+  });
+
 });

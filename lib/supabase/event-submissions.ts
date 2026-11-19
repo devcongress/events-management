@@ -763,6 +763,7 @@ function toEventSubmission(
     email_deliveries: emailDeliveries,
     amendments,
     replies,
+    is_test: row.is_test,
     approved_event_id: row.approved_event_id,
     current_event: currentEvent,
     created_at: row.created_at,

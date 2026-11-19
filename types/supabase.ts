@@ -1509,6 +1509,7 @@ export interface Database {
           submitter_notes: string | null;
           cover_url: string | null;
           source_app: string;
+          is_test: boolean;
           review_status: CommunityEventModerationStatus;
           reviewed_by: string | null;
           reviewed_at: string | null;
@@ -1540,6 +1541,7 @@ export interface Database {
           submitter_notes?: string | null;
           cover_url?: string | null;
           source_app?: string;
+          is_test?: boolean;
           review_status?: CommunityEventModerationStatus;
           reviewed_by?: string | null;
           reviewed_at?: string | null;

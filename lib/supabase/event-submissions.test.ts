@@ -43,6 +43,7 @@ const submissionRow: EventSubmissionRow = {
   submitter_notes: null,
   cover_url: null,
   source_app: 'website',
+  is_test: false,
   review_status: 'approved',
   reviewed_by: 'owner@devcongress.org',
   reviewed_at: '2099-08-01T11:00:00.000Z',
