@@ -34,6 +34,29 @@ afterEach(async () => {
 });
 
 describe('public CFP resource links', () => {
+  it.each([
+    [['talk', 'product_demo'], 'talk', 202],
+    [['talk', 'product_demo'], 'product_demo', 202],
+    [['talk'], 'talk', 202],
+    [['talk'], 'product_demo', 400],
+    [['product_demo'], 'talk', 400],
+    [['product_demo'], 'product_demo', 202],
+  ])('enforces current allowed formats %j for %s', async (kinds, kind, status) => {
+    await fs.writeFile(path.join(tempRoot, 'data', 'events.json'), JSON.stringify([{ ...event, cfp_allowed_kinds: kinds }]));
+    vi.resetModules();
+    const app = (await import('./app')).default;
+    const details = await app.request(`http://localhost/api/cfp/events/${event.id}`);
+
+    expect(await details.json()).toMatchObject({ cfp_allowed_kinds: kinds });
+    const response = await app.request('http://localhost/api/cfp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: event.id, kind, speaker_name: 'Presenter', speaker_email: 'presenter@example.com', title: 'A proposal', abstract: 'A proposal for the community.' }),
+    });
+
+    expect(response.status).toBe(status);
+  });
+
   it('stores a validated HTTPS resource on the proposal', async () => {
     vi.resetModules();
     const app = (await import('./app')).default;

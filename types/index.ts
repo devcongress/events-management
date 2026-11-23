@@ -50,6 +50,7 @@ export interface Event {
   description: string | null;
   event_date: string;          // ISO date string
   series_type?: EventSeriesType | null;
+  cfp_allowed_kinds?: ArchiveItemKind[];
   status: EventStatus;
   created_at: string;
   updated_at: string;

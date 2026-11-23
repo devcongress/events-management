@@ -79,6 +79,7 @@ import {
   ANNUAL_CONFERENCE_CAPABILITIES,
 } from '@/lib/annual-conference-capabilities';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
+import { allowedCfpKinds, cfpKindsSchema } from '@/lib/cfp-kinds';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
 import {
   publicEventSubmissionsEnabled,
@@ -682,6 +683,7 @@ const eventScheduleItemSchema = z.object({
   shared_links: z.array(httpUrlSchema).max(20).optional(),
 }).strict();
 const eventUpdateSchema = z.object({
+  cfp_allowed_kinds: cfpKindsSchema.optional(),
   name: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().max(10_000).nullable().optional(),
   event_date: eventDateSchema.optional(),
@@ -1740,6 +1742,7 @@ function withPublicEventCover(event: Event): Event {
 }
 
 async function createEvent(data: {
+  cfp_allowed_kinds?: Event['cfp_allowed_kinds'];
   name: string;
   description: string | null;
   event_date: string;
@@ -1760,6 +1763,7 @@ async function createEvent(data: {
   if (event) return canonicalizeEventSchedule(event);
 
   return canonicalizeEventSchedule(await createMockEvent({
+    cfp_allowed_kinds: allowedCfpKinds(data.cfp_allowed_kinds),
     name: data.name,
     description: data.description,
     event_date: data.event_date,
@@ -7759,6 +7763,7 @@ app.get('/api/cfp/events/:eventId', async (c) => {
     event_date: event.event_date,
     status: event.status,
     series_type: resolveEventSeriesType(event),
+    cfp_allowed_kinds: allowedCfpKinds(event.cfp_allowed_kinds),
   });
 });
 
@@ -7969,6 +7974,7 @@ app.post('/api/events', async (c) => {
 
   const body = await c.req.json();
   const parsed = createEventFormSchema.safeParse({
+    cfp_allowed_kinds: body.cfp_allowed_kinds,
     name: body.name,
     description: body.description,
     event_date: body.event_date,
@@ -11994,6 +12000,10 @@ app.post('/api/cfp', async (c) => {
 
   if (!canOpenCfpForEvent(event)) {
     return c.json({ error: 'CFP is unavailable for this event' }, 400);
+  }
+
+  if (!allowedCfpKinds(event.cfp_allowed_kinds).includes(parsed.data.kind)) {
+    return c.json({ error: 'This presentation format is no longer accepted for this event.' }, 400);
   }
 
   const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.speaker_email);

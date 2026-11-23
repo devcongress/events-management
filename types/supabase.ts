@@ -1281,6 +1281,7 @@ export interface Database {
       };
       community_events: {
         Row: {
+          cfp_allowed_kinds: string[];
           id: string;
           slug: string;
           name: string;
@@ -1327,6 +1328,7 @@ export interface Database {
           updated_at: string;
         };
         Insert: {
+          cfp_allowed_kinds?: string[];
           id?: string;
           slug: string;
           name: string;
@@ -1373,6 +1375,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: {
+          cfp_allowed_kinds?: string[];
           id?: string;
           slug?: string;
           name?: string;

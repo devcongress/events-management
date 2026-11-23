@@ -64,6 +64,32 @@ afterEach(async () => {
 });
 
 describe('native event registration API', () => {
+  it('creates and edits presentation formats on a published event and rejects empty selections', async () => {
+    const { default: app } = await import('./app');
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Formats meetup', description: 'A community event.', event_date: '2099-09-20T13:32:00.000Z',
+        location: { name: 'Accra', label: 'Accra', url: null }, cfp_allowed_kinds: ['product_demo'],
+      }),
+    });
+
+    expect(createdResponse.status).toBe(201);
+    const created = await createdResponse.json() as { event: { id: string; cfp_allowed_kinds: string[]; publish_to_website: boolean } };
+
+    expect(created.event).toMatchObject({ publish_to_website: true, cfp_allowed_kinds: ['product_demo'] });
+    const update = (kinds: string[]) => app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cfp_allowed_kinds: kinds }),
+    });
+    const updated = await update(['talk']);
+
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({ cfp_allowed_kinds: ['talk'] });
+    expect((await update([])).status).toBe(400);
+    expect((await update(['workshop'])).status).toBe(400);
+  });
+
   it('announces a published organizer event to the configured events channel', async () => {
     vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', 'https://hooks.slack.com/services/test/events');
     const slackFetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => (

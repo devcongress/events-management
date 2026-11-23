@@ -14,6 +14,7 @@ type CommunityEventRow = Database['public']['Tables']['community_events']['Row']
 
 function communityEventRow(overrides: Partial<CommunityEventRow> = {}): CommunityEventRow {
   return {
+    cfp_allowed_kinds: ['talk', 'product_demo'],
     id: 'event-1',
     slug: 'recorded-event',
     name: 'Recorded event',

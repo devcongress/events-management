@@ -32,6 +32,7 @@ describe('event series form payload', () => {
     });
 
     expect(toCreateEventApiPayload(parsed).format).toBe('meetup');
+    expect(toCreateEventApiPayload(parsed).cfp_allowed_kinds).toEqual(['talk', 'product_demo']);
   });
 
   it('keeps event format independent from the DevCongress series', () => {

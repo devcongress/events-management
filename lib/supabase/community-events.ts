@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from './server';
 import type { Event, EventStatus, PublicEvent, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
 import type { CommunityEventSeriesType, CommunityEventStatus, Database, Json } from '@/types/supabase';
+import { allowedCfpKinds, cfpKindsSchema } from '@/lib/cfp-kinds';
 import { inferEventSeriesType, isEventSeriesType } from '@/lib/event-series';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
 import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
@@ -31,6 +32,7 @@ const DEFAULT_LOCATION = {
 };
 
 export type CreateCommunityEventInput = {
+  cfp_allowed_kinds?: Event['cfp_allowed_kinds'];
   name: string;
   description: string | null;
   event_date: string;
@@ -148,6 +150,7 @@ export async function createSupabaseCommunityEvent(input: CreateCommunityEventIn
   const location = input.location ?? DEFAULT_LOCATION;
   const publishToWebsite = input.publish_to_website ?? true;
   const baseInsert: CommunityEventInsert = {
+    cfp_allowed_kinds: allowedCfpKinds(input.cfp_allowed_kinds),
     slug: input.slug?.trim() || uniqueSlug(slugify(input.name)),
     name: input.name,
     description: input.description,
@@ -232,6 +235,8 @@ export async function updateSupabaseCommunityEvent(
   if (!canUseSupabaseCommunityEvents(c)) return null;
 
   const update: CommunityEventUpdate = {};
+
+  if (input.cfp_allowed_kinds !== undefined) update.cfp_allowed_kinds = input.cfp_allowed_kinds;
 
   if (typeof input.name === 'string') update.name = input.name;
   if ('description' in input) update.description = typeof input.description === 'string' ? input.description : null;
@@ -467,7 +472,10 @@ export async function getSupabasePublicEventPreviewMeetups(
 }
 
 function toEvent(row: CommunityEventRow): Event {
+  const kinds = cfpKindsSchema.safeParse(row.cfp_allowed_kinds);
+
   return {
+    cfp_allowed_kinds: kinds.success ? kinds.data : allowedCfpKinds(undefined),
     id: row.id,
     slug: row.slug,
     name: row.name,
