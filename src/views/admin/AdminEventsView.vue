@@ -54,6 +54,7 @@ const adminSessionQuery = useQuery({
   queryFn: fetchAdminSession,
 });
 const form = reactive({
+  cfp_allowed_kinds: ['talk', 'product_demo'] as Array<'talk' | 'product_demo'>,
   name: '',
   description: '',
   event_date: '',
@@ -526,6 +527,14 @@ async function openEventNextStep(event: CommunityEvent) {
               />
               <p class="mt-2 text-sm leading-6 text-dc-gray">{{ selectedSeriesTypeHelp }}</p>
             </div>
+            <fieldset class="md:col-span-2">
+              <legend class="editorial-label">Presentation formats</legend>
+              <div class="flex flex-wrap gap-5 text-sm">
+                <label><input v-model="form.cfp_allowed_kinds" type="checkbox" value="talk" class="mr-2 accent-dc-pink">Talks</label>
+                <label><input v-model="form.cfp_allowed_kinds" type="checkbox" value="product_demo" class="mr-2 accent-dc-pink">Product demos</label>
+              </div>
+              <p class="mt-2 text-sm text-dc-gray">Select at least one format for the call for presentations.</p>
+            </fieldset>
             <AppDropdown
               v-model="form.location_kind"
               label="Location type"

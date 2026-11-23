@@ -11,6 +11,7 @@ import { preflightPublicEmail } from '@/src/lib/api';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { CFP_SUBMISSION_TURNSTILE_ACTION } from '@/lib/turnstile';
 import { safePublicResourceUrl } from '@/lib/safe-url';
+import { allowedCfpKinds } from '@/lib/cfp-kinds';
 import {
   ANNUAL_CONFERENCE_ABSTRACT_WORD_LIMIT,
   ANNUAL_CONFERENCE_BIO_WORD_LIMIT,
@@ -113,6 +114,7 @@ const form = reactive({
 });
 
 const isConferenceCall = computed(() => route.name === 'conference-cfp');
+const cfpKinds = computed(() => allowedCfpKinds(event.value?.cfp_allowed_kinds));
 const abstractWordLimit = computed(() => isConferenceCall.value ? ANNUAL_CONFERENCE_ABSTRACT_WORD_LIMIT : MONTHLY_ABSTRACT_WORD_LIMIT);
 const abstractWordCount = computed(() => countWords(form.abstract));
 const abstractOverLimit = computed(() => abstractWordCount.value > abstractWordLimit.value);
@@ -165,7 +167,11 @@ const cfpClosedTitle = computed(() => {
 });
 const cfpClosedMessage = computed(() => {
   if (event.value?.status === 'cfp_closed') {
-    return 'Organizers have paused new talk and product-demo proposals for this event. Thanks for checking in; keep an eye on future DevCongress calls for presentations.';
+    const formats = cfpKinds.value.length === 1
+      ? cfpKinds.value[0] === 'product_demo' ? 'product-demo proposals' : 'talk proposals'
+      : 'talk and product-demo proposals';
+
+    return `Organizers have paused new ${formats} for this event. Thanks for checking in; keep an eye on future DevCongress calls for presentations.`;
   }
 
   return 'This public CFP link is valid, but organizers have not opened submissions for this event yet.';
@@ -308,6 +314,7 @@ onMounted(async () => {
 
     if (response.ok) {
       event.value = await response.json();
+      if (!isConferenceCall.value && !cfpKinds.value.includes('talk')) form.kind = 'product_demo';
     } else {
       loadError.value = true;
     }
@@ -464,8 +471,8 @@ onMounted(async () => {
           <span class="editorial-label">{{ archiveItemLabel }} Title <span class="text-red-600">*</span></span>
           <input v-model="form.title" required :placeholder="form.kind === 'product_demo' ? 'Show what your product does' : 'Building Scalable APIs with GraphQL'" class="editorial-input" />
         </label>
-        <label v-if="!isConferenceCall" class="flex cursor-pointer items-center gap-3 rounded-md border border-dc-border bg-dc-paper-warm px-3 py-3 text-sm font-medium text-dc-gray">
-          <input v-model="form.kind" type="checkbox" true-value="product_demo" false-value="talk" class="h-4 w-4 accent-dc-pink" />
+        <label v-if="!isConferenceCall && cfpKinds.includes('product_demo')" class="flex items-center gap-3 rounded-md border border-dc-border bg-dc-paper-warm px-3 py-3 text-sm font-medium text-dc-gray" :class="cfpKinds.includes('talk') ? 'cursor-pointer' : 'cursor-default'">
+          <input v-model="form.kind" type="checkbox" true-value="product_demo" false-value="talk" :disabled="!cfpKinds.includes('talk')" class="h-4 w-4 accent-dc-pink" />
           This is a product demo
         </label>
         <div v-if="isConferenceCall" class="grid gap-4 sm:grid-cols-2">

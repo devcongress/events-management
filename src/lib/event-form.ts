@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { EVENT_SERIES_SELECTIONS, eventSeriesSelectionToValue } from '@/lib/event-series';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { EVENT_FORMATS } from '@/lib/event-format';
+import { cfpKindsSchema, DEFAULT_CFP_KINDS } from '@/lib/cfp-kinds';
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const LOCAL_DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
@@ -134,6 +135,7 @@ export function toEventSlug(value: string): string {
 }
 
 export const createEventFormSchema = z.object({
+  cfp_allowed_kinds: cfpKindsSchema.default(() => [...DEFAULT_CFP_KINDS]),
   name: z.string().trim().min(1, 'Add the meetup name.'),
   description: z.string().trim().min(1, 'Add a short description for the meetup.'),
   event_date: z.string().trim().refine(isValidCalendarValue, 'Choose the meetup start date and time.'),
@@ -263,6 +265,7 @@ export function toCreateEventApiPayload(value: CreateEventFormPayload) {
       : value.location_name.trim();
 
   return {
+    cfp_allowed_kinds: value.cfp_allowed_kinds,
     name: value.name,
     description: value.description,
     event_date: normalizeEventDateValue(value.event_date),

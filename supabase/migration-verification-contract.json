@@ -7416,6 +7416,28 @@
           "bodySha256": "3a4e4e1ed83c994059cadd100b9ca71ac8a307b12fcb390420a3293506d0481d"
         }
       ]
+    },
+    {
+      "file": "20261123000000_event_cfp_allowed_kinds.sql",
+      "sha256": "3adff1a8785054e883b772e18d8ee32549952c6b4e22a8b0181e15dac2567020",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "community_events",
+          "name": "cfp_allowed_kinds",
+          "type": "text[]",
+          "notNull": true,
+          "defaultExpression": "ARRAY['talk'::text, 'product_demo'::text]"
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "community_events",
+          "name": "community_events_cfp_allowed_kinds_check",
+          "contains": ["cfp_allowed_kinds", "product_demo", "talk"]
+        }
+      ]
     }
   ]
 }

@@ -12,6 +12,7 @@ import {
 } from '@/lib/event-checklist-policy';
 import { resolveEventStatus } from '@/lib/event-status';
 import { EVENT_FORMAT_LABELS, EVENT_FORMATS } from '@/lib/event-format';
+import { allowedCfpKinds } from '@/lib/cfp-kinds';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import EventPublicationStatusPanel from '@/src/components/EventPublicationStatusPanel.vue';
 import ProjectNightRecurrencePanel from '@/src/components/ProjectNightRecurrencePanel.vue';
@@ -74,6 +75,8 @@ const seriesTypeDraft = ref<EventSeriesSelection>('monthly');
 const savedSeriesType = ref<EventSeriesSelection>('monthly');
 const eventFormatDraft = ref<EventFormat>('meetup');
 const savedEventFormat = ref<EventFormat>('meetup');
+const cfpKindsDraft = ref<Array<'talk' | 'product_demo'>>([]);
+const savedCfpKinds = ref<Array<'talk' | 'product_demo'>>([]);
 const seriesTypeSaving = ref(false);
 const seriesTypeError = ref<string | null>(null);
 const photoSaving = ref(false);
@@ -235,8 +238,10 @@ const selectedSeriesTypeHelp = computed(() => EVENT_SERIES_HELP_TEXT[seriesTypeD
 const eventProfileHasChanges = computed(() => (
   seriesTypeDraft.value !== savedSeriesType.value
   || eventFormatDraft.value !== savedEventFormat.value
+  || cfpKindsDraft.value.length !== savedCfpKinds.value.length
+  || cfpKindsDraft.value.some((kind) => !savedCfpKinds.value.includes(kind))
 ));
-const canSaveEventProfile = computed(() => eventProfileHasChanges.value && !seriesTypeSaving.value);
+const canSaveEventProfile = computed(() => eventProfileHasChanges.value && cfpKindsDraft.value.length > 0 && !seriesTypeSaving.value);
 const rawEventSchedule = computed(() => event.value?.schedule ?? []);
 const isQuarterlyEvent = computed(currentEventIsQuarterly);
 const eventSharedLinks = computed(() => rawEventSchedule.value.flatMap((item) => item.shared_links ?? []));
@@ -383,6 +388,8 @@ function syncSeriesTypeDraft() {
 
   eventFormatDraft.value = format;
   savedEventFormat.value = format;
+  cfpKindsDraft.value = [...allowedCfpKinds(event.value.cfp_allowed_kinds)];
+  savedCfpKinds.value = [...cfpKindsDraft.value];
 }
 
 async function fetchChecklist(_eventId: string) {
@@ -952,6 +959,7 @@ async function saveEventProfile() {
       body: JSON.stringify({
         series_type: eventSeriesSelectionToValue(seriesTypeDraft.value),
         format: eventFormatDraft.value,
+        cfp_allowed_kinds: cfpKindsDraft.value,
       }),
     });
 
@@ -1336,6 +1344,14 @@ onMounted(fetchOverview);
                     :options="eventSeriesTypeOptions"
                     :disabled="seriesTypeSaving"
                   />
+                  <fieldset class="mt-4">
+                    <legend class="editorial-label">Presentation formats</legend>
+                    <div class="flex flex-wrap gap-4 text-sm">
+                      <label><input v-model="cfpKindsDraft" type="checkbox" value="talk" class="mr-2 accent-dc-pink" :disabled="seriesTypeSaving">Talks</label>
+                      <label><input v-model="cfpKindsDraft" type="checkbox" value="product_demo" class="mr-2 accent-dc-pink" :disabled="seriesTypeSaving">Product demos</label>
+                    </div>
+                    <p v-if="cfpKindsDraft.length === 0" class="mt-2 text-sm text-red-600">Select at least one presentation format.</p>
+                  </fieldset>
                   <div class="mt-3 flex justify-end">
                     <button
                       type="button"

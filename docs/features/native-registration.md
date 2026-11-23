@@ -8,6 +8,8 @@ Free monthly-meetup vertical slice implemented. Paid December registration is de
 
 Events Management now owns event creation and registration. Creating an event writes the native `community_events` record, publishes it into the upcoming lifecycle, and provisions one open registration campaign. Registration is available immediately unless the organizer supplies a future opening time during event creation. The organizer shares the internal registration link and manages the guest list without relying on Luma.
 
+Organizers choose talks, product demos, or both for the event's call for presentations during creation or later in the event profile, including after publication. At least one is required; existing events default to both. The public CFP reflects the selection and checks it again when a proposal is submitted. Existing proposals and the separate annual conference CFP are unaffected.
+
 The public form asks only for name and email. Confirmed guests check in at the event by either value. A protected organizer display can show a QR code that opens the same public registration form for walk-in guests; the QR code is an entry point, not an attendee identity or check-in credential.
 
 Historical events without a native campaign remain readable but are explicitly labelled as not managed internally. Their Registration tab never invents a guest list; imported historical records remain in Attendance when available.
