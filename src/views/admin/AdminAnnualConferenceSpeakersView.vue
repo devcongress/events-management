@@ -45,6 +45,12 @@ type ConferenceSubmission = AnnualConferenceSpeakerSubmission & {
     preferred_workshop_capacity: number | null;
     updated_at: string | null;
   } | null;
+  website_lineup?: {
+    featured: boolean;
+    role: string | null;
+    organization: string | null;
+    featured_at: string | null;
+  } | null;
 };
 
 type BadgeStorageUsage = {
@@ -332,6 +338,24 @@ const revokeWorkspaceMutation = useMutation({
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to revoke workspace access.'),
 });
 
+const websiteLineupMutation = useMutation({
+  mutationFn: ({ sessionId, featured, role, organization }: { sessionId: string; featured: boolean; role: string | null; organization: string | null }) =>
+    fetchJson<{ website_lineup: { featured: boolean; role: string | null; organization: string | null; featured_at: string | null } }>(
+      `/api/annual-conference/${year.value}/speaker-sessions/${sessionId}/website-lineup`,
+      {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ featured, role, organization }),
+      },
+    ),
+  onSuccess: async (result) => {
+    await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
+    notify.success(result.website_lineup.featured ? 'Speaker published to the /devcon26 lineup.' : 'Speaker removed from the /devcon26 lineup.');
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to update the speaker website lineup.'),
+});
+
 const downloadingBadges = ref(false);
 
 async function downloadBadges() {
@@ -577,7 +601,10 @@ function toLocalDateTimeInput(value: string): string {
           <ul v-if="acceptedSubmissions.length" class="divide-y divide-dc-border">
             <li v-for="submission in paginatedAcceptedSubmissions" :key="submission.id">
               <button type="button" aria-haspopup="dialog" class="speaker-summary-row participation-grid min-h-11 w-full px-4 py-2 text-left focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-dc-pink" @click="openProposal(submission.id)">
-                <strong class="participation-name min-w-0 break-words text-sm font-semibold">{{ submission.speaker_name }}</strong>
+                <strong class="participation-name min-w-0 break-words text-sm font-semibold">
+                  {{ submission.speaker_name }}
+                  <span v-if="submission.website_lineup?.featured" class="ml-1.5 inline-block rounded bg-dc-yellow px-1.5 py-0.5 align-middle text-[11px] font-semibold text-dc-ink">On website</span>
+                </strong>
                 <span class="participation-status"><span class="participation-mobile-label">Participation: </span>{{ submission.logistics?.availability_confirmed === true ? 'Confirmed' : submission.logistics?.availability_confirmed === false ? 'Not yet confirmed' : 'Awaiting response' }}</span>
                 <span class="participation-status"><span class="participation-mobile-label">Headshot: </span>{{ submission.logistics?.headshot_photo_available ? 'Photo uploaded' : submission.logistics?.headshot_url?.trim() ? 'Link provided' : 'Missing' }}</span>
                 <span class="participation-status"><span class="participation-mobile-label">Socials: </span>{{ submission.logistics?.social_handle?.trim() ? 'Provided' : 'Missing' }}</span>
@@ -742,7 +769,7 @@ function toLocalDateTimeInput(value: string): string {
           :can-manage="canManage"
           :can-send-email="hasAnnualConferenceCapability(capabilities, 'speakers.delivery.retry')"
           :can-manage-delivery="hasAnnualConferenceCapability(capabilities, 'speakers.delivery.manage')"
-          :submitting="decisionMutation.isPending.value || resendWorkspaceEmailMutation.isPending.value || retryDecisionEmailMutation.isPending.value || correctDecisionEmailMutation.isPending.value || replaceWorkspaceEmailMutation.isPending.value"
+          :submitting="decisionMutation.isPending.value || resendWorkspaceEmailMutation.isPending.value || retryDecisionEmailMutation.isPending.value || correctDecisionEmailMutation.isPending.value || replaceWorkspaceEmailMutation.isPending.value || websiteLineupMutation.isPending.value"
           :can-resend-workspace-email="canRecoverSelectedWorkspaceEmail"
           :approval-blocked-reason="approvalBlockedReason"
           :decision-email-configured="speakersQuery.data.value.email_delivery.configured"
@@ -756,6 +783,7 @@ function toLocalDateTimeInput(value: string): string {
           @retry-decision-email="retryDecisionEmailMutation.mutate($event.id)"
           @correct-decision-email="(submission, email) => correctDecisionEmailMutation.mutate({ submissionId: submission.id, email })"
           @replace-workspace-email="replacementSubmissionId = $event.id"
+          @update-website-lineup="(submission, payload) => submission.selected_session_id && websiteLineupMutation.mutate({ sessionId: submission.selected_session_id, ...payload })"
         />
 
         <ConfirmDialog

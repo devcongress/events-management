@@ -113,6 +113,10 @@ export interface AnnualConferenceSession {
   participants_need_laptops: boolean | null;
   preferred_workshop_capacity: number | null;
   logistics_updated_at: string | null;
+  website_featured: boolean;
+  website_role: string | null;
+  website_organization: string | null;
+  website_featured_at: string | null;
   status: 'confirmed' | 'archived';
   created_at: string;
   updated_at: string;
@@ -181,6 +185,10 @@ function linkFromMock(value: AnnualConferenceSpeakerIntakeLink): AnnualConferenc
 function sessionFromRow(row: SessionRow): AnnualConferenceSession {
   return {
     ...row,
+    website_featured: Boolean(row.website_featured),
+    website_role: row.website_role ?? null,
+    website_organization: row.website_organization ?? null,
+    website_featured_at: row.website_featured_at ?? null,
     status: row.status === 'archived' ? 'archived' : 'confirmed',
     topic: row.topic as AnnualConferenceTopicTrack,
     session_type: row.session_type as AnnualConferenceSessionType,
@@ -711,8 +719,8 @@ export async function getAnnualConferenceSpeakerIntakeLinkById(id: string): Prom
 }
 
 export async function createAnnualConferenceSession(
-  input: Omit<AnnualConferenceSession, 'id' | 'status' | 'created_at' | 'updated_at' | 'availability_confirmed' | 'technical_requirements' | 'accessibility_requirements' | 'headshot_url' | 'headshot_photo_path' | 'headshot_revision' | 'social_handle' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at'>
-    & Partial<Pick<AnnualConferenceSession, 'availability_confirmed' | 'technical_requirements' | 'accessibility_requirements' | 'headshot_url' | 'social_handle' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at'>>,
+  input: Omit<AnnualConferenceSession, 'id' | 'status' | 'created_at' | 'updated_at' | 'availability_confirmed' | 'technical_requirements' | 'accessibility_requirements' | 'headshot_url' | 'headshot_photo_path' | 'headshot_revision' | 'social_handle' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at' | 'website_featured' | 'website_role' | 'website_organization' | 'website_featured_at'>
+    & Partial<Pick<AnnualConferenceSession, 'availability_confirmed' | 'technical_requirements' | 'accessibility_requirements' | 'headshot_url' | 'social_handle' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at' | 'website_featured' | 'website_role' | 'website_organization' | 'website_featured_at'>>,
 ): Promise<AnnualConferenceSession> {
   const createdAt = now();
   const session: AnnualConferenceSession = {
@@ -730,6 +738,10 @@ export async function createAnnualConferenceSession(
     participants_need_laptops: input.participants_need_laptops ?? null,
     preferred_workshop_capacity: input.preferred_workshop_capacity ?? null,
     logistics_updated_at: input.logistics_updated_at ?? null,
+    website_featured: input.website_featured ?? false,
+    website_role: input.website_role ?? null,
+    website_organization: input.website_organization ?? null,
+    website_featured_at: input.website_featured_at ?? null,
     status: 'confirmed',
     created_at: createdAt,
     updated_at: createdAt,
@@ -778,7 +790,92 @@ export async function getAnnualConferenceSession(id: string): Promise<AnnualConf
 
   const session = (await readData<AnnualConferenceSession>(SESSIONS_FILE)).find((item) => item.id === id);
 
-  return session ? { ...session, headshot_photo_path: session.headshot_photo_path ?? null, headshot_revision: session.headshot_revision ?? 0 } : undefined;
+  return session ? {
+    ...session,
+    headshot_photo_path: session.headshot_photo_path ?? null,
+    headshot_revision: session.headshot_revision ?? 0,
+    website_featured: Boolean(session.website_featured),
+    website_role: session.website_role ?? null,
+    website_organization: session.website_organization ?? null,
+    website_featured_at: session.website_featured_at ?? null,
+  } : undefined;
+}
+
+export async function listFeaturedWebsiteConferenceSessions(editionId: string): Promise<AnnualConferenceSession[]> {
+  if (isSupabaseRuntimeEnabled()) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from('annual_conference_sessions')
+      .select('*')
+      .eq('edition_id', editionId)
+      .eq('status', 'confirmed')
+      .eq('website_featured', true)
+      .order('website_featured_at', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true });
+
+    if (error) throw new Error('Unable to load featured website speakers.');
+
+    return (data ?? []).map(sessionFromRow);
+  }
+
+  return (await readData<AnnualConferenceSession>(SESSIONS_FILE))
+    .filter((item) => item.edition_id === editionId && item.status === 'confirmed' && Boolean(item.website_featured))
+    .map((item) => ({
+      ...item,
+      headshot_photo_path: item.headshot_photo_path ?? null,
+      headshot_revision: item.headshot_revision ?? 0,
+      website_featured: true,
+      website_role: item.website_role ?? null,
+      website_organization: item.website_organization ?? null,
+      website_featured_at: item.website_featured_at ?? null,
+    }))
+    .sort((a, b) => (a.website_featured_at ?? '').localeCompare(b.website_featured_at ?? '') || a.id.localeCompare(b.id));
+}
+
+export async function updateAnnualConferenceSessionWebsiteLineup(
+  id: string,
+  updates: {
+    website_featured: boolean;
+    website_role: string | null;
+    website_organization: string | null;
+  },
+): Promise<AnnualConferenceSession | null> {
+  const timestamp = now();
+  const existing = await getAnnualConferenceSession(id);
+
+  if (!existing || existing.status !== 'confirmed') return null;
+
+  const payload = {
+    website_featured: updates.website_featured,
+    website_role: updates.website_role,
+    website_organization: updates.website_organization,
+    website_featured_at: updates.website_featured ? (existing.website_featured_at ?? timestamp) : null,
+    updated_at: timestamp,
+  };
+
+  if (isSupabaseRuntimeEnabled()) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from('annual_conference_sessions')
+      .update(payload)
+      .eq('id', id)
+      .eq('status', 'confirmed')
+      .select('*')
+      .maybeSingle();
+
+    if (error) throw new Error('Unable to save website speaker lineup.');
+
+    return data ? sessionFromRow(data) : null;
+  }
+
+  return updateData<AnnualConferenceSession, AnnualConferenceSession | null>(SESSIONS_FILE, (items) => {
+    const index = items.findIndex((item) => item.id === id);
+
+    if (index < 0 || items[index].status !== 'confirmed') return { data: items, result: null };
+    const next = [...items];
+
+    next[index] = { ...next[index], ...payload };
+
+    return { data: next, result: next[index] };
+  });
 }
 
 export async function updateAnnualConferenceSessionHeadshot(

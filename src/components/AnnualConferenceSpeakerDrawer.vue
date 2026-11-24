@@ -30,6 +30,12 @@ type AnnualConferenceSpeakerSubmissionWithLogistics = AnnualConferenceSpeakerSub
     preferred_workshop_capacity: number | null;
     updated_at: string | null;
   } | null;
+  website_lineup?: {
+    featured: boolean;
+    role: string | null;
+    organization: string | null;
+    featured_at: string | null;
+  } | null;
 };
 
 const props = defineProps<{
@@ -57,6 +63,7 @@ const emit = defineEmits<{
   retryDecisionEmail: [submission: AnnualConferenceSpeakerSubmissionWithLogistics];
   replaceWorkspaceEmail: [submission: AnnualConferenceSpeakerSubmissionWithLogistics];
   correctDecisionEmail: [submission: AnnualConferenceSpeakerSubmissionWithLogistics, email: string];
+  updateWebsiteLineup: [submission: AnnualConferenceSpeakerSubmissionWithLogistics, payload: { featured: boolean; role: string | null; organization: string | null }];
 }>();
 
 const panelRef = ref<HTMLElement | null>(null);
@@ -64,8 +71,59 @@ const closeButtonRef = ref<HTMLButtonElement | null>(null);
 const correctedEmail = ref('');
 const emailConfirmation = ref<'workspace' | 'decision' | null>(null);
 const contentRef = ref<HTMLElement | null>(null);
+const websiteFeaturedDraft = ref(false);
+const websiteRoleDraft = ref('');
+const websiteOrgDraft = ref('');
 
 watch(() => props.submission?.id, () => { emailConfirmation.value = null; headshotError.value = ''; });
+
+watch(
+  () => [
+    props.submission?.id,
+    annualSubmission.value?.website_lineup?.featured,
+    annualSubmission.value?.website_lineup?.role,
+    annualSubmission.value?.website_lineup?.organization,
+  ],
+  () => {
+    websiteFeaturedDraft.value = Boolean(annualSubmission.value?.website_lineup?.featured);
+    websiteRoleDraft.value = annualSubmission.value?.website_lineup?.role ?? '';
+    websiteOrgDraft.value = annualSubmission.value?.website_lineup?.organization ?? '';
+  },
+  { immediate: true },
+);
+
+const websiteLineupDirty = computed(() => {
+  const current = annualSubmission.value?.website_lineup;
+
+  if (!current) return false;
+
+  return websiteFeaturedDraft.value !== Boolean(current.featured)
+    || websiteRoleDraft.value.trim() !== (current.role ?? '').trim()
+    || websiteOrgDraft.value.trim() !== (current.organization ?? '').trim();
+});
+
+function toggleWebsiteFeatured() {
+  const submission = annualSubmission.value;
+
+  if (!submission || !props.canManage || props.submitting) return;
+  websiteFeaturedDraft.value = !websiteFeaturedDraft.value;
+  emit('updateWebsiteLineup', submission, {
+    featured: websiteFeaturedDraft.value,
+    role: websiteRoleDraft.value.trim() || null,
+    organization: websiteOrgDraft.value.trim() || null,
+  });
+}
+
+function saveWebsiteLineup() {
+  const submission = annualSubmission.value;
+
+  if (!submission || !props.canManage || props.submitting || !websiteLineupDirty.value) return;
+  emit('updateWebsiteLineup', submission, {
+    featured: websiteFeaturedDraft.value,
+    role: websiteRoleDraft.value.trim() || null,
+    organization: websiteOrgDraft.value.trim() || null,
+  });
+}
 
 const headshotError = ref('');
 const downloadingHeadshot = ref(false);
@@ -322,6 +380,62 @@ onUnmounted(() => {
                     <div v-if="annualSubmission?.logistics?.preferred_workshop_capacity"><dt class="text-dc-gray">Workshop capacity</dt><dd class="font-semibold">{{ annualSubmission.logistics.preferred_workshop_capacity }}</dd></div>
                     <div v-if="annualSubmission?.logistics?.slides_url"><dt class="text-dc-gray">Slides/resources</dt><dd><a :href="annualSubmission.logistics.slides_url" target="_blank" rel="noopener noreferrer nofollow" class="font-semibold text-dc-pink underline">Open link ↗</a></dd></div>
                   </dl>
+                </section>
+
+                <section v-if="annualSubmission?.selected_session_id && String(year) === '2026'" class="space-y-3 border-t border-dc-border pt-5">
+                  <div>
+                    <h3 class="font-bold">DevCon26 website</h3>
+                    <p class="mt-1 text-sm leading-6 text-dc-gray">Add or remove this speaker from the public /devcon26 Speakers section. Changes reflect within a few minutes.</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    :aria-checked="websiteFeaturedDraft ? 'true' : 'false'"
+                    :disabled="!canManage || submitting"
+                    class="flex min-h-11 w-full items-center justify-between gap-4 rounded-md border border-dc-border bg-dc-paper px-4 py-2.5 text-left text-sm font-semibold text-dc-ink transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dc-pink disabled:opacity-50"
+                    @click="toggleWebsiteFeatured"
+                  >
+                    <span>Show on /devcon26 website</span>
+                    <span class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors" :class="websiteFeaturedDraft ? 'bg-dc-pink' : 'bg-dc-border'">
+                      <span class="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform" :class="websiteFeaturedDraft ? 'translate-x-6' : 'translate-x-1'" />
+                    </span>
+                  </button>
+                  <form class="space-y-3" @submit.prevent="saveWebsiteLineup">
+                    <div class="grid gap-3 sm:grid-cols-2">
+                      <label class="block text-xs font-semibold text-dc-gray">
+                        Role / job title
+                        <input
+                          v-model="websiteRoleDraft"
+                          type="text"
+                          maxlength="120"
+                          placeholder="e.g. Software Architect"
+                          :disabled="!canManage || submitting"
+                          class="app-form-control mt-1 min-h-11 w-full px-3 text-base sm:text-sm"
+                        >
+                      </label>
+                      <label class="block text-xs font-semibold text-dc-gray">
+                        Organization
+                        <input
+                          v-model="websiteOrgDraft"
+                          type="text"
+                          maxlength="120"
+                          placeholder="e.g. Microsoft"
+                          :disabled="!canManage || submitting"
+                          class="app-form-control mt-1 min-h-11 w-full px-3 text-base sm:text-sm"
+                        >
+                      </label>
+                    </div>
+                    <div v-if="canManage" class="flex items-center justify-between gap-3">
+                      <span class="text-xs text-dc-gray">{{ websiteFeaturedDraft ? 'Currently listed on /devcon26' : 'Hidden from /devcon26' }}</span>
+                      <button
+                        type="submit"
+                        :disabled="submitting || !websiteLineupDirty"
+                        class="motion-press min-h-11 rounded-md border border-dc-border bg-dc-paper px-4 text-sm font-semibold text-dc-ink hover:bg-dc-paper-warm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dc-pink disabled:opacity-50"
+                      >
+                        {{ submitting ? 'Saving…' : 'Save role & org' }}
+                      </button>
+                    </div>
+                  </form>
                 </section>
 
                 <section class="space-y-2 border-t border-dc-border pt-5">

@@ -7438,6 +7438,69 @@
           "contains": ["cfp_allowed_kinds", "product_demo", "talk"]
         }
       ]
+    },
+    {
+      "file": "20261124000000_speaker_website_lineup.sql",
+      "sha256": "d86a661da140ba5dbd75c6c4d931b8081e2099bb6a39935e562729813b4ceb40",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "website_featured",
+          "type": "boolean",
+          "notNull": true,
+          "defaultExpression": "false"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "website_role",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "website_organization",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "website_featured_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "annual_conference_sessions_website_role_length",
+          "contains": ["website_role", "120"]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "annual_conference_sessions_website_org_length",
+          "contains": ["website_organization", "120"]
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "annual_conference_sessions",
+          "name": "annual_conference_sessions_website_featured_idx",
+          "contains": ["edition_id", "website_featured_at", "website_featured"]
+        }
+      ]
     }
   ]
 }

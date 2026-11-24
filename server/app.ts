@@ -265,6 +265,7 @@ import {
   requireAnnualConferenceCapability,
 } from '@/server/annual-conference-request';
 import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
+import { registerAnnualConferenceWebsiteSpeakerRoutes } from '@/server/routes/annual-conference-website-speakers';
 import { registerAnnualConferenceSpeakerMaterialRoutes } from '@/server/routes/annual-conference-speaker-materials';
 import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
 import { registerManagedConferenceCheckout } from '@/server/routes/managed-conference-checkout';
@@ -5476,6 +5477,7 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 
 registerAnnualConferenceProgrammeRoutes(app);
 registerAnnualConferenceSpeakerRoutes(app);
+registerAnnualConferenceWebsiteSpeakerRoutes(app);
 registerAnnualConferenceSpeakerMaterialRoutes(app);
 registerAnnualConferenceTaskResourceRoutes(app);
 registerManagedConferenceCheckout(app);
