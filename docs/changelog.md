@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-24
+
+- Added DevCon26 website speaker lineup controls (`website_featured`, `website_role`, `website_organization`) in EMS Participation plus cached public `/api/public/annual-conference/2026/speakers` and featured speaker photo endpoints.
+
 ## 2026-11-23
 
 - Let organizers choose talks, product demos, or both for an event's call for presentations, and enforce the current selection for new proposals.

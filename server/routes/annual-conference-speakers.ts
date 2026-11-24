@@ -234,6 +234,12 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
             preferred_workshop_capacity: acceptedSession.preferred_workshop_capacity,
             updated_at: acceptedSession.logistics_updated_at,
           } : null,
+          website_lineup: acceptedSession ? {
+            featured: acceptedSession.website_featured,
+            role: acceptedSession.website_role,
+            organization: acceptedSession.website_organization,
+            featured_at: acceptedSession.website_featured_at,
+          } : null,
         };
       }));
 

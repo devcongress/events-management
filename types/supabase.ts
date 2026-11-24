@@ -777,6 +777,10 @@ export interface Database {
           participants_need_laptops: boolean | null;
           preferred_workshop_capacity: number | null;
           logistics_updated_at: string | null;
+          website_featured: boolean;
+          website_role: string | null;
+          website_organization: string | null;
+          website_featured_at: string | null;
           status: 'confirmed' | 'archived';
           created_at: string;
           updated_at: string;
