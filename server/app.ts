@@ -1176,8 +1176,15 @@ function registrationCorsOrigin(origin: string | undefined, c: Context): string 
     ?? (origin === CONFERENCE_REGISTRATION_PREVIEW_ORIGIN ? origin : undefined);
 }
 
+const websiteSpeakerPhotoPath = /^\/api\/public\/annual-conference\/2026\/speakers\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/photo$/i;
+
+function isWebsiteSpeakerReadPath(path: string): boolean {
+  return path === '/api/public/annual-conference/2026/speakers' || websiteSpeakerPhotoPath.test(path);
+}
+
 function isPublicReadApiPath(path: string): boolean {
-  return path === '/api/public/annual-conference/2026/attendance-counter'
+  return isWebsiteSpeakerReadPath(path)
+    || path === '/api/public/annual-conference/2026/attendance-counter'
     || path === '/api/public/annual-conference/2026/programme'
     || /^\/api\/public\/annual-conference\/2026\/programme\/speakers\/[0-9a-f-]+\/photo$/.test(path)
     || path === '/api/public/annual-conference/2026/ticket-prices'
@@ -1288,7 +1295,8 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
     || isDevcon26FlexibleTicketAccessRequest(path, method)
     || isBuyerSocialCardRequest(path, method)
     || ((method === 'GET' || method === 'HEAD') && (
-    path === '/api/public/annual-conference/2026/attendance-counter'
+    isWebsiteSpeakerReadPath(path)
+    || path === '/api/public/annual-conference/2026/attendance-counter'
     || path === '/api/public/annual-conference/2026/programme'
     || /^\/api\/public\/annual-conference\/2026\/programme\/speakers\/[0-9a-f-]+\/photo$/.test(path)
     || path === '/api/public/annual-conference/2026/ticket-prices'
@@ -1659,12 +1667,13 @@ app.use('/api/public/*', async (c, next) => {
 });
 
 app.use('/api/public/*', async (c, next) => {
-  if (
-    (c.req.method === 'GET' || c.req.method === 'HEAD')
-    && isPublicReadApiPath(c.req.path)
-    && new URL(c.req.url).search.length > 0
-  ) {
-    return c.json({ error: 'Query parameters are not supported for this endpoint.' }, 400);
+  if ((c.req.method === 'GET' || c.req.method === 'HEAD') && isPublicReadApiPath(c.req.path)) {
+    const search = new URL(c.req.url).search;
+    const validPhotoRevision = websiteSpeakerPhotoPath.test(c.req.path) && /^\?v=[A-Za-z0-9_-]{16}$/.test(search);
+
+    if (search.length > 0 && !validPhotoRevision) {
+      return c.json({ error: 'Query parameters are not supported for this endpoint.' }, 400);
+    }
   }
   await next();
 });

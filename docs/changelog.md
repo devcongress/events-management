@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-25
+
+- Fixed anonymous website access and narrow CORS for the DevCon26 featured speaker feed and eligible publicity photos, including the photo revision URLs emitted by the feed.
+
 ## 2026-11-24
 
 - Added DevCon26 website speaker lineup controls (`website_featured`, `website_role`, `website_organization`) in EMS Participation plus cached public `/api/public/annual-conference/2026/speakers` and featured speaker photo endpoints.
