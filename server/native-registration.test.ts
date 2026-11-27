@@ -1176,7 +1176,8 @@ describe('native event registration API', () => {
     expect(initialPublicResponse.status).toBe(200);
     await expect(initialPublicResponse.json()).resolves.toMatchObject({
       available: true,
-      event: { id: created.event.id },
+      event: { id: created.event.id, online_url: null },
+      calendar: { download_url: 'http://localhost/api/registration/events/august-2026-meetup/calendar.ics' },
       campaign: { status: 'open', description: null, opens_at: null },
     });
 
@@ -1248,6 +1249,87 @@ describe('native event registration API', () => {
     expect(calendar).toContain('DTSTART;VALUE=DATE:20990829\r\n');
     expect(calendar).toContain('DTEND;VALUE=DATE:20990830\r\n');
     expect(calendar).toContain('LOCATION:Fido\\, Accra\r\n');
+
+    for (const online_url of ['http://example.com/join', 'https://192.168.1.4/join']) {
+      const invalidUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ online_url }),
+      });
+
+      expect(invalidUpdate.status).toBe(400);
+    }
+
+    const onlineUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ location_type: 'hybrid', online_url: 'https://meet.example.com/join' }),
+    });
+
+    expect(onlineUpdate.status).toBe(200);
+    const hybridResponse = await app.request(`http://localhost/api/registration/events/${created.event.id}`);
+    const hybrid = await hybridResponse.json();
+
+    expect(hybrid.event.online_url).toBe('https://meet.example.com/join');
+    expect(hybrid.event.location.name).toBe('Fido, Accra');
+    expect(new URL(hybrid.calendar.google_url).searchParams.get('details')).toContain('https://meet.example.com/join');
+    expect(new URL(hybrid.calendar.google_url).searchParams.get('details')).not.toContain('abc-defg-hij');
+    const hybridCalendar = await (await app.request(`http://localhost/api/registration/events/${created.event.id}/calendar.ics`)).text();
+
+    expect(hybridCalendar).toContain('Join online: https://meet.example.com/join');
+    expect(hybridCalendar).toContain('LOCATION:Fido\\, Accra');
+    expect(hybridCalendar).not.toContain('abc-defg-hij');
+
+    const onlineOnlyUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ location_type: 'online' }),
+    });
+
+    expect(onlineOnlyUpdate.status).toBe(200);
+    const onlineOnly = await (await app.request(`http://localhost/api/registration/events/${created.event.id}`)).json();
+
+    expect(onlineOnly.event.location).toMatchObject({ name: 'Online event', url: null });
+    expect(new URL(onlineOnly.calendar.google_url).searchParams.get('location')).toBe('Online event');
+
+    const eventsFile = path.join(tempRoot, 'data', 'events.json');
+    const storedEvents = JSON.parse(await fs.readFile(eventsFile, 'utf-8'));
+
+    for (const hidden of [
+      { publication_status: 'draft' },
+      { publish_to_website: false },
+      { status: 'draft' },
+      { ownership: 'external', moderation_status: 'pending' },
+    ]) {
+      await fs.writeFile(eventsFile, JSON.stringify(storedEvents.map((event: { id: string }) => (
+        event.id === created.event.id ? { ...event, ...hidden } : event
+      ))));
+      const hiddenDetails = await (await app.request(`http://localhost/api/registration/events/${created.event.id}`)).json();
+      const hiddenCalendar = await (await app.request(`http://localhost/api/registration/events/${created.event.id}/calendar.ics`)).text();
+
+      expect(hiddenDetails.event.online_url).toBeNull();
+      expect(hiddenDetails.calendar.google_url).not.toContain('meet.example.com');
+      expect(hiddenCalendar).not.toContain('meet.example.com');
+    }
+    await fs.writeFile(eventsFile, JSON.stringify(storedEvents));
+
+    const timedUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_date: '2099-08-29T18:00:00.000Z', end_date: null }),
+    });
+
+    expect(timedUpdate.status).toBe(200);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2099-08-29T19:00:00.000Z'));
+    const duringEvent = await (await app.request(`http://localhost/api/registration/events/${created.event.id}`)).json();
+
+    expect(duringEvent.event.online_url).toBe('https://meet.example.com/join');
+    vi.setSystemTime(new Date('2099-08-29T21:00:00.000Z'));
+    const afterEvent = await (await app.request(`http://localhost/api/registration/events/${created.event.id}`)).json();
+
+    expect(afterEvent.event.online_url).toBeNull();
+    vi.useRealTimers();
 
     const register = (name: string, email: string) => app.request(
       'http://localhost/api/registration/events/august-2026-meetup',

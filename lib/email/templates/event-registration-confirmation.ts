@@ -13,6 +13,7 @@ type EventCalendarDetails = {
   eventEndDate?: string | null;
   locationName: string;
   eventUrl?: string | null;
+  onlineUrl?: string | null;
 };
 
 export type EventRegistrationEmailInput = EventCalendarDetails & {
@@ -74,7 +75,7 @@ function validDate(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function eventDateRange(input: Pick<EventCalendarDetails, 'eventDate' | 'eventEndDate'>): {
+export function eventDateRange(input: Pick<EventCalendarDetails, 'eventDate' | 'eventEndDate'>): {
   start: Date;
   end: Date;
   allDay: boolean;
@@ -167,7 +168,7 @@ function toCalendarDate(date: Date, allDay: boolean): string {
   return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
-function googleCalendarUrl(input: EventCalendarDetails): string | null {
+export function googleCalendarUrl(input: EventCalendarDetails): string | null {
   const range = eventDateRange(input);
 
   if (!range) return null;
@@ -183,7 +184,7 @@ function googleCalendarUrl(input: EventCalendarDetails): string | null {
   url.searchParams.set(
     'details',
     [
-      'Your place is confirmed for this DevCongress event.',
+      safeHttpUrl(input.onlineUrl) ? `Join online: ${safeHttpUrl(input.onlineUrl)}` : null,
       safeHttpUrl(input.eventUrl) ? `Event details: ${safeHttpUrl(input.eventUrl)}` : null,
     ].filter(Boolean).join('\n\n'),
   );
@@ -262,7 +263,7 @@ export function eventRegistrationCalendarFile(input: EventRegistrationCalendarIn
       : `DTEND:${toCalendarDate(range.end, false)}`,
     `SUMMARY:${escapeIcsText(eventName)}`,
     `LOCATION:${escapeIcsText(input.locationName || 'Location to be announced')}`,
-    'DESCRIPTION:Your place is confirmed for this DevCongress event.',
+    ...(safeHttpUrl(input.onlineUrl) ? [`DESCRIPTION:${escapeIcsText(`Join online: ${safeHttpUrl(input.onlineUrl)}`)}`] : []),
     ...(eventUrl ? [`URL:${escapeIcsText(eventUrl)}`] : []),
     'STATUS:CONFIRMED',
     'END:VEVENT',

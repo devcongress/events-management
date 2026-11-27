@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-27
+
+- Organizers can change a published native meetup to online or hybrid and add its public joining link later. Guests can open the meeting or save the event to their calendar from the registration page.
+
 ## 2026-11-25
 
 - Fixed anonymous website access and narrow CORS for the DevCon26 featured speaker feed and eligible publicity photos, including the photo revision URLs emitted by the feed.

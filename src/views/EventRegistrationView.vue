@@ -4,6 +4,7 @@ import { computed, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
+import { safeHttpUrl } from '@/lib/safe-url';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { EVENT_REGISTRATION_TURNSTILE_ACTION } from '@/lib/turnstile';
 import { registrationFirstName } from '@/src/lib/registration-workspace';
@@ -47,6 +48,9 @@ const registrationCoverSrc = computed(() => {
 
   return versionPublicMeetupMediaUrl(event.cover, event.updated_at);
 });
+const onlineUrl = computed(() => safeHttpUrl(registration.value?.event.online_url));
+const googleCalendar = computed(() => safeHttpUrl(registration.value?.calendar?.google_url));
+const calendarDownload = computed(() => safeHttpUrl(registration.value?.calendar?.download_url));
 const detailsMapUrl = computed(() => safeGoogleMapsUrl(registration.value?.event.location?.url));
 const displayedDescription = computed(() => (
   eventDetailsView.value
@@ -161,6 +165,11 @@ async function submitRegistration() {
                 </dd>
               </div>
             </dl>
+            <div class="registration-calendar-actions">
+              <a v-if="onlineUrl" :href="onlineUrl" target="_blank" rel="noopener noreferrer" class="registration-location-link">Join online ↗</a>
+              <a v-if="googleCalendar" :href="googleCalendar" target="_blank" rel="noopener noreferrer" class="registration-location-link">Google Calendar ↗</a>
+              <a v-if="calendarDownload" :href="calendarDownload" class="registration-location-link">Apple / Outlook (.ics)</a>
+            </div>
           </div>
         </section>
 
@@ -511,6 +520,14 @@ async function submitRegistration() {
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.registration-calendar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  font-size: 0.82rem;
 }
 
 .registration-location-link {

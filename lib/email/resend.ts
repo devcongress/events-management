@@ -419,6 +419,7 @@ export async function createResendBroadcastDraft(input: {
   locationName: string;
   locationUrl?: string | null;
   eventUrl?: string | null;
+  onlineUrl?: string | null;
   calendarDownloadUrl?: string | null;
   subject: string;
   body: string;
@@ -437,6 +438,7 @@ export async function createResendBroadcastDraft(input: {
     locationName: input.locationName,
     locationUrl: input.locationUrl,
     eventUrl: input.eventUrl,
+    onlineUrl: input.onlineUrl,
     calendarDownloadUrl: input.calendarDownloadUrl,
   });
 

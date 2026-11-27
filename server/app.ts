@@ -35,6 +35,8 @@ import { EMAIL_SENDERS, emailSubjects } from '@/lib/email/scenarios';
 import { emailPreviewCatalog } from '@/lib/email/previews';
 import {
   eventRegistrationCalendarFile,
+  eventDateRange,
+  googleCalendarUrl,
   eventRegistrationConfirmationEmail,
 } from '@/lib/email/templates/event-registration-confirmation';
 import { communityEventSubmissionEmail } from '@/lib/email/templates/community-event-submission';
@@ -555,6 +557,10 @@ const httpUrlSchema = z.string().trim().max(2048).refine(
   (value) => Boolean(safeHttpUrl(value)),
   'Use a valid http(s) URL.',
 );
+const publicResourceUrlSchema = z.string().trim().max(2048).refine(
+  (value) => Boolean(safePublicResourceUrl(value)),
+  'Use a valid public HTTPS URL.',
+);
 const websiteUrlSchema = z.string().trim().max(2048).refine(
   (value) => Boolean(safeWebsiteUrl(value)),
   'Use a valid site path or http(s) URL.',
@@ -704,7 +710,7 @@ const eventUpdateSchema = z.object({
   registration_url: websiteUrlSchema.nullable().optional(),
   location_type: z.enum(['in_person', 'online', 'hybrid']).optional(),
   venue_address: z.string().trim().max(300).nullable().optional(),
-  online_url: httpUrlSchema.nullable().optional(),
+  online_url: publicResourceUrlSchema.nullable().optional(),
   schedule: z.array(eventScheduleItemSchema).max(100).optional(),
   photos: z.array(z.object({
     url: websiteUrlSchema,
@@ -2343,7 +2349,7 @@ async function buildPublicEvents(c?: Context): Promise<PublicEvent[]> {
       location_type: event.location_type ?? (event.stream_url ? 'online' : 'in_person'),
       venue_name: event.location?.name ?? null,
       venue_address: event.venue_address ?? event.location?.label ?? null,
-      online_url: safeHttpUrl(event.online_url),
+      online_url: safePublicResourceUrl(event.online_url),
       stream_url: safeHttpUrl(event.stream_url),
       embed_stream: event.embed_stream ?? false,
       registration_url: safeWebsiteUrl(event.registration_url),
@@ -3022,6 +3028,27 @@ function eventSubmissionDashboardUrl(submissionId: string, c: Context): string {
   return url.toString();
 }
 
+function publicOnlineUrl(event: Event): string | null {
+  const published = event.publication_status === 'published'
+    || (event.publication_status === undefined && event.publish_to_website === true);
+  const range = eventDateRange({ eventDate: event.event_date, eventEndDate: event.end_date });
+
+  if (!published || event.publish_to_website === false || event.status === 'draft' || (event.ownership === 'external' && event.moderation_status !== 'approved')) return null;
+  if (!range || range.end.getTime() <= Date.now()) return null;
+  if (event.location_type !== 'online' && event.location_type !== 'hybrid') return null;
+
+  return safePublicResourceUrl(event.online_url);
+}
+
+function publicRegistrationLocation(event: Event): { name: string; url: string | null } {
+  if (event.location_type === 'online') return { name: 'Online event', url: null };
+
+  return {
+    name: event.location?.label ?? event.location?.name ?? 'Location to be announced',
+    url: event.location?.url ?? null,
+  };
+}
+
 function publicRegistrationCalendarUrl(event: Event, c: Context): string {
   const key = event.slug?.trim() || event.id;
 
@@ -3066,9 +3093,10 @@ async function sendPendingRegistrationConfirmationEmails(
       eventName: event.name,
       eventDate: event.event_date,
       eventEndDate: event.end_date,
-      locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
-      locationUrl: event.location?.url,
+      locationName: publicRegistrationLocation(event).name,
+      locationUrl: publicRegistrationLocation(event).url,
       eventUrl: publicEventDetailsUrl(event, c),
+      onlineUrl: publicOnlineUrl(event),
       calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
       status: delivery.registration_status,
       kind: delivery.kind,
@@ -7791,8 +7819,9 @@ app.get('/api/registration/events/:eventId/calendar.ics', async (c) => {
     eventName: event.name,
     eventDate: event.event_date,
     eventEndDate: event.end_date,
-    locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
+    locationName: publicRegistrationLocation(event).name,
     eventUrl: publicEventDetailsUrl(event, c),
+    onlineUrl: publicOnlineUrl(event),
     updatedAt: event.updated_at,
   });
 
@@ -7816,6 +7845,8 @@ app.get('/api/registration/events/:eventId', async (c) => {
   }
 
   const availability = registrationAvailability(campaign);
+  const onlineUrl = publicOnlineUrl(event);
+  const location = publicRegistrationLocation(event);
 
   return c.json({
     available: availability.available,
@@ -7827,8 +7858,20 @@ app.get('/api/registration/events/:eventId', async (c) => {
       event_date: event.event_date,
       end_date: event.end_date ?? null,
       cover: event.cover ?? null,
-      location: event.location ?? null,
+      location: event.location_type === 'online' ? { name: location.name, label: location.name, url: location.url } : event.location ?? null,
       updated_at: event.updated_at,
+      online_url: onlineUrl,
+    },
+    calendar: {
+      google_url: googleCalendarUrl({
+        eventName: event.name,
+        eventDate: event.event_date,
+        eventEndDate: event.end_date,
+        locationName: location.name,
+        eventUrl: publicEventDetailsUrl(event, c),
+        onlineUrl,
+      }),
+      download_url: publicRegistrationCalendarUrl(event, c),
     },
     campaign: {
       status: campaign.status,
@@ -8432,9 +8475,10 @@ app.post('/api/events/:eventId/blasts', async (c) => {
     eventName: event.name,
     eventDate: event.event_date,
     eventEndDate: event.end_date,
-    locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
-    locationUrl: event.location?.url,
+    locationName: publicRegistrationLocation(event).name,
+    locationUrl: publicRegistrationLocation(event).url,
     eventUrl: publicEventDetailsUrl(event, c),
+    onlineUrl: publicOnlineUrl(event),
     calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
   }) : null;
 
@@ -8821,9 +8865,10 @@ app.post('/api/internal/event-blasts/prepare', async (c) => {
           eventName: event.name,
           eventDate: event.event_date,
           eventEndDate: event.end_date,
-          locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
-          locationUrl: event.location?.url,
+          locationName: publicRegistrationLocation(event).name,
+          locationUrl: publicRegistrationLocation(event).url,
           eventUrl: publicEventDetailsUrl(event, c),
+          onlineUrl: publicOnlineUrl(event),
           calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
           subject: current.subject,
           body: current.body,
@@ -9610,7 +9655,7 @@ app.patch('/api/events/:eventId', async (c) => {
       ...(body.cover !== undefined ? { cover: safeWebsiteUrl(body.cover) } : {}),
       ...(body.stream_url !== undefined ? { stream_url: safeHttpUrl(body.stream_url) } : {}),
       ...(body.registration_url !== undefined ? { registration_url: safeWebsiteUrl(body.registration_url) } : {}),
-      ...(body.online_url !== undefined ? { online_url: safeHttpUrl(body.online_url) } : {}),
+      ...(body.online_url !== undefined ? { online_url: safePublicResourceUrl(body.online_url) } : {}),
       ...(body.external_url !== undefined ? { external_url: safeHttpUrl(body.external_url) } : {}),
       ...(body.schedule ? { schedule: normalizePublicSchedule(body.schedule) } : {}),
       ...(body.photos ? { photos: normalizeEventPhotos(body.photos) } : {}),

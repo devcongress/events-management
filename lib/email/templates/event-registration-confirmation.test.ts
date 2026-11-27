@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   eventRegistrationCalendarFile,
+  googleCalendarUrl,
   eventRegistrationConfirmationEmail,
 } from './event-registration-confirmation';
 
@@ -122,6 +123,30 @@ describe('event registration calendar file', () => {
     expect(file?.content).toContain('LOCATION:Accra Digital Centre\\, Accra\r\n');
     expect(file?.content).toContain('STATUS:CONFIRMED\r\n');
     expect(file?.content.endsWith('\r\n')).toBe(true);
+  });
+
+  it('includes only safe online links in public calendars without implying registration', () => {
+    const input = {
+      eventId: 'event-1',
+      eventName: 'Hybrid meetup',
+      eventDate: '2026-08-29T18:00:00.000Z',
+      locationName: 'Accra',
+      onlineUrl: 'https://meet.example.com/join',
+    };
+    const google = new URL(googleCalendarUrl(input)!);
+    const file = eventRegistrationCalendarFile(input)!;
+
+    expect(google.searchParams.get('dates')).toBe('20260829T180000Z/20260829T210000Z');
+    expect(google.searchParams.get('details')).toContain('Join online: https://meet.example.com/join');
+    expect(google.searchParams.get('details')).not.toContain('confirmed');
+    expect(file.content).toContain('DESCRIPTION:Join online: https://meet.example.com/join');
+    expect(file.content).toContain('LOCATION:Accra');
+    expect(file.content).not.toContain('Your place is confirmed');
+
+    for (const onlineUrl of ['', 'javascript:alert(1)', 'https://user:pass@example.com/']) {
+      expect(new URL(googleCalendarUrl({ ...input, onlineUrl })!).searchParams.get('details')).not.toContain('Join online');
+      expect(eventRegistrationCalendarFile({ ...input, onlineUrl })!.content).not.toContain('Join online');
+    }
   });
 
   it('uses an exclusive next-day end for all-day calendar entries', () => {

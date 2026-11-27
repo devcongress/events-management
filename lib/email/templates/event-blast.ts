@@ -87,7 +87,7 @@ function calendarDate(value: Date, allDay: boolean): string {
   return allDay ? value.toISOString().slice(0, 10).replaceAll('-', '') : value.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
-function googleCalendarUrl(input: { eventName: string; eventDate: string; eventEndDate?: string | null; locationName: string; eventUrl?: string | null }): string | null {
+function googleCalendarUrl(input: { eventName: string; eventDate: string; eventEndDate?: string | null; locationName: string; eventUrl?: string | null; onlineUrl?: string | null }): string | null {
   const range = eventDateRange(input);
 
   if (!range) return null;
@@ -96,7 +96,7 @@ function googleCalendarUrl(input: { eventName: string; eventDate: string; eventE
   url.searchParams.set('action', 'TEMPLATE');
   url.searchParams.set('text', textLine(input.eventName, 'DevCongress event'));
   url.searchParams.set('dates', `${calendarDate(range.start, range.allDay)}/${calendarDate(range.end, range.allDay)}`);
-  url.searchParams.set('details', ['Your place is confirmed for this DevCongress event.', safeHttpUrl(input.eventUrl) ? `Event details: ${safeHttpUrl(input.eventUrl)}` : null].filter(Boolean).join('\n\n'));
+  url.searchParams.set('details', ['Your place is confirmed for this DevCongress event.', safeHttpUrl(input.onlineUrl) ? `Join online: ${safeHttpUrl(input.onlineUrl)}` : null, safeHttpUrl(input.eventUrl) ? `Event details: ${safeHttpUrl(input.eventUrl)}` : null].filter(Boolean).join('\n\n'));
   url.searchParams.set('location', textLine(input.locationName, 'Location to be announced'));
 
   return url.toString();
@@ -128,6 +128,7 @@ export function eventBlastEmail(input: {
   locationUrl?: string | null;
   eventUrl?: string | null;
   calendarDownloadUrl?: string | null;
+  onlineUrl?: string | null;
 }): { html: string; text: string } {
   const outline = input.outline ?? [];
   const outlineText = eventBlastOutlineText(outline);

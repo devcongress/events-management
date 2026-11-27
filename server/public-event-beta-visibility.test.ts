@@ -198,6 +198,19 @@ describe('private beta event visibility', () => {
     });
   });
 
+  it.each(['http://example.com/join', 'https://192.168.1.4/join'])('omits unsafe legacy online link %s from the public feed', async (online_url) => {
+    const eventsFile = path.join(tempRoot, 'data', 'events.json');
+    const events = JSON.parse(await fs.readFile(eventsFile, 'utf-8'));
+
+    await fs.writeFile(eventsFile, JSON.stringify(events.map((item: { id: string }) => (
+      item.id === 'official' ? { ...item, online_url } : item
+    ))));
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/public/events/official');
+
+    expect((await response.json()).data.online_url).toBeNull();
+  });
+
   it('rejects malformed public event slugs without querying the feed', async () => {
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/public/events/not%20a%20slug');
