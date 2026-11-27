@@ -35,7 +35,8 @@ import {
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { adminPath } from '@/src/admin-routes';
 import { registrationAvailability } from '@/lib/event-registration';
-import { safeGoogleMapsUrl } from '@/lib/location-links';
+import { safePublicResourceUrl } from '@/lib/safe-url';
+import { registrationPageDetailsPatch, registrationPageLocationDraft, registrationPageLocationPatch, registrationPageLocationValid, type RegistrationPageDetailsDraft } from '@/src/lib/registration-page-location';
 import { notify } from '@/src/lib/notify';
 import { eventBlastStarters } from '@/src/lib/event-blast-workspace';
 import {
@@ -103,24 +104,17 @@ const settings = reactive({
   closes_at: '',
 });
 
-type RegistrationPageLocationMode = 'venue' | 'maps';
-type RegistrationPageDetailsDraft = {
-  name: string;
-  description: string;
-  event_date: string;
-  end_date: string;
-  location_mode: RegistrationPageLocationMode;
-  location_name: string;
-  location_url: string;
-};
 const pageDetails = reactive<RegistrationPageDetailsDraft>({
   name: '',
   description: '',
   event_date: '',
   end_date: '',
+  location_type: 'in_person',
+  stored_location_type: undefined,
   location_mode: 'venue',
   location_name: '',
   location_url: '',
+  online_url: '',
 });
 const savedPageDetails = ref<RegistrationPageDetailsDraft | null>(null);
 const pageLocationPlaceId = ref('');
@@ -169,6 +163,11 @@ const statusOptions = [
   { value: 'draft', label: 'Draft' },
   { value: 'open', label: 'Open' },
   { value: 'closed', label: 'Closed' },
+];
+const pageLocationTypeOptions = [
+  { value: 'in_person', label: 'In person' },
+  { value: 'online', label: 'Online' },
+  { value: 'hybrid', label: 'Hybrid' },
 ];
 const pageLocationOptions = [
   { value: 'venue', label: 'Venue name' },
@@ -419,25 +418,30 @@ const changedSettingFields = computed<RegistrationSettingsField[]>(() => (
     : []
 ));
 const hasSettingsChanges = computed(() => changedSettingFields.value.length > 0);
-const currentPageDetails = computed<RegistrationPageDetailsDraft>(() => ({ ...pageDetails }));
 const pageDetailsEndDateError = computed(() => eventEndDateError(
   pageDetails.event_date,
   pageDetails.end_date,
 ));
 const hasPageDetailsChanges = computed(() => (
-  Boolean(savedPageDetails.value)
-  && JSON.stringify(savedPageDetails.value) !== JSON.stringify(currentPageDetails.value)
+  savedPageDetails.value && (
+    pageDetails.name !== savedPageDetails.value.name
+    || pageDetails.description !== savedPageDetails.value.description
+    || pageDetails.event_date !== savedPageDetails.value.event_date
+    || pageDetails.end_date !== savedPageDetails.value.end_date
+    || Object.keys(registrationPageLocationPatch(pageDetails, savedPageDetails.value)).length > 0
+  )
+));
+const pageOnlineUrlInvalid = computed(() => (
+  pageDetails.location_type !== 'in_person'
+  && Boolean(pageDetails.online_url.trim())
+  && !safePublicResourceUrl(pageDetails.online_url)
 ));
 const pageDetailsValid = computed(() => Boolean(
   pageDetails.name.trim()
   && pageDetails.description.trim()
   && pageDetails.event_date
   && !pageDetailsEndDateError.value
-  && (
-    pageDetails.location_mode === 'maps'
-      ? safeGoogleMapsUrl(pageDetails.location_url)
-      : pageDetails.location_name.trim()
-  )
+  && registrationPageLocationValid(pageDetails)
 ));
 const canSavePageDetails = computed(() => (
   hasPageDetailsChanges.value
@@ -559,17 +563,13 @@ watch([
 
 watch(() => data.value?.event, (event) => {
   if (!event) return;
-  const mapUrl = safeGoogleMapsUrl(event.location?.url);
-
   pageLocationPlaceId.value = '';
   const snapshot: RegistrationPageDetailsDraft = {
     name: event.name,
     description: event.description ?? '',
     event_date: toLocalDateTime(event.event_date),
     end_date: toLocalDateTime(event.end_date ?? null),
-    location_mode: mapUrl ? 'maps' : 'venue',
-    location_name: mapUrl ? '' : event.location?.label ?? event.location?.name ?? '',
-    location_url: mapUrl ?? '',
+    ...registrationPageLocationDraft(event),
   };
 
   Object.assign(pageDetails, snapshot);
@@ -965,33 +965,9 @@ async function saveSettings() {
 
 async function savePageDetails() {
   if (!canSavePageDetails.value) return;
-  const mapUrl = pageDetails.location_mode === 'maps'
-    ? safeGoogleMapsUrl(pageDetails.location_url)
-    : null;
-
-  if (pageDetails.location_mode === 'maps' && !mapUrl) {
-    notify.error('Add a complete HTTPS Google Maps share link.');
-
-    return;
-  }
-
   pageDetailsSaving.value = true;
   try {
-    const locationName = pageDetails.location_mode === 'maps'
-      ? 'Google Maps location'
-      : pageDetails.location_name.trim();
-
-    await updateEventById(eventId.value, {
-      name: pageDetails.name.trim(),
-      description: pageDetails.description.trim(),
-      event_date: toIso(pageDetails.event_date),
-      end_date: toIso(pageDetails.end_date),
-      location: {
-        name: locationName,
-        label: locationName,
-        url: mapUrl,
-      },
-    });
+    await updateEventById(eventId.value, registrationPageDetailsPatch(pageDetails, savedPageDetails.value!));
     await refresh();
     await queryClient.invalidateQueries({ queryKey: queryKeys.event(eventId.value) });
     notify.success('Registration page details updated.');
@@ -1592,16 +1568,22 @@ async function retryEmails() {
                   :default-time="data?.event.series_type === 'monthly' ? MONTHLY_EVENT_DEFAULT_END_TIME : undefined"
                   :error="pageDetailsEndDateError ?? undefined"
                 />
-                <AppDropdown v-model="pageDetails.location_mode" label="Location details" :options="pageLocationOptions" />
+                <AppDropdown v-model="pageDetails.location_type" label="Event location" :options="pageLocationTypeOptions" />
+                <AppDropdown v-if="pageDetails.location_type !== 'online'" v-model="pageDetails.location_mode" label="Location details" :options="pageLocationOptions" />
                 <GhanaVenueAutocomplete
-                  v-if="pageDetails.location_mode === 'venue'"
+                  v-if="pageDetails.location_type !== 'online' && pageDetails.location_mode === 'venue'"
                   v-model="pageDetails.location_name"
                   v-model:place-id="pageLocationPlaceId"
                   :disabled="pageDetailsSaving"
                 />
-                <div v-else>
+                <div v-if="pageDetails.location_type !== 'online' && pageDetails.location_mode === 'maps'">
                   <label for="registration-event-map" class="editorial-label">Google Maps share link</label>
                   <input id="registration-event-map" v-model="pageDetails.location_url" type="url" class="editorial-input" maxlength="2048" placeholder="https://maps.app.goo.gl/..." required>
+                </div>
+                <div v-if="pageDetails.location_type !== 'in_person'">
+                  <label for="registration-event-online" class="editorial-label">Public joining link</label>
+                  <input id="registration-event-online" v-model="pageDetails.online_url" type="url" class="editorial-input" maxlength="2048" placeholder="https://meet.example.com/..." :aria-invalid="pageOnlineUrlInvalid" aria-describedby="registration-event-online-help">
+                  <p id="registration-event-online-help" class="mt-1 text-sm text-dc-gray">{{ pageOnlineUrlInvalid ? 'Enter a valid public HTTPS link.' : 'Anyone can see this link. You can add it later.' }}</p>
                 </div>
                 <div class="flex items-end md:col-start-2">
                   <button type="submit" class="editorial-action min-h-[54px] w-full justify-center disabled:opacity-50" :disabled="!canSavePageDetails">

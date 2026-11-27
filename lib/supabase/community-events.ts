@@ -5,7 +5,7 @@ import type { CommunityEventSeriesType, CommunityEventStatus, Database, Json } f
 import { allowedCfpKinds, cfpKindsSchema } from '@/lib/cfp-kinds';
 import { inferEventSeriesType, isEventSeriesType } from '@/lib/event-series';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
-import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
+import { safeHttpUrl, safePublicResourceUrl, safeWebsiteUrl } from '@/lib/safe-url';
 import { isEventFormat } from '@/lib/event-format';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER, publicEventCoverUrl } from '@/lib/event-cover';
 import { PUBLIC_EVENT_COLLECTION_LIMIT } from '@/lib/public-api-policy';
@@ -505,7 +505,7 @@ function toEvent(row: CommunityEventRow): Event {
     timezone: row.timezone,
     location_type: row.location_type,
     venue_address: row.venue_address,
-    online_url: safeHttpUrl(row.online_url),
+    online_url: safePublicResourceUrl(row.online_url),
     organizer_name: row.organizer_name,
     organizer_url: safeHttpUrl(row.organizer_url),
     source_submission_id: row.source_submission_id,
@@ -562,7 +562,7 @@ function toPublicEvent(row: CommunityEventRow): PublicEvent {
     location_type: row.location_type,
     venue_name: row.location_name || null,
     venue_address: row.venue_address ?? row.location_label,
-    online_url: safeHttpUrl(row.online_url),
+    online_url: safePublicResourceUrl(row.online_url),
     stream_url: safeHttpUrl(row.stream_url),
     embed_stream: row.embed_stream ?? false,
     registration_url: safeWebsiteUrl(row.registration_url),

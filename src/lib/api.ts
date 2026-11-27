@@ -533,7 +533,8 @@ export type AdminEventRegistrationsResponse =
 export interface PublicEventRegistrationResponse {
   available: boolean;
   unavailable_reason: 'draft' | 'closed' | 'not_open' | 'ended' | null;
-  event: Pick<Event, 'id' | 'name' | 'description' | 'event_date' | 'end_date' | 'cover' | 'location' | 'updated_at'>;
+  event: Pick<Event, 'id' | 'name' | 'description' | 'event_date' | 'end_date' | 'cover' | 'location' | 'updated_at' | 'online_url'>;
+  calendar: { google_url: string | null; download_url: string };
   campaign: Pick<EventRegistrationCampaign, 'status' | 'description' | 'opens_at' | 'closes_at' | 'waitlist_enabled'>;
 }
 

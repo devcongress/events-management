@@ -103,6 +103,12 @@ describe('getSupabasePublicEvents', () => {
     ]);
   });
 
+  it.each(['http://example.com/join', 'https://192.168.1.4/join'])('omits unsafe legacy online link %s', async (online_url) => {
+    mockPublicEventQuery([communityEventRow({ online_url })]);
+
+    expect((await getSupabasePublicEvents())?.[0]?.online_url).toBeNull();
+  });
+
   it('excludes public submissions before applying the collection limit when discovery is disabled', async () => {
     const query = mockPublicEventQuery([communityEventRow()]);
 
